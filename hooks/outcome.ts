@@ -1,5 +1,5 @@
 import { TEST_CMD, changeParts } from './activity'
-import { C, clip, clipMiddle, fmtDuration, pad, vw } from './grid'
+import { C, fmtDuration, pad, vw } from './grid'
 import { clipLabel, sourceLabel } from './research'
 import { frameLines } from './states'
 import { clean, stripNoise } from './testsummary'
@@ -34,7 +34,10 @@ export function previousRun(runs: readonly TestRun[], id: string): TestRun | und
 
   const me = runs[i]
 
-  return runs.slice(0, i).reverse().find(r => r.runner === me?.runner)
+  return runs
+    .slice(0, i)
+    .toReversed()
+    .find(r => r.runner === me?.runner)
 }
 
 /** `[ TESTS ]`: big counts, one segmented rail, the change since the last run, runner · time. */
@@ -118,7 +121,7 @@ export function mergeShips(stepList: readonly Turned[], shipList: readonly Ship[
 
   if (mine.length === 0) return undefined
 
-  const last = <K extends 'commit' | 'push' | 'pr'>(k: K) => [...mine].reverse().find(x => x[k] !== undefined)?.[k]
+  const last = <K extends 'commit' | 'push' | 'pr'>(k: K) => mine.toReversed().find(x => x[k] !== undefined)?.[k]
   const commit = last('commit')
   const push = last('push')
   const pr = last('pr')
@@ -189,11 +192,11 @@ export function parseShip(id: string, command: string, raw: string): Ship | unde
 }
 
 const LABEL_W = 8
+const label = (t: string): Part => ({ t: pad(t, LABEL_W), color: C.muted })
 
 /** `[ SHIPPED ]`, meta `PR open` / `pushed` / `committed`; rows labelled in words (r10). */
 export function shippedFrame(width: number, ship: Ship): Part[][] {
   const inner = width - 4
-  const label = (t: string): Part => ({ t: pad(t, LABEL_W), color: C.muted })
   const rows: Part[][] = []
 
   if (ship.commit !== undefined) {
@@ -227,8 +230,7 @@ export function shippedFrame(width: number, ship: Ship): Part[][] {
     ])
   }
 
-  const meta =
-    ship.pr !== undefined ? 'PR open' : ship.push !== undefined ? 'pushed' : 'committed'
+  const meta = ship.pr !== undefined ? 'PR open' : ship.push !== undefined ? 'pushed' : 'committed'
 
   return frameLines(width, 'SHIPPED', { t: meta, color: C.ok }, rows)
 }
@@ -238,9 +240,10 @@ export function shellText(output: unknown): string {
   if (typeof output === 'string') return stripNoise(output)
 
   if (typeof output === 'object' && output !== null) {
-    const o = output as Record<string, unknown>
+    const stdout = 'stdout' in output ? output.stdout : undefined
+    const stderr = 'stderr' in output ? output.stderr : undefined
 
-    return stripNoise([o.stdout, o.stderr].filter((x): x is string => typeof x === 'string').join('\n'))
+    return stripNoise([stdout, stderr].filter((x): x is string => typeof x === 'string').join('\n'))
   }
 
   return ''

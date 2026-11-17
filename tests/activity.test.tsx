@@ -73,7 +73,9 @@ test('paths: relative inside the session, ~ for home, one slash style, clipped a
 
 test('change counts never show +0 or −0', async () => {
   const edit = (lines: string[]) =>
-    stepOf('Edit', { file_path: 'a' }, { filePath: 'a', structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines }] }, OK)?.result.map(r => r.text)
+    stepOf('Edit', { file_path: 'a' }, { filePath: 'a', structuredPatch: [{ oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines }] }, OK)?.result.map(
+      r => r.text
+    )
 
   expect(edit([' a', '+b'])).toEqual(['+1'])
   expect(edit([' a', '-b'])).toEqual(['−1'])
@@ -120,7 +122,10 @@ test('rows: ours when readable, the engine when expanded or unknown', async ($, 
 
   const base = { tool_use_id: 'x1', isRunning: false, isErrored: false, isInterrupted: false }
   const mine = await $.ui.mount({
-    plugin: 'ghostframe', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolUse',
+    viewport: VIEW,
     props: { ...base, tool: 'Read', input: { file_path: 'src/a.ts' }, output: { type: 'text', file: { numLines: 212 } } }
   })
   expect(await mine.find({ type: 'Text', text: /^212 lines$/ })).toBeDefined()
@@ -141,7 +146,10 @@ test('diff card off by default; only a new file under 12 lines; ctrl+o is the en
 
   const result = (output: unknown, isExpanded?: boolean) =>
     $.ui.mount({
-      plugin: 'ghostframe', surface: 'terminal', component: 'ToolResult', viewport: VIEW,
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
       props: { tool_use_id: 'e1', tool: 'Write', isErrored: false, output, ...(isExpanded ? { isExpanded } : {}) }
     })
 
@@ -173,7 +181,13 @@ test('shell output: no lines by default; ctrl+o is the engine, without its own n
 
   const output = { stdout: '1\n2\n3\n4\n5\nShell cwd was reset to D:\\Projects', stderr: '', interrupted: false }
   const mount = (isExpanded: boolean) =>
-    $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'b1', tool: 'Bash', isErrored: false, isExpanded, output } })
+    $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
+      props: { tool_use_id: 'b1', tool: 'Bash', isErrored: false, isExpanded, output }
+    })
 
   const shell = await mount(false)
   expect(await shell.findAll({ type: 'Text' })).toHaveLength(0)
@@ -186,7 +200,11 @@ test('shell output: no lines by default; ctrl+o is the engine, without its own n
 })
 
 test('shell rows: the description is the target; the result is ✓, ✗ exit N, or the test summary', async () => {
-  expect(describe('Bash', { command: 'claude plugin test .', description: 'Run plugin tests' })).toEqual({ verb: 'test', target: 'Run plugin tests', isPath: false })
+  expect(describe('Bash', { command: 'claude plugin test .', description: 'Run plugin tests' })).toEqual({
+    verb: 'test',
+    target: 'Run plugin tests',
+    isPath: false
+  })
   expect(describe('Bash', { command: 'git status' })?.target).toBe('git status')
 
   const pass = stepOf('Bash', { command: 'bun test' }, { stdout: ' 56 pass\n 0 fail\nShell cwd was reset to D:\\Projects', stderr: '' }, OK)
@@ -196,7 +214,9 @@ test('shell rows: the description is the target; the result is ✓, ✗ exit N, 
   expect(stepOf('Bash', { command: 'ls' }, { stdout: 'a\nb', stderr: '' }, OK)?.result[0]?.text).toBe('ok')
   expect(stepOf('Bash', { command: 'make' }, 'Error: Exit code 2\nmake: *** no rule', { ...OK, isErrored: true })?.result[0]?.text).toBe('exit 2')
   // The engine's note is never the detail line.
-  expect(stepOf('Bash', { command: 'false' }, 'Error: Exit code 1\nShell cwd was reset to D:\\Projects\nreal reason', { ...OK, isErrored: true })?.detail).toBe('real reason')
+  expect(stepOf('Bash', { command: 'false' }, 'Error: Exit code 1\nShell cwd was reset to D:\\Projects\nreal reason', { ...OK, isErrored: true })?.detail).toBe(
+    'real reason'
+  )
 })
 
 test('a group we cannot draw whole is the engine node, under no sized Box', async ($, on) => {
@@ -211,7 +231,7 @@ test('a group we cannot draw whole is the engine node, under no sized Box', asyn
     expect(await ui.find({ type: 'Text', text: /^engine$/ })).toBeDefined()
     // Only the indent wrappers: no Box here carries a width or height.
     for (const b of await ui.findAll({ type: 'Box' })) {
-      expect(b.props.width === undefined && b.props.height === undefined && b.props.minWidth === undefined).toBe(true)
+      expect(b.props['width'] === undefined && b.props['height'] === undefined && b.props['minWidth'] === undefined).toBe(true)
     }
     await ui.unmount()
   }
@@ -232,8 +252,19 @@ test('a turn that opens on tools: `claude` on its first step (the activity heade
 
   const row = (id: string) =>
     $.ui.mount({
-      plugin: 'ghostframe', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-      props: { tool_use_id: id, tool: 'Read', input: { file_path: 'a.ts' }, isRunning: false, isErrored: false, isInterrupted: false, output: { type: 'text', file: { numLines: 3 } } }
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolUse',
+      viewport: VIEW,
+      props: {
+        tool_use_id: id,
+        tool: 'Read',
+        input: { file_path: 'a.ts' },
+        isRunning: false,
+        isErrored: false,
+        isInterrupted: false,
+        output: { type: 'text', file: { numLines: 3 } }
+      }
     })
 
   const first = await row('first')
@@ -249,11 +280,19 @@ test('a folded group of reads becomes timeline rows', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const call = (id: string, file: string, n: number) => ({
-    tool_use_id: id, tool: 'Read', input: { file_path: file }, isRunning: false, isErrored: false, isInterrupted: false,
+    tool_use_id: id,
+    tool: 'Read',
+    input: { file_path: file },
+    isRunning: false,
+    isErrored: false,
+    isInterrupted: false,
     output: { type: 'text', file: { numLines: n } }
   })
   const ui = await $.ui.mount({
-    plugin: 'ghostframe', surface: 'terminal', component: 'ToolGroup', viewport: VIEW,
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolGroup',
+    viewport: VIEW,
     props: { calls: [call('g1', 'a.ts', 3), call('g2', 'b.ts', 7)], isActive: false, isExpanded: false, isCallsOnly: true }
   })
   expect(await ui.find({ type: 'Text', text: /^3 lines$/ })).toBeDefined()

@@ -93,6 +93,7 @@ const BARS = /[█▃▄▅▆▇]/
 
 /** One figure row as coloured parts. */
 export function toneRow(line: string): Part[] {
+  // oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
   const chars = [...line]
   const hasBlocks = /[█▃▄▅▆▇▒]/.test(line)
   const parts: Part[] = []
@@ -104,7 +105,7 @@ export function toneRow(line: string): Part[] {
     const next = chars[i + 1]
 
     // A `[====----]` bar: brackets and track in the rule's tone, the fill as a rail.
-    if (ch === '[' && /^\[[=\-]+\]/.test(chars.slice(i).join(''))) {
+    if (ch === '[' && /^\[[=-]+\]/.test(chars.slice(i).join(''))) {
       inBar = true
       return C.hairline
     }
@@ -210,7 +211,7 @@ export function figureLines(f: FigureBlock, width: number, narrow = false): Part
 
 type Item = { mark: string; gap: string; title: string; desc: string[]; next: boolean }
 type Loop = { from: number; to: number; label: string; early: boolean }
-type List = { kind: 'steps' | 'timeline'; items: Item[]; repeat?: Loop; back?: Loop }
+type List = { kind: 'steps' | 'timeline'; items: Item[]; repeat?: Loop | undefined; back?: Loop | undefined }
 
 const MARK_STEP = /^(\d{1,2})( {2,})(\S.*)$/
 const MARK_TIME = /^([●○◐◌▾✓✗✕•·])( {2,})(\S.*)$/u
@@ -361,11 +362,17 @@ function listLines(list: List, inner: number, narrow: boolean, closed: boolean) 
   })
 
   // The bracket: from step `from`'s title to step `to`'s last row (not its spacer).
-  const span = bracket === undefined ? [] : out.map((r, k) => ({ r, k })).filter(({ r }) => {
-    const n = Number(items[r.item]?.mark)
+  const span =
+    bracket === undefined
+      ? []
+      : out
+          .map((r, k) => ({ r, k }))
+          .filter(({ r }) => {
+            const n = Number(items[r.item]?.mark)
 
-    return n >= bracket.from && n <= bracket.to && !(r.tail && n === bracket.to)
-  }).map(({ k }) => k)
+            return n >= bracket.from && n <= bracket.to && !(r.tail && n === bracket.to)
+          })
+          .map(({ k }) => k)
   const top = span[0] ?? -1
   const h = span.length
   // Two cells after the widest row it brackets (titles and descriptions), never past
@@ -384,11 +391,7 @@ function listLines(list: List, inner: number, narrow: boolean, closed: boolean) 
     // ┐ │ ┤ label │ ┘, all in the spine's colour; one row is `]`, two are ┐ ┘ (label on ┐).
     const glyph = h === 1 ? ']' : at === 0 ? '┐' : at === h - 1 ? '┘' : at === mid ? '┤' : G.spine
 
-    return [
-      ...fitParts(r.parts, col),
-      { t: glyph, color: C.rule },
-      ...(at === mid ? [{ t: ` ${bracket.label}`, color: C.dim }] : [])
-    ]
+    return [...fitParts(r.parts, col), { t: glyph, color: C.rule }, ...(at === mid ? [{ t: ` ${bracket.label}`, color: C.dim }] : [])]
   })
 
   const notes: Part[][] = []

@@ -33,8 +33,7 @@ export const withSkill = (c: Caps, s: string): Caps => ({ ...c, skills: addTo(c.
 export const withHook = (c: Caps, h: string): Caps => ({ ...c, hooks: addTo(c.hooks, h) })
 export const withMcp = (c: Caps, server: string): Caps => ({ ...c, mcp: addTo(c.mcp, server) })
 
-export const hasCaps = (c: Caps) =>
-  c.skills.length > 0 || c.hooks.length > 0 || c.mcp.length > 0 || c.thoughtMs >= THOUGHT_MIN_MS
+export const hasCaps = (c: Caps) => c.skills.length > 0 || c.hooks.length > 0 || c.mcp.length > 0 || c.thoughtMs >= THOUGHT_MIN_MS
 
 /**
  * A classic hook's answer, in words, only when it changed something: blocked or denied
@@ -42,22 +41,28 @@ export const hasCaps = (c: Caps) =>
  * that only ran (allowed, asked, or added context, as a hook on every prompt does)
  * → undefined: it never reaches the capability line or the tally.
  */
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
 export function hookOutcome(event: string, result: unknown): string | undefined {
-  if (typeof result !== 'object' || result === null) return undefined
+  if (!isObject(result)) return undefined
 
-  const r = result as Record<string, unknown>
+  const r = result
 
-  if (typeof r.block === 'string' || r.preventContinuation === true) return `${event} blocked`
-  if (typeof r.deny === 'string' || r.permissionDecision === 'deny') return `${event} denied`
-  if (r.suppressOriginalPrompt === true || r.updatedInput !== undefined || r.updatedToolOutput !== undefined || r.updatedMCPToolOutput !== undefined) {
+  if (typeof r['block'] === 'string' || r['preventContinuation'] === true) return `${event} blocked`
+  if (typeof r['deny'] === 'string' || r['permissionDecision'] === 'deny') return `${event} denied`
+  if (
+    r['suppressOriginalPrompt'] === true ||
+    r['updatedInput'] !== undefined ||
+    r['updatedToolOutput'] !== undefined ||
+    r['updatedMCPToolOutput'] !== undefined
+  ) {
     return `${event} rewrote`
   }
 
   return undefined
 }
 
-const fit = (parts: Part[], width: number) =>
-  partsWidth(parts) <= width ? parts : fitParts(parts, width).filter(p => p.t.trim().length > 0)
+const fit = (parts: Part[], width: number) => (partsWidth(parts) <= width ? parts : fitParts(parts, width).filter(p => p.t.trim().length > 0))
 
 /**
  * `skills debugging, debug · hook PreToolUse allowed · mcp github · thought 6s`: kind
@@ -96,8 +101,7 @@ export function capsLine(c: Caps, width: number): Part[] | undefined {
 }
 
 /** Level 3 (§0): the turn ran agents, a browser, research, tests, shipping or skills. */
-export const isRun = (t: Tally) =>
-  t.skills.length > 0 || t.agents > 0 || t.sources.length > 0 || t.browser > 0 || t.tests > 0 || t.shipped > 0
+export const isRun = (t: Tally) => t.skills.length > 0 || t.agents > 0 || t.sources.length > 0 || t.browser > 0 || t.tests > 0 || t.shipped > 0
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

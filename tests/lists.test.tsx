@@ -8,17 +8,18 @@ import { partsWidth } from '../hooks/states'
 const VIEW = { columns: 120, rows: 40 }
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 /** Every visible line of a reply's own blocks (the one-Text-per-block holders). */
 async function linesOf(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
   return (await ui.findAll({ type: 'Text' }))
-    .filter(t => t.props.wrap === 'wrap')
+    .filter(t => t.props['wrap'] === 'wrap')
     .flatMap(t => t.text.split('\n'))
     .map(l => l.trimEnd())
 }
@@ -48,7 +49,13 @@ test('a list draws `·` and numbers muted, a hanging indent, chips and bright bo
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const long = 'this item is long enough that it has to wrap onto a second line under its own text, not under the marker'
   const text = `**Why it's close**\n- the limit is \`5000 ms\` per test\n- **slower** now: ${long}\n  - nested one\n2. numbered`
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text, isFirstOfReply: false }
+  })
   const lines = await linesOf(ui)
   expect(lines[0]).toBe("Why it's close")
   expect(lines[1]).toBe('· the limit is  5000 ms  per test')
@@ -58,9 +65,9 @@ test('a list draws `·` and numbers muted, a hanging indent, chips and bright bo
   expect(lines.some(l => l.startsWith('  · nested one'))).toBe(true)
   expect(lines.some(l => l.startsWith('2. numbered'))).toBe(true)
   expect(await ui.find({ type: 'Text', text: /^ 5000 ms $/ })).toBeDefined() // the chip
-  expect((await ui.find({ type: 'Text', text: /^slower$/ }))?.props.weight).toBe('bold')
-  expect((await ui.find({ type: 'Text', text: /^Why it's close$/ }))?.props.weight).toBe('bold')
-  expect((await ui.find({ type: 'Text', text: /^· $/ }))?.props.color).toBe('#686874')
+  expect((await ui.find({ type: 'Text', text: /^slower$/ }))?.props['weight']).toBe('bold')
+  expect((await ui.find({ type: 'Text', text: /^Why it's close$/ }))?.props['weight']).toBe('bold')
+  expect((await ui.find({ type: 'Text', text: /^· $/ }))?.props['color']).toBe('#686874')
   expect(await ui.find({ type: 'Text', text: /^engine$/ })).toBeUndefined()
   await ui.unmount()
 })
@@ -75,7 +82,13 @@ test('a list streams stable: a finished item never re-lays out, a half-written l
     '  - a probe showed the card cache does not leak between tests',
     '- the fix is a per-test `timeoutMs` or cheaper redraws'
   ].join('\n')
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: FULL.slice(0, 20), isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: FULL.slice(0, 20), isFirstOfReply: false }
+  })
   let prev: string[] = []
 
   for (let cut = 25; ; cut = Math.min(FULL.length, cut + 7)) {
@@ -107,7 +120,13 @@ test('bare URLs, `(https://…)` and `owner/repo#123 (https://…)` become marke
 test('a list item with a link gets its marker; the list gets one footnote line under it', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const text = '- see anthropics/claude-code#108931 (https://github.com/anthropics/claude-code/issues/108931)\n- and https://bun.com/docs/test'
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text, isFirstOfReply: false }
+  })
   expect(await ui.find({ type: 'Text', text: /^¹$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^²$/ })).toBeDefined()
   // The labels alone: no engine Link (its fallback appends the raw URL), no raw URL.
@@ -149,13 +168,19 @@ test('narration: prose a tool call follows is dim; the final answer and plain Q&
   await $.session.append(respond([{ type: 'text', text: 'Fixed. The **config** was wrong.' }], 'c'))
 
   const color = async (text: string) => {
-    const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: true } })
+    const ui = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      viewport: VIEW,
+      props: { text, isFirstOfReply: true }
+    })
     // The coloured spans, not the line Text that holds them.
-    const spans = (await ui.findAll({ type: 'Text' })).filter(t => t.props.color !== undefined)
+    const spans = (await ui.findAll({ type: 'Text' })).filter(t => t.props['color'] !== undefined)
     const found = spans.find(t => /^(Reading|Fixed\.)$/.test(t.text)) // one span per word
     const bold = spans.find(t => t.text === 'config')
     await ui.unmount()
-    return [found?.props.color, bold?.props.color]
+    return [found?.props['color'], bold?.props['color']]
   }
 
   expect((await color('Reading the config first.'))[0]).toBe('#4e4e5a')

@@ -32,7 +32,13 @@ test('a header right-aligns over a column whose non-empty cells are mostly numbe
 
   // On screen: the header ends on the same column as the numbers under it.
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 140, rows: 40 }, props: { text: RELEASES, isFirstOfReply: false } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 140, rows: 40 },
+    props: { text: RELEASES, isFirstOfReply: false }
+  } as never)
   const lines = textAt(await ui.drawn(), 140)
   await ui.unmount()
   const head = lines.find(l => l.includes('Contributors')) ?? ''
@@ -75,7 +81,10 @@ test('sources titles: generic or repeated → "<title> · <short label>"; specif
   const frame = sourcesFrame(cites, 96).map(l => l.map(p => p.t).join(''))
   expect(frame.some(l => l.includes('post · bun-v1.4.4'))).toBe(true)
   expect(frame.some(l => l.includes('Bun (software) '))).toBe(true)
-  const notes = footnoteLines(cites.slice(0, 2), 96, true)[0]?.map(p => p.t).join('') ?? ''
+  const notes =
+    footnoteLines(cites.slice(0, 2), 96, true)[0]
+      ?.map(p => p.t)
+      .join('') ?? ''
   expect(notes).toContain('post · bun-v1.4.4')
 })
 
@@ -113,7 +122,10 @@ test('URL labels: a trailing hash or ID is dropped; a long slug clips at its end
 
   // Every place a label shows uses it: the frame, a footnote line, a fetch row, a table cell.
   const cite = [{ n: 1, url: medium, title: 'Bun 1.4: Is It Ready for Production in 2026?' }]
-  const note = footnoteLines(cite, 34)[0]?.map(p => p.t).join('') ?? ''
+  const note =
+    footnoteLines(cite, 34)[0]
+      ?.map(p => p.t)
+      .join('') ?? ''
   expect(note).toMatch(/¹ medium\.com · bun[\w-]*…$/)
   expect(note).not.toMatch(/[-_]…$/)
   const frame = sourcesFrame([...cite, ...[2, 3, 4, 5].map(n => ({ n, url: `https://x.dev/${n}`, title: `T${n}` }))], 60)
@@ -125,6 +137,8 @@ test('URL labels: a trailing hash or ID is dropped; a long slug clips at its end
   const laid = layoutStep(step, '0.7s', 60)
   expect(laid.target).toMatch(/^medium\.com · bun[\w-]*…$/)
 
-  const cell = clipRuns([{ t: label, s: 'label' }], 30).map(r => r.t).join('')
+  const cell = clipRuns([{ t: label, s: 'label' }], 30)
+    .map(r => r.t)
+    .join('')
   expect(cell).toBe('medium.com · bun-1-4-is-it…')
 })

@@ -15,7 +15,7 @@ const STATUS = [
   'Not possible: no render site carries it, so the engine keeps drawing it the way it always has done.',
   '`asked` holds the id until the call returns; the row says `needs you` only while nothing came back yet.'
 ]
-const ROWS = Array.from({ length: 22 },(_, i) => `| r${String(i + 1).padStart(2, '0')} | area ${i % 3} | ${STATUS[i % STATUS.length]} |`)
+const ROWS = Array.from({ length: 22 }, (_, i) => `| r${String(i + 1).padStart(2, '0')} | area ${i % 3} | ${STATUS[i % STATUS.length]} |`)
 
 const REPLY = [
   para(1),
@@ -35,7 +35,7 @@ type Ui = { findAll: (q: { type: string }) => Promise<Found[]> }
 
 /** Our drawn blocks in order, each as its lines (one Text per block). */
 async function blocksOf(ui: Ui): Promise<string[][]> {
-  return (await ui.findAll({ type: 'Text' })).filter(t => t.props.wrap === 'wrap').map(t => t.text.split('\n'))
+  return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'wrap').map(t => t.text.split('\n'))
 }
 
 /** A streamed table's lines above its last row (the one that may still be growing). */

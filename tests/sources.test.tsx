@@ -6,12 +6,13 @@ import { textAt } from './text'
 // Footnotes vs Sources, on the specimen's own reply (tests/specimen.test.tsx, turn 2):
 // a reply split over several messages numbers its sources once, through the turn.
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 const FOOTNOTED = [
   'What changed:',
@@ -33,7 +34,13 @@ const SOURCED = [
 
 const VIEW = { columns: 90, rows: 400 }
 const rows = async ($: Parameters<TestBody>[0], text: string) => {
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: false } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text, isFirstOfReply: false }
+  } as never)
   const out = textAt(await ui.drawn(), VIEW.columns).map(l => l.trimEnd())
   await ui.unmount()
 

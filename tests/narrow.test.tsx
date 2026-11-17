@@ -11,22 +11,25 @@ import { browserTop, urlBar } from '../hooks/browser'
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const WIDTHS = [90, 70, 50] as const
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 /** Every row the mod drew: its one-line Texts, and each line of its block Texts. */
 async function rows(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
   const texts = await ui.findAll({ type: 'Text' })
 
-  return texts
-    .filter(t => t.props.wrap === 'truncate' || t.props.wrap === 'wrap')
-    .flatMap(t => t.text.split('\n'))
-    // A rule's filler: a long ┄ run in a one-row, overflow-hidden box, cut to its room.
-    .filter(l => !/^┄{100,}$/.test(l))
+  return (
+    texts
+      .filter(t => t.props['wrap'] === 'truncate' || t.props['wrap'] === 'wrap')
+      .flatMap(t => t.text.split('\n'))
+      // A rule's filler: a long ┄ run in a one-row, overflow-hidden box, cut to its room.
+      .filter(l => !/^┄{100,}$/.test(l))
+  )
 }
 
 // ─── Part A ──────────────────────────────────────────────────────────────────
@@ -54,7 +57,13 @@ test('footnotes: a list lists its own ³ even when a later paragraph reuses it',
     '',
     'Background: https://github.com/anthropics/claude-code/issues/108931'
   ].join('\n')
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 120, rows: 40 }, props: { text, isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 120, rows: 40 },
+    props: { text, isFirstOfReply: false }
+  })
   const notes = (await rows(ui)).filter(l => l.startsWith('┄┄┄┄'))
   expect(notes).toHaveLength(2)
   expect(notes[0]).toMatch(/¹ .*² .*³ /)
@@ -63,11 +72,37 @@ test('footnotes: a list lists its own ³ even when a later paragraph reuses it',
 })
 
 test('chips: tight against punctuation, padded before a space and at the end', async () => {
-  const t = (runs: { t: string; s: 'plain' | 'code' }[]) => spansOf(runs, '#b2b2bc').map(s => s.t).join('')
-  expect(t([{ t: 'set ', s: 'plain' }, { t: 'timeoutMs', s: 'code' }, { t: '; ok', s: 'plain' }])).toBe('set  timeoutMs; ok')
-  expect(t([{ t: 'took ', s: 'plain' }, { t: '1m 12s', s: 'code' }, { t: ', then', s: 'plain' }])).toBe('took  1m 12s, then')
-  expect(t([{ t: 'run ', s: 'plain' }, { t: 'bun test', s: 'code' }, { t: ' now', s: 'plain' }])).toBe('run  bun test  now')
-  expect(t([{ t: 'run ', s: 'plain' }, { t: 'bun test', s: 'code' }])).toBe('run  bun test ')
+  const t = (runs: { t: string; s: 'plain' | 'code' }[]) =>
+    spansOf(runs, '#b2b2bc')
+      .map(s => s.t)
+      .join('')
+  expect(
+    t([
+      { t: 'set ', s: 'plain' },
+      { t: 'timeoutMs', s: 'code' },
+      { t: '; ok', s: 'plain' }
+    ])
+  ).toBe('set  timeoutMs; ok')
+  expect(
+    t([
+      { t: 'took ', s: 'plain' },
+      { t: '1m 12s', s: 'code' },
+      { t: ', then', s: 'plain' }
+    ])
+  ).toBe('took  1m 12s, then')
+  expect(
+    t([
+      { t: 'run ', s: 'plain' },
+      { t: 'bun test', s: 'code' },
+      { t: ' now', s: 'plain' }
+    ])
+  ).toBe('run  bun test  now')
+  expect(
+    t([
+      { t: 'run ', s: 'plain' },
+      { t: 'bun test', s: 'code' }
+    ])
+  ).toBe('run  bun test ')
 })
 
 test('the hot-reload note is one short line', async ($, on) => {
@@ -95,7 +130,12 @@ test('layout: under 100 columns the gutter folds to a 2-column inset at full wid
 })
 
 test('narrow step rows: verb and target, result and time right; the time goes before the target clips', async () => {
-  const step = stepOf('Bash', { command: 'claude plugin test .', description: 'Run the plugin tests for the ghostframe mod' }, { stdout: ' 56 pass\n 0 fail', stderr: '' }, OK)
+  const step = stepOf(
+    'Bash',
+    { command: 'claude plugin test .', description: 'Run the plugin tests for the ghostframe mod' },
+    { stdout: ' 56 pass\n 0 fail', stderr: '' },
+    OK
+  )
   if (step === undefined) throw new Error('no step')
   for (const c of WIDTHS) {
     const w = c - INSET
@@ -112,9 +152,21 @@ test('narrow frames go full width, every row exactly the content width', async (
   for (const c of WIDTHS) {
     const w = c - INSET
     const frames = [
-      testsFrame(w, { id: 'x', runner: 'claude plugin test', passed: 145, failed: 3, skipped: 2 }, { id: 'w', runner: 'claude plugin test', passed: 140, failed: 8, skipped: 2 }, 72_000),
-      shippedFrame(w, { id: 'x', commit: { sha: 'a1b2c3d', subject: 'fix(toast): dedupe by message key across the queue', files: 3, adds: 48, dels: 12 }, pr: { n: 148, url: 'https://github.com/me/app/pull/148', head: 'feature/toast-rebuild', base: 'main' } }),
-      sourcesFrame([1, 2, 3, 4, 5].map(n => ({ n, url: `https://docs.example.dev/${'deep/'.repeat(8)}${n}`, title: `A rather long source title ${n}` })), w),
+      testsFrame(
+        w,
+        { id: 'x', runner: 'claude plugin test', passed: 145, failed: 3, skipped: 2 },
+        { id: 'w', runner: 'claude plugin test', passed: 140, failed: 8, skipped: 2 },
+        72_000
+      ),
+      shippedFrame(w, {
+        id: 'x',
+        commit: { sha: 'a1b2c3d', subject: 'fix(toast): dedupe by message key across the queue', files: 3, adds: 48, dels: 12 },
+        pr: { n: 148, url: 'https://github.com/me/app/pull/148', head: 'feature/toast-rebuild', base: 'main' }
+      }),
+      sourcesFrame(
+        [1, 2, 3, 4, 5].map(n => ({ n, url: `https://docs.example.dev/${'deep/'.repeat(8)}${n}`, title: `A rather long source title ${n}` })),
+        w
+      ),
       [browserTop(w, 'playwright'), urlBar(w, 'http://localhost:5173/products?page=6&mode=lunar', { t: '●', color: '' }, '0.4s')]
     ]
     for (const lines of frames) for (const l of lines) expect(partsWidth(l)).toBe(w)
@@ -129,28 +181,62 @@ for (const columns of WIDTHS) {
     const VIEW = { columns, rows: 40 }
     const w = columns - INSET
 
-    await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'run the tests' }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: 'p' } as never)
+    await $.session.append({
+      message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'run the tests' }] },
+      door: 'prompt',
+      origin: { kind: 'composer' },
+      uuid: 'p'
+    } as never)
     await $.turn.start({ text: 'run the tests', turnId: 't1' })
-    await $.session.append(respond([{ type: 'tool_use', id: 'b1', name: 'Bash', input: { command: 'claude plugin test .', description: 'Run the plugin tests' } }], 'r1'))
+    await $.session.append(
+      respond([{ type: 'tool_use', id: 'b1', name: 'Bash', input: { command: 'claude plugin test .', description: 'Run the plugin tests' } }], 'r1')
+    )
     await $.tool.call({ tool: 'Bash', command: 'claude plugin test .', description: 'Run the plugin tests', tool_use_id: 'b1' } as never)
 
     // Your message: `you` on its own caption line, the text inset 2.
-    const you = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'UserMessage', viewport: VIEW, props: { text: 'Run the tests and tell me which fail, with a long enough line to wrap at fifty columns.', origin: { kind: 'composer' }, isExpanded: false } })
+    const you = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'UserMessage',
+      viewport: VIEW,
+      props: {
+        text: 'Run the tests and tell me which fail, with a long enough line to wrap at fifty columns.',
+        origin: { kind: 'composer' },
+        isExpanded: false
+      }
+    })
     expect(await you.find({ type: 'Text', text: /^you$/ })).toBeDefined()
-    expect((await you.findAll({ type: 'Box' })).some(b => b.props.paddingLeft === INSET)).toBe(true)
+    expect((await you.findAll({ type: 'Box' })).some(b => b.props['paddingLeft'] === INSET)).toBe(true)
     for (const l of await rows(you)) expect(vw(l)).toBeLessThanOrEqual(w)
     await you.unmount()
 
     // The step row and its card.
     const row = await $.ui.mount({
-      plugin: 'ghostframe', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-      props: { tool_use_id: 'b1', tool: 'Bash', input: { command: 'claude plugin test .', description: 'Run the plugin tests' }, isRunning: false, isErrored: true, isInterrupted: false, output: 'Exit code 1\n 145 pass\n 3 fail' }
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolUse',
+      viewport: VIEW,
+      props: {
+        tool_use_id: 'b1',
+        tool: 'Bash',
+        input: { command: 'claude plugin test .', description: 'Run the plugin tests' },
+        isRunning: false,
+        isErrored: true,
+        isInterrupted: false,
+        output: 'Exit code 1\n 145 pass\n 3 fail'
+      }
     })
     expect(await row.find({ type: 'Text', text: /^claude$/ })).toBeDefined()
     for (const l of await rows(row)) expect(vw(l)).toBeLessThanOrEqual(w)
     await row.unmount()
 
-    const card = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'b1', tool: 'Bash', isErrored: true, output: 'Exit code 1' } })
+    const card = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
+      props: { tool_use_id: 'b1', tool: 'Bash', isErrored: true, output: 'Exit code 1' }
+    })
     const cardRows = (await rows(card)).filter(l => /^[+┆]/.test(l))
     expect(cardRows.length).toBeGreaterThan(3)
     for (const l of cardRows) expect(vw(l)).toBe(w)
@@ -169,7 +255,13 @@ for (const columns of WIDTHS) {
       '| stream | stream-stable.test.tsx | 5.1 s | timeout | timeoutMs | me |'
     ].join('\n')
     await $.session.append(respond([{ type: 'text', text: reply }], 'r2'))
-    const prose = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: reply, isFirstOfReply: true } })
+    const prose = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      viewport: VIEW,
+      props: { text: reply, isFirstOfReply: true }
+    })
     expect(await prose.find({ type: 'Text', text: /^engine$/ })).toBeUndefined()
     const lines = await rows(prose)
     for (const l of lines) expect(vw(l)).toBeLessThanOrEqual(w)
@@ -190,12 +282,18 @@ test('narrow streaming: a reply streamed at 70 columns never repeats a line, fin
     '',
     'Raising that one test to 15 s is the quick fix; making redraws cheaper is the real one.'
   ].join('\n')
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 70, rows: 40 }, props: { text: FULL.slice(0, 30), isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 70, rows: 40 },
+    props: { text: FULL.slice(0, 30), isFirstOfReply: false }
+  })
   let prevBlocks: string[][] = []
 
   for (let cut = 40; ; cut = Math.min(FULL.length, cut + 9)) {
     await ui.redraw({ text: FULL.slice(0, cut), isFirstOfReply: false })
-    const blocks = (await ui.findAll({ type: 'Text' })).filter(t => t.props.wrap === 'wrap').map(t => t.text.split('\n'))
+    const blocks = (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'wrap').map(t => t.text.split('\n'))
     const all = blocks.flat().filter(l => l.trim().length > 0)
     expect(new Set(all).size).toBe(all.length)
     for (const l of all) expect(vw(l)).toBeLessThanOrEqual(68)

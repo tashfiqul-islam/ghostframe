@@ -1,0 +1,5 @@
+# Tool pins for local work and CI. Install with `mise install`.
+[tools]
+bun = "1.4.4"
+hk = "2.12.0"
+pkl = "0.33.0"

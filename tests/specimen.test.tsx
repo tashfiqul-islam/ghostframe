@@ -16,18 +16,20 @@ const COLUMNS = [140, 90, 60] as const
 
 type Call = { id: string; tool: string; input: Record<string, unknown>; output: unknown; isError?: boolean; interrupted?: boolean; asks?: boolean }
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
-const ask = (text: string, uuid: string) => ({
-  message: { type: 'user', role: 'user', content: [{ type: 'text', text }] },
-  door: 'prompt',
-  origin: { kind: 'composer' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
+const ask = (text: string, uuid: string) =>
+  ({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid
+  }) as never
 
 const QA = 'A worktree is a second checked-out folder of the same repository, on its own branch, sharing one history.'
 const OPENER = 'Checking the toast queue and the test runner first.'
@@ -119,17 +121,58 @@ const LINKED = [
 ].join('\n')
 
 const CALLS: Call[] = [
-  { id: 'r1', tool: 'Read', input: { file_path: 'D:/Projects/app/src/toast/queue.ts' }, output: { type: 'text', file: { filePath: 'D:/Projects/app/src/toast/queue.ts', numLines: 120 } } },
+  {
+    id: 'r1',
+    tool: 'Read',
+    input: { file_path: 'D:/Projects/app/src/toast/queue.ts' },
+    output: { type: 'text', file: { filePath: 'D:/Projects/app/src/toast/queue.ts', numLines: 120 } }
+  },
   { id: 'g1', tool: 'Grep', input: { pattern: 'dedupe', path: 'D:/Projects/app/src' }, output: { mode: 'files_with_matches', numFiles: 3 } },
   { id: 'w1', tool: 'WebSearch', input: { query: 'vitest retry flaky toast test' }, output: { results: [1, 2, 3, 4, 5] } },
   { id: 'f1', tool: 'WebFetch', input: { url: 'https://vitest.dev/guide/cli', prompt: 'retry flag' }, output: { code: 200 } },
-  { id: 'e1', tool: 'Edit', input: { file_path: 'D:/Projects/app/src/toast/queue.ts' }, output: { filePath: 'D:/Projects/app/src/toast/queue.ts', structuredPatch: [{ oldStart: 1, oldLines: 2, newStart: 1, newLines: 3, lines: [' keep', '+dedupe', '+flush', '-fire'] }] } },
-  { id: 's1', tool: 'Bash', input: { command: 'git status --short', description: 'check the working tree' }, output: { stdout: ' M src/toast/queue.ts', stderr: '' } },
-  { id: 's2', tool: 'Bash', input: { command: 'make lint', description: 'run the linter' }, output: 'Error: Exit code 2\nmake: *** No rule to make target `lint`.', isError: true },
+  {
+    id: 'e1',
+    tool: 'Edit',
+    input: { file_path: 'D:/Projects/app/src/toast/queue.ts' },
+    output: {
+      filePath: 'D:/Projects/app/src/toast/queue.ts',
+      structuredPatch: [{ oldStart: 1, oldLines: 2, newStart: 1, newLines: 3, lines: [' keep', '+dedupe', '+flush', '-fire'] }]
+    }
+  },
+  {
+    id: 's1',
+    tool: 'Bash',
+    input: { command: 'git status --short', description: 'check the working tree' },
+    output: { stdout: ' M src/toast/queue.ts', stderr: '' }
+  },
+  {
+    id: 's2',
+    tool: 'Bash',
+    input: { command: 'make lint', description: 'run the linter' },
+    output: 'Error: Exit code 2\nmake: *** No rule to make target `lint`.',
+    isError: true
+  },
   { id: 'p1', tool: 'Bash', input: { command: 'rm -rf build', description: 'clear the build folder' }, output: undefined, asks: true },
-  { id: 'd1', tool: 'Bash', input: { command: 'rm -rf dist', description: 'clear the dist folder' }, output: 'Permission to use Bash has been denied.', isError: true },
-  { id: 't1', tool: 'Bash', input: { command: 'bun test src/toast', description: 'run the toast tests' }, output: { stdout: ' 12 pass\n 0 fail\nRan 12 tests across 2 files. [140ms]', stderr: '' } },
-  { id: 't2', tool: 'Bash', input: { command: 'bun test', description: 'run the whole suite' }, output: 'Exit code 1\n 46 pass\n 2 fail\nRan 48 tests across 9 files. [1.20s]', isError: true }
+  {
+    id: 'd1',
+    tool: 'Bash',
+    input: { command: 'rm -rf dist', description: 'clear the dist folder' },
+    output: 'Permission to use Bash has been denied.',
+    isError: true
+  },
+  {
+    id: 't1',
+    tool: 'Bash',
+    input: { command: 'bun test src/toast', description: 'run the toast tests' },
+    output: { stdout: ' 12 pass\n 0 fail\nRan 12 tests across 2 files. [140ms]', stderr: '' }
+  },
+  {
+    id: 't2',
+    tool: 'Bash',
+    input: { command: 'bun test', description: 'run the whole suite' },
+    output: 'Exit code 1\n 46 pass\n 2 fail\nRan 48 tests across 9 files. [1.20s]',
+    isError: true
+  }
 ]
 const NARRATE_AFTER = 'f1' // the narration block sits between the fetch and the edit
 
@@ -143,7 +186,7 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
   on('tool.check', (_, e, next) => (e.tool_use_id === 'p1' ? ({ decision: 'ask' } as never) : next(e)))
   on('tool.call', (_, e) => {
     const c = CALLS.find(x => x.id === e.tool_use_id)
-    return c?.isError ? ({ result: c.output, isError: true } as never) : ({ result: c?.output ?? 'ok' } as never)
+    return c?.isError ? ({ result: c.output, isError: true } as never) : { result: c?.output ?? 'ok' }
   })
 
   const submit = async (text: string, uuid: string) => {
@@ -178,7 +221,12 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
     if (c.id !== 'd1') await $.tool.call({ tool: c.tool, tool_use_id: c.id, ...c.input } as never)
     if (c.id === NARRATE_AFTER) await $.session.append(respond([{ type: 'text', text: NARRATION }], 'a-narr'))
   }
-  for (const [text, uuid] of [[ANSWER, 'a3'], [FOOTNOTED, 'a4'], [SOURCED, 'a5'], [FIGURES, 'a6']] as const) {
+  for (const [text, uuid] of [
+    [ANSWER, 'a3'],
+    [FOOTNOTED, 'a4'],
+    [SOURCED, 'a5'],
+    [FIGURES, 'a6']
+  ] as const) {
     await $.session.append(respond([{ type: 'text', text }], uuid))
   }
   await $.turn.complete({ answer: ANSWER, durationMs: 48200, isAborted: false, turnId: 't2', reason: 'answer', usage: { output_tokens: 3120 } } as never)
@@ -186,7 +234,9 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
   // ── Turn 3: interrupted ──
   await submit('now run the e2e suite', 'u3')
   await $.turn.start({ text: 'now run the e2e suite', turnId: 't3' })
-  await $.session.append(respond([{ type: 'tool_use', id: 'i1', name: 'Bash', input: { command: 'bunx playwright test', description: 'run the e2e suite' } }], 'a-i1'))
+  await $.session.append(
+    respond([{ type: 'tool_use', id: 'i1', name: 'Bash', input: { command: 'bunx playwright test', description: 'run the e2e suite' } }], 'a-i1')
+  )
   await $.tool.call({ tool: 'Bash', tool_use_id: 'i1', command: 'bunx playwright test', description: 'run the e2e suite' } as never)
   await $.turn.complete({ answer: '', durationMs: 6100, isAborted: true, turnId: 't3', reason: 'aborted', usage: { output_tokens: 40 } } as never)
 
@@ -202,7 +252,15 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
   const reply = (text: string, first: boolean): Site => ({ component: 'AssistantMessage', props: { text, isFirstOfReply: first } })
   const row = (c: Call): Site => ({
     component: 'ToolUse',
-    props: { tool_use_id: c.id, tool: c.tool, input: c.input, isRunning: false, isErrored: c.isError === true, isInterrupted: c.interrupted === true, ...(c.output !== undefined ? { output: c.output } : {}) }
+    props: {
+      tool_use_id: c.id,
+      tool: c.tool,
+      input: c.input,
+      isRunning: false,
+      isErrored: c.isError === true,
+      isInterrupted: c.interrupted === true,
+      ...(c.output !== undefined ? { output: c.output } : {})
+    }
   })
   const result = (c: Call): Site => ({ component: 'ToolResult', props: { tool_use_id: c.id, tool: c.tool, isErrored: c.isError === true, output: c.output } })
   const footer = (ms: number): Site => ({ component: 'TurnDuration', props: { word: 'Baked', durationMs: ms } })
@@ -214,7 +272,11 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
     user('fix the duplicate toast and tell me what changed'),
     reply(OPENER, true),
     // A call still waiting on permission has no result row yet.
-    ...CALLS.flatMap(c => [row(c), ...(c.asks ? [] : [result(c)]), ...(c.id === NARRATE_AFTER ? [{ component: 'AssistantMessage', props: { text: NARRATION, isFirstOfReply: true, isSummary: true } }] : [])]),
+    ...CALLS.flatMap(c => [
+      row(c),
+      ...(c.asks ? [] : [result(c)]),
+      ...(c.id === NARRATE_AFTER ? [{ component: 'AssistantMessage', props: { text: NARRATION, isFirstOfReply: true, isSummary: true } }] : [])
+    ]),
     reply(ANSWER, true),
     reply(FOOTNOTED, false),
     reply(SOURCED, false),
@@ -232,7 +294,13 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
     const lines: string[] = []
 
     for (const s of sites) {
-      const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: s.component, viewport: { columns, rows: 400 }, props: s.props } as never)
+      const ui = await $.ui.mount({
+        plugin: 'ghostframe',
+        surface: 'terminal',
+        component: s.component,
+        viewport: { columns, rows: 400 },
+        props: s.props
+      } as never)
       lines.push(...textAt(await ui.drawn(), columns))
       await ui.unmount()
     }

@@ -139,9 +139,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
 
       return was || FENCE.test(l)
     })
-    const start = lines.findIndex(
-      (l, i) => !inFence[i] && !inFence[i + 1] && l.includes('|') && isSeparator(lines[i + 1] ?? '')
-    )
+    const start = lines.findIndex((l, i) => !inFence[i] && !inFence[i + 1] && l.includes('|') && isSeparator(lines[i + 1] ?? ''))
 
     if (start >= 0) {
       let end = start + 2
@@ -170,11 +168,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
         }
       }
 
-      out.push(
-        table
-          ? { kind: 'table', table, partial, ...(settled !== undefined ? { settled } : {}) }
-          : { kind: 'wide', text: tableLines.join('\n') }
-      )
+      out.push(table ? { kind: 'table', table, partial, ...(settled !== undefined ? { settled } : {}) } : { kind: 'wide', text: tableLines.join('\n') })
       classify(lines.slice(end), out, atEnd)
 
       return
@@ -211,7 +205,6 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
     }
   }
 
-
   const simple = lines.every(l => !NOT_SIMPLE.test(l) && !FENCE.test(l) && !HEADING.test(l))
 
   if (atEnd && simple) {
@@ -245,9 +238,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
 
   // A `Sources` label on its own block (heading or paragraph) right above the list joins it.
   const prev = out[out.length - 1]
-  const labelAbove =
-    (prev?.kind === 'heading' && isSourcesLabel(prev.text)) ||
-    (prev?.kind === 'para' && isSourcesLabel(prev.runs.map(r => r.t).join('')))
+  const labelAbove = (prev?.kind === 'heading' && isSourcesLabel(prev.text)) || (prev?.kind === 'para' && isSourcesLabel(prev.runs.map(r => r.t).join('')))
   // At the reply's end a Sources list may still be streaming: its whole items only.
   const items = sourceItems(lines, labelAbove) ?? (atEnd ? pendingSourceItems(lines, labelAbove) : undefined)
 

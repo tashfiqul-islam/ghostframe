@@ -1,0 +1,22 @@
+{
+  "name": "ghostframe-dev-tools",
+  "private": true,
+  "description": "Development tools for the ghostframe mod. Kept out of the plugin root: a package.json with a lockfile there makes Claude Code install dependencies on every user's machine.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "cd .. && tsc -p .",
+    "lint": "cd .. && oxlint --type-aware --deny-warnings",
+    "lint:ci": "cd .. && oxlint --deny-warnings",
+    "fmt": "cd .. && oxfmt",
+    "fmt:check": "cd .. && oxfmt --check",
+    "validate": "cd .. && claude plugin validate .",
+    "test": "cd .. && claude plugin test .",
+    "check": "bun run typecheck && bun run lint && bun run fmt:check && bun run validate && bun run test"
+  },
+  "devDependencies": {
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
+    "oxlint-tsgolint": "7.0.2007",
+    "typescript": "7.0.2"
+  }
+}

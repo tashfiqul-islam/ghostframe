@@ -69,7 +69,7 @@ export function rowsOf(n: unknown, width: number): string[] {
 
   const p = n.props ?? {}
 
-  if (p.display === 'none') return []
+  if (p['display'] === 'none') return []
 
   if (n.type === 'Text') {
     const all = textOf(n)
@@ -78,24 +78,24 @@ export function rowsOf(n: unknown, width: number): string[] {
     if (all.length === 0) return []
 
     const lines = all.split('\n')
-    const mode = p.wrap
+    const mode = p['wrap']
 
     return mode === 'truncate' || mode === 'truncate-end' ? lines.map(l => cut(l, width)) : lines.flatMap(l => wrap(l, width))
   }
 
   if (n.type !== 'Box') {
-    const t = typeof p.text === 'string' ? p.text : ''
+    const t = typeof p['text'] === 'string' ? p['text'] : ''
 
     return t.length === 0 ? [] : t.split('\n').flatMap(l => wrap(l, width))
   }
 
-  const own = typeof p.width === 'number' ? Math.min(p.width, width) : width
-  const padL = num(p.paddingLeft)
+  const own = typeof p['width'] === 'number' ? Math.min(p['width'], width) : width
+  const padL = num(p['paddingLeft'])
   const inner = Math.max(0, own - padL)
   const kids = (n.children ?? []).filter(k => typeof k === 'string' || isNode(k))
   let body: string[]
 
-  if (p.flexDirection === 'column') {
+  if (p['flexDirection'] === 'column') {
     body = kids.flatMap(k => rowsOf(k, inner))
   } else {
     // A row: fixed and natural widths first, growing children share what is left.
@@ -106,13 +106,13 @@ export function rowsOf(n: unknown, width: number): string[] {
     kids.forEach((k, i) => {
       const kp = isNode(k) ? (k.props ?? {}) : {}
 
-      if (num(kp.flexGrow) > 0) {
+      if (num(kp['flexGrow']) > 0) {
         grows.push(i)
         widths.push(0)
         return
       }
 
-      const w = typeof kp.width === 'number' ? Math.min(kp.width, left) : Math.min(left, widest(rowsOf(k, left)))
+      const w = typeof kp['width'] === 'number' ? Math.min(kp['width'], left) : Math.min(left, widest(rowsOf(k, left)))
 
       widths.push(w)
       left -= w
@@ -127,11 +127,11 @@ export function rowsOf(n: unknown, width: number): string[] {
     )
   }
 
-  if (num(p.height) === 1 && p.overflow === 'hidden') body = body.slice(0, 1).map(r => cut(r, inner))
+  if (num(p['height']) === 1 && p['overflow'] === 'hidden') body = body.slice(0, 1).map(r => cut(r, inner))
 
   const indented = body.map(r => ' '.repeat(padL) + r)
 
-  return [...Array(num(p.marginTop)).fill(''), ...indented, ...Array(num(p.marginBottom)).fill('')]
+  return [...Array(num(p['marginTop'])).fill(''), ...indented, ...Array(num(p['marginBottom'])).fill('')]
 }
 
 /** A drawn tree as plain text at `columns`, trailing spaces trimmed. */

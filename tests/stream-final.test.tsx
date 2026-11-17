@@ -34,12 +34,13 @@ Sources:
 type Engine = Parameters<TestBody>[0]
 type On = Parameters<TestBody>[1]
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 /** Rows split into groups at blank rows: a block (with its footnote line or frame) per group. */
 const groups = (rows: string[]) => {
@@ -70,7 +71,13 @@ async function streamTurn($: Engine, on: On, text: string, columns: number, web:
 
   const view = { columns, rows: 45 }
   const props = (t: string) => ({ text: t, isFirstOfReply: !web })
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: view, props: props(text.slice(0, 3)) } as never)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: view,
+    props: props(text.slice(0, 3))
+  } as never)
   let prev: string[][] = []
 
   for (let n = 4; ; n = Math.min(text.length, n + 3)) {
@@ -82,7 +89,9 @@ async function streamTurn($: Engine, on: On, text: string, columns: number, web:
     // Every group but the last one drawn before (the one still being written) is unchanged.
     for (let g = 0; g < prev.length - 1; g++) {
       if (JSON.stringify(now[g]) !== JSON.stringify(prev[g])) {
-        throw new Error(`at ${n} (${JSON.stringify(text.slice(n - 30, n))}) group ${g} changed:\n${(prev[g] ?? []).join('\n')}\n→\n${(now[g] ?? []).join('\n')}`)
+        throw new Error(
+          `at ${n} (${JSON.stringify(text.slice(n - 30, n))}) group ${g} changed:\n${(prev[g] ?? []).join('\n')}\n→\n${(now[g] ?? []).join('\n')}`
+        )
       }
     }
     prev = now
@@ -141,7 +150,13 @@ test('the whole turn as stacked: the open rule, you, claude and the footer each 
 test('the footer: tokens and sources change only its own row, never the rows above it', async ($, on) => {
   const before = await streamTurn($, on, TURN, 140, false)
   const draw = async (ms: number) => {
-    const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'TurnDuration', viewport: { columns: 140, rows: 45 }, props: { word: 'Baked', durationMs: ms } } as never)
+    const ui = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'TurnDuration',
+      viewport: { columns: 140, rows: 45 },
+      props: { word: 'Baked', durationMs: ms }
+    } as never)
     const rows = textAt(await ui.drawn(), 140)
     await ui.unmount()
 
@@ -159,7 +174,13 @@ test('the footer: tokens and sources change only its own row, never the rows abo
 
   // The reply above is drawn the same before and after the footer mounts, even when the
   // engine mounts the message again (a new request for the same message): row for row.
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 140, rows: 45 }, props: { text: TURN, isFirstOfReply: true } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 140, rows: 45 },
+    props: { text: TURN, isFirstOfReply: true }
+  } as never)
   const after = textAt(await ui.drawn(), 140)
   await ui.unmount()
   expect(after).toEqual(before)

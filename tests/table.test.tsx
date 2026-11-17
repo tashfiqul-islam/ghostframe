@@ -27,13 +27,16 @@ const rowWidths = (t: Table, widths: number[], cells: Cell[]) => {
   const per = widths.map((w, i) => cellLines(cells[i] ?? { runs: [], empty: true }, w, t.kind[i] ?? 'fixed'))
   const height = Math.max(...per.map(p => p.length))
 
-  return Array.from({ length: height }, (_, li) =>
-    widths.reduce((sum, w, i) => {
-      const runs = per[i]?.[li] ?? []
-      const [l, r] = padding(runs, w, t.align[i] ?? 'left')
-      // Measured as drawn: the same function the drawing uses (a chip tight before punctuation).
-      return sum + l + drawnWidth(runs) + r
-    }, 0) + GAP * (widths.length - 1)
+  return Array.from(
+    { length: height },
+    (_, li) =>
+      widths.reduce((sum, w, i) => {
+        const runs = per[i]?.[li] ?? []
+        const [l, r] = padding(runs, w, t.align[i] ?? 'left')
+        // Measured as drawn: the same function the drawing uses (a chip tight before punctuation).
+        return sum + l + drawnWidth(runs) + r
+      }, 0) +
+      GAP * (widths.length - 1)
   )
 }
 
@@ -79,7 +82,11 @@ test('a prose cell wraps under its first line, top-aligned, never cut mid-word',
 
   // Lines join back into the original words in order: wrapped, not truncated mid-word.
   const words = text(status.runs).split(/\s+/)
-  const drawn = lines.map(l => text(l).trim()).join(' ').replace(/…$/, '').split(/\s+/)
+  const drawn = lines
+    .map(l => text(l).trim())
+    .join(' ')
+    .replace(/…$/, '')
+    .split(/\s+/)
   expect(drawn.slice(0, -1)).toEqual(words.slice(0, drawn.length - 1))
 
   // The short `done` cell in the same column keeps one line.
@@ -130,7 +137,13 @@ test('a pipe table inside a code fence stays code', async () => {
 test('alignment is per cell: numbers right, text left, even inside a numeric column', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const md = ['| Check | Before |', '|---|---:|', '| flush time | 123456789 ms |', '| toasts | 2 |', '| docs | see notes |'].join('\n')
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 90, rows: 40 }, props: { text: md, isFirstOfReply: false } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 90, rows: 40 },
+    props: { text: md, isFirstOfReply: false }
+  } as never)
   const lines = textAt(await ui.drawn(), 90)
   await ui.unmount()
   const row = (name: string) => lines.find(l => l.includes(name)) ?? ''

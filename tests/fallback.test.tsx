@@ -23,8 +23,24 @@ function boxesAbove(node: unknown, path: Node[] = []): Node[] | undefined {
 
 const SEARCH_GROUP = {
   calls: [
-    { tool_use_id: 'g1', tool: 'Grep', input: { pattern: 'TODO' }, isRunning: false, isErrored: false, isInterrupted: false, output: { mode: 'count', numFiles: 1, filenames: [], numMatches: 3 } },
-    { tool_use_id: 'g2', tool: 'Read', input: { file_path: 'a.ts' }, isRunning: false, isErrored: false, isInterrupted: false, output: { type: 'text', file: { numLines: 3 } } }
+    {
+      tool_use_id: 'g1',
+      tool: 'Grep',
+      input: { pattern: 'TODO' },
+      isRunning: false,
+      isErrored: false,
+      isInterrupted: false,
+      output: { mode: 'count', numFiles: 1, filenames: [], numMatches: 3 }
+    },
+    {
+      tool_use_id: 'g2',
+      tool: 'Read',
+      input: { file_path: 'a.ts' },
+      isRunning: false,
+      isErrored: false,
+      isInterrupted: false,
+      output: { type: 'text', file: { numLines: 3 } }
+    }
   ],
   isActive: false,
   isExpanded: false,
@@ -63,8 +79,8 @@ test('a folded engine group that opens the turn keeps the activity rule and `cla
   const root = (await ui.findAll({ type: 'Box' }))[0]
   const above = boxesAbove(root) ?? []
   expect(above.length).toBeGreaterThan(0)
-  expect(above.some(b => b.props?.width !== undefined || b.props?.minWidth !== undefined || b.props?.height !== undefined)).toBe(false)
-  expect(above[above.length - 1]?.props?.paddingLeft).toBe(12)
+  expect(above.some(b => b.props?.['width'] !== undefined || b.props?.['minWidth'] !== undefined || b.props?.['height'] !== undefined)).toBe(false)
+  expect(above[above.length - 1]?.props?.['paddingLeft']).toBe(12)
   await ui.unmount()
 })
 
@@ -76,11 +92,17 @@ test('a folded engine group mid-turn: indented, no rule, no label', async ($, on
   expect(await ui.find({ type: 'Text', text: /^activity $/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^engine$/ })).toBeDefined()
   const root = (await ui.findAll({ type: 'Box' }))[0]
-  expect(boxesAbove(root)?.some(b => b.props?.paddingLeft === 12)).toBe(true)
+  expect(boxesAbove(root)?.some(b => b.props?.['paddingLeft'] === 12)).toBe(true)
   await ui.unmount()
 
   // ctrl+o (expanded) is the engine's alone, unwrapped.
-  const open = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'ToolGroup', viewport: VIEW, props: { ...SEARCH_GROUP, isExpanded: true } })
+  const open = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolGroup',
+    viewport: VIEW,
+    props: { ...SEARCH_GROUP, isExpanded: true }
+  })
   expect(await open.findAll({ type: 'Box' })).toHaveLength(0)
   await open.unmount()
 })
@@ -97,7 +119,10 @@ test('an unknown tool that opens the turn: `claude` beside the engine row', asyn
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
 
   const ui = await $.ui.mount({
-    plugin: 'ghostframe', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolUse',
+    viewport: VIEW,
     props: { tool_use_id: 'm1', tool: 'Mystery', input: { q: 1 }, isRunning: false, isErrored: false, isInterrupted: false }
   })
   expect(await ui.findAll({ type: 'Text', text: /^claude {6}$/ })).toHaveLength(1)
@@ -109,11 +134,14 @@ test('a summary row: dim text in the content column, no bullet', async ($, on) =
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const ui = await $.ui.mount({
-    plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW,
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
     props: { text: 'Checked the config and the tests', isFirstOfReply: true, isSummary: true }
   })
   const body = await ui.find({ type: 'Text', text: /^Checked the config and the tests$/ })
-  expect(body?.props.color).toBe('#4e4e5a')
+  expect(body?.props['color']).toBe('#4e4e5a')
   expect(await ui.find({ type: 'Text', text: /●/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^engine$/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^claude$/ })).toBeUndefined()

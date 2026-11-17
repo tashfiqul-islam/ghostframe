@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
-import type { CapsStamp, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnClose } from '../types'
+import type { FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TestRunStamp, TurnClose } from '../types'
 import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
@@ -28,10 +28,10 @@ const prompts = atom({ plugin: 'ghostframe', key: 'prompts' } as const, [] as Pr
 const closes = atom({ plugin: 'ghostframe', key: 'closes' } as const, [] as TurnClose[], { shape: 'closes-1' })
 const SAME_TURN_MS = 250
 // What the turn used before its first visible block, then what each turn's opener carries.
-const caps = atom({ plugin: 'ghostframe', key: 'caps' } as const, NO_CAPS as CapsStamp, { shape: 'caps-1' })
+const caps = atom({ plugin: 'ghostframe', key: 'caps' } as const, NO_CAPS, { shape: 'caps-1' })
 const openers = atom({ plugin: 'ghostframe', key: 'openers' } as const, [] as OpenerCaps[], { shape: 'openers-1' })
 // What the whole turn used, for the close rule's tally.
-const tally = atom({ plugin: 'ghostframe', key: 'tally' } as const, NO_TALLY as TallyStamp, { shape: 'tally-1' })
+const tally = atom({ plugin: 'ghostframe', key: 'tally' } as const, NO_TALLY, { shape: 'tally-1' })
 // Assistant blocks in stored order, so a block knows what sits right above it.
 const flow = atom({ plugin: 'ghostframe', key: 'flow' } as const, [] as FlowStamp[], { shape: 'flow-1' })
 // Read off shell calls as they end: test counts and what was shipped, by call id.
@@ -178,11 +178,28 @@ let lastClosed: string | undefined
 
 // Tools whose result rows we draw (the step row already carries the result).
 const OWN = new Set([
-  'Read', 'Edit', 'MultiEdit', 'NotebookEdit', 'Write', 'Bash', 'PowerShell', 'Grep', 'Glob', 'WebFetch', 'WebSearch',
-  'Agent', 'Task', 'TodoWrite', 'Skill', 'AskUserQuestion', 'ExitPlanMode', 'EnterPlanMode', 'TaskCreate', 'TaskUpdate'
+  'Read',
+  'Edit',
+  'MultiEdit',
+  'NotebookEdit',
+  'Write',
+  'Bash',
+  'PowerShell',
+  'Grep',
+  'Glob',
+  'WebFetch',
+  'WebSearch',
+  'Agent',
+  'Task',
+  'TodoWrite',
+  'Skill',
+  'AskUserQuestion',
+  'ExitPlanMode',
+  'EnterPlanMode',
+  'TaskCreate',
+  'TaskUpdate'
 ])
 const OWN_RESULT = (tool: string) => OWN.has(tool) || mcpName(tool) !== undefined
-
 
 const WARNING = /paused|warn|limit|low|error|fail|denied|stale/i
 
@@ -234,7 +251,7 @@ async function snapshotCaps($: EngineInterface, key: string, content: Content, o
   for (const b of content) {
     if (b.type !== 'tool_use' || typeof b.name !== 'string') continue
 
-    const skill = b.name === 'Skill' ? (b.input as { skill?: unknown } | undefined)?.skill : undefined
+    const skill = b.name === 'Skill' && isObject(b.input) ? b.input['skill'] : undefined
     const server = mcpName(b.name)?.[0]
 
     if (typeof skill === 'string') c = withSkill(c, skill)
@@ -246,12 +263,19 @@ async function snapshotCaps($: EngineInterface, key: string, content: Content, o
 }
 
 // What a finished main-loop call adds to the turn: the tally, test counts, what shipped.
-async function afterCall($: EngineInterface, e: { tool: string; tool_use_id: string }, ran: { result?: unknown; text?: string; deny?: string }) {
+async function afterCall(
+  $: EngineInterface,
+  e: { tool: string; tool_use_id: string },
+  ran: { result?: unknown; text?: string | undefined; deny?: string | undefined }
+) {
   if (ran.deny !== undefined) return
 
   const tool = e.tool
-  const input = e as unknown as Record<string, unknown>
-  const str = (k: string) => (typeof input[k] === 'string' ? (input[k] as string) : undefined)
+  const str = (k: string) => {
+    const v: unknown = Reflect.get(e, k)
+
+    return typeof v === 'string' ? v : undefined
+  }
   const path = str('file_path') ?? str('notebook_path')
   const isShell = tool === 'Bash' || tool === 'PowerShell'
   const command = isShell ? (str('command') ?? '') : ''
@@ -285,7 +309,7 @@ async function afterCall($: EngineInterface, e: { tool: string; tool_use_id: str
 
 // The capability line a turn's opener carries (by its text key or its first call's id).
 async function openerCaps($: EngineInterface, match: (key: string) => boolean, width: number) {
-  const found = [...(await read($, openers))].reverse().find(o => match(o.key))
+  const found = (await read($, openers)).toReversed().find(o => match(o.key))
 
   return found === undefined ? undefined : capsLine(found.caps, width)
 }
@@ -302,13 +326,16 @@ async function noteHook($: EngineInterface, event: string, result: unknown, agen
   await update($, tally, t => ({ ...t, hooks: t.hooks + 1 }))
 }
 
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
 const RELOADED = /^\s*([\w.@/-]+): reloaded \((\d+) hooks?\b[^)]*\)\s*$/
 
 /** A plugin's hot-reload note, shortened; anything else → undefined (left as it came). */
 function reloadNote<M extends { content: unknown }>(message: M): M | undefined {
   const c = message.content
-  const block = Array.isArray(c) && c.length === 1 ? (c[0] as { type?: unknown; text?: unknown }) : undefined
-  const text = typeof c === 'string' ? c : block?.type === 'text' && typeof block.text === 'string' ? block.text : undefined
+  const first: unknown = Array.isArray(c) && c.length === 1 ? c[0] : undefined
+  const block = isObject(first) ? first : undefined
+  const text = typeof c === 'string' ? c : block?.['type'] === 'text' && typeof block['text'] === 'string' ? block['text'] : undefined
   const m = text === undefined ? null : RELOADED.exec(text)
 
   if (m === null) return undefined
@@ -320,7 +347,7 @@ function reloadNote<M extends { content: unknown }>(message: M): M | undefined {
 }
 
 type Cites = ReturnType<typeof sourcesCites>
-type Prepared = { title?: string; items: { depth: number; marker: string; runs: Run[]; cites: Cites }[]; cites: Cites }
+type Prepared = { title?: string | undefined; items: { depth: number; marker: string; runs: Run[]; cites: Cites }[]; cites: Cites }
 
 /**
  * Sources cited earlier in the turn, as `noteFlow` stored them: first-cited order.
@@ -437,7 +464,7 @@ function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite[] = []
   // A source an earlier list named and this message marks: numbered now, not listed-only.
   for (const url of numbering.keys()) listedOnly.delete(url)
 
-  const sorted = [...byNumber.values()].sort((a, b) => a.n - b.n)
+  const sorted = [...byNumber.values()].toSorted((a, b) => a.n - b.n)
   const sources = sorted.map(({ n, url, title }) => ({ n, url, title }))
   // Every source this message cites, for its flow stamp (flags kept).
   const own: TurnCite[] = [...sorted.filter(c => touched.has(c.n)).map(({ n: _, ...c }) => c), ...ownListed.filter(c => listedOnly.has(c.url))]
@@ -465,20 +492,412 @@ const afterNarration = (list: readonly FlowStamp[], place: { at: number; turn: s
   return prev !== undefined && prev.kind === 'text' && prev.turn === place?.turn
 }
 
+const strip = (v: unknown) => (typeof v === 'string' ? stripNoise(v) : v)
+
 /**
  * A shell's output without the engine's own notes (`Shell cwd was reset to …`), for
  * the engine's drawing of it (ctrl+o, background tasks). Same shape, so it still fits
  * the tool's schema; nothing to drop, or any other tool → the output as it was.
  */
 function quietOutput(tool: string, output: unknown): unknown {
-  if ((tool !== 'Bash' && tool !== 'PowerShell') || typeof output !== 'object' || output === null) return output
+  if ((tool !== 'Bash' && tool !== 'PowerShell') || !isObject(output)) return output
 
-  const o = output as Record<string, unknown>
-  const strip = (v: unknown) => (typeof v === 'string' ? stripNoise(v) : v)
+  const o = output
 
-  if (strip(o.stdout) === o.stdout && strip(o.stderr) === o.stderr) return output
+  if (strip(o['stdout']) === o['stdout'] && strip(o['stderr']) === o['stderr']) return output
 
-  return { ...o, stdout: strip(o.stdout), stderr: strip(o.stderr) }
+  return { ...o, stdout: strip(o['stdout']), stderr: strip(o['stderr']) }
+}
+
+// One block on the grid. Wide: a 12-column gutter holds `label` beside the content.
+// Narrow (§4): `label` is a caption line above, the content inset 2 at full width.
+type Label = { text: string; color: string }
+
+const cell = (ui: Ui, lay: Lay, label: Label | undefined, body: RenderChildren, marginTop = 0, key?: string) => {
+  const { Box, Text } = ui
+  const text = label?.text ?? ''
+  const content = (
+    <Box flexDirection="column" width={lay.width} flexShrink={1} minWidth={0}>
+      {body}
+    </Box>
+  )
+
+  if (lay.narrow) {
+    return (
+      <Box {...(key !== undefined ? { key } : {})} flexDirection="column" marginTop={marginTop}>
+        {text.length > 0 && <Text color={label?.color ?? C.accent}>{text}</Text>}
+        <Box flexDirection="row" flexWrap="nowrap" paddingLeft={lay.gutter}>
+          {content}
+        </Box>
+      </Box>
+    )
+  }
+
+  return (
+    <Box {...(key !== undefined ? { key } : {})} flexDirection="row" flexWrap="nowrap" marginTop={marginTop}>
+      <Box width={lay.gutter} flexShrink={0}>
+        <Text color={label?.color ?? C.accent}>{text}</Text>
+      </Box>
+      {content}
+    </Box>
+  )
+}
+
+const claude = (shown: boolean): Label | undefined => (shown ? { text: 'claude', color: C.accent } : undefined)
+
+const tableLines = ({ table: t, layout: tableLayout, airy: mayAir }: Drawn): Span[][] => {
+  const { widths, hidden } = tableLayout
+  const total = widths.reduce((a, b) => a + b, 0) + TABLE_GAP * (widths.length - 1)
+
+  type DrawnCell = { runs: Run[]; color: string; empty: boolean }
+
+  // A row is as tall as its tallest cell; the others are top-aligned.
+  const rowLines = (cells: DrawnCell[], isHeader: boolean): Span[][] => {
+    const per = widths.map((w, ci) => {
+      const drawnCell = cells[ci] ?? { runs: [], color: C.text, empty: true }
+
+      return cellLines({ runs: drawnCell.runs, empty: drawnCell.empty }, w, isHeader ? 'fixed' : (t.kind[ci] ?? 'fixed'))
+    })
+    const height = Math.max(1, ...per.map(p => p.length))
+
+    return Array.from({ length: height }, (_, li) =>
+      widths.flatMap((w, ci) => {
+        const drawnCell = cells[ci]
+        const runs = per[ci]?.[li] ?? []
+        const column = t.align[ci] ?? 'left'
+        const [l, r] = padding(runs, w, isHeader ? headerAlign(t, ci) : cellAlign(drawnCell, column))
+        const tail = ci < widths.length - 1 ? r + TABLE_GAP : 0
+        const base = drawnCell?.empty ? C.dim : (drawnCell?.color ?? C.text)
+
+        return [...(l > 0 ? [{ t: ' '.repeat(l), color: C.text }] : []), ...spansOf(runs, base), ...(tail > 0 ? [{ t: ' '.repeat(tail), color: C.text }] : [])]
+      })
+    )
+  }
+
+  const header = rowLines(
+    t.header.map(h => ({ runs: [{ t: h, s: 'plain' as const }], color: C.muted, empty: false })),
+    true
+  )
+  const body = t.rows.map(cells =>
+    rowLines(
+      cells.map((c, ci) => ({ ...c, color: ci === 0 && t.nameFirst ? C.textBright : C.text })),
+      false
+    )
+  )
+  // A blank line between rows when rows wrap (§5.18), at any width. Settled (the turn
+  // done, the reply re-flowed): between every two rows once any row wraps. Streaming or
+  // frozen: next to each row that wraps, so a blank row only ever lands below a row
+  // already drawn, or above the row being written.
+  const wraps = body.map(r => r.length > 1)
+  const anyWraps = wraps.some(w => w)
+  const gapBefore = (ri: number) => ri > 0 && (mayAir ? anyWraps : wraps[ri] === true || wraps[ri - 1] === true)
+
+  return [
+    ...header,
+    [{ t: '─'.repeat(total), color: C.hairline }],
+    ...body.flatMap((r, ri) => (gapBefore(ri) ? [[], ...r] : r)),
+    ...(hidden > 0 ? [[{ t: `${hidden} ${hidden === 1 ? 'column' : 'columns'} hidden`, color: C.dim }]] : [])
+  ]
+}
+
+// A list's top-level runs of one marker kind (bullets, numbers), each with the sources
+// its own items cite: a footnote line goes right under the run that holds its markers.
+const listGroups = (p: Prepared): Prepared[] => {
+  const groups: Prepared[] = []
+
+  for (const it of p.items) {
+    const last = groups[groups.length - 1]
+    const head = last?.items.find(x => x.depth === 0)
+    const same = last !== undefined && (it.depth > 0 || head === undefined || (head.marker === '·') === (it.marker === '·'))
+
+    if (same && last !== undefined) last.items.push(it)
+    else groups.push({ title: groups.length === 0 ? p.title : undefined, items: [it], cites: [] })
+  }
+
+  for (const g of groups) {
+    for (const c of g.items.flatMap(x => x.cites)) if (!g.cites.some(y => y.n === c.n)) g.cites.push(c)
+  }
+
+  return groups
+}
+
+// One step row in the content column: `● verb    target ……… result   time`, then `╰─ detail`.
+const drawStep = (ui: Ui, step: Step, time: string, width: number, key: string) => {
+  const { Box, Text } = ui
+  const l = layoutStep(step, time, width)
+
+  return (
+    <Box key={key} flexDirection="column">
+      <Text wrap="truncate">
+        <Text color={step.dot.color}>{`${step.dot.text} `}</Text>
+        <Text color={C.muted}>{l.verb}</Text>
+        <Text color={step.targetColor ?? C.textBright}>{l.target}</Text>
+        <Text>{l.gap}</Text>
+        {step.result.flatMap((r, i) => [
+          ...(i > 0 ? [<Text key={`rs${i}`}> </Text>] : []),
+          <Text key={`r${i}`} color={r.color}>
+            {r.text}
+          </Text>
+        ])}
+        <Text color={C.muted}>{l.timeCell}</Text>
+      </Text>
+      {l.detail !== undefined && (
+        <Text wrap="truncate">
+          <Text color={C.dim}>{G.hang}</Text>
+          <Text color={C.dim}>{`${' '.repeat(VERB_W)}${l.detail}`}</Text>
+        </Text>
+      )}
+    </Box>
+  )
+}
+
+// `activity ┄┄┄┄┄┄┄┄┄┄┄┄┄ 6 steps · 41s`, the mini rule over a turn's first step.
+const drawActivityRule = (ui: Ui, label: string) => {
+  const { Box, Text } = ui
+
+  return (
+    <Box flexDirection="row" flexWrap="nowrap" width="100%" height={1} marginBottom={1}>
+      <Box flexShrink={0}>
+        <Text color={C.muted}>{'activity '}</Text>
+      </Box>
+      <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
+        <Text color={C.hairline} wrap="wrap">
+          {G.hEdge.repeat(600)}
+        </Text>
+      </Box>
+      {label.length > 0 && (
+        <Box flexShrink={0}>
+          <Text color={C.muted}>{` ${label}`}</Text>
+        </Box>
+      )}
+    </Box>
+  )
+}
+
+const stepTime = (list: readonly StepStamp[], id: string | undefined) => {
+  const ms = list.find(s => s.id === id)?.ms
+
+  return ms === null || ms === undefined ? '' : fmtDuration(ms)
+}
+
+// Wraps step rows in the gutter grid, under the activity rule when this opens the turn's
+// activity; `claude` in the gutter when the turn opened on tools. Never holds an engine node.
+// `extra.close`: the bottom edge of a browser frame left open right above (N actions).
+// `extra.caps`: the capability line under `claude`. `extra.gap`: a blank row above the
+// body (a frame opening after plain steps).
+type Extra = { close?: number | undefined; caps?: Part[] | undefined; gap?: boolean | undefined }
+
+const inGrid = (ui: Ui, head: string | undefined, lay: Lay, body: RenderChildren, label = false, extra: Extra = {}) => {
+  const { Box } = ui
+  const closing = (extra.close ?? 0) > 0
+
+  return (
+    <Box flexDirection="column">
+      {closing && closeRow(ui, lay, extra.close ?? 0)}
+      {cell(
+        ui,
+        lay,
+        claude(label),
+        [
+          ...(extra.caps !== undefined
+            ? [
+                <Box key="caps" marginBottom={1}>
+                  {drawParts(ui, extra.caps, 'caps')}
+                </Box>
+              ]
+            : []),
+          ...(head !== undefined ? [<Box key="head">{drawActivityRule(ui, head)}</Box>] : []),
+          <Box key="body" flexDirection="column">
+            {body}
+          </Box>
+        ],
+        head !== undefined || label || closing || extra.gap === true ? 1 : 0
+      )}
+    </Box>
+  )
+}
+
+// `+┄┄┄…┄┄ 5 actions +`: closes the browser frame above, in the content column.
+const closeRow = (ui: Ui, lay: Lay, actions: number) => {
+  const { Box } = ui
+
+  return (
+    <Box flexDirection="row" flexWrap="nowrap" paddingLeft={lay.gutter}>
+      <Box width={lay.width} flexShrink={1} minWidth={0}>
+        {drawParts(ui, browserBottom(lay.width, actions), 'close')}
+      </Box>
+    </Box>
+  )
+}
+
+// An engine-drawn row the timeline can't redraw (a folded group, an unknown tool): the
+// activity rule and `claude` still draw, as siblings above it, and the engine's node is
+// indented by a padded gutter Text so its dot lines up with the step dots. The node
+// itself never sits under a Box that has a width.
+const engineInGutter = (ui: Ui, node: RenderChildren, head: string | undefined, lay: Lay, label: boolean, extra: Extra = {}) => {
+  const { Box, Text } = ui
+  const closing = (extra.close ?? 0) > 0
+  // The caps line takes the `claude` label's row; the head (or the node) follows. Narrow,
+  // `claude` is always its own caption line, so it heads the column the same way.
+  const capsFirst = label && extra.caps !== undefined
+  const onHead = head !== undefined || capsFirst || (label && lay.narrow)
+
+  return (
+    <Box flexDirection="column">
+      {closing && closeRow(ui, lay, extra.close ?? 0)}
+      <Box flexDirection="column" marginTop={onHead || label || closing || extra.gap === true ? 1 : 0}>
+        {onHead &&
+          cell(ui, lay, claude(label), [
+            ...(capsFirst
+              ? [
+                  <Box key="caps" marginBottom={head !== undefined ? 1 : 0}>
+                    {drawParts(ui, extra.caps ?? [], 'caps')}
+                  </Box>
+                ]
+              : []),
+            ...(head !== undefined ? [<Box key="head">{drawActivityRule(ui, head)}</Box>] : [])
+          ])}
+        {label && !onHead ? (
+          <Box flexDirection="row" flexWrap="nowrap">
+            <Box flexShrink={0}>
+              <Text color={C.accent}>{pad('claude', lay.gutter)}</Text>
+            </Box>
+            <Box flexDirection="column" flexGrow={1} flexShrink={1}>
+              {node}
+            </Box>
+          </Box>
+        ) : (
+          // Padding, not a spacer Text: a node that draws nothing leaves no blank row.
+          <Box flexDirection="column" paddingLeft={lay.gutter}>
+            {node}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
+// One line of parts, never wrapped (every framed line is built exactly the frame's width).
+// A part's `href` is never drawn. The engine's Link is an OSC 8 span only where it
+// judges the terminal supports one; elsewhere (Windows Terminal, as seen) it draws the
+// text, then the whole URL, which overruns the measure and pushes later footnotes off
+// the line. A Text can't carry the escape itself (control characters are dropped), so
+// the label alone is drawn: never the raw URL, at the cost of the click.
+const drawParts = (ui: Ui, parts: readonly Part[], key: string) => {
+  const { Text } = ui
+
+  return (
+    <Text key={key} wrap="truncate">
+      {parts.length === 0
+        ? ' '
+        : parts.map((p, i) => (
+            <Text key={`${i}`} color={p.color} {...(p.bold ? { weight: 'bold' as const } : {})}>
+              {p.t}
+            </Text>
+          ))}
+    </Text>
+  )
+}
+
+// Frame pieces stacked with no margins (a frame drawn across several rows).
+const drawRows = (ui: Ui, lines: readonly Part[][], key: string) => {
+  const { Box } = ui
+
+  return (
+    <Box key={key} flexDirection="column">
+      {lines.map((l, i) => drawParts(ui, l, `${key}${i}`))}
+    </Box>
+  )
+}
+
+const drawFrame = (ui: Ui, lines: readonly Part[][]) => {
+  const { Box } = ui
+
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={1}>
+      {lines.map((l, i) => drawParts(ui, l, `f${i}`))}
+    </Box>
+  )
+}
+
+// `+┄┄ [ path · +18 −4 ] ┄┄┄…┄┄ 22 lines +`, numbered rows, folded past 12 (§5.5).
+const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width: number) => {
+  const { Box, Text } = ui
+  const inner = width - 4
+  const MAX = 12
+  const shown = diff.rows.length > MAX ? diff.rows.slice(0, MAX - 1) : diff.rows
+  const more = diff.rows.length - shown.length
+  const noW = Math.max(2, ...diff.rows.map(r => String(r.no ?? '').length))
+  const meta = `${diff.rows.filter(r => r.kind !== 'gap').length} lines`
+  const parts = changeParts(diff.adds, diff.dels)
+  const { title, fill } = diffTop(width, relPath(diff.path, cwd), parts, meta)
+
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- captures `Text` from `ui` through JSX (`<Text>`), which the rule does not see
+  const edge = (body: RenderChildren, k: string) => (
+    <Text key={k} wrap="truncate">
+      <Text color={C.hairline}>{`${G.vEdge} `}</Text>
+      {body}
+      <Text color={C.hairline}>{` ${G.vEdge}`}</Text>
+    </Text>
+  )
+
+  return (
+    <Box flexDirection="column" marginTop={1} marginBottom={1}>
+      <Text wrap="truncate">
+        <Text color={C.ruleStrong}>{G.cross}</Text>
+        <Text color={C.hairline}>{`${G.hEdge.repeat(2)} `}</Text>
+        {frameLabel(title, [
+          ...(parts.length > 0 ? [{ t: ' · ', color: C.muted }] : []),
+          ...parts.flatMap((p, i) => [...(i > 0 ? [{ t: ' ', color: C.text }] : []), { t: p.text, color: p.color }])
+        ]).map((p, i) => (
+          <Text key={`l${i}`} color={p.color}>
+            {p.t}
+          </Text>
+        ))}
+        <Text color={C.hairline}>{` ${G.hEdge.repeat(fill)} `}</Text>
+        <Text color={C.muted}>{meta}</Text>
+        <Text color={C.hairline}> </Text>
+        <Text color={C.ruleStrong}>{G.cross}</Text>
+      </Text>
+      {shown.map((r, i) => {
+        if (r.kind === 'gap') {
+          return edge(<Text color={C.dim}>{pad(`${' '.repeat(noW)}   ⋯`, inner)}</Text>, `d${i}`)
+        }
+
+        const sign = r.kind === 'add' ? '+' : r.kind === 'del' ? '−' : ' '
+        const color = r.kind === 'add' ? C.add : r.kind === 'del' ? C.del : C.text
+        const body = pad(r.text.replace(/\t/g, '  '), inner - noW - 3)
+
+        return edge(
+          [
+            <Text key="n" color={C.muted}>
+              {pad(String(r.no ?? ''), noW, 'right')}
+            </Text>,
+            <Text key="s" color={color}>{` ${sign} `}</Text>,
+            <Text key="b" color={color}>
+              {body}
+            </Text>
+          ],
+          `d${i}`
+        )
+      })}
+      {more > 0 &&
+        edge(
+          [
+            <Text key="m" color={C.dim}>{`${G.hEdge.repeat(2)} ${more} more lines ${G.hEdge.repeat(2)}  `}</Text>,
+            <Text key="k" color={C.muted}>
+              {pad('ctrl+o', inner - vw(`${G.hEdge.repeat(2)} ${more} more lines ${G.hEdge.repeat(2)}  `))}
+            </Text>
+          ],
+          'more'
+        )}
+      <Text wrap="truncate">
+        <Text color={C.ruleStrong}>{G.cross}</Text>
+        <Text color={C.hairline}>{G.hEdge.repeat(width - 2)}</Text>
+        <Text color={C.ruleStrong}>{G.cross}</Text>
+      </Text>
+    </Box>
+  )
 }
 
 export const register: Register = on => {
@@ -552,7 +971,7 @@ export const register: Register = on => {
     // Turn open rule with the submit time (dropped when we never saw the submit),
     // then `you` in the gutter and the message behind a ▎ rail on every row.
     const stamps = await read($, prompts)
-    const stamp = [...stamps].reverse().find(p => p.text.trim() === e.props.text.trim())
+    const stamp = stamps.toReversed().find(p => p.text.trim() === e.props.text.trim())
     const rows = wrapPlain(e.props.text, width - 2)
     const ui = $.ui.resolve(e)
 
@@ -579,41 +998,6 @@ export const register: Register = on => {
       </Box>
     )
   })
-
-  // One block on the grid. Wide: a 12-column gutter holds `label` beside the content.
-  // Narrow (§4): `label` is a caption line above, the content inset 2 at full width.
-  type Label = { text: string; color: string }
-
-  const cell = (ui: Ui, lay: Lay, label: Label | undefined, body: unknown, marginTop = 0, key?: string) => {
-    const { Box, Text } = ui
-    const text = label?.text ?? ''
-    const content = (
-      <Box flexDirection="column" width={lay.width} flexShrink={1} minWidth={0}>
-        {body as never}
-      </Box>
-    )
-
-    if (lay.narrow) {
-      return (
-        <Box key={key} flexDirection="column" marginTop={marginTop}>
-          {text.length > 0 && <Text color={label?.color ?? C.accent}>{text}</Text>}
-          <Box flexDirection="row" flexWrap="nowrap" paddingLeft={lay.gutter}>
-            {content}
-          </Box>
-        </Box>
-      )
-    }
-
-    return (
-      <Box key={key} flexDirection="row" flexWrap="nowrap" marginTop={marginTop}>
-        <Box width={lay.gutter} flexShrink={0}>
-          <Text color={label?.color ?? C.accent}>{text}</Text>
-        </Box>
-        {content}
-      </Box>
-    )
-  }
-  const claude = (shown: boolean): Label | undefined => (shown ? { text: 'claude', color: C.accent } : undefined)
 
   // Claude's prose: `claude` in the gutter on the first block of a reply, body on the
   // one measure. Plain paragraphs and headings are laid out here (exact widths, code
@@ -671,7 +1055,7 @@ export const register: Register = on => {
     // Numbers run through the turn, not just this message: a reply split over several
     // messages (prose, a list, a Sources list) numbers each source once.
     const earlier = place === undefined ? [] : turnCites(blocksSoFar, place.turn, place.at)
-    const { cited, lists, tables, sources, mine, mineListed, listsHere } = citationsOf(blocks, earlier)
+    const { cited, lists, tables, mine, mineListed, listsHere } = citationsOf(blocks, earlier)
     // §0.2 citations, decided once and the same on every draw, streaming or done: a turn
     // that used a web tool (search, fetch) before this message draws [ SOURCES ] frames and
     // no footnote lines; any other turn draws footnote lines under the blocks that hold the
@@ -689,8 +1073,9 @@ export const register: Register = on => {
     // Every prose block, heading and table is ONE Text: its lines are laid out and clipped
     // here, then joined with `\n`, so a redraw while text streams replaces the block whole
     // and can never leave a stale sibling line behind. Keys come from block position.
-    const drawLines = (lines: Span[][], key: string, gap: number) => (
-      <Box key={key} marginTop={gap}>
+    // oxlint-disable-next-line unicorn/consistent-function-scoping -- captures `Box` and `Text` from `ui` through JSX, which the rule does not see
+    const drawLines = (lines: Span[][], lineKey: string, gap: number) => (
+      <Box key={lineKey} marginTop={gap}>
         <Text wrap="wrap">
           {lines.flatMap((line, li) => [
             ...(li > 0 ? ['\n'] : []),
@@ -698,9 +1083,9 @@ export const register: Register = on => {
               <Text
                 key={`${li}.${k}`}
                 color={s.color}
-                backgroundColor={s.bg}
-                weight={s.bold ? 'bold' : undefined}
-                italic={s.italic === true ? true : undefined}
+                {...(s.bg !== undefined ? { backgroundColor: s.bg } : {})}
+                {...(s.bold ? { weight: 'bold' as const } : {})}
+                {...(s.italic === true ? { italic: true } : {})}
               >
                 {s.t}
               </Text>
@@ -709,65 +1094,6 @@ export const register: Register = on => {
         </Text>
       </Box>
     )
-
-    const tableLines = ({ table: t, layout, airy: mayAir }: Drawn): Span[][] => {
-      const { widths, hidden } = layout
-      const total = widths.reduce((a, b) => a + b, 0) + TABLE_GAP * (widths.length - 1)
-
-      type Drawn = { runs: Run[]; color: string; empty: boolean }
-
-      // A row is as tall as its tallest cell; the others are top-aligned.
-      const rowLines = (cells: Drawn[], isHeader: boolean): Span[][] => {
-        const per = widths.map((w, ci) => {
-          const cell = cells[ci] ?? { runs: [], color: C.text, empty: true }
-
-          return cellLines({ runs: cell.runs, empty: cell.empty }, w, isHeader ? 'fixed' : (t.kind[ci] ?? 'fixed'))
-        })
-        const height = Math.max(1, ...per.map(p => p.length))
-
-        return Array.from({ length: height }, (_, li) =>
-          widths.flatMap((w, ci) => {
-            const cell = cells[ci]
-            const runs = per[ci]?.[li] ?? []
-            const column = t.align[ci] ?? 'left'
-            const [l, r] = padding(runs, w, isHeader ? headerAlign(t, ci) : cellAlign(cell, column))
-            const tail = ci < widths.length - 1 ? r + TABLE_GAP : 0
-            const base = cell?.empty ? C.dim : (cell?.color ?? C.text)
-
-            return [
-              ...(l > 0 ? [{ t: ' '.repeat(l), color: C.text }] : []),
-              ...spansOf(runs, base),
-              ...(tail > 0 ? [{ t: ' '.repeat(tail), color: C.text }] : [])
-            ]
-          })
-        )
-      }
-
-      const header = rowLines(
-        t.header.map(h => ({ runs: [{ t: h, s: 'plain' as const }], color: C.muted, empty: false })),
-        true
-      )
-      const body = t.rows.map(cells =>
-        rowLines(
-          cells.map((c, ci) => ({ ...c, color: ci === 0 && t.nameFirst ? C.textBright : C.text })),
-          false
-        )
-      )
-      // A blank line between rows when rows wrap (§5.18), at any width. Settled (the turn
-      // done, the reply re-flowed): between every two rows once any row wraps. Streaming or
-      // frozen: next to each row that wraps, so a blank row only ever lands below a row
-      // already drawn, or above the row being written.
-      const wraps = body.map(r => r.length > 1)
-      const anyWraps = wraps.some(w => w)
-      const gapBefore = (ri: number) => ri > 0 && (mayAir ? anyWraps : wraps[ri] === true || wraps[ri - 1] === true)
-
-      return [
-        ...header,
-        [{ t: '─'.repeat(total), color: C.hairline }],
-        ...body.flatMap((r, ri) => (gapBefore(ri) ? [[], ...r] : r)),
-        ...(hidden > 0 ? [[{ t: `${hidden} ${hidden === 1 ? 'column' : 'columns'} hidden`, color: C.dim }]] : [])
-      ]
-    }
 
     // Tables keep their columns while the turn streams (see streamLayout): each is keyed by
     // this message, its place among the message's tables, the measure and its header.
@@ -795,7 +1121,10 @@ export const register: Register = on => {
     const listLines = (p: Prepared): Span[][] => [
       ...(p.title !== undefined ? [[{ t: clip(p.title, width), color: quiet ? C.dim : C.textBright, bold: true }]] : []),
       ...p.items.flatMap((it, ii) => {
-        const before = p.items.slice(0, ii).reverse().find(x => x.depth === 0)
+        const before = p.items
+          .slice(0, ii)
+          .toReversed()
+          .find(x => x.depth === 0)
         const switched = it.depth === 0 && before !== undefined && (before.marker === '·') !== (it.marker === '·')
         const lead = ' '.repeat(it.depth * 2)
         const hang = vw(lead) + vw(it.marker) + 1
@@ -804,41 +1133,18 @@ export const register: Register = on => {
 
         return [
           ...(switched ? [[] as Span[]] : []),
-          ...rows.map((row, ri) => [
-            { t: ri === 0 ? `${lead}${it.marker} ` : ' '.repeat(hang), color: C.muted },
-            ...runsLine(row, room)
-          ])
+          ...rows.map((row, ri) => [{ t: ri === 0 ? `${lead}${it.marker} ` : ' '.repeat(hang), color: C.muted }, ...runsLine(row, room)])
         ]
       })
     ]
-    // A list's top-level runs of one marker kind (bullets, numbers), each with the sources
-    // its own items cite: a footnote line goes right under the run that holds its markers.
-    const listGroups = (p: Prepared): Prepared[] => {
-      const groups: Prepared[] = []
-
-      for (const it of p.items) {
-        const last = groups[groups.length - 1]
-        const head = last?.items.find(x => x.depth === 0)
-        const same = last !== undefined && (it.depth > 0 || head === undefined || (head.marker === '·') === (it.marker === '·'))
-
-        if (same && last !== undefined) last.items.push(it)
-        else groups.push({ title: groups.length === 0 ? p.title : undefined, items: [it], cites: [] })
-      }
-
-      for (const g of groups) {
-        for (const c of g.items.flatMap(x => x.cites)) if (!g.cites.some(y => y.n === c.n)) g.cites.push(c)
-      }
-
-      return groups
-    }
     let tableNo = 0
     const plans = blocks.flatMap(b => {
       if (b.kind !== 'table') return []
 
-      const key = `${message}|${tableNo++}|${width}|${b.table.header.join('␟')}`
+      const tableKey = `${message}|${tableNo++}|${width}|${b.table.header.join('␟')}`
 
       // A table with links lays out with its markers renumbered through the turn.
-      return [{ b, src: tables.get(b)?.block ?? b, key, held: frozen.get(key) }]
+      return [{ b, src: tables.get(b)?.block ?? b, key: tableKey, held: frozen.get(tableKey) }]
     })
     const decide = (mayReflow: boolean) =>
       new Map(plans.map(p => [p.b as Block, { key: p.key, ...streamLayout(p.src, width, live, p.held, isOffScreen, mayReflow) }]))
@@ -850,11 +1156,11 @@ export const register: Register = on => {
     // past the window's height the redraw printed the whole turn a second time.)
     const decided = decide(false)
 
-    for (const { key, hold } of decided.values()) {
+    for (const { key: tableKey, hold } of decided.values()) {
       if (hold === undefined) {
-        frozen.delete(key)
+        frozen.delete(tableKey)
       } else {
-        frozen.set(key, hold)
+        frozen.set(tableKey, hold)
 
         while (frozen.size > FROZEN_MAX) {
           const oldest = frozen.keys().next().value
@@ -871,7 +1177,7 @@ export const register: Register = on => {
     // line comes with its markers, from the block's first draw).
     const notesShown = (_key: string, n: number) => n > 0 && !framed
 
-    const drawBlock = (b: Block, key: string, gap: number) => {
+    const drawBlock = (b: Block, blockKey: string, gap: number) => {
       switch (b.kind) {
         case 'table': {
           const drawn = tableDraws.get(b)
@@ -881,37 +1187,45 @@ export const register: Register = on => {
           const lines = tableLines(drawn)
           // Only markers still on screen get an entry: a cell cut at its line limit (or
           // clipped narrow) can drop its marker, and a footnote never points at nothing.
-          const shown = new Set(lines.flatMap(l => l.map(sp => sp.t).join('').match(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g) ?? []))
+          const shown = new Set(
+            lines.flatMap(
+              l =>
+                l
+                  .map(sp => sp.t)
+                  .join('')
+                  .match(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g) ?? []
+            )
+          )
           const notes = (tables.get(b)?.cites ?? []).filter(c => shown.has(sup(c.n)))
 
-          if (notes.length === 0) return drawLines(lines, key, gap)
+          if (notes.length === 0) return drawLines(lines, blockKey, gap)
 
           // Markers in the cells: the footnote line goes right under the table.
           return (
-            <Box key={key} marginTop={gap} flexDirection="column">
-              {drawLines(lines, `${key}-t`, 0)}
-              {notesShown(key, notes.length) && drawRows(ui, footnoteLines(notes, width), `${key}-n`)}
+            <Box key={blockKey} marginTop={gap} flexDirection="column">
+              {drawLines(lines, `${blockKey}-t`, 0)}
+              {notesShown(blockKey, notes.length) && drawRows(ui, footnoteLines(notes, width), `${blockKey}-n`)}
             </Box>
           )
         }
         case 'heading':
-          return drawLines([[{ t: clip(b.text, width), color: quiet ? C.dim : C.textBright, bold: true }]], key, gap)
+          return drawLines([[{ t: clip(b.text, width), color: quiet ? C.dim : C.textBright, bold: true }]], blockKey, gap)
         case 'para':
           return drawLines(
             wrapWords(toWords(b.runs), width).map(line => runsLine(line, width)),
-            key,
+            blockKey,
             gap
           )
         // An mdxcn figure (§5.7): our frame at the measure; an artifact, never dimmed.
         case 'figure':
           return (
-            <Box key={key} marginTop={gap} flexDirection="column">
-              {drawRows(ui, figureLines(b, width, lay.narrow), `${key}-f`)}
+            <Box key={blockKey} marginTop={gap} flexDirection="column">
+              {drawRows(ui, figureLines(b, width, lay.narrow), `${blockKey}-f`)}
             </Box>
           )
         case 'markdown':
           return (
-            <Box key={key} marginTop={gap} flexDirection="column">
+            <Box key={blockKey} marginTop={gap} flexDirection="column">
               <Markdown text={b.text} dimColor={quiet} />
             </Box>
           )
@@ -921,11 +1235,11 @@ export const register: Register = on => {
           if (p === undefined) return null
 
           return (
-            <Box key={key} marginTop={gap} flexDirection="column">
+            <Box key={blockKey} marginTop={gap} flexDirection="column">
               {listGroups(p).map((g, gi) => (
-                <Box key={`${key}-g${gi}`} marginTop={gi > 0 ? 1 : 0} flexDirection="column">
-                  {drawLines(listLines(g), `${key}-g${gi}-l`, 0)}
-                  {notesShown(`${key}-g${gi}`, g.cites.length) && drawRows(ui, footnoteLines(g.cites, width), `${key}-g${gi}-n`)}
+                <Box key={`${blockKey}-g${gi}`} marginTop={gi > 0 ? 1 : 0} flexDirection="column">
+                  {drawLines(listLines(g), `${blockKey}-g${gi}-l`, 0)}
+                  {notesShown(`${blockKey}-g${gi}`, g.cites.length) && drawRows(ui, footnoteLines(g.cites, width), `${blockKey}-g${gi}-n`)}
                 </Box>
               ))}
             </Box>
@@ -937,16 +1251,13 @@ export const register: Register = on => {
 
           if (c === undefined) {
             return b.kind === 'cited' ? (
-              <Box key={key} marginTop={gap} flexDirection="column">
+              <Box key={blockKey} marginTop={gap} flexDirection="column">
                 <Markdown text={b.text} dimColor={quiet} />
               </Box>
             ) : null
           }
 
-          const body =
-            c.runs === undefined
-              ? []
-              : wrapWords(toWords(c.runs), width).map(line => runsLine(line, width))
+          const body = c.runs === undefined ? [] : wrapWords(toWords(c.runs), width).map(line => runsLine(line, width))
           // A Sources list draws no numbered line of its own (its items have no markers). In a
           // web turn it is the frame. Otherwise its marked sources are on their blocks' lines
           // already, and any it names with no marker get one dim line, `·` for a number.
@@ -956,16 +1267,24 @@ export const register: Register = on => {
             if (framed || rest.length === 0) return null
 
             return (
-              <Box key={key} marginTop={gap} flexDirection="column">
-                {drawRows(ui, footnoteLines(rest.map(r => ({ n: 0, url: r.url, title: r.title })), width, true), `${key}-n`)}
+              <Box key={blockKey} marginTop={gap} flexDirection="column">
+                {drawRows(
+                  ui,
+                  footnoteLines(
+                    rest.map(r => ({ n: 0, url: r.url, title: r.title })),
+                    width,
+                    true
+                  ),
+                  `${blockKey}-n`
+                )}
               </Box>
             )
           }
 
           return (
-            <Box key={key} marginTop={gap} flexDirection="column">
-              {body.length > 0 && drawLines(body, `${key}-p`, 0)}
-              {notesShown(key, c.cites.length) && drawRows(ui, footnoteLines(c.cites, width, c.byTitle), `${key}-n`)}
+            <Box key={blockKey} marginTop={gap} flexDirection="column">
+              {body.length > 0 && drawLines(body, `${blockKey}-p`, 0)}
+              {notesShown(blockKey, c.cites.length) && drawRows(ui, footnoteLines(c.cites, width, c.byTitle), `${blockKey}-n`)}
             </Box>
           )
         }
@@ -1004,8 +1323,7 @@ export const register: Register = on => {
     // the block starts and kept: a card collapsing later never moves this block.
     const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
     const held = replyGaps.get(message)
-    const gap =
-      held ?? (prev !== undefined && prev.kind === 'tool' && prev.turn === place?.turn && framedCalls.has(prev.key) ? 0 : 1)
+    const gap = held ?? (prev !== undefined && prev.kind === 'tool' && prev.turn === place?.turn && framedCalls.has(prev.key) ? 0 : 1)
 
     if (held === undefined) remember(replyGaps, message, gap, GAPS_MAX)
 
@@ -1034,7 +1352,14 @@ export const register: Register = on => {
           )}
           {/* §0.2: one blank row above the frame; none of its own when the reply's only block is the list it replaces (the reply's gap is that row). */}
           {drawsFrame &&
-            cell(ui, lay, undefined, drawRows(ui, sourcesFrame(mine, width, mineListed), 'sources'), blocks.every(b => b.kind === 'sources') ? 0 : 1, 'sources')}
+            cell(
+              ui,
+              lay,
+              undefined,
+              drawRows(ui, sourcesFrame(mine, width, mineListed), 'sources'),
+              blocks.every(b => b.kind === 'sources') ? 0 : 1,
+              'sources'
+            )}
         </Box>
       </Box>
     )
@@ -1098,17 +1423,15 @@ export const register: Register = on => {
         await update($, awaitingFirst, () => true)
       } else if (e.agentId === undefined && e.door === 'response' && (await read($, awaitingFirst))) {
         // Claude's first visible block decides: prose text, or a tool call (the activity header).
-        const opener = e.message.content.find(
-          b => (b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0) || b.type === 'tool_use'
-        )
+        const opener = e.message.content.find(b => (b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0) || b.type === 'tool_use')
 
-        if (opener?.type === 'text' && typeof opener.text === 'string') {
-          const key = firstKey(opener.text)
+        if (opener?.type === 'text' && typeof opener['text'] === 'string') {
+          const key = firstKey(opener['text'])
           await snapshotCaps($, key, e.message.content, false)
           await update($, firstTexts, list => [...list, key].slice(-500))
           await update($, awaitingFirst, () => false)
-        } else if (opener?.type === 'tool_use' && typeof opener.id === 'string') {
-          const id = opener.id
+        } else if (opener?.type === 'tool_use' && typeof opener['id'] === 'string') {
+          const id = opener['id']
           await snapshotCaps($, id, e.message.content, true)
           await update($, firstTools, list => [...list, id].slice(-500))
           await update($, awaitingFirst, () => false)
@@ -1119,7 +1442,7 @@ export const register: Register = on => {
     }
 
     return next(e)
-  }).catch(($, e, next) => next(e))
+  }).catch((_$, e, next) => next(e))
 
   // The main loop's current turn, so each step knows which activity it joins.
   on('turn.start', async ($, e, next) => {
@@ -1169,7 +1492,7 @@ export const register: Register = on => {
     }
 
     return ran
-  }).catch(($, e, next) => next(e))
+  }).catch((_$, e, next) => next(e))
 
   // Permission: note a main-loop call whose check asks the person, so its row can say it
   // waits on you. Observes only: the verdict is handed up exactly as heard.
@@ -1187,149 +1510,7 @@ export const register: Register = on => {
     }
 
     return verdict
-  }).catch(($, e, next) => next(e)) // never decides: the verdict beneath stands
-
-  // One step row in the content column: `● verb    target ……… result   time`, then `╰─ detail`.
-  const drawStep = (ui: Ui, step: Step, time: string, width: number, key: string) => {
-    const { Box, Text } = ui
-    const l = layoutStep(step, time, width)
-
-    return (
-      <Box key={key} flexDirection="column">
-        <Text wrap="truncate">
-          <Text color={step.dot.color}>{`${step.dot.text} `}</Text>
-          <Text color={C.muted}>{l.verb}</Text>
-          <Text color={step.targetColor ?? C.textBright}>{l.target}</Text>
-          <Text>{l.gap}</Text>
-          {step.result.flatMap((r, i) => [
-            ...(i > 0 ? [<Text key={`rs${i}`}>{' '}</Text>] : []),
-            <Text key={`r${i}`} color={r.color}>
-              {r.text}
-            </Text>
-          ])}
-          <Text color={C.muted}>{l.timeCell}</Text>
-        </Text>
-        {l.detail !== undefined && (
-          <Text wrap="truncate">
-            <Text color={C.dim}>{G.hang}</Text>
-            <Text color={C.dim}>{`${' '.repeat(VERB_W)}${l.detail}`}</Text>
-          </Text>
-        )}
-      </Box>
-    )
-  }
-
-  // `activity ┄┄┄┄┄┄┄┄┄┄┄┄┄ 6 steps · 41s`, the mini rule over a turn's first step.
-  const drawActivityRule = (ui: Ui, label: string) => {
-    const { Box, Text } = ui
-
-    return (
-      <Box flexDirection="row" flexWrap="nowrap" width="100%" height={1} marginBottom={1}>
-        <Box flexShrink={0}>
-          <Text color={C.muted}>{'activity '}</Text>
-        </Box>
-        <Box flexGrow={1} flexShrink={1} minWidth={0} height={1} overflow="hidden">
-          <Text color={C.hairline} wrap="wrap">
-            {G.hEdge.repeat(600)}
-          </Text>
-        </Box>
-        {label.length > 0 && (
-          <Box flexShrink={0}>
-            <Text color={C.muted}>{` ${label}`}</Text>
-          </Box>
-        )}
-      </Box>
-    )
-  }
-
-  const stepTime = (list: readonly StepStamp[], id: string | undefined) => {
-    const ms = list.find(s => s.id === id)?.ms
-
-    return ms === null || ms === undefined ? '' : fmtDuration(ms)
-  }
-
-  // Wraps step rows in the gutter grid, under the activity rule when this opens the turn's
-  // activity; `claude` in the gutter when the turn opened on tools. Never holds an engine node.
-  // `extra.close`: the bottom edge of a browser frame left open right above (N actions).
-  // `extra.caps`: the capability line under `claude`. `extra.gap`: a blank row above the
-  // body (a frame opening after plain steps).
-  type Extra = { close?: number; caps?: Part[]; gap?: boolean }
-
-  const inGrid = (ui: Ui, head: string | undefined, lay: Lay, body: unknown, label = false, extra: Extra = {}) => {
-    const { Box } = ui
-    const closing = (extra.close ?? 0) > 0
-
-    return (
-      <Box flexDirection="column">
-        {closing && closeRow(ui, lay, extra.close ?? 0)}
-        {cell(
-          ui,
-          lay,
-          claude(label),
-          [
-            ...(extra.caps !== undefined ? [<Box key="caps" marginBottom={1}>{drawParts(ui, extra.caps, 'caps')}</Box>] : []),
-            ...(head !== undefined ? [<Box key="head">{drawActivityRule(ui, head)}</Box>] : []),
-            <Box key="body" flexDirection="column">{body as never}</Box>
-          ],
-          head !== undefined || label || closing || extra.gap === true ? 1 : 0
-        )}
-      </Box>
-    )
-  }
-
-  // `+┄┄┄…┄┄ 5 actions +`: closes the browser frame above, in the content column.
-  const closeRow = (ui: Ui, lay: Lay, actions: number) => {
-    const { Box } = ui
-
-    return (
-      <Box flexDirection="row" flexWrap="nowrap" paddingLeft={lay.gutter}>
-        <Box width={lay.width} flexShrink={1} minWidth={0}>
-          {drawParts(ui, browserBottom(lay.width, actions), 'close')}
-        </Box>
-      </Box>
-    )
-  }
-
-  // An engine-drawn row the timeline can't redraw (a folded group, an unknown tool): the
-  // activity rule and `claude` still draw, as siblings above it, and the engine's node is
-  // indented by a padded gutter Text so its dot lines up with the step dots. The node
-  // itself never sits under a Box that has a width.
-  const engineInGutter = (ui: Ui, node: unknown, head: string | undefined, lay: Lay, label: boolean, extra: Extra = {}) => {
-    const { Box, Text } = ui
-    const closing = (extra.close ?? 0) > 0
-    // The caps line takes the `claude` label's row; the head (or the node) follows. Narrow,
-    // `claude` is always its own caption line, so it heads the column the same way.
-    const capsFirst = label && extra.caps !== undefined
-    const onHead = head !== undefined || capsFirst || (label && lay.narrow)
-
-    return (
-      <Box flexDirection="column">
-        {closing && closeRow(ui, lay, extra.close ?? 0)}
-        <Box flexDirection="column" marginTop={onHead || label || closing || extra.gap === true ? 1 : 0}>
-          {onHead &&
-            cell(ui, lay, claude(label), [
-              ...(capsFirst ? [<Box key="caps" marginBottom={head !== undefined ? 1 : 0}>{drawParts(ui, extra.caps ?? [], 'caps')}</Box>] : []),
-              ...(head !== undefined ? [<Box key="head">{drawActivityRule(ui, head)}</Box>] : [])
-            ])}
-          {label && !onHead ? (
-            <Box flexDirection="row" flexWrap="nowrap">
-              <Box flexShrink={0}>
-                <Text color={C.accent}>{pad('claude', lay.gutter)}</Text>
-              </Box>
-              <Box flexDirection="column" flexGrow={1} flexShrink={1}>
-                {node as never}
-              </Box>
-            </Box>
-          ) : (
-            // Padding, not a spacer Text: a node that draws nothing leaves no blank row.
-            <Box flexDirection="column" paddingLeft={lay.gutter}>
-              {node as never}
-            </Box>
-          )}
-        </Box>
-      </Box>
-    )
-  }
+  }).catch((_$, e, next) => next(e)) // never decides: the verdict beneath stands
 
   // A standalone call's row. ctrl+o (expanded) stays the engine's; a tool we can't read is
   // the engine's row, in the gutter grid.
@@ -1370,9 +1551,7 @@ export const register: Register = on => {
     // A settled turn: its first folded step draws the one `◦ N earlier steps` row (with
     // the activity rule and `claude` it carried); the other folded steps draw nothing.
     if (fold !== undefined) {
-      return fold.isAnchor
-        ? inGrid(ui, head, lay, drawParts(ui, foldRow(fold, width), 'fold'), opensTurn, { close: above, caps: capsRow, gap })
-        : ui.Box({})
+      return fold.isAnchor ? inGrid(ui, head, lay, drawParts(ui, foldRow(fold, width), 'fold'), opensTurn, { close: above, caps: capsRow, gap }) : ui.Box({})
     }
 
     if (step === undefined) {
@@ -1419,9 +1598,7 @@ export const register: Register = on => {
     const opensTurn = first !== undefined && (await read($, firstTools)).includes(first)
     const blocks = await read($, flow)
     const place =
-      first === undefined
-        ? undefined
-        : flowPlace(blocks, f => f.kind === 'tool' && f.key === first, await read($, streaming), await read($, currentTurn))
+      first === undefined ? undefined : flowPlace(blocks, f => f.kind === 'tool' && f.key === first, await read($, streaming), await read($, currentTurn))
     const extra = {
       close: browserOpenAbove(blocks, place),
       caps: opensTurn ? await openerCaps($, k => k === first, width) : undefined,
@@ -1463,9 +1640,7 @@ export const register: Register = on => {
       ui,
       activityHead(list, first),
       lay,
-      rows.map((r, i) =>
-        r === undefined ? null : drawStep(ui, r, stepTime(list, e.props.calls[i]?.tool_use_id), width, `step-${i}`)
-      ),
+      rows.map((r, i) => (r === undefined ? null : drawStep(ui, r, stepTime(list, e.props.calls[i]?.tool_use_id), width, `step-${i}`))),
       opensTurn,
       extra
     )
@@ -1523,7 +1698,12 @@ export const register: Register = on => {
 
         framedCalls.add(id)
 
-        return inGrid(ui, undefined, lay, cards.map((l, i) => <Box key={`card${i}`}>{drawFrame(ui, l)}</Box>))
+        return inGrid(
+          ui,
+          undefined,
+          lay,
+          cards.map((l, i) => <Box key={`card${i}`}>{drawFrame(ui, l)}</Box>)
+        )
       }
     }
 
@@ -1541,14 +1721,14 @@ export const register: Register = on => {
     }
 
     if (tool === 'Bash' || tool === 'PowerShell') {
-      const o = typeof output === 'object' && output !== null ? (output as Record<string, unknown>) : undefined
+      const o = isObject(output) ? output : undefined
       const special =
         o === undefined ||
-        o.isImage === true ||
-        o.backgroundTaskId !== undefined ||
-        o.persistedOutputPath !== undefined ||
-        o.rawOutputPath !== undefined ||
-        o.structuredContent !== undefined
+        o['isImage'] === true ||
+        o['backgroundTaskId'] !== undefined ||
+        o['persistedOutputPath'] !== undefined ||
+        o['rawOutputPath'] !== undefined ||
+        o['structuredContent'] !== undefined
 
       if (special) {
         return engine()
@@ -1579,123 +1759,6 @@ export const register: Register = on => {
     return <Box />
   })
 
-  // One line of parts, never wrapped (every framed line is built exactly the frame's width).
-  // A part's `href` is never drawn. The engine's Link is an OSC 8 span only where it
-  // judges the terminal supports one; elsewhere (Windows Terminal, as seen) it draws the
-  // text, then the whole URL, which overruns the measure and pushes later footnotes off
-  // the line. A Text can't carry the escape itself (control characters are dropped), so
-  // the label alone is drawn: never the raw URL, at the cost of the click.
-  const drawParts = (ui: Ui, parts: readonly Part[], key: string) => {
-    const { Text } = ui
-
-    return (
-      <Text key={key} wrap="truncate">
-        {parts.length === 0
-          ? ' '
-          : parts.map((p, i) => (
-              <Text key={`${i}`} color={p.color} weight={p.bold ? 'bold' : undefined}>
-                {p.t}
-              </Text>
-            ))}
-      </Text>
-    )
-  }
-
-  // Frame pieces stacked with no margins (a frame drawn across several rows).
-  const drawRows = (ui: Ui, lines: readonly Part[][], key: string) => {
-    const { Box } = ui
-
-    return (
-      <Box key={key} flexDirection="column">
-        {lines.map((l, i) => drawParts(ui, l, `${key}${i}`))}
-      </Box>
-    )
-  }
-
-  const drawFrame = (ui: Ui, lines: readonly Part[][]) => {
-    const { Box } = ui
-
-    return (
-      <Box flexDirection="column" marginTop={1} marginBottom={1}>
-        {lines.map((l, i) => drawParts(ui, l, `f${i}`))}
-      </Box>
-    )
-  }
-
-  // `+┄┄ [ path · +18 −4 ] ┄┄┄…┄┄ 22 lines +`, numbered rows, folded past 12 (§5.5).
-  const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width: number) => {
-    const { Box, Text } = ui
-    const inner = width - 4
-    const MAX = 12
-    const shown = diff.rows.length > MAX ? diff.rows.slice(0, MAX - 1) : diff.rows
-    const more = diff.rows.length - shown.length
-    const noW = Math.max(2, ...diff.rows.map(r => String(r.no ?? '').length))
-    const meta = `${diff.rows.filter(r => r.kind !== 'gap').length} lines`
-    const parts = changeParts(diff.adds, diff.dels)
-    const { title, fill } = diffTop(width, relPath(diff.path, cwd), parts, meta)
-
-    const edge = (body: unknown, k: string) => (
-      <Text key={k} wrap="truncate">
-        <Text color={C.hairline}>{`${G.vEdge} `}</Text>
-        {body as never}
-        <Text color={C.hairline}>{` ${G.vEdge}`}</Text>
-      </Text>
-    )
-
-    return (
-      <Box flexDirection="column" marginTop={1} marginBottom={1}>
-        <Text wrap="truncate">
-          <Text color={C.ruleStrong}>{G.cross}</Text>
-          <Text color={C.hairline}>{`${G.hEdge.repeat(2)} `}</Text>
-          {frameLabel(title, [
-            ...(parts.length > 0 ? [{ t: ' · ', color: C.muted }] : []),
-            ...parts.flatMap((p, i) => [...(i > 0 ? [{ t: ' ', color: C.text }] : []), { t: p.text, color: p.color }])
-          ]).map((p, i) => (
-            <Text key={`l${i}`} color={p.color}>
-              {p.t}
-            </Text>
-          ))}
-          <Text color={C.hairline}>{` ${G.hEdge.repeat(fill)} `}</Text>
-          <Text color={C.muted}>{meta}</Text>
-          <Text color={C.hairline}>{' '}</Text>
-          <Text color={C.ruleStrong}>{G.cross}</Text>
-        </Text>
-        {shown.map((r, i) => {
-          if (r.kind === 'gap') {
-            return edge(<Text color={C.dim}>{pad(`${' '.repeat(noW)}   ⋯`, inner)}</Text>, `d${i}`)
-          }
-
-          const sign = r.kind === 'add' ? '+' : r.kind === 'del' ? '−' : ' '
-          const color = r.kind === 'add' ? C.add : r.kind === 'del' ? C.del : C.text
-          const body = pad(r.text.replace(/\t/g, '  '), inner - noW - 3)
-
-          return edge(
-            [
-              <Text key="n" color={C.muted}>{pad(String(r.no ?? ''), noW, 'right')}</Text>,
-              <Text key="s" color={color}>{` ${sign} `}</Text>,
-              <Text key="b" color={color}>{body}</Text>
-            ],
-            `d${i}`
-          )
-        })}
-        {more > 0 &&
-          edge(
-            [
-              <Text key="m" color={C.dim}>{`${G.hEdge.repeat(2)} ${more} more lines ${G.hEdge.repeat(2)}  `}</Text>,
-              <Text key="k" color={C.muted}>
-                {pad('ctrl+o', inner - vw(`${G.hEdge.repeat(2)} ${more} more lines ${G.hEdge.repeat(2)}  `))}
-              </Text>
-            ],
-            'more'
-          )}
-        <Text wrap="truncate">
-          <Text color={C.ruleStrong}>{G.cross}</Text>
-          <Text color={C.hairline}>{G.hEdge.repeat(width - 2)}</Text>
-          <Text color={C.ruleStrong}>{G.cross}</Text>
-        </Text>
-      </Box>
-    )
-  }
   // Stamp each typed prompt with the clock, for its turn rule.
   on('prompt.submit', async ($, e, next) => {
     if (!e.isMeta && e.command === undefined && e.text.trim().length > 0) {
@@ -1704,7 +1767,7 @@ export const register: Register = on => {
     }
 
     return next(e)
-  }).catch(($, e, next) => next(e)) // a stamp that fails never holds a prompt back
+  }).catch((_$, e, next) => next(e)) // a stamp that fails never holds a prompt back
 
   // Keep the latest main-loop turn's output tokens, for the close rule.
   on('turn.complete', async ($, e, next) => {
@@ -1792,7 +1855,7 @@ export const register: Register = on => {
 
   // The spinner (§5.11): props only. The verb says what the turn does; the engine keeps
   // its own time, tokens and `esc` hint. A state's own message stands.
-  on('ui.render', { component: 'Spinner' }, ($, e, next) => {
+  on('ui.render', { component: 'Spinner' }, (_$, e, next) => {
     const word = spinnerWord(e.props.mode)
 
     if (e.surface !== 'terminal' || e.props.message !== null || word === undefined) {
@@ -1862,7 +1925,7 @@ export const register: Register = on => {
     const r = await next(e)
 
     try {
-      await noteHook($, 'PreToolUse', r, (e as { agentId?: unknown }).agentId)
+      await noteHook($, 'PreToolUse', r, 'agentId' in e ? e['agentId'] : undefined)
     } catch {
       // observing only
     }
@@ -1921,11 +1984,7 @@ export const register: Register = on => {
 
     if (lay !== undefined) {
       const text = e.props.text.replace(/\s+/g, ' ').trim()
-      const parts: Part[] = [
-        { t: '› ', color: C.dim },
-        { t: text, color: C.muted },
-        ...(e.props.command ? [{ t: ` · ${e.props.command}`, color: C.dim }] : [])
-      ]
+      const parts: Part[] = [{ t: '› ', color: C.dim }, { t: text, color: C.muted }, ...(e.props.command ? [{ t: ` · ${e.props.command}`, color: C.dim }] : [])]
 
       return <Box paddingLeft={lay.gutter}>{drawParts(ui, partsWidth(parts) <= lay.width ? parts : fitParts(parts, lay.width), 'info')}</Box>
     }

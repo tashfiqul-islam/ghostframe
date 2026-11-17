@@ -18,6 +18,7 @@ export type Numbering = Map<string, number>
 export const MAX_FOOTNOTES = 4
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+// oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
 export const sup = (n: number) => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')
 
 // `[label](https://…)`, one level of parentheses allowed inside the URL.
@@ -177,7 +178,10 @@ export function cutOpenLink(s: string): string {
   // Anything else (a whole link, `[ TITLE ]` in a figure, a bracket in prose) stays.
   if (!/^\[[^\]]*$|^\[[^\]]*\]$|^\[[^\]]*\]\([^)]*$/.test(rest)) return s
 
-  return s.slice(0, at).replace(/\s*\($/, '').trimEnd()
+  return s
+    .slice(0, at)
+    .replace(/\s*\($/, '')
+    .trimEnd()
 }
 
 export function sourcesCites(items: readonly { title: string; url: string }[], numbering: Numbering): Cite[] {
@@ -326,7 +330,11 @@ export function sourceTitle(c: Cite, all: readonly Cite[]): string {
 }
 
 /** `https://www.vitest.dev/guide/cli/` → `vitest.dev/guide/cli`. */
-export const shortUrl = (url: string) => url.replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '')
+export const shortUrl = (url: string) =>
+  url
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/$/, '')
 
 const NOTE_LEAD = `${G.hEdge.repeat(4)} `
 const NOTE_GAP = '   '

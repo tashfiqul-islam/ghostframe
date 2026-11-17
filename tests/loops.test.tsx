@@ -75,7 +75,10 @@ const SPINE = 2 // `┆ ` then the figure's first column
 test('compact figures: the spine has its own column, one space left of the markers, unbroken first to last', async () => {
   const COMPACT_STEPS = frame('PATH', ['1  request', '│', '2  middleware', '│', '3  handler'])
 
-  for (const [name, src, n] of [['timeline', BUILD, 9], ['steps', COMPACT_STEPS, 3]] as const) {
+  for (const [name, src, n] of [
+    ['timeline', BUILD, 9],
+    ['steps', COMPACT_STEPS, 3]
+  ] as const) {
     const rows = body(figureLines(fig(src), 96))
     expect(rows).toHaveLength(n) // still no gaps
     rows.forEach((r, i) => {
@@ -97,7 +100,13 @@ test('compact figures: the spine has its own column, one space left of the marke
 })
 
 test('spaced figures: one continuous │ in the rule colour from the first marker to the last, never past it', async () => {
-  for (const [name, src] of [['steps', HOOKS], ['timeline', frame('NIGHT', ['●  14:02  p95 crossed', '│', '●  14:11  rolled back', '           flag off', '│', '○  14:40  postmortem', '           still open'])]] as const) {
+  for (const [name, src] of [
+    ['steps', HOOKS],
+    [
+      'timeline',
+      frame('NIGHT', ['●  14:02  p95 crossed', '│', '●  14:11  rolled back', '           flag off', '│', '○  14:40  postmortem', '           still open'])
+    ]
+  ] as const) {
     const rows = body(figureLines(fig(src), 96))
     const marks = rows.map((r, i) => ({ i, ch: cellAt(r, SPINE).ch })).filter(c => /[0-9●○]/.test(c.ch))
     const first = marks[0]?.i ?? -1
@@ -122,8 +131,21 @@ test('density: all one-line items sit on consecutive rows; any description space
   expect(body(build)).toHaveLength(9)
   expect(build).toHaveLength(11)
 
-  const rows = body(figureLines(fig(HOOKS), 96)).map(r => text(r).slice(2, -2).trimEnd().replace(/\s+[┐│┤┘\]].*$/, ''))
-  expect(rows.slice(0, 7)).toEqual(['1  SessionStart', '│  inject context', '│', '2  UserPromptSubmit', '│  add context or block the prompt', '│', '3  PreToolUse'])
+  const rows = body(figureLines(fig(HOOKS), 96)).map(r =>
+    text(r)
+      .slice(2, -2)
+      .trimEnd()
+      .replace(/\s+[┐│┤┘\]].*$/, '')
+  )
+  expect(rows.slice(0, 7)).toEqual([
+    '1  SessionStart',
+    '│  inject context',
+    '│',
+    '2  UserPromptSubmit',
+    '│  add context or block the prompt',
+    '│',
+    '3  PreToolUse'
+  ])
   // Step 4 has no description, but the figure has some: a spacer before step 5 too.
   const four = rows.findIndex(r => r.startsWith('4  '))
   expect(rows[four + 1]).toBe('│')
@@ -134,9 +156,29 @@ test('density: all one-line items sit on consecutive rows; any description space
   expect(rows.slice(-2)).toEqual(['7  SessionEnd', '   cleanup'])
 
   // A timeline with one description: every item spaced the same way.
-  const mixed = body(figureLines(fig(frame('NIGHT', ['●  14:02  p95 crossed 800ms', '│', '●  14:11  rolled back the flag', '           cache flag off', '│', '○  14:40  write the postmortem'])), 96))
-    .map(r => text(r).slice(2, -2).trimEnd())
-  expect(mixed).toEqual(['●  14:02  p95 crossed 800ms', '│', '●  14:11  rolled back the flag', '│          cache flag off', '│', '○  14:40  write the postmortem']) // the source's own indent kept
+  const mixed = body(
+    figureLines(
+      fig(
+        frame('NIGHT', [
+          '●  14:02  p95 crossed 800ms',
+          '│',
+          '●  14:11  rolled back the flag',
+          '           cache flag off',
+          '│',
+          '○  14:40  write the postmortem'
+        ])
+      ),
+      96
+    )
+  ).map(r => text(r).slice(2, -2).trimEnd())
+  expect(mixed).toEqual([
+    '●  14:02  p95 crossed 800ms',
+    '│',
+    '●  14:11  rolled back the flag',
+    '│          cache flag off',
+    '│',
+    '○  14:40  write the postmortem'
+  ]) // the source's own indent kept
 })
 
 test('bracket placement: two cells after the widest bracketed row, ┐ │ ┤ label │ ┘, label one cell after', async () => {
@@ -174,8 +216,16 @@ test('loops: a ┐ │ ┘ bracket on steps 3–5 in the rule colour, its label 
   const at = rows.map(r => cellAt(r, col))
   const top = at.findIndex(c => c.ch === '┐')
   const end = at.findIndex(c => c.ch === '┘')
-  expect(text(rows[top] ?? []).slice(2).startsWith('3  PreToolUse')).toBe(true)
-  expect(text(rows[end] ?? []).slice(2).startsWith('│  read result')).toBe(true)
+  expect(
+    text(rows[top] ?? [])
+      .slice(2)
+      .startsWith('3  PreToolUse')
+  ).toBe(true)
+  expect(
+    text(rows[end] ?? [])
+      .slice(2)
+      .startsWith('│  read result')
+  ).toBe(true)
 
   for (let i = top; i <= end; i++) {
     expect(at[i]?.color).toBe(RULE)
@@ -224,7 +274,10 @@ test('figure meta: a dim count at the right of the top rule, once the fence clos
   const six = frame('BUILD', [...[1, 2, 3, 4, 5, 6].flatMap(n => [`●  p${n}  done`, '│']), '◐  p7  now', '│', '○  p8  next', '│', '○  p9  next'])
   expect(top(six)).toMatch(/ 6 of 9 done \+$/)
   // Markers with no state: a count.
-  const bullets = frame('NOTES', [1, 2, 3].flatMap(n => [`•  n${n}  note`, ...(n < 3 ? ['│'] : [])]))
+  const bullets = frame(
+    'NOTES',
+    [1, 2, 3].flatMap(n => [`•  n${n}  note`, ...(n < 3 ? ['│'] : [])])
+  )
   expect(top(bullets)).toMatch(/ 3 items \+$/)
   expect(figureLines(fig(HOOKS), 96)[0]?.find(p => p.t === '7 steps')?.color).toBe('#686874')
   for (const l of figureLines(fig(HOOKS), 96)) expect(partsWidth(l)).toBe(96)
@@ -240,7 +293,10 @@ test('labels: every frame title is accent, normal weight, with dim brackets', as
     figureLines(fig(HOOKS), 80)[0] ?? [],
     figureLines(fig(frame('ROUTES', ['/docs  [====]  12'])), 80)[0] ?? [],
     tasksFrame(80, { newTodos: [{ content: 'a', status: 'completed' }] })?.[0] ?? [],
-    sourcesFrame([1, 2, 3, 4, 5].map(n => ({ n, title: `t${n}`, url: `https://e.com/${n}` })), 80)[0] ?? [],
+    sourcesFrame(
+      [1, 2, 3, 4, 5].map(n => ({ n, title: `t${n}`, url: `https://e.com/${n}` })),
+      80
+    )[0] ?? [],
     frameLines(80, 'TESTS', { t: 'all passing', color: '' }, [])[0] ?? []
   ]
   for (const t of tops) {
@@ -255,15 +311,23 @@ test('labels: every frame title is accent, normal weight, with dim brackets', as
   // The diff card draws its label through the same pieces.
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const ui = await $.ui.mount({
-    plugin: 'ghostframe', surface: 'terminal', component: 'ToolResult', viewport: { columns: 120, rows: 40 },
-    props: { tool_use_id: 'e1', tool: 'Write', isErrored: false, output: { type: 'create', filePath: 'src/new.ts', content: 'one\ntwo\n', structuredPatch: [], originalFile: null } }
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolResult',
+    viewport: { columns: 120, rows: 40 },
+    props: {
+      tool_use_id: 'e1',
+      tool: 'Write',
+      isErrored: false,
+      output: { type: 'create', filePath: 'src/new.ts', content: 'one\ntwo\n', structuredPatch: [], originalFile: null }
+    }
   })
   const texts = await ui.findAll({ type: 'Text' })
   const at = (re: RegExp) => texts.find(t => re.test(t.text))?.props
-  expect(at(/^\[ $/)?.color).toBe(DIM)
-  expect(at(/^ \]$/)?.color).toBe(DIM)
-  expect(at(/^src\/new\.ts$/)?.color).toBe(PEACH)
-  expect(at(/^src\/new\.ts$/)?.weight).toBeUndefined()
+  expect(at(/^\[ $/)?.['color']).toBe(DIM)
+  expect(at(/^ \]$/)?.['color']).toBe(DIM)
+  expect(at(/^src\/new\.ts$/)?.['color']).toBe(PEACH)
+  expect(at(/^src\/new\.ts$/)?.['weight']).toBeUndefined()
   await ui.unmount()
 })
 
@@ -272,8 +336,14 @@ test('labels: every frame title is accent, normal weight, with dim brackets', as
 const reply = `Every request passes through the lifecycle hooks.\n\n\`\`\`\n${HOOKS}\n\`\`\`\n\nThe mod draws the transcript.`
 
 async function stream($: Parameters<TestBody>[0], columns: number) {
-  const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: { columns, rows: 60 }, props: { text: reply.slice(0, 20), isFirstOfReply: false } })
-  const grab = async () => (await ui.findAll({ type: 'Text' })).filter(t => t.props.wrap === 'truncate').map(t => t.text)
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns, rows: 60 },
+    props: { text: reply.slice(0, 20), isFirstOfReply: false }
+  })
+  const grab = async () => (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
   let prev: string[] = []
   let sawBracketOpen = false
 
