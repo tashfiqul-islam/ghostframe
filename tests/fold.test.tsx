@@ -53,8 +53,19 @@ test('a settled turn: the first step draws the fold row, the rest of the fold dr
 
   const row = (i: number) =>
     $.ui.mount({
-      plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-      props: { tool_use_id: `r${i}`, tool: 'Read', input: { file_path: `f${i}.ts` }, isRunning: false, isErrored: false, isInterrupted: false, output: { type: 'text', file: { numLines: 3 } } }
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolUse',
+      viewport: VIEW,
+      props: {
+        tool_use_id: `r${i}`,
+        tool: 'Read',
+        input: { file_path: `f${i}.ts` },
+        isRunning: false,
+        isErrored: false,
+        isInterrupted: false,
+        output: { type: 'text', file: { numLines: 3 } }
+      }
     })
 
   const first = await row(1)
@@ -66,7 +77,13 @@ test('a settled turn: the first step draws the fold row, the rest of the fold dr
   expect(await hidden.findAll({ type: 'Text' })).toHaveLength(0)
   await hidden.unmount()
 
-  const result = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'r3', tool: 'Read', isErrored: false, output: {} } })
+  const result = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolResult',
+    viewport: VIEW,
+    props: { tool_use_id: 'r3', tool: 'Read', isErrored: false, output: {} }
+  })
   expect(await result.findAll({ type: 'Text' })).toHaveLength(0)
   await result.unmount()
 
@@ -76,7 +93,10 @@ test('a settled turn: the first step draws the fold row, the rest of the fold dr
 
   // ctrl+o: every step is the engine's again.
   const open = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolUse',
+    viewport: VIEW,
     props: { tool_use_id: 'r3', tool: 'Read', input: { file_path: 'f3.ts' }, isRunning: false, isErrored: false, isInterrupted: false, isExpanded: true }
   })
   expect(await open.find({ type: 'Text', text: /^engine$/ })).toBeDefined()

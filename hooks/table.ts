@@ -33,7 +33,11 @@ const MARK = /^(✓|✗|—|-|–|yes|no)?$/i
 const DATE = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$|^\d{1,2}:\d{2}(\s?[AP]M)?$/i
 const PATH = /^[~.]?[\w.@~-]*[\\/][^\s]*$|^[\w.-]+\.[a-z0-9]{1,5}$/i
 
-const plain = (c: Cell) => c.runs.map(r => r.t).join('').trim()
+const plain = (c: Cell) =>
+  c.runs
+    .map(r => r.t)
+    .join('')
+    .trim()
 const words = (s: string) => (s.length === 0 ? 0 : s.split(/\s+/).length)
 
 export const isSeparator = (line: string) => line.includes('|') && splitRow(line).every(c => SEP_CELL.test(c))
@@ -197,7 +201,9 @@ export function numberTable(t: Table, numbering: Numbering): { table: Table; cit
     return n
   })
   const SUPS = new Map(links.map((_, i) => [sup(i + 1), sup(toGlobal[i] ?? i + 1)]))
-  const rows = t.rows.map(r => r.map(c => (c.runs.some(x => x.s === 'cite') ? { ...c, runs: c.runs.map(x => (x.s === 'cite' ? { ...x, t: SUPS.get(x.t) ?? x.t } : x)) } : c)))
+  const rows = t.rows.map(r =>
+    r.map(c => (c.runs.some(x => x.s === 'cite') ? { ...c, runs: c.runs.map(x => (x.s === 'cite' ? { ...x, t: SUPS.get(x.t) ?? x.t } : x)) } : c))
+  )
   const cites = links.map((l, i) => ({ n: toGlobal[i] ?? i + 1, url: l.url, title: l.title }))
 
   return { table: { ...t, rows }, cites }
@@ -209,12 +215,12 @@ export function numberTable(t: Table, numbering: Numbering): { table: Table; cit
 const SHORT_NUMBER = /^[−+-]?\d[\d,.]*%?$/
 
 function cellWords(runs: Run[]): Run[][] {
-  const words = toWords(runs)
+  const runWords = toWords(runs)
   const out: Run[][] = []
 
-  for (let i = 0; i < words.length; i++) {
-    const word = words[i] ?? []
-    const next = words[i + 1]
+  for (let i = 0; i < runWords.length; i++) {
+    const word = runWords[i] ?? []
+    const next = runWords[i + 1]
     const text = word.map(r => r.t).join('')
 
     if (next !== undefined && word.every(r => r.s === 'plain') && text.length <= 4 && SHORT_NUMBER.test(text)) {
@@ -294,7 +300,7 @@ export function layoutTable(t: Table, room: number): Layout {
       left -= proseIdx.reduce((s, i) => s + (widths[i] ?? 0), 0)
 
       // Hand leftover cells to the widest prose columns still under their natural width.
-      for (const i of [...proseIdx].sort((a, b) => (nat[b] ?? 0) - (nat[a] ?? 0))) {
+      for (const i of proseIdx.toSorted((a, b) => (nat[b] ?? 0) - (nat[a] ?? 0))) {
         if (left <= 0) break
         const extra = Math.min(left, (nat[i] ?? 0) - (widths[i] ?? 0))
 
@@ -442,9 +448,7 @@ export function cellLines(cell: Cell, width: number, kind: Kind): Run[][] {
     return [clipRuns(cell.runs, width)]
   }
 
-  const lines = wrapWords(cellWords(cell.runs), width).map(line =>
-    line.flatMap((word, wi) => (wi > 0 ? [{ t: ' ', s: 'plain' as const }, ...word] : word))
-  )
+  const lines = wrapWords(cellWords(cell.runs), width).map(line => line.flatMap((word, wi) => (wi > 0 ? [{ t: ' ', s: 'plain' as const }, ...word] : word)))
 
   if (lines.length <= MAX_LINES) {
     return lines.map(l => clipRuns(l, width))

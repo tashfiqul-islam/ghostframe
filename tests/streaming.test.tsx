@@ -17,7 +17,7 @@ async function drawnLines(ui: { findAll: (q: { type: string }) => Promise<{ prop
 
   // Top-level line holders only: our block Texts (wrap) and the gutter label.
   return texts
-    .filter(t => t.props.wrap === 'wrap')
+    .filter(t => t.props['wrap'] === 'wrap')
     .flatMap(t => t.text.split('\n'))
     .map(l => l.trimEnd())
     .filter(l => l.length > 0)
@@ -25,7 +25,10 @@ async function drawnLines(ui: { findAll: (q: { type: string }) => Promise<{ prop
 
 test('a reply re-drawn as it streams never repeats or drops a line', async $ => {
   const ui = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 120, rows: 40 },
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 120, rows: 40 },
     props: { text: FULL.slice(0, 40), isFirstOfReply: true }
   })
 

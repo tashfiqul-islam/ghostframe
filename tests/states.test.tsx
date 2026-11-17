@@ -5,7 +5,8 @@ import { commandNotice, frameLines, partsWidth, planLine, tasksFrame } from '../
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const VIEW = { columns: 120, rows: 40 }
-const PLAN = '# Fix the toast double-fire\n\n1. Extract the toast queue into its own module\n2. Add a **dedupe key** per message\n3. Cover the double-fire case in `toast.e2e.ts`'
+const PLAN =
+  '# Fix the toast double-fire\n\n1. Extract the toast queue into its own module\n2. Add a **dedupe key** per message\n3. Cover the double-fire case in `toast.e2e.ts`'
 const TODOS = {
   oldTodos: [],
   newTodos: [
@@ -18,7 +19,10 @@ const TODOS = {
 
 test('every framed line is exactly the frame width, at any measure', async () => {
   for (const width of [96, 70, 40, 24]) {
-    for (const lines of [tasksFrame(width, TODOS), frameLines(width, 'A VERY LONG TITLE '.repeat(9), { t: 'meta', color: '' }, [[{ t: 'x'.repeat(300), color: '' }]])]) {
+    for (const lines of [
+      tasksFrame(width, TODOS),
+      frameLines(width, 'A VERY LONG TITLE '.repeat(9), { t: 'meta', color: '' }, [[{ t: 'x'.repeat(300), color: '' }]])
+    ]) {
       expect(lines).toBeDefined()
       for (const l of lines ?? []) expect(partsWidth(l)).toBe(width)
     }
@@ -71,8 +75,12 @@ test('question, plan, task and source steps read their real shapes', async () =>
   expect(ask?.result[0]?.text).toBe('❯ feature/toast-rebuild')
 
   expect(stepOf('ExitPlanMode', {}, { plan: PLAN, isAgent: false }, OK)?.target).toBe('Fix the toast double-fire')
-  expect(stepOf('TaskUpdate', { taskId: '3', status: 'completed' }, { success: true, taskId: '3', updatedFields: ['status'] }, OK)?.result[0]?.text).toBe('done')
-  expect(stepOf('TaskCreate', { subject: 'add dedupe key', description: 'x' }, { task: { id: '4', subject: 'add dedupe key' } }, OK)?.result[0]?.text).toBe('#4')
+  expect(stepOf('TaskUpdate', { taskId: '3', status: 'completed' }, { success: true, taskId: '3', updatedFields: ['status'] }, OK)?.result[0]?.text).toBe(
+    'done'
+  )
+  expect(stepOf('TaskCreate', { subject: 'add dedupe key', description: 'x' }, { task: { id: '4', subject: 'add dedupe key' } }, OK)?.result[0]?.text).toBe(
+    '#4'
+  )
   expect(stepOf('WebFetch', { url: 'https://vitest.dev/guide/test-context', prompt: 'x' }, { code: 200 }, OK)?.targetColor).toBe('#686874') // a URL label is muted
 })
 
@@ -80,14 +88,20 @@ test('an approved plan is one line; the task list a frame; ctrl+o and unreadable
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const result = (tool: string, output: unknown, isExpanded = false) =>
-    $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'p1', tool, isErrored: false, output, isExpanded } })
+    $.ui.mount({
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
+      props: { tool_use_id: 'p1', tool, isErrored: false, output, isExpanded }
+    })
 
   const plan = await result('ExitPlanMode', { plan: PLAN, isAgent: false, filePath: '/tmp/plan.md' })
   expect(await plan.find({ type: 'Text', text: /^plan approved · \/tmp\/plan\.md$/ })).toBeDefined()
   expect(await plan.find({ type: 'Text', text: /Fix the toast/ })).toBeUndefined()
   expect(await plan.find({ type: 'Text', text: /^PLAN$/ })).toBeUndefined()
   expect(await plan.find({ type: 'Text', text: /^engine$/ })).toBeUndefined()
-  expect((await plan.findAll({ type: 'Text', text: /Extract the toast queue/ }))).toHaveLength(0)
+  expect(await plan.findAll({ type: 'Text', text: /Extract the toast queue/ })).toHaveLength(0)
   await plan.unmount()
 
   const expanded = await result('ExitPlanMode', { plan: PLAN, isAgent: false }, true)
@@ -100,7 +114,7 @@ test('an approved plan is one line; the task list a frame; ctrl+o and unreadable
 
   const none = await result('ExitPlanMode', { plan: null, isAgent: false })
   expect(await none.find({ type: 'Text', text: /^engine$/ })).toBeDefined()
-  expect((await none.findAll({ type: 'Box' })).some(b => b.props.paddingLeft === 12)).toBe(true)
+  expect((await none.findAll({ type: 'Box' })).some(b => b.props['paddingLeft'] === 12)).toBe(true)
   await none.unmount()
 
   const asked = await result('AskUserQuestion', { questions: [], answers: {} })
@@ -112,7 +126,10 @@ test('question dialog: the engine draws it, no rule above', async $ => {
   // No stub: the dialog site holds the engine's own node, which the kit supplies.
 
   const ui = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'AskUserQuestion', viewport: VIEW,
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AskUserQuestion',
+    viewport: VIEW,
     props: { tool: 'AskUserQuestion', questions: [{ question: 'Which branch?', header: 'Branch', options: [], multiSelect: false }] }
   })
   expect(await ui.find({ type: 'Text', text: /^question $/ })).toBeUndefined()
@@ -123,13 +140,24 @@ test('question dialog: the engine draws it, no rule above', async $ => {
 test('a one-line command output is a notice; longer output keeps the dim markdown', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
-  expect(commandNotice('effort', 'high', 'Applies from next turn', 96)?.map(p => p.t).join('')).toBe('/  /effort high · Applies from next turn')
-  expect(commandNotice('compact', '', 'Compacted', 96)?.map(p => p.t).join('')).toBe('↻  context compacted · Compacted')
+  expect(
+    commandNotice('effort', 'high', 'Applies from next turn', 96)
+      ?.map(p => p.t)
+      .join('')
+  ).toBe('/  /effort high · Applies from next turn')
+  expect(
+    commandNotice('compact', '', 'Compacted', 96)
+      ?.map(p => p.t)
+      .join('')
+  ).toBe('↻  context compacted · Compacted')
   expect(commandNotice('cost', '', 'a\nb', 96)).toBe(undefined)
   expect(partsWidth(commandNotice('x', 'y', 'z'.repeat(300), 50) ?? [])).toBe(50)
 
   const ui = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'CommandOutput', viewport: VIEW,
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'CommandOutput',
+    viewport: VIEW,
     props: { command: 'effort', args: 'high', text: 'Applies from next turn', isErrored: false }
   })
   expect(await ui.find({ type: 'Text', text: /^\/effort high$/ })).toBeDefined()

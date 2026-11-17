@@ -28,7 +28,13 @@ export type TallyStamp = {
 
 /** One assistant block, in stored order: a text (its key) or a tool call (its id and tool). */
 /** `cites`: the sources a text block adds to its turn, first-cited order (`listed`: named in a Sources list; `marked`: a drawn block carries its marker). */
-export type FlowStamp = { turn: string | null; kind: 'text' | 'tool'; key: string; tool?: string; cites?: { url: string; title: string; listed?: boolean; marked?: boolean }[] }
+export type FlowStamp = {
+  turn: string | null
+  kind: 'text' | 'tool'
+  key: string
+  tool?: string
+  cites?: { url: string; title: string; listed?: boolean; marked?: boolean }[]
+}
 
 /** A test run's counts, by its call's id, with the turn it ran in. */
 export type TestRunStamp = { id: string; turn?: string | null; runner: string; passed: number; failed: number; skipped: number }

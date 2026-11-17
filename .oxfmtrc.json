@@ -1,0 +1,10 @@
+{
+  "$schema": "./tools/node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 160,
+  "semi": false,
+  "singleQuote": true,
+  "trailingComma": "none",
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "ignorePatterns": [".claude-plugin/types/**", "tools/node_modules/**", "tools/bun.lock"]
+}

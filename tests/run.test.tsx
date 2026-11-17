@@ -10,12 +10,13 @@ import { partsWidth } from '../hooks/states'
 const VIEW = { columns: 120, rows: 40 }
 const W = 96 // the measure at 120 columns (min(96, 120 − 14))
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 // ─── Phase 6: live state, capabilities, tally ───────────────────────────────
 
@@ -26,7 +27,11 @@ test('capability line: words not icons, kind then names, thought last; nothing u
   expect(line.find(p => p.t === 'skills')?.color).toBe('#686874') // kind muted
   expect(line.find(p => p.t === ' github')?.color).toBe('#4e4e5a') // names dim
 
-  expect(capsLine({ ...NO_CAPS, thoughtMs: 6000 }, W)?.map(p => p.t).join('')).toBe('thought for 6s · ctrl+o to read')
+  expect(
+    capsLine({ ...NO_CAPS, thoughtMs: 6000 }, W)
+      ?.map(p => p.t)
+      .join('')
+  ).toBe('thought for 6s · ctrl+o to read')
   expect(capsLine({ ...NO_CAPS, thoughtMs: 400 }, W)).toBe(undefined)
   expect(capsLine(NO_CAPS, W)).toBe(undefined)
   expect(partsWidth(capsLine({ ...NO_CAPS, skills: ['x'.repeat(300)] }, 40) ?? [])).toBeLessThanOrEqual(40)
@@ -57,11 +62,23 @@ test('spinner: the verb from the mode, props only; a state message stands', asyn
   expect(spinnerWord('responding')).toBe('writing')
   expect(spinnerWord('tool-use')).toBe('running')
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'Spinner', viewport: VIEW, props: { word: 'Sauteing', message: null, suffix: '…', mode: 'responding' } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'Spinner',
+    viewport: VIEW,
+    props: { word: 'Sauteing', message: null, suffix: '…', mode: 'responding' }
+  })
   expect(await ui.find({ type: 'Text', text: /^writing\|$/ })).toBeDefined()
   await ui.unmount()
 
-  const msg = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'Spinner', viewport: VIEW, props: { word: 'Sauteing', message: 'Compacting', suffix: '…', mode: 'requesting' } })
+  const msg = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'Spinner',
+    viewport: VIEW,
+    props: { word: 'Sauteing', message: 'Compacting', suffix: '…', mode: 'requesting' }
+  })
   expect(await msg.find({ type: 'Text', text: /^Sauteing\|…$/ })).toBeDefined()
   await msg.unmount()
 })
@@ -71,12 +88,23 @@ test('a plain Q&A turn under an every-prompt hook has no capability line at all'
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('classic.UserPromptSubmit', () => ({ additionalContext: ['caveman'] }))
 
-  await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'what is a worktree?' }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: 'q1' } as never)
-  await $.classic.UserPromptSubmit({ prompt: 'what is a worktree?' } as never)
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'what is a worktree?' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'q1'
+  } as never)
+  await $.classic.UserPromptSubmit({ prompt: 'what is a worktree?' })
   await $.turn.start({ text: 'what is a worktree?', turnId: 'q' })
   await $.session.append(respond([{ type: 'text', text: 'A worktree is a second checked-out folder.' }], 'qa'))
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'A worktree is a second checked-out folder.', isFirstOfReply: true } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'A worktree is a second checked-out folder.', isFirstOfReply: true }
+  })
   expect(await ui.findAll({ type: 'Text', text: /^claude$/ })).toHaveLength(1)
   expect(await ui.find({ type: 'Text', text: /hook|UserPromptSubmit|thought/ })).toBeUndefined()
   await ui.unmount()
@@ -87,7 +115,7 @@ test('the opener carries the capability line: a skill, the thinking before it; a
   let now = 0
   on('clock.now', () => ({ value: (now += 3000) }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
-  on('skill.prompt', () => ({ text: 'skill body' }) as never)
+  on('skill.prompt', () => ({ text: 'skill body' }))
   on('classic.UserPromptSubmit', () => ({ additionalContext: ['caveman'] }))
   on('turn.step', async function* (_, e) {
     yield { kind: 'thinking', index: 0, text: 'hm' }
@@ -95,9 +123,14 @@ test('the opener carries the capability line: a skill, the thinking before it; a
     return { turnId: e.turnId, index: 0, answer: 'Found it.', toolUses: [], stopReason: 'end_turn', usage: null } as never
   })
 
-  await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: '/debug the toast' }] }, door: 'command', origin: { kind: 'composer' }, uuid: 'p1' } as never)
-  await $.classic.UserPromptSubmit({ prompt: '/debug the toast' } as never)
-  await $.skill.prompt({ skill: 'superpowers:systematic-debugging', text: 'x', frontmatter: {}, source: 'userSettings' } as never)
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: '/debug the toast' }] },
+    door: 'command',
+    origin: { kind: 'composer' },
+    uuid: 'p1'
+  } as never)
+  await $.classic.UserPromptSubmit({ prompt: '/debug the toast' })
+  await $.skill.prompt({ skill: 'superpowers:systematic-debugging', text: 'x', frontmatter: {}, source: 'userSettings' })
   await $.turn.start({ text: '/debug the toast', turnId: 't1' })
   for await (const _ of $.turn.step({ turnId: 't1', index: 0, model: 'm', messageCount: 1 })) {
     // drain
@@ -105,7 +138,10 @@ test('the opener carries the capability line: a skill, the thinking before it; a
   await $.session.append(respond([{ type: 'text', text: 'Found it. The toast fires twice in one tick.' }], 'r1'))
 
   const ui = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW,
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
     props: { text: 'Found it. The toast fires twice in one tick.', isFirstOfReply: true }
   })
   expect(await ui.findAll({ type: 'Text', text: /^claude$/ })).toHaveLength(1)
@@ -118,7 +154,13 @@ test('the opener carries the capability line: a skill, the thinking before it; a
 
   // A plain later block in the same turn: no line, no label.
   await $.session.append(respond([{ type: 'text', text: 'A later block.' }], 'r2'))
-  const later = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'A later block.', isFirstOfReply: true } })
+  const later = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'A later block.', isFirstOfReply: true }
+  })
   expect(await later.find({ type: 'Text', text: /^skill$/ })).toBeUndefined()
   await later.unmount()
 })
@@ -155,7 +197,13 @@ test('a web turn’s reply with links: markers in prose; one [ SOURCES ] frame l
     'Sources:',
     ...['one', 'two', 'three', 'four', 'five'].map(n => `- [${n}](https://example.dev/${n})`)
   ].join('\n')
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text, isFirstOfReply: false }
+  })
   expect(await ui.find({ type: 'Text', text: /^¹$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^SOURCES$/ })).toBeDefined()
   // Every source in the reply: the paragraph's two numbered, the list's five listed.
@@ -223,8 +271,19 @@ test('a browser run is one frame across its rows; the next block and the close r
 
   const row = (c: (typeof calls)[number]) =>
     $.ui.mount({
-      plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-      props: { tool_use_id: c.id, tool: c.tool, input: c.input, isRunning: false, isErrored: false, isInterrupted: false, output: [{ type: 'text', text: 'ok' }] }
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolUse',
+      viewport: VIEW,
+      props: {
+        tool_use_id: c.id,
+        tool: c.tool,
+        input: c.input,
+        isRunning: false,
+        isErrored: false,
+        isInterrupted: false,
+        output: [{ type: 'text', text: 'ok' }]
+      }
     })
 
   const first = await row(calls[0] as (typeof calls)[number])
@@ -241,7 +300,13 @@ test('a browser run is one frame across its rows; the next block and the close r
 
   // The turn ends on the browser run: the close rule draws the frame's bottom edge.
   await $.turn.complete({ answer: '', durationMs: 4200, isAborted: false, turnId: 't1', reason: 'answer' })
-  const close = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'TurnDuration', viewport: VIEW, props: { word: 'Baked', durationMs: 4200 } })
+  const close = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'TurnDuration',
+    viewport: VIEW,
+    props: { word: 'Baked', durationMs: 4200 }
+  })
   expect(await close.find({ type: 'Text', text: /^2 actions$/ })).toBeDefined()
   expect(await close.find({ type: 'Text', text: /2 browser actions/ })).toBeDefined()
   await close.unmount()
@@ -254,7 +319,13 @@ test('prose right after a browser run closes its frame above itself', async ($, 
   await $.session.append(respond([{ type: 'tool_use', id: 'b1', name: 'mcp__playwright__browser_snapshot', input: {} }], 'r1'))
   await $.session.append(respond([{ type: 'text', text: 'The page shows two toasts.' }], 'r2'))
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'The page shows two toasts.', isFirstOfReply: true } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'The page shows two toasts.', isFirstOfReply: true }
+  })
   expect(await ui.find({ type: 'Text', text: /^1 action$/ })).toBeDefined()
   await ui.unmount()
 })
@@ -262,12 +333,20 @@ test('prose right after a browser run closes its frame above itself', async ($, 
 // ─── Phase 8: tests and shipped ──────────────────────────────────────────────
 
 test('test summaries from each runner', async () => {
-  expect(parseTests(' Test Files  1 failed | 8 passed (9)\n      Tests  3 failed | 142 passed | 2 skipped (147)')).toEqual({ passed: 142, failed: 3, skipped: 2 })
+  expect(parseTests(' Test Files  1 failed | 8 passed (9)\n      Tests  3 failed | 142 passed | 2 skipped (147)')).toEqual({
+    passed: 142,
+    failed: 3,
+    skipped: 2
+  })
   expect(parseTests('Tests:       1 failed, 2 skipped, 9 passed, 12 total')).toEqual({ passed: 9, failed: 1, skipped: 2 })
   expect(parseTests('===== 3 failed, 142 passed, 2 skipped in 3.21s =====')).toEqual({ passed: 142, failed: 3, skipped: 2 })
   expect(parseTests('(pass) a [1ms]\n\n 56 pass\n 0 fail\nRan 56 tests across 11 files. [1.50s]')).toEqual({ passed: 56, failed: 0, skipped: 0 })
   expect(parseTests('  145 passed (38.2s)\n  2 skipped')).toEqual({ passed: 145, failed: 0, skipped: 2 })
-  expect(parseTests('test result: ok. 10 passed; 0 failed; 1 ignored;\ntest result: ok. 5 passed; 0 failed; 0 ignored;')).toEqual({ passed: 15, failed: 0, skipped: 1 })
+  expect(parseTests('test result: ok. 10 passed; 0 failed; 1 ignored;\ntest result: ok. 5 passed; 0 failed; 0 ignored;')).toEqual({
+    passed: 15,
+    failed: 0,
+    skipped: 1
+  })
   expect(parseTests('random output')).toBe(undefined)
   expect(runnerOf('bunx vitest run')).toBe('vitest')
   expect(runnerOf('claude plugin test .')).toBe('claude plugin test')
@@ -275,7 +354,11 @@ test('test summaries from each runner', async () => {
 })
 
 test('shipped: commit, push and PR read from git and gh output', async () => {
-  const commit = parseShip('c', 'git add -A && git commit -m "fix(toast): dedupe by key"', '[feature/toast a1b2c3d4] fix(toast): dedupe by key\n 3 files changed, 48 insertions(+), 12 deletions(-)')
+  const commit = parseShip(
+    'c',
+    'git add -A && git commit -m "fix(toast): dedupe by key"',
+    '[feature/toast a1b2c3d4] fix(toast): dedupe by key\n 3 files changed, 48 insertions(+), 12 deletions(-)'
+  )
   expect(commit?.commit).toEqual({ sha: 'a1b2c3d', subject: 'fix(toast): dedupe by key', files: 3, adds: 48, dels: 12 })
   const push = parseShip('p', 'git push -u origin feature/toast', 'To github.com:me/app.git\n * [new branch]      feature/toast -> feature/toast')
   expect(push?.push).toEqual({ from: 'feature/toast', to: 'feature/toast' })
@@ -285,7 +368,12 @@ test('shipped: commit, push and PR read from git and gh output', async () => {
 
   for (const width of [96, 46]) {
     for (const l of shippedFrame(width, { id: 'x', ...commit, ...pr })) expect(partsWidth(l)).toBe(width)
-    for (const l of testsFrame(width, { id: 'x', runner: 'vitest', passed: 145, failed: 0, skipped: 2 }, { id: 'w', runner: 'vitest', passed: 142, failed: 3, skipped: 2 }, 38000)) {
+    for (const l of testsFrame(
+      width,
+      { id: 'x', runner: 'vitest', passed: 145, failed: 0, skipped: 2 },
+      { id: 'w', runner: 'vitest', passed: 142, failed: 3, skipped: 2 },
+      38000
+    )) {
       expect(partsWidth(l)).toBe(width)
     }
   }
@@ -303,7 +391,13 @@ test('a test run draws a [ TESTS ] card with the change since the last run; unre
   await $.tool.call({ tool: 'Bash', command: 'echo hello', tool_use_id: 's3' } as never)
 
   const result = (id: string, isErrored = false) =>
-    $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: id, tool: 'Bash', isErrored, output: { stdout: out, stderr: '' } } })
+    $.ui.mount({
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
+      props: { tool_use_id: id, tool: 'Bash', isErrored, output: { stdout: out, stderr: '' } }
+    })
 
   const failing = await result('s1', true)
   expect(await failing.find({ type: 'Text', text: /^TESTS$/ })).toBeDefined()
@@ -323,10 +417,18 @@ test('a test run draws a [ TESTS ] card with the change since the last run; unre
 
 test('a commit draws a [ SHIPPED ] card', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-  on('tool.call', () => ({ result: { stdout: '[main a1b2c3d] fix(toast): dedupe by key\n 3 files changed, 48 insertions(+), 12 deletions(-)', stderr: '', interrupted: false } }))
+  on('tool.call', () => ({
+    result: { stdout: '[main a1b2c3d] fix(toast): dedupe by key\n 3 files changed, 48 insertions(+), 12 deletions(-)', stderr: '', interrupted: false }
+  }))
   await $.tool.call({ tool: 'Bash', command: 'git commit -m "fix(toast): dedupe by key"', tool_use_id: 'g1' } as never)
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'g1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolResult',
+    viewport: VIEW,
+    props: { tool_use_id: 'g1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } }
+  })
   expect(await ui.find({ type: 'Text', text: /^SHIPPED$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^committed$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^a1b2c3d$/ })).toBeDefined()
@@ -349,7 +451,12 @@ test('thinking: hidden on a turn with no tools; shown on a work turn; shown past
   })
 
   const turn = async (id: string, content: unknown[]) => {
-    await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: id }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: `p-${id}` } as never)
+    await $.session.append({
+      message: { type: 'user', role: 'user', content: [{ type: 'text', text: id }] },
+      door: 'prompt',
+      origin: { kind: 'composer' },
+      uuid: `p-${id}`
+    } as never)
     await $.turn.start({ text: id, turnId: id })
     for await (const _ of $.turn.step({ turnId: id, index: 0, model: 'm', messageCount: 1 })) {
       // drain
@@ -361,15 +468,32 @@ test('thinking: hidden on a turn with no tools; shown on a work turn; shown past
 
   // Plain Q&A, 4s of thinking: no line.
   await turn('qa', [{ type: 'text', text: 'A plain answer about worktrees and branches.' }])
-  const qa = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'A plain answer about worktrees and branches.', isFirstOfReply: true } })
+  const qa = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'A plain answer about worktrees and branches.', isFirstOfReply: true }
+  })
   expect(await qa.find({ type: 'Text', text: /thought/ })).toBeUndefined()
   await qa.unmount()
 
   // A turn that opens on a tool: a work turn, the line shows.
   await turn('work', [{ type: 'tool_use', id: 'w1', name: 'Read', input: { file_path: 'a.ts' } }])
   const work = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-    props: { tool_use_id: 'w1', tool: 'Read', input: { file_path: 'a.ts' }, isRunning: false, isErrored: false, isInterrupted: false, output: { type: 'text', file: { numLines: 2 } } }
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolUse',
+    viewport: VIEW,
+    props: {
+      tool_use_id: 'w1',
+      tool: 'Read',
+      input: { file_path: 'a.ts' },
+      isRunning: false,
+      isErrored: false,
+      isInterrupted: false,
+      output: { type: 'text', file: { numLines: 2 } }
+    }
   })
   expect(await work.find({ type: 'Text', text: /^thought for 4s$/ })).toBeDefined()
   await work.unmount()
@@ -387,13 +511,24 @@ test('thinking past 10s shows even with no tools', async ($, on) => {
     yield { kind: 'text', index: 1, text: 'x' }
     return { turnId: e.turnId, index: 0, answer: 'x', toolUses: [], stopReason: 'end_turn', usage: null } as never
   })
-  await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'q' }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: 'p' } as never)
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'q' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'p'
+  } as never)
   await $.turn.start({ text: 'q', turnId: 'long' })
   for await (const _ of $.turn.step({ turnId: 'long', index: 0, model: 'm', messageCount: 1 })) {
     // drain
   }
   await $.session.append(respond([{ type: 'text', text: 'A long-considered plain answer here.' }], 'r'))
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'A long-considered plain answer here.', isFirstOfReply: true } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'A long-considered plain answer here.', isFirstOfReply: true }
+  })
   expect(await ui.find({ type: 'Text', text: /^thought for 12s$/ })).toBeDefined()
   await ui.unmount()
 })
@@ -410,11 +545,19 @@ test('tests card: zero counts left out; all passing is `75 passed` on a full gre
   const failing = testsFrame(W, { ...run, passed: 69, failed: 6 }, undefined, 1000).map(l => l.map(p => p.t).join(''))
   expect(failing[1]).toMatch(/^┆ 69 passed    6 failed +┆$/)
 
-  expect(testsFrame(W, run, { ...run, id: 'w' }, 1000).map(l => l.map(p => p.t).join('')).join('\n')).not.toMatch(/was /)
-  expect(testsFrame(W, run, { ...run, id: 'w', passed: 74, failed: 1 }, 1000).map(l => l.map(p => p.t).join('')).join('\n')).toMatch(/was 74 passed · 1 failing/)
+  expect(
+    testsFrame(W, run, { ...run, id: 'w' }, 1000)
+      .map(l => l.map(p => p.t).join(''))
+      .join('\n')
+  ).not.toMatch(/was /)
+  expect(
+    testsFrame(W, run, { ...run, id: 'w', passed: 74, failed: 1 }, 1000)
+      .map(l => l.map(p => p.t).join(''))
+      .join('\n')
+  ).toMatch(/was 74 passed · 1 failing/)
 })
 
-test('final evidence: only a turn\'s last test run and last shipping call draw cards', async ($, on) => {
+test("final evidence: only a turn's last test run and last shipping call draw cards", async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   let out = ' 69 pass\n 6 fail\n'
@@ -430,7 +573,13 @@ test('final evidence: only a turn\'s last test run and last shipping call draw c
   await $.tool.call({ tool: 'Bash', command: 'gh pr create --base main', tool_use_id: 'pr' } as never)
 
   const result = (id: string) =>
-    $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: id, tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } } })
+    $.ui.mount({
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport: VIEW,
+      props: { tool_use_id: id, tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } }
+    })
 
   for (const id of ['a', 'c1']) {
     const early = await result(id)
@@ -453,13 +602,16 @@ test('final evidence: only a turn\'s last test run and last shipping call draw c
 
   // The earlier steps' rows say what they did.
   const ok = { isRunning: false, isErrored: false, isInterrupted: false }
-  expect(stepOf('Bash', { command: 'git commit -m one' }, { stdout: '[main a1b2c3d] fix: one', stderr: '' }, ok)?.result.map(r => r.text)).toEqual(['committed', 'a1b2c3d'])
+  expect(stepOf('Bash', { command: 'git commit -m one' }, { stdout: '[main a1b2c3d] fix: one', stderr: '' }, ok)?.result.map(r => r.text)).toEqual([
+    'committed',
+    'a1b2c3d'
+  ])
   expect(stepOf('Bash', { command: 'bun test' }, 'Exit code 1\n 69 pass\n 6 fail', { ...ok, isErrored: true })?.result[0]?.text).toBe('6 fail')
 })
 
 /** Each card line as drawn: the one-line Texts the card is built from. */
 async function cardLinesOf(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
-  return (await ui.findAll({ type: 'Text' })).filter(t => t.props.wrap === 'truncate').map(t => t.text)
+  return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
 }
 
 test('a card streams stable: once drawn, no line changes and none repeats while the turn goes on', async ($, on) => {
@@ -476,11 +628,29 @@ test('a card streams stable: once drawn, no line changes and none repeats while 
 
   // The run's row streams its output, then its result block draws the card.
   const row = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: VIEW,
-    props: { tool_use_id: 'r1', tool: 'Bash', input: { command: 'bun test', description: 'Run the tests' }, isRunning: true, isErrored: false, isInterrupted: false }
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolUse',
+    viewport: VIEW,
+    props: {
+      tool_use_id: 'r1',
+      tool: 'Bash',
+      input: { command: 'bun test', description: 'Run the tests' },
+      isRunning: true,
+      isErrored: false,
+      isInterrupted: false
+    }
   })
   for (const cut of [10, 25, FULL.length]) {
-    await row.redraw({ tool_use_id: 'r1', tool: 'Bash', input: { command: 'bun test', description: 'Run the tests' }, isRunning: true, isErrored: false, isInterrupted: false, output: { stdout: FULL.slice(0, cut), stderr: '' } })
+    await row.redraw({
+      tool_use_id: 'r1',
+      tool: 'Bash',
+      input: { command: 'bun test', description: 'Run the tests' },
+      isRunning: true,
+      isErrored: false,
+      isInterrupted: false,
+      output: { stdout: FULL.slice(0, cut), stderr: '' }
+    })
   }
   await $.tool.call({ tool: 'Bash', command: 'bun test', tool_use_id: 'r1' } as never)
   await row.unmount()
@@ -515,20 +685,38 @@ test('one blank row after a card: prose right below it takes no margin of its ow
   await $.session.append(respond([{ type: 'tool_use', id: 'k1', name: 'Bash', input: { command: 'bun test' } }], 'a1'))
   await $.tool.call({ tool: 'Bash', command: 'bun test', tool_use_id: 'k1' } as never)
   // The card draws first, as on screen; the prose under it then knows it's there.
-  const card = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'k1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } } })
+  const card = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolResult',
+    viewport: VIEW,
+    props: { tool_use_id: 'k1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } }
+  })
   expect(await card.find({ type: 'Text', text: /^TESTS$/ })).toBeDefined()
   await card.unmount()
   await $.session.append(respond([{ type: 'text', text: 'All five pass now.' }], 'a2'))
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'All five pass now.', isFirstOfReply: true } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'All five pass now.', isFirstOfReply: true }
+  })
   const boxes = await ui.findAll({ type: 'Box' })
-  expect(boxes[1]?.props.marginTop).toBe(0)
+  expect(boxes[1]?.props['marginTop']).toBe(0)
   await ui.unmount()
 
   // Prose after a plain step keeps its blank row.
   await $.session.append(respond([{ type: 'tool_use', id: 'k2', name: 'Read', input: { file_path: 'a' } }], 'a3'))
   await $.session.append(respond([{ type: 'text', text: 'Then I read the file.' }], 'a4'))
-  const plain = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'Then I read the file.', isFirstOfReply: true } })
-  expect((await plain.findAll({ type: 'Box' }))[1]?.props.marginTop).toBe(1)
+  const plain = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'Then I read the file.', isFirstOfReply: true }
+  })
+  expect((await plain.findAll({ type: 'Box' }))[1]?.props['marginTop']).toBe(1)
   await plain.unmount()
 })

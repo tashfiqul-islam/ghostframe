@@ -1,0 +1,4 @@
+[install]
+# Install nothing published in the last three days (seconds).
+minimumReleaseAge = 259200
+exact = true

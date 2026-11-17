@@ -28,22 +28,24 @@ export type Step = {
 /** `isAsking`: a person-facing permission ask is open for this call (from `tool.check`). */
 export type CallFlags = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean; isAsking?: boolean }
 
-export const TEST_CMD = /\b(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(run\s+)?test|pnpm\s+(run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b/
+export const TEST_CMD =
+  /\b(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(run\s+)?test|pnpm\s+(run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b/
 const DENIED = /doesn't want to proceed|user (denied|rejected)|permission (was )?denied|was rejected|^\s*Permission to use .+ has been denied/im
 
 const s = (v: unknown): string | undefined => (typeof v === 'string' && v.trim().length > 0 ? v : undefined)
-const obj = (v: unknown): Record<string, unknown> | undefined =>
-  typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const obj = (v: unknown): Record<string, unknown> | undefined => (isRecord(v) ? v : undefined)
 const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
 
 const HOME = /^(?:[A-Za-z]:)?\/(?:Users|home)\/[^/]+(?=\/|$)/i
+
+const norm = (x: string) => x.replace(/\\/g, '/').replace(/\/+$/, '')
 
 /**
  * A path as shown: forward slashes only; relative inside the session's folder;
  * `~` for the home folder outside it (`~/AppData/Local/Temp/x.txt`).
  */
 export function relPath(p: string, cwd: string | undefined): string {
-  const norm = (x: string) => x.replace(/\\/g, '/').replace(/\/+$/, '')
   const a = norm(p)
 
   if (cwd !== undefined && cwd.length > 0) {
@@ -140,45 +142,41 @@ export function describe(
     }
     case 'Bash':
     case 'PowerShell': {
-      const cmd = s(i.command)?.split('\n')[0]?.trim()
-      const said = s(i.description)?.replace(/\s+/g, ' ').trim()
+      const cmd = s(i['command'])?.split('\n')[0]?.trim()
+      const said = s(i['description'])?.replace(/\s+/g, ' ').trim()
       return cmd === undefined ? undefined : { verb: TEST_CMD.test(cmd) ? 'test' : 'shell', target: said ?? cmd, isPath: false }
     }
     case 'Grep': {
-      const pat = s(i.pattern)
-      const where = s(i.path) ?? s(i.glob)
-      return pat === undefined
-        ? undefined
-        : { verb: 'search', target: where ? `"${pat}" in ${relPath(where, cwd)}` : `"${pat}"`, isPath: false }
+      const pat = s(i['pattern'])
+      const where = s(i['path']) ?? s(i['glob'])
+      return pat === undefined ? undefined : { verb: 'search', target: where ? `"${pat}" in ${relPath(where, cwd)}` : `"${pat}"`, isPath: false }
     }
     case 'Glob': {
-      const pat = s(i.pattern)
+      const pat = s(i['pattern'])
       return pat === undefined ? undefined : { verb: 'find', target: pat, isPath: false }
     }
     case 'WebFetch': {
-      const url = s(i.url)
-      return url === undefined
-        ? undefined
-        : { verb: 'fetch', target: sourceLabel(url), isPath: false, isLabel: true, targetColor: C.muted } // a URL label, muted (§0.2)
+      const url = s(i['url'])
+      return url === undefined ? undefined : { verb: 'fetch', target: sourceLabel(url), isPath: false, isLabel: true, targetColor: C.muted } // a URL label, muted (§0.2)
     }
     case 'WebSearch': {
-      const q = s(i.query)
+      const q = s(i['query'])
       return q === undefined ? undefined : { verb: 'search', target: q, isPath: false }
     }
     case 'Agent':
     case 'Task': {
-      const d = s(i.description) ?? s(i.subagent_type)
+      const d = s(i['description']) ?? s(i['subagent_type'])
       return d === undefined ? undefined : { verb: 'agent', target: d, isPath: false }
     }
     case 'TodoWrite':
-      return Array.isArray(i.todos) ? { verb: 'todo', target: `${i.todos.length} items`, isPath: false } : undefined
+      return Array.isArray(i['todos']) ? { verb: 'todo', target: `${i['todos'].length} items`, isPath: false } : undefined
     case 'Skill': {
-      const name = s(i.skill)
+      const name = s(i['skill'])
       return name === undefined ? undefined : { verb: 'skill', target: name, isPath: false }
     }
     case 'AskUserQuestion': {
-      const qs = Array.isArray(i.questions) ? i.questions : []
-      const first = s(obj(qs[0])?.question)
+      const qs = Array.isArray(i['questions']) ? i['questions'] : []
+      const first = s(obj(qs[0])?.['question'])
 
       if (first === undefined) return undefined
 
@@ -189,12 +187,12 @@ export function describe(
     case 'EnterPlanMode':
       return { verb: 'plan', target: 'entered plan mode', isPath: false }
     case 'TaskCreate': {
-      const subject = s(i.subject)
+      const subject = s(i['subject'])
       return subject === undefined ? undefined : { verb: 'task', target: subject, isPath: false }
     }
     case 'TaskUpdate': {
-      const id = s(i.taskId)
-      const subject = s(i.subject)
+      const id = s(i['taskId'])
+      const subject = s(i['subject'])
       return id === undefined ? undefined : { verb: 'task', target: subject ? `#${id} ${subject}` : `#${id}`, isPath: false }
     }
     default: {
@@ -225,7 +223,7 @@ export function patchCounts(patch: unknown): { adds: number; dels: number } | un
   let dels = 0
 
   for (const h of patch) {
-    const lines = obj(h)?.lines
+    const lines = obj(h)?.['lines']
 
     if (!Array.isArray(lines)) return undefined
 
@@ -248,24 +246,23 @@ function resultOf(tool: string, output: unknown): Tone[] | undefined {
 
   switch (tool) {
     case 'Read': {
-      const n = num(obj(o?.file)?.numLines)
+      const n = num(obj(o?.['file'])?.['numLines'])
       return n === undefined ? undefined : [{ text: `${n} lines`, color: C.muted }]
     }
     case 'Edit':
     case 'MultiEdit':
     case 'Write': {
-      const c = patchCounts(o?.structuredPatch)
+      const c = patchCounts(o?.['structuredPatch'])
 
       if (c && (c.adds > 0 || c.dels > 0)) return changeParts(c.adds, c.dels)
 
-      const content = s(o?.content)
+      const content = s(o?.['content'])
       const n = content === undefined ? 0 : lineCount(content)
       return tool === 'Write' && n > 0 ? changeParts(n, 0) : undefined
     }
     case 'Grep': {
-      const mode = s(o?.mode)
-      const n =
-        mode === 'content' ? num(o?.numLines) : mode === 'count' ? num(o?.numMatches) : num(o?.numFiles)
+      const mode = s(o?.['mode'])
+      const n = mode === 'content' ? num(o?.['numLines']) : mode === 'count' ? num(o?.['numMatches']) : num(o?.['numFiles'])
       const unit = mode === 'content' ? 'lines' : mode === 'count' ? 'matches' : 'files'
 
       if (n === undefined) return undefined
@@ -273,19 +270,19 @@ function resultOf(tool: string, output: unknown): Tone[] | undefined {
       return [{ text: n === 0 ? 'no matches' : `${n} ${n === 1 ? unit.replace(/s$/, '') : unit}`, color: C.muted }]
     }
     case 'Glob': {
-      const n = num(o?.numFiles)
+      const n = num(o?.['numFiles'])
       return n === undefined ? undefined : [{ text: n === 0 ? 'no files' : `${n} ${n === 1 ? 'file' : 'files'}`, color: C.muted }]
     }
     case 'WebSearch': {
-      const r = o?.results
+      const r = o?.['results']
       return Array.isArray(r) ? [{ text: `${r.length} results`, color: C.muted }] : undefined
     }
     case 'WebFetch': {
-      const code = num(o?.code)
+      const code = num(o?.['code'])
       return code === undefined ? undefined : [{ text: `${code}`, color: code < 400 ? C.ok : C.err }]
     }
     case 'AskUserQuestion': {
-      const answers = Object.values(obj(o?.answers) ?? {}).filter((a): a is string => typeof a === 'string')
+      const answers = Object.values(obj(o?.['answers']) ?? {}).filter((a): a is string => typeof a === 'string')
 
       if (answers.length === 0) return undefined
       if (answers.length > 1) return [{ text: `${answers.length} answered`, color: C.ok }]
@@ -295,7 +292,7 @@ function resultOf(tool: string, output: unknown): Tone[] | undefined {
     case 'ExitPlanMode':
       return [{ text: 'approved', color: C.ok }]
     case 'TaskCreate': {
-      const id = s(obj(o?.task)?.id)
+      const id = s(obj(o?.['task'])?.['id'])
       return id === undefined ? undefined : [{ text: `#${id}`, color: C.muted }]
     }
     default:
@@ -307,7 +304,7 @@ const ANSWER_W = 28
 
 /** TaskUpdate's result reads its own input: the status it set. */
 function taskStatus(input: unknown): Tone[] | undefined {
-  switch (obj(input)?.status) {
+  switch (obj(input)?.['status']) {
     case 'completed':
       return [{ text: 'done', color: C.ok }]
     case 'in_progress':
@@ -323,10 +320,15 @@ function taskStatus(input: unknown): Tone[] | undefined {
 
 /** A plan's first heading, or its first line, as the step's target. */
 function planTitle(output: unknown): string | undefined {
-  const plan = s(obj(output)?.plan)
+  const plan = s(obj(output)?.['plan'])
   const line = plan
     ?.split('\n')
-    .map(l => l.replace(/^#{1,6}\s+/, '').replace(/\*\*|__|`/g, '').trim())
+    .map(l =>
+      l
+        .replace(/^#{1,6}\s+/, '')
+        .replace(/\*\*|__|`/g, '')
+        .trim()
+    )
     .find(l => l.length > 0)
 
   return line
@@ -338,7 +340,7 @@ const shellOut = (output: unknown) => {
 
   const o = obj(output)
 
-  return o === undefined ? '' : [o.stdout, o.stderr].filter((x): x is string => typeof x === 'string').join('\n')
+  return o === undefined ? '' : [o['stdout'], o['stderr']].filter((x): x is string => typeof x === 'string').join('\n')
 }
 
 /** `56 pass` (ok) or `3 fail` (err) when a test run printed a summary; else undefined. */
@@ -363,7 +365,12 @@ export function shipResult(command: string, output: unknown): Tone[] | undefined
 
   const sha = /\bgit\s+commit\b/.test(command) ? /^\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,40})\]/m.exec(text)?.[1] : undefined
 
-  return sha === undefined ? undefined : [{ text: 'committed', color: C.ok }, { text: sha.slice(0, 7), color: C.muted }]
+  return sha === undefined
+    ? undefined
+    : [
+        { text: 'committed', color: C.ok },
+        { text: sha.slice(0, 7), color: C.muted }
+      ]
 }
 
 /** The whole step, or undefined to leave the row to the engine. */
@@ -375,7 +382,6 @@ export function stepOf(
   cwd?: string,
   d: ReturnType<typeof describe> = describe(tool, input, cwd)
 ): Step | undefined {
-
   if (d === undefined) return undefined
 
   // Waiting on the person's permission answer: not running yet, nothing back yet.
@@ -413,7 +419,7 @@ export function stepOf(
 
   const target = tool === 'ExitPlanMode' ? (planTitle(output) ?? d.target) : d.target
   const shell = tool === 'Bash' || tool === 'PowerShell'
-  const summary = shell ? (d.verb === 'test' ? testResult(output) : shipResult(s(obj(input)?.command) ?? '', output)) : undefined
+  const summary = shell ? (d.verb === 'test' ? testResult(output) : shipResult(s(obj(input)?.['command']) ?? '', output)) : undefined
   const result = summary ?? (tool === 'TaskUpdate' ? taskStatus(input) : resultOf(tool, output)) ?? [{ text: 'ok', color: C.ok }]
 
   return { ...d, target, dot: { text: G.done, color: C.ok }, result }
@@ -474,7 +480,7 @@ export function foldSummary(tools: readonly (string | undefined)[]): string {
   }
 
   return [...counts.values()]
-    .sort((a, b) => b.n - a.n)
+    .toSorted((a, b) => b.n - a.n)
     .slice(0, 3)
     .map(c => `${c.n} ${c.n === 1 ? c.one : c.many}`)
     .join(', ')
@@ -576,7 +582,15 @@ export function stepParts(step: Step, time: string, width: number): Part[][] {
     { t: l.timeCell, color: C.muted }
   ]
 
-  return l.detail === undefined ? [row] : [row, [{ t: G.hang, color: C.dim }, { t: `${' '.repeat(VERB_W)}${l.detail}`, color: C.dim }]]
+  return l.detail === undefined
+    ? [row]
+    : [
+        row,
+        [
+          { t: G.hang, color: C.dim },
+          { t: `${' '.repeat(VERB_W)}${l.detail}`, color: C.dim }
+        ]
+      ]
 }
 
 /** Shell output, folded per §5.4: ≤ 3 lines shown whole, else first 2, a fold, the last. */
@@ -613,8 +627,8 @@ export type DiffRow = { kind: 'add' | 'del' | 'ctx' | 'gap'; no: number | undefi
 
 export function diffRows(output: unknown): { path: string; rows: DiffRow[]; adds: number; dels: number } | undefined {
   const o = obj(output)
-  const path = s(o?.filePath)
-  const patch = o?.structuredPatch
+  const path = s(o?.['filePath'])
+  const patch = o?.['structuredPatch']
 
   if (o === undefined || path === undefined || !Array.isArray(patch)) return undefined
 
@@ -622,7 +636,7 @@ export function diffRows(output: unknown): { path: string; rows: DiffRow[]; adds
 
   if (patch.length === 0) {
     // A created file: every line is new.
-    const content = s(o.content)
+    const content = s(o['content'])
 
     if (content === undefined) return undefined
 
@@ -639,9 +653,9 @@ export function diffRows(output: unknown): { path: string; rows: DiffRow[]; adds
 
   patch.forEach((h, hi) => {
     const hunk = obj(h)
-    const lines = hunk?.lines
-    let oldNo = num(hunk?.oldStart) ?? 0
-    let newNo = num(hunk?.newStart) ?? 0
+    const lines = hunk?.['lines']
+    let oldNo = num(hunk?.['oldStart']) ?? 0
+    let newNo = num(hunk?.['newStart']) ?? 0
 
     if (!Array.isArray(lines)) return
     if (hi > 0) rows.push({ kind: 'gap', no: undefined, text: '' })
