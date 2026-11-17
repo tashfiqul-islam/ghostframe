@@ -1,0 +1,18 @@
+# Dependencies (dev tooling lives in tools/, never at the plugin root)
+node_modules/
+
+# Environment files
+.env
+.env.*
+
+# Editor directories
+.vscode/
+.idea/
+
+# Operating-system and editor junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*~
+*.swp
+*.log
