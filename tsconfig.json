@@ -1,3 +1,19 @@
 {
-  "extends": "./.claude-plugin/types/tsconfig.json"
+  // The engine writes and owns the base config (.claude-plugin/types, never committed).
+  // This layer adds every strict flag TypeScript 7 does not already turn on.
+  "extends": "./.claude-plugin/types/tsconfig.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true
+  }
 }

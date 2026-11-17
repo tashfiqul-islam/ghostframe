@@ -26,12 +26,13 @@ Sources:
 
 const TABLE_ONLY = REPLY.split('\n\nSources:')[0] ?? ''
 
-const respond = (text: string, uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text }] },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (text: string, uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text }] },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 type Engine = Parameters<TestBody>[0]
 type On = Parameters<TestBody>[1]
@@ -44,7 +45,13 @@ async function draw($: Engine, on: On, text: string, columns = 140) {
   await $.turn.start({ text: 'make a table', turnId: 't1' })
   await $.session.append(respond(text, 'a1'))
   await $.turn.complete({ answer: text, durationMs: 1000, isAborted: false, turnId: 't1', reason: 'answer', usage: { output_tokens: 10 } } as never)
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns, rows: 400 }, props: { text, isFirstOfReply: true } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns, rows: 400 },
+    props: { text, isFirstOfReply: true }
+  } as never)
   const rows = textAt(await ui.drawn(), columns).map(l => l.trimEnd())
   await ui.unmount()
 
@@ -135,7 +142,13 @@ test('cells: only a link → its URL label; a link in prose → text + marker; "
 })
 
 test('table markers continue the reply’s numbering: a paragraph above takes ¹', async ($, on) => {
-  const md = ['Bun ships often ([blog](https://bun.com/blog)).', '', '| v | note |', '|---|---|', '| 1.4.4 | see [post](https://bun.com/blog/bun-v1.4.4) |'].join('\n')
+  const md = [
+    'Bun ships often ([blog](https://bun.com/blog)).',
+    '',
+    '| v | note |',
+    '|---|---|',
+    '| 1.4.4 | see [post](https://bun.com/blog/bun-v1.4.4) |'
+  ].join('\n')
   const rows = await draw($, on, md)
 
   expect(rows.join('\n')).toContain('blog¹')
@@ -264,14 +277,23 @@ async function twoRuns($: Engine, on: On, text: string) {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
-  for (const [turnId, ms, tokens] of [['t1', 5200, 240], ['t2', 5300, 260]] as const) {
+  for (const [turnId, ms, tokens] of [
+    ['t1', 5200, 240],
+    ['t2', 5300, 260]
+  ] as const) {
     await $.turn.start({ text: 'make a table', turnId })
     await $.session.append(respond(text, `a-${turnId}`))
     await $.turn.complete({ answer: text, durationMs: ms, isAborted: false, turnId, reason: 'answer', usage: { output_tokens: tokens } } as never)
   }
 }
 const footer = async ($: Engine, ms: number) => {
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'TurnDuration', viewport: { columns: 140, rows: 40 }, props: { word: 'Baked', durationMs: ms } } as never)
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'TurnDuration',
+    viewport: { columns: 140, rows: 40 },
+    props: { word: 'Baked', durationMs: ms }
+  } as never)
   const text = textAt(await ui.drawn(), 140).join('\n')
   await ui.unmount()
 

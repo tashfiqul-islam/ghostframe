@@ -1,0 +1,30 @@
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+
+// Opt in with `hk install`. CI runs the same checks, so the hook is a convenience.
+local steps = new Mapping<String, Step> {
+  ["oxfmt"] {
+    glob = List("**/*.ts", "**/*.tsx", "**/*.json", "**/*.jsonc", "**/*.md", "**/*.yml", "**/*.yaml")
+    check = "bun run --cwd tools fmt:check"
+    fix = "bun run --cwd tools fmt"
+  }
+  ["oxlint"] {
+    glob = List("**/*.ts", "**/*.tsx")
+    depends = "oxfmt"
+    check = "bun run --cwd tools lint"
+  }
+  ["tsc"] {
+    glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
+    check = "bun run --cwd tools typecheck"
+  }
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = steps
+  }
+  ["check"] {
+    steps = steps
+  }
+}

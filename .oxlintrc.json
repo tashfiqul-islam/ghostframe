@@ -1,0 +1,29 @@
+{
+  "$schema": "./tools/node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "jsdoc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "rules": {
+    // tsc's noUnusedLocals and noUnusedParameters own unused code.
+    "no-unused-vars": "off",
+    // The codebase builds new arrays on purpose (immutable updates); lists are small.
+    "oxc/no-map-spread": "off"
+  },
+  "overrides": [
+    {
+      // Tests drive the engine step by step (await in a loop is the point), build engine
+      // fixtures with assertions, and reuse short names inside each test.
+      "files": ["tests/**"],
+      "rules": {
+        "no-await-in-loop": "off",
+        "no-shadow": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [".claude-plugin/types/**", "tools/**"]
+}

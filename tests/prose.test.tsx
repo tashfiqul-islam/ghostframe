@@ -49,9 +49,7 @@ test('web links become footnotes; lists are ours; other links, fences and odd li
   expect(splitBlocks('- one\n  ```ts\n  x\n  ```')[0]?.kind).toBe('markdown')
   expect(splitBlocks('- one <b>two</b>')[0]?.kind).toBe('markdown')
   expect(splitBlocks('- a | b')[0]?.kind).toBe('list') // a pipe inside text is just text
-  expect(splitBlocks('```ts\nconst a = 1\n\nconst b = 2\n```')).toEqual([
-    { kind: 'markdown', text: '```ts\nconst a = 1\n\nconst b = 2\n```' }
-  ])
+  expect(splitBlocks('```ts\nconst a = 1\n\nconst b = 2\n```')).toEqual([{ kind: 'markdown', text: '```ts\nconst a = 1\n\nconst b = 2\n```' }])
   expect(splitBlocks('## Title')[0]).toEqual({ kind: 'heading', text: 'Title' })
 })
 

@@ -2,16 +2,17 @@ import { expect, test } from 'claude-code/testing'
 
 import { vw } from '../hooks/grid'
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 /** Every line the reply's own blocks drew (one Text per block, lines joined by \n). */
 async function lines(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
-  return (await ui.findAll({ type: 'Text' })).filter(t => t.props.wrap === 'wrap').flatMap(t => t.text.split('\n'))
+  return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'wrap').flatMap(t => t.text.split('\n'))
 }
 
 // ─── 2. Chips before punctuation keep table columns aligned ─────────────────
@@ -32,7 +33,13 @@ const CHIPS = [
 for (const columns of [120, 70]) {
   test(`at ${columns} columns, a chip before , ; ) mid-cell or at the end never shifts later columns`, async ($, on) => {
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-    const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns, rows: 40 }, props: { text: CHIPS, isFirstOfReply: false } })
+    const ui = await $.ui.mount({
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      viewport: { columns, rows: 40 },
+      props: { text: CHIPS, isFirstOfReply: false }
+    })
     const drawn = (await lines(ui)).filter(l => l.trim().length > 0)
     const rule = drawn.find(l => /^─+$/.test(l))
     if (rule === undefined) throw new Error('no table drawn')
@@ -72,7 +79,13 @@ test('at 60 columns, rows that wrap keep a blank line between them, streaming an
 
   // Streaming: the table is frozen, yet rows that wrap are kept apart.
   await $.turn.start({ text: 'x', turnId: 't1' })
-  const live = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: WRAPPY, isFirstOfReply: false } })
+  const live = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: WRAPPY, isFirstOfReply: false }
+  })
   expect(blanksBetweenRows(await lines(live))).toBeGreaterThanOrEqual(2)
 
   // Settled: a blank line between every two rows once any row wraps.
@@ -86,7 +99,13 @@ test('a narrow table streamed row by row: no drawn row moves, blank lines only l
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   await $.turn.start({ text: 'x', turnId: 't1' })
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 60, rows: 40 }, props: { text: WRAPPY.slice(0, 60), isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 60, rows: 40 },
+    props: { text: WRAPPY.slice(0, 60), isFirstOfReply: false }
+  })
   let prev: string[] = []
 
   for (let cut = 70; ; cut = Math.min(WRAPPY.length, cut + 11)) {
@@ -118,7 +137,12 @@ test('a source cited only in the first paragraph is in the frame; no footnote li
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
-  await $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'q' }] }, door: 'prompt', origin: { kind: 'composer' }, uuid: 'p' } as never)
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'q' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'p'
+  } as never)
   await $.turn.start({ text: 'q', turnId: 't1' })
   // A web search first: the turn draws a frame (§0.2).
   await $.session.append(respond([{ type: 'tool_use', id: 'w1', name: 'WebSearch', input: { query: 'bun' } }], 'w'))
@@ -126,17 +150,29 @@ test('a source cited only in the first paragraph is in the frame; no footnote li
   // A narrow sources hit so the turn is a run (the tally shows from level 3).
   await $.turn.complete({ answer: MANY, durationMs: 4321, isAborted: false, turnId: 't1', reason: 'answer' })
 
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 120, rows: 60 }, props: { text: MANY, isFirstOfReply: true } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 120, rows: 60 },
+    props: { text: MANY, isFirstOfReply: true }
+  })
   const all = (await ui.findAll({ type: 'Text' })).map(t => t.text)
   // One source has a marker; the list's other nine are listed, unnumbered.
   expect(all).toContain('1 cited · 9 listed')
-  expect(all.some(t => /^┄┄┄┄ /.test(t))).toBe(false)
+  expect(all.some(t => t.startsWith('┄┄┄┄ '))).toBe(false)
   // ¹ is listed in the frame: its row's number and its label.
   expect(all.some(t => /^ ?1  $/.test(t))).toBe(true)
   expect(all).toContain('bun.com · bun-v1.4.4')
   await ui.unmount()
 
-  const close = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'TurnDuration', viewport: { columns: 120, rows: 40 }, props: { word: 'Baked', durationMs: 4321 } })
+  const close = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'TurnDuration',
+    viewport: { columns: 120, rows: 40 },
+    props: { word: 'Baked', durationMs: 4321 }
+  })
   expect(await close.find({ type: 'Text', text: /10 sources/ })).toBeDefined()
   await close.unmount()
 })

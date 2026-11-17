@@ -22,7 +22,7 @@ export function browserTool(tool: string): BrowserTool | undefined {
 
   if (/playwright/i.test(server)) return { engine: 'playwright', action: name.replace(/^browser_/, '') }
   if (/chrome/i.test(server)) return { engine: 'chrome', action: name.replace(/^browser_/, '') }
-  if (/browser|puppeteer/i.test(server) || /^browser_/.test(name)) {
+  if (/browser|puppeteer/i.test(server) || name.startsWith('browser_')) {
     return { engine: server.replace(/^plugin_[^_]+_/, ''), action: name.replace(/^browser_/, '') }
   }
 
@@ -30,7 +30,8 @@ export function browserTool(tool: string): BrowserTool | undefined {
 }
 
 const s = (v: unknown): string | undefined => (typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined)
-const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const obj = (v: unknown): Record<string, unknown> => (isRecord(v) ? v : {})
 
 const VERBS: [RegExp, string][] = [
   [/^navigate_back$|^go_back$/, 'back'],
@@ -58,7 +59,7 @@ const VERBS: [RegExp, string][] = [
 
 /** Claude in Chrome's `computer` tool names its action in its input. */
 function actionOf(b: BrowserTool, input: unknown): string {
-  const a = s(obj(input).action)
+  const a = s(obj(input)['action'])
 
   return b.action === 'computer' && a !== undefined ? a : b.action
 }
@@ -80,11 +81,11 @@ export function splitUrl(url: string): [string, string] {
 export function browserTarget(b: BrowserTool, input: unknown): string {
   const i = obj(input)
   const verb = browserVerb(b, input)
-  const what = s(i.element) ?? s(i.ref) ?? s(i.selector) ?? s(i.query)
+  const what = s(i['element']) ?? s(i['ref']) ?? s(i['selector']) ?? s(i['query'])
 
   switch (verb) {
     case 'goto': {
-      const url = s(i.url)
+      const url = s(i['url'])
 
       if (url === undefined) return 'page'
 
@@ -93,44 +94,48 @@ export function browserTarget(b: BrowserTool, input: unknown): string {
       return path.length > 0 ? path : host
     }
     case 'fill': {
-      const text = s(i.text) ?? s(i.value)
-      const fields = Array.isArray(i.fields) ? i.fields.length : undefined
+      const text = s(i['text']) ?? s(i['value'])
+      const fields = Array.isArray(i['fields']) ? i['fields'].length : undefined
 
       if (fields !== undefined) return `${fields} ${fields === 1 ? 'field' : 'fields'}`
 
       return [what, text === undefined ? undefined : `"${text}"`].filter(x => x !== undefined).join('  ›  ') || 'field'
     }
     case 'press':
-      return s(i.key) ?? s(i.text) ?? 'key'
+      return s(i['key']) ?? s(i['text']) ?? 'key'
     case 'select': {
-      const values = Array.isArray(i.values) ? i.values.filter((v): v is string => typeof v === 'string') : []
+      const values = Array.isArray(i['values']) ? i['values'].filter((v): v is string => typeof v === 'string') : []
 
       return [what, values.length > 0 ? values.join(', ') : undefined].filter(x => x !== undefined).join('  ›  ') || 'option'
     }
     case 'capture':
-      return s(i.filename) ?? 'screenshot'
+      return s(i['filename']) ?? 'screenshot'
     case 'wait':
-      return s(i.text) ?? s(i.textGone) ?? (typeof i.time === 'number' ? `${i.time}s` : 'page')
+      return s(i['text']) ?? s(i['textGone']) ?? (typeof i['time'] === 'number' ? `${i['time']}s` : 'page')
     case 'expect':
-      return [what, s(i.text) ?? s(i.value)].filter(x => x !== undefined).join('  ') || actionOf(b, input).replace(/^verify_/, '').replace(/_/g, ' ')
+      return (
+        [what, s(i['text']) ?? s(i['value'])].filter(x => x !== undefined).join('  ') ||
+        actionOf(b, input)
+          .replace(/^verify_/, '')
+          .replace(/_/g, ' ')
+      )
     case 'eval':
-      return (s(i.function) ?? s(i.code) ?? s(i.text) ?? 'script').replace(/\s+/g, ' ')
+      return (s(i['function']) ?? s(i['code']) ?? s(i['text']) ?? 'script').replace(/\s+/g, ' ')
     case 'tab':
-      return s(i.action) ?? actionOf(b, input).replace(/_/g, ' ')
+      return s(i['action']) ?? actionOf(b, input).replace(/_/g, ' ')
     case 'resize':
-      return typeof i.width === 'number' && typeof i.height === 'number' ? `${i.width}×${i.height}` : 'window'
+      return typeof i['width'] === 'number' && typeof i['height'] === 'number' ? `${i['width']}×${i['height']}` : 'window'
     default:
-      return what ?? (Array.isArray(i.coordinate) ? i.coordinate.join(', ') : actionOf(b, input).replace(/_/g, ' '))
+      return what ?? (Array.isArray(i['coordinate']) ? i['coordinate'].join(', ') : actionOf(b, input).replace(/_/g, ' '))
   }
 }
 
 /** The URL a call goes to, for the URL bar: a `goto`'s `url`. */
-export const browserUrl = (b: BrowserTool, input: unknown) => (browserVerb(b, input) === 'goto' ? s(obj(input).url) : undefined)
+export const browserUrl = (b: BrowserTool, input: unknown) => (browserVerb(b, input) === 'goto' ? s(obj(input)['url']) : undefined)
 
 // ─── Frame pieces, each exactly `width` cells ────────────────────────────────
 
-export const browserTop = (width: number, engine: string): Part[] =>
-  frameTop(width, 'BROWSER', { t: engine, color: C.muted })
+export const browserTop = (width: number, engine: string): Part[] => frameTop(width, 'BROWSER', { t: engine, color: C.muted })
 
 export const browserBottom = (width: number, actions: number): Part[] =>
   frameBottom(width, { t: `${actions} ${actions === 1 ? 'action' : 'actions'}`, color: C.muted })

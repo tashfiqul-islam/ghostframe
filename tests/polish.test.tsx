@@ -7,19 +7,20 @@ import { footnoteLines, sourceLabel, sourcesFrame } from '../hooks/research'
 import { commandNotice } from '../hooks/states'
 import { textAt } from './text'
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 const engine = ($: { ui: { resolve: (e: never) => { Text: (p: { children: string }) => unknown } } }, e: never) => $.ui.resolve(e).Text({ children: 'engine' })
 
 // ─── 1. Tokens ───────────────────────────────────────────────────────────────
 
 test('tokens: one small set, the names the design uses; add/del share ok/err', async () => {
-  expect(Object.keys(C).sort()).toEqual(
-    ['accent', 'add', 'bg', 'del', 'dim', 'err', 'hairline', 'link', 'muted', 'ok', 'rule', 'ruleStrong', 'surface', 'text', 'textBright', 'warn'].sort()
+  expect(Object.keys(C).toSorted()).toEqual(
+    ['accent', 'add', 'bg', 'del', 'dim', 'err', 'hairline', 'link', 'muted', 'ok', 'rule', 'ruleStrong', 'surface', 'text', 'textBright', 'warn'].toSorted()
   )
   expect(C.add).toBe(C.ok)
   expect(C.del).toBe(C.err)
@@ -30,7 +31,12 @@ test('tokens: one small set, the names the design uses; add/del share ok/err', a
 
 // ─── 2. Measure ──────────────────────────────────────────────────────────────
 
-for (const [columns, edge] of [[140, 12 + 96], [120, 12 + 96], [110, 12 + 96], [90, 90]] as const) {
+for (const [columns, edge] of [
+  [140, 12 + 96],
+  [120, 12 + 96],
+  [110, 12 + 96],
+  [90, 90]
+] as const) {
   test(`measure at ${columns} columns: turn and footer rules end at ${edge} (gutter + measure; narrow: full)`, async ($, on) => {
     on('ui.render', engine as never)
     on('turn.start', (_, e) => ({ turnId: e.turnId }))
@@ -38,7 +44,13 @@ for (const [columns, edge] of [[140, 12 + 96], [120, 12 + 96], [110, 12 + 96], [
     await $.turn.start({ text: 'q', turnId: 'm1' })
     await $.turn.complete({ answer: '', durationMs: 3100, isAborted: false, turnId: 'm1', reason: 'answer', usage: { output_tokens: 412 } } as never)
 
-    const foot = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'TurnDuration', viewport: { columns, rows: 40 }, props: { word: 'Baked', durationMs: 3100 } })
+    const foot = await $.ui.mount({
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'TurnDuration',
+      viewport: { columns, rows: 40 },
+      props: { word: 'Baked', durationMs: 3100 }
+    })
     const rows = textAt(await foot.drawn(), columns)
     expect(rows[0]).toBe('') // one blank row before the footer rule
     expect(vw(rows[1] ?? '')).toBe(edge)
@@ -46,7 +58,10 @@ for (const [columns, edge] of [[140, 12 + 96], [120, 12 + 96], [110, 12 + 96], [
     await foot.unmount()
 
     const you = await $.ui.mount({
-      plugin: 'graticule', surface: 'terminal', component: 'UserMessage', viewport: { columns, rows: 40 },
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'UserMessage',
+      viewport: { columns, rows: 40 },
       props: { text: 'next question', origin: { kind: 'composer' }, isExpanded: false }
     })
     const urows = textAt(await you.drawn(), columns)
@@ -73,8 +88,19 @@ test('rhythm: narration and the activity row after it have one blank row between
 
   const row = async (id: string, command: string, description: string) => {
     const ui = await $.ui.mount({
-      plugin: 'graticule', surface: 'terminal', component: 'ToolUse', viewport: { columns: 120, rows: 40 },
-      props: { tool_use_id: id, tool: 'Bash', input: { command, description }, isRunning: false, isErrored: false, isInterrupted: false, output: { stdout: 'a', stderr: '' } }
+      plugin: 'graticule',
+      surface: 'terminal',
+      component: 'ToolUse',
+      viewport: { columns: 120, rows: 40 },
+      props: {
+        tool_use_id: id,
+        tool: 'Bash',
+        input: { command, description },
+        isRunning: false,
+        isErrored: false,
+        isInterrupted: false,
+        output: { stdout: 'a', stderr: '' }
+      }
     })
     const rows = textAt(await ui.drawn(), 120)
     await ui.unmount()
@@ -92,7 +118,13 @@ test('rhythm: narration and the activity row after it have one blank row between
 test('rhythm: a bulleted list running into a numbered one gets one blank row between', async ($, on) => {
   on('ui.render', engine as never)
   const text = 'Two kinds:\n\n- alpha\n- beta\n1. first\n2. second'
-  const ui = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: { columns: 120, rows: 40 }, props: { text, isFirstOfReply: false } })
+  const ui = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: { columns: 120, rows: 40 },
+    props: { text, isFirstOfReply: false }
+  })
   const rows = textAt(await ui.drawn(), 120).map(r => r.trim())
   const beta = rows.indexOf('· beta')
   expect(beta).toBeGreaterThan(0)
@@ -111,18 +143,29 @@ test('urls: one label everywhere; link colour on markers and numbers only, label
   expect(sourceLabel('https://www.vitest.dev/guide/cli/')).toBe('vitest.dev · cli')
   expect(sourceLabel('https://bun.sh')).toBe('bun.sh')
 
-  const cites = [{ n: 1, url: 'https://vitest.dev/guide/cli', title: 'cli' }, { n: 2, url: 'https://github.com/oven-sh/bun', title: 'bun' }]
+  const cites = [
+    { n: 1, url: 'https://vitest.dev/guide/cli', title: 'cli' },
+    { n: 2, url: 'https://github.com/oven-sh/bun', title: 'bun' }
+  ]
   const line = footnoteLines(cites, 96)[0] ?? []
   expect(line.find(p => p.t === '¹ ')?.color).toBe(C.link)
   expect(line.find(p => p.t === 'vitest.dev · cli')?.color).toBe(C.muted)
   expect(line.find(p => p.t === 'oven-sh/bun')?.color).toBe(C.muted)
 
-  const frame = sourcesFrame([1, 2, 3, 4, 5].map(n => ({ n, url: `https://e.dev/docs/p${n}`, title: `page ${n}` })), 96)
+  const frame = sourcesFrame(
+    [1, 2, 3, 4, 5].map(n => ({ n, url: `https://e.dev/docs/p${n}`, title: `page ${n}` })),
+    96
+  )
   const row = frame[1] ?? []
   expect(row.find(p => p.t.trim() === '1')?.color).toBe(C.link)
   expect(row.find(p => p.t === 'e.dev · p1')?.color).toBe(C.muted)
 
-  const fetch = stepOf('WebFetch', { url: 'https://github.com/oven-sh/bun/issues/42', prompt: 'x' }, { code: 200 }, { isRunning: false, isErrored: false, isInterrupted: false })
+  const fetch = stepOf(
+    'WebFetch',
+    { url: 'https://github.com/oven-sh/bun/issues/42', prompt: 'x' },
+    { code: 200 },
+    { isRunning: false, isErrored: false, isInterrupted: false }
+  )
   expect(fetch?.target).toBe('bun#42')
   expect(fetch?.targetColor).toBe(C.muted)
 
@@ -156,8 +199,16 @@ test('result words: always words in state colour, never a bare ✓ or ✗', asyn
     expect(step?.result.some(r => /^[✓✗]/.test(r.text))).toBe(false)
   }
   expect(stepOf('Read', { file_path: 'a' }, undefined, { ...OK, isInterrupted: true })?.result[0]?.text).toBe('interrupted')
-  expect(foldRow({ isAnchor: true, count: 4, summary: '4 reads', failed: 0, wall: 2000 }, 96).map(p => p.t).join('')).toMatch(/ ok +2s$/)
-  expect(foldRow({ isAnchor: true, count: 4, summary: '4 reads', failed: 2, wall: 2000 }, 96).map(p => p.t).join('')).toContain('2 fail')
+  expect(
+    foldRow({ isAnchor: true, count: 4, summary: '4 reads', failed: 0, wall: 2000 }, 96)
+      .map(p => p.t)
+      .join('')
+  ).toMatch(/ ok +2s$/)
+  expect(
+    foldRow({ isAnchor: true, count: 4, summary: '4 reads', failed: 2, wall: 2000 }, 96)
+      .map(p => p.t)
+      .join('')
+  ).toContain('2 fail')
 })
 
 // ─── 6. Clipping ─────────────────────────────────────────────────────────────
@@ -184,7 +235,10 @@ test('clipping: prose at a word boundary, never punctuation before …; paths ke
 test('engine lines: info notices and command output are one muted/dim line clipped at the measure', async ($, on) => {
   on('ui.render', engine as never)
   const ui = await $.ui.mount({
-    plugin: 'graticule', surface: 'terminal', component: 'InfoNotice', viewport: { columns: 120, rows: 40 },
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'InfoNotice',
+    viewport: { columns: 120, rows: 40 },
     props: { text: 'Using the model from your settings, which overrides the default for this project and every session started in it', command: '/model' }
   })
   const rows = textAt(await ui.drawn(), 120)
@@ -192,7 +246,10 @@ test('engine lines: info notices and command output are one muted/dim line clipp
   expect(vw(rows[0] ?? '')).toBeLessThanOrEqual(12 + 96)
   expect(rows[0]).toMatch(/^ {12}› Using the model/)
   // Visible text only: a clip pads with blank cells, whose colour shows nothing.
-  const colours = (await ui.findAll({ type: 'Text' })).filter(t => t.text.trim().length > 0).map(t => t.props.color).filter(c => c !== undefined)
+  const colours = (await ui.findAll({ type: 'Text' }))
+    .filter(t => t.text.trim().length > 0)
+    .map(t => t.props['color'])
+    .filter(c => c !== undefined)
   for (const c of colours) expect([C.muted, C.dim]).toContain(c)
   await ui.unmount()
 

@@ -8,8 +8,8 @@ import { C, G, clip, pad, vw } from './grid'
 /** One coloured piece of a framed line. */
 export type Part = { t: string; color: string; bold?: boolean; href?: string }
 
-const obj = (v: unknown): Record<string, unknown> | undefined =>
-  typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+const obj = (v: unknown): Record<string, unknown> | undefined => (isRecord(v) ? v : undefined)
 
 /** Clip `parts` to `n` cells (the cut part ends in `…`), then pad with spaces to exactly `n`. */
 export function fitParts(parts: readonly Part[], n: number): Part[] {
@@ -82,12 +82,7 @@ export const LABEL = { text: C.accent, bracket: C.dim } as const
 
 /** `[ TITLE ]` as parts; `inner` (counts beside a diff card's path) goes before the `]`. */
 export function frameLabel(title: string, inner: readonly Part[] = []): Part[] {
-  return [
-    { t: '[ ', color: LABEL.bracket },
-    { t: title, color: LABEL.text },
-    ...inner,
-    { t: ' ]', color: LABEL.bracket }
-  ]
+  return [{ t: '[ ', color: LABEL.bracket }, { t: title, color: LABEL.text }, ...inner, { t: ' ]', color: LABEL.bracket }]
 }
 
 /** `+┄┄ [ TITLE ] ┄┄┄…┄┄ meta +`, exactly `width` cells. */
@@ -126,9 +121,9 @@ const unmark = (s: string) => s.replace(/\*\*|__|`/g, '').trim()
 export function planLine(width: number, output: unknown, path: (p: string) => string): Part[] | undefined {
   const o = obj(output)
 
-  if (o === undefined || o.awaitingLeaderApproval === true) return undefined
+  if (o === undefined || o['awaitingLeaderApproval'] === true) return undefined
 
-  const file = typeof o.filePath === 'string' && o.filePath.trim().length > 0 ? path(o.filePath) : undefined
+  const file = typeof o['filePath'] === 'string' && o['filePath'].trim().length > 0 ? path(o['filePath']) : undefined
 
   if (file === undefined) return undefined
 
@@ -158,7 +153,7 @@ function clipPathTail(p: string, n: number): string {
 type Todo = { content: string; status: 'pending' | 'in_progress' | 'completed' }
 
 export function todosOf(output: unknown): Todo[] | undefined {
-  const list = obj(output)?.newTodos
+  const list = obj(output)?.['newTodos']
 
   if (!Array.isArray(list) || list.length === 0) return undefined
 
@@ -166,8 +161,8 @@ export function todosOf(output: unknown): Todo[] | undefined {
 
   for (const t of list) {
     const o = obj(t)
-    const content = o?.content
-    const status = o?.status
+    const content = o?.['content']
+    const status = o?.['status']
 
     if (typeof content !== 'string' || (status !== 'pending' && status !== 'in_progress' && status !== 'completed')) return undefined
     out.push({ content: content.replace(/\s+/g, ' ').trim(), status })
@@ -187,7 +182,10 @@ export function tasksFrame(width: number, output: unknown): Part[][] | undefined
   const done = todos.filter(t => t.status === 'completed').length
   const rows: Part[][] = todos.map(t => {
     if (t.status === 'completed') {
-      return [{ t: '[x]  ', color: C.ok }, { t: t.content, color: C.text }]
+      return [
+        { t: '[x]  ', color: C.ok },
+        { t: t.content, color: C.text }
+      ]
     }
 
     if (t.status === 'in_progress') {
@@ -201,7 +199,10 @@ export function tasksFrame(width: number, output: unknown): Part[][] | undefined
       ]
     }
 
-    return [{ t: '[ ]  ', color: C.muted }, { t: t.content, color: C.textBright }]
+    return [
+      { t: '[ ]  ', color: C.muted },
+      { t: t.content, color: C.textBright }
+    ]
   })
 
   const pct = Math.round((done / todos.length) * 100)

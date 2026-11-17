@@ -4,12 +4,13 @@ import { splitBlocks } from '../hooks/blocks'
 import { footnoteLines, sourceLabel, sourcesFrame } from '../hooks/research'
 import { cellLines, layoutTable } from '../hooks/table'
 
-const respond = (content: unknown[], uuid: string) => ({
-  message: { type: 'assistant', role: 'assistant', content },
-  door: 'response',
-  origin: { kind: 'model' },
-  uuid
-}) as never
+const respond = (content: unknown[], uuid: string) =>
+  ({
+    message: { type: 'assistant', role: 'assistant', content },
+    door: 'response',
+    origin: { kind: 'model' },
+    uuid
+  }) as never
 
 // ─── 2. One blank row before the answer ──────────────────────────────────────
 
@@ -20,13 +21,19 @@ test('the final answer after an activity row gets one blank row; after a drawn c
   on('tool.call', () => ({ result: { stdout: out, stderr: '', interrupted: false } }))
   const VIEW = { columns: 120, rows: 40 }
   const topGap = async (ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown> }[]> }) =>
-    (await ui.findAll({ type: 'Box' }))[1]?.props.marginTop
+    (await ui.findAll({ type: 'Box' }))[1]?.props['marginTop']
 
   // A plain ● row, then the answer: one blank row.
   await $.turn.start({ text: 'look', turnId: 't1' })
   await $.session.append(respond([{ type: 'tool_use', id: 'r1', name: 'Read', input: { file_path: 'a' } }], 'a1'))
   await $.session.append(respond([{ type: 'text', text: 'Found it: the queue fires twice.' }], 'a2'))
-  const answer = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'Found it: the queue fires twice.', isFirstOfReply: true } })
+  const answer = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'Found it: the queue fires twice.', isFirstOfReply: true }
+  })
   expect(await topGap(answer)).toBe(1)
   await answer.unmount()
 
@@ -34,9 +41,21 @@ test('the final answer after an activity row gets one blank row; after a drawn c
   await $.turn.start({ text: 'test', turnId: 't2' })
   await $.session.append(respond([{ type: 'tool_use', id: 'k1', name: 'Bash', input: { command: 'bun test' } }], 'b1'))
   await $.tool.call({ tool: 'Bash', command: 'bun test', tool_use_id: 'k1' } as never)
-  const card = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'ToolResult', viewport: VIEW, props: { tool_use_id: 'k1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } } })
+  const card = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'ToolResult',
+    viewport: VIEW,
+    props: { tool_use_id: 'k1', tool: 'Bash', isErrored: false, output: { stdout: '', stderr: '' } }
+  })
   await $.session.append(respond([{ type: 'text', text: 'All five pass now, running again.' }], 'b2'))
-  const prose = await $.ui.mount({ plugin: 'graticule', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: 'All five pass now, running again.', isFirstOfReply: true } })
+  const prose = await $.ui.mount({
+    plugin: 'graticule',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    viewport: VIEW,
+    props: { text: 'All five pass now, running again.', isFirstOfReply: true }
+  })
   expect(await topGap(prose)).toBe(0)
 
   // A later run takes the card; the earlier card collapses. The prose already drawn keeps its gap.
@@ -73,7 +92,9 @@ test('a prose column is never narrower than its longest word (≤ 24); the fixed
       for (const ci of [2, 3]) {
         const cell = row[ci]
         if (cell === undefined) continue
-        const text = cellLines(cell, widths[ci] ?? 1, 'prose').map(l => l.map(r => r.t).join('')).join(' ')
+        const text = cellLines(cell, widths[ci] ?? 1, 'prose')
+          .map(l => l.map(r => r.t).join(''))
+          .join(' ')
         expect(text).not.toMatch(/AsyncLocalStora…/)
       }
     }
@@ -100,9 +121,20 @@ test('source labels: repo#N for issues and PRs, owner/repo for a repo, host · l
 
   // The footnote line and the [ SOURCES ] frame use the same labels; only the end clips.
   const cites = [{ n: 1, url: 'https://github.com/anthropics/claude-code/issues/108931', title: 'x' }]
-  expect(footnoteLines(cites, 96)[0]?.map(p => p.t).join('')).toBe('┄┄┄┄ ¹ claude-code#108931')
+  expect(
+    footnoteLines(cites, 96)[0]
+      ?.map(p => p.t)
+      .join('')
+  ).toBe('┄┄┄┄ ¹ claude-code#108931')
   // A URL label clips in the middle: the issue number stays.
-  expect(footnoteLines(cites, 20)[0]?.map(p => p.t).join('')).toBe('┄┄┄┄ ¹ claude…108931')
-  const frame = sourcesFrame([1, 2, 3, 4, 5].map(n => ({ n, url: `https://bun.com/docs/page-${n}`, title: `Page ${n}` })), 96)
+  expect(
+    footnoteLines(cites, 20)[0]
+      ?.map(p => p.t)
+      .join('')
+  ).toBe('┄┄┄┄ ¹ claude…108931')
+  const frame = sourcesFrame(
+    [1, 2, 3, 4, 5].map(n => ({ n, url: `https://bun.com/docs/page-${n}`, title: `Page ${n}` })),
+    96
+  )
   expect(frame[1]?.some(p => p.t === 'bun.com · page-1')).toBe(true)
 })

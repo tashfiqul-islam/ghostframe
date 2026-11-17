@@ -17,7 +17,7 @@ type Found = { props: Record<string, unknown>; text: string }
 /** Every visible line our block Texts draw, in order (blank lines kept, trailing spaces dropped). */
 async function lines(ui: { findAll: (q: { type: string }) => Promise<Found[]> }) {
   return (await ui.findAll({ type: 'Text' }))
-    .filter(t => t.props.wrap === 'wrap')
+    .filter(t => t.props['wrap'] === 'wrap')
     .flatMap(t => t.text.split('\n'))
     .map(l => l.trimEnd())
 }
