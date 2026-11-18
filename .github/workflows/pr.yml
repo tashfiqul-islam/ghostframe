@@ -1,5 +1,5 @@
 name: Pull request checks
-run-name: "Pull request checks · #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}"
+run-name: 'Pull request checks · #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}'
 
 on:
   pull_request:
