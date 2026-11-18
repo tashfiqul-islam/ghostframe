@@ -24,6 +24,7 @@ test('every framed line is exactly the frame width, at any measure', async () =>
       frameLines(width, 'A VERY LONG TITLE '.repeat(9), { t: 'meta', color: '' }, [[{ t: 'x'.repeat(300), color: '' }]])
     ]) {
       expect(lines).toBeDefined()
+      expect(lines?.length).toBeGreaterThan(0)
       for (const l of lines ?? []) expect(partsWidth(l)).toBe(width)
     }
   }

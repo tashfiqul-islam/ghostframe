@@ -2,22 +2,24 @@
 // Shared by the step row (its result says `56 pass` / `3 fail`) and the
 // [ TESTS ] card. No imports from the rest of the mod, so anything may use it.
 
-// oxlint-disable-next-line eslint/no-control-regex -- ESC (\x1b) is the point: this strips ANSI colour escapes from shell output
-const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g
+// Terminal escapes: CSI (`ESC [ … final`), OSC (`ESC ] … BEL` or `ESC \`), any other `ESC x`
+// sequence, then every C0/C1 control left but \n and \t (\r is turned to \n first).
+// oxlint-disable-next-line eslint/no-control-regex -- control characters are the point: this strips them from shell output
+const ANSI = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/]*[0-~]|[\x00-\x08\x0b-\x1f\x7f-\x9f]/g
 // Lines the engine adds to a shell's output that say nothing about the command.
 const NOISE = /^[ \t]*Shell cwd was reset to [^\n]*(?:\n|$)/gm
 
 /** Output without the engine's own notes (`Shell cwd was reset to …`). */
 export const stripNoise = (t: string) => t.replace(NOISE, '')
 
-export const clean = (t: string) => stripNoise(t.replace(ANSI, '').replace(/\r\n?/g, '\n'))
+export const clean = (t: string) => stripNoise(t.replace(/\r\n?/g, '\n').replace(ANSI, ''))
 
 export type TestCounts = { passed: number; failed: number; skipped: number }
 
 const countsIn = (line: string): Partial<Record<'passed' | 'failed' | 'skipped', number>> => {
   const out: Partial<Record<'passed' | 'failed' | 'skipped', number>> = {}
 
-  for (const m of line.matchAll(/(\d+)\s+(passed|pass|failed|fail|errors?|skipped|skip|todo|ignored|pending)\b/gi)) {
+  for (const m of line.matchAll(/(\d+)\s+(passed|passing|pass|failed|failing|fail|errors?|skipped|skip|todo|ignored|pending)\b/gi)) {
     const n = Number(m[1])
     const word = (m[2] ?? '').toLowerCase()
     const key = word.startsWith('pass') ? 'passed' : /^(fail|error)/.test(word) ? 'failed' : 'skipped'
@@ -44,7 +46,15 @@ export function parseTests(raw: string): TestCounts | undefined {
   if (vj !== undefined) return full(countsIn(vj.replace(/\d+\s+total/, '')))
 
   // pytest `==== 3 failed, 142 passed, 2 skipped in 3.21s ====`
-  const py = last(lines.filter(l => /^=+ .*\d+ (passed|failed|error).* in [\d.]+s.*=+\s*$/.test(l)))
+  // Checked piece by piece: one regex with three `.*` backtracks cubically on a long line.
+  const py = last(
+    lines.filter(l => {
+      const t = l.trimEnd()
+      const count = /(?<!\d)\d+ (passed|failed|error)/.exec(t)
+
+      return /^=+ /.test(t) && t.endsWith('=') && count !== null && / in [\d.]+s/.test(t.slice(count.index))
+    })
+  )
 
   if (py !== undefined) return full(countsIn(py))
 
@@ -61,11 +71,17 @@ export function parseTests(raw: string): TestCounts | undefined {
       })
   }
 
-  // bun `  145 pass` / `  0 fail` / `  2 skip`, playwright `  145 passed (38s)` / `  3 failed`
+  // dotnet `Passed!  - Failed:     0, Passed:    12, Skipped:     1, Total:    13`
+  const dotnet = last(lines.filter(l => /\bFailed:\s+\d+, Passed:\s+\d+/.test(l)))
+
+  if (dotnet !== undefined) return full(countsIn(dotnet.replace(/\b(Passed|Failed|Skipped):\s+(\d+)/g, '$2 $1')))
+
+  // bun `  145 pass` / `  0 fail` / `  2 skip`, playwright `  145 passed (38s)` / `  3 failed`,
+  // mocha `  5 passing (12ms)` / `  2 failing` / `  1 pending`
   const tail: Partial<TestCounts> = {}
 
   for (const l of lines) {
-    const m = /^\s*(\d+)\s+(pass|passed|fail|failed|skip|skipped)\b(?:\s*\([\d.]+m?s\))?\s*$/.exec(l)
+    const m = /^\s*(\d+)\s+(pass|passed|passing|fail|failed|failing|skip|skipped|pending)\b(?:\s*\([\d.]+m?s\))?\s*$/.exec(l)
 
     if (m !== null) Object.assign(tail, countsIn(`${m[1]} ${m[2]}`))
   }

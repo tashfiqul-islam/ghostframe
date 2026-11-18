@@ -46,7 +46,8 @@ function aboveLastRow(lines: string[]): string[] {
   return last === undefined ? lines.slice(0, 2) : lines.slice(0, last)
 }
 
-test('a reply taller than the window streams with every line above its last block unchanged', async ($, on) => {
+// Streams every prefix of a long reply: seconds of draws, past the default 5 s on a CI runner.
+test('a reply taller than the window streams with every line above its last block unchanged', { timeoutMs: 30_000 }, async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
 

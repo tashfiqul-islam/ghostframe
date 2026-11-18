@@ -1,7 +1,7 @@
 import { C, G, clip, clipMiddle, fmtDuration, pad, vw } from './grid'
 import type { Part } from './states'
 import { clipLabel, sourceLabel } from './research'
-import { parseTests, stripNoise } from './testsummary'
+import { clean, parseTests, stripNoise } from './testsummary'
 
 // ─── Activity timeline (DESIGN.md §5.4 under §0.1 r1, r2, r14) ───────────────
 // One row per step: `● verb    target ……… result   time`, frameless. State is
@@ -28,9 +28,25 @@ export type Step = {
 /** `isAsking`: a person-facing permission ask is open for this call (from `tool.check`). */
 export type CallFlags = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean; isAsking?: boolean }
 
+/**
+ * A test runner in command position: the command's start or after a new line, `&&` `||`
+ * `;` `|` `(`, past any `VAR=x`, a wrapper (`time`, `env`, `sudo`, `exec`, `nohup`,
+ * `bash -c "`), a launcher (`npx`, `bunx`, `uvx`, `pnpm exec`, `npm run`, `bun run`,
+ * `uv run`, `poetry run`, `pipenv run`, `python -m`…) and a path (`./node_modules/.bin/`).
+ * Group 1 is the runner. A name in an argument (`cat vitest.config.ts`, `npm i -D jest`)
+ * is not one.
+ */
 export const TEST_CMD =
-  /\b(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(run\s+)?test|pnpm\s+(run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b/
-const DENIED = /doesn't want to proceed|user (denied|rejected)|permission (was )?denied|was rejected|^\s*Permission to use .+ has been denied/im
+  /(?:^|&&|\|\||[;|(\n])\s*(?:(?:\w+=\S*|time|env|sudo|exec|nohup)\s+|(?:ba|z|da)?sh\s+-c\s+["']?)*(?:(?:npx|bunx|uvx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun|uv\s+run|poetry\s+run|pipenv\s+run|python3?\s+-m)\s+)?(?:[\w.~-]*\/)*(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
+// The engine's own denial messages only; a shell's `Permission denied` is an ordinary error.
+const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
+
+// `git` and its global options (`-C dir`, `-c k=v`, `--no-pager`) before the subcommand.
+const GIT = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+--[\w-]+(?:=\S+)?)*\s+`
+export const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
+export const GIT_PUSH = new RegExp(`${GIT}push\\b`)
+/** A commit's header line, `[main a1b2c3d] subject` or `[detached HEAD a1b2c3d] subject`: group 1 the SHA, 2 the subject. */
+export const COMMIT_HEAD = /^\[(?:detached HEAD|[^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m
 
 const s = (v: unknown): string | undefined => (typeof v === 'string' && v.trim().length > 0 ? v : undefined)
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
@@ -204,7 +220,7 @@ export function describe(
 
 /** First meaningful line of an error text, without the "Exit code N" restatement or wrapper tags. */
 export function firstErrorLine(text: string): string {
-  const line = stripNoise(text)
+  const line = clean(text)
     .replace(/<\/?[a-z_-]+>/gi, '')
     .split('\n')
     .map(l => l.trim())
@@ -363,7 +379,7 @@ export function shipResult(command: string, output: unknown): Tone[] | undefined
 
   if (pr !== undefined) return [{ text: `PR #${pr}`, color: C.ok }]
 
-  const sha = /\bgit\s+commit\b/.test(command) ? /^\[[^\]\s]+(?: \(root-commit\))? ([0-9a-f]{7,40})\]/m.exec(text)?.[1] : undefined
+  const sha = GIT_COMMIT.test(command) ? COMMIT_HEAD.exec(text)?.[1] : undefined
 
   return sha === undefined
     ? undefined
@@ -428,6 +444,10 @@ export function stepOf(
 // ─── The activity rule ───────────────────────────────────────────────────────
 export type StepLike = { id: string; turn: string | null; at: number; ms: number | null; tool?: string; ok?: boolean }
 
+/** First start to last end of some steps; a loop, not `Math.max(...)`, so no step count overflows the stack. */
+const wallOf = (steps: readonly StepLike[]) =>
+  steps.reduce((m, x) => Math.max(m, x.at + (x.ms ?? 0)), -Infinity) - steps.reduce((m, x) => Math.min(m, x.at), Infinity)
+
 /** The rule's `N steps · wall time` when `id` opens its turn's activity; else undefined. */
 export function activityHead(list: readonly StepLike[], id: string | undefined): string | undefined {
   const me = list.find(x => x.id === id)
@@ -444,9 +464,7 @@ export function activityHead(list: readonly StepLike[], id: string | undefined):
   // Wall time only once every step has finished: a live count never shows a stale total.
   if (mine.some(x => x.ms === null)) return count
 
-  const wall = Math.max(...mine.map(x => x.at + (x.ms ?? 0))) - Math.min(...mine.map(x => x.at))
-
-  return `${count} · ${fmtDuration(wall)}`
+  return `${count} · ${fmtDuration(wallOf(mine))}`
 }
 
 // ─── Settled turns: early steps fold into one row ────────────────────────────
@@ -510,7 +528,7 @@ export function foldOf(list: readonly StepLike[], id: string | undefined, isBrow
 
   if (folded.length < 2 || !folded.some(x => x.id === id)) return undefined
 
-  const wall = Math.max(...folded.map(x => x.at + (x.ms ?? 0))) - Math.min(...folded.map(x => x.at))
+  const wall = wallOf(folded)
 
   return {
     isAnchor: folded[0]?.id === id,
@@ -595,7 +613,7 @@ export function stepParts(step: Step, time: string, width: number): Part[][] {
 
 /** Shell output, folded per §5.4: ≤ 3 lines shown whole, else first 2, a fold, the last. */
 export function foldOutput(stdout: string): { lines: string[]; more: number; last?: string } | undefined {
-  const all = stdout.replace(/\r\n?/g, '\n').replace(/\s+$/, '').split('\n')
+  const all = stdout.replace(/\r\n?/g, '\n').trimEnd().split('\n')
 
   if (all.length === 0 || (all.length === 1 && (all[0] ?? '').trim().length === 0)) return undefined
   if (all.length <= 3) return { lines: all, more: 0 }

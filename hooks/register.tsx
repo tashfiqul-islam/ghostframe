@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
-import type { FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TestRunStamp, TurnClose } from '../types'
+import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TestRunStamp, TurnClose } from '../types'
 import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
@@ -30,7 +30,7 @@ const closes = atom({ plugin: 'ghostframe', key: 'closes' } as const, [] as Turn
 const SAME_TURN_MS = 250
 // What the turn used before its first visible block, then what each turn's opener carries.
 const caps = atom({ plugin: 'ghostframe', key: 'caps' } as const, NO_CAPS, { shape: 'caps-1' })
-const openers = atom({ plugin: 'ghostframe', key: 'openers' } as const, [] as OpenerCaps[], { shape: 'openers-1' })
+const openers = atom({ plugin: 'ghostframe', key: 'openers' } as const, [] as OpenerCaps[], { shape: 'openers-2' })
 // What the whole turn used, for the close rule's tally.
 const tally = atom({ plugin: 'ghostframe', key: 'tally' } as const, NO_TALLY, { shape: 'tally-1' })
 // Assistant blocks in stored order, so a block knows what sits right above it.
@@ -42,10 +42,32 @@ const ships = atom({ plugin: 'ghostframe', key: 'ships' } as const, [] as ShipSt
 const steps = atom({ plugin: 'ghostframe', key: 'steps' } as const, [] as StepStamp[], { shape: 'steps-1' })
 const currentTurn = atom({ plugin: 'ghostframe', key: 'turn' } as const, null as string | null, { shape: 'turn-1' })
 // The opening text of each turn's first prose block, so `claude` labels only that block.
-const firstTexts = atom({ plugin: 'ghostframe', key: 'firstTexts' } as const, [] as string[], { shape: 'firstTexts-1' })
+const firstTexts = atom({ plugin: 'ghostframe', key: 'firstTexts' } as const, [] as FirstText[], { shape: 'firstTexts-2' })
 const awaitingFirst = atom({ plugin: 'ghostframe', key: 'awaitingFirst' } as const, false, { shape: 'awaitingFirst-1' })
 // The first tool call of each turn that opened on tools, so its activity header carries `claude`.
 const firstTools = atom({ plugin: 'ghostframe', key: 'firstTools' } as const, [] as string[], { shape: 'firstTools-1' })
+const STEPS_MAX = 400
+const FLOW_MAX = 600
+const OPENERS_MAX = 300
+const FIRSTS_MAX = 500
+
+/**
+ * A turn-keyed list cut back to `max` entries a whole turn at a time, oldest first, so an
+ * old row never loses part of its turn on a redraw. `current`'s turn is never cut.
+ */
+// shortcut: one filter pass per dropped turn, and a current turn longer than `max` stays
+// whole; fine at caps of a few hundred, batch the cut if a cap grows to many thousands.
+const capTurns = <T extends { turn?: string | null | undefined }>(list: T[], max: number, current: string | null | undefined): T[] => {
+  let out = list
+
+  while (out.length > max && out[0] !== undefined && out[0].turn !== current) {
+    const oldest = out[0].turn
+
+    out = out.filter(x => x.turn !== oldest)
+  }
+
+  return out
+}
 // True while a main-loop turn runs: tables keep their columns until it completes.
 const streaming = atom({ plugin: 'ghostframe', key: 'streaming' } as const, false, { shape: 'streaming-1' })
 // Each streamed table's frozen columns; a reply taller than the window keeps them for good.
@@ -60,7 +82,8 @@ const cardLines = new Map<string, Part[][][]>()
 const CARDS_MAX = 300
 // The calls whose result row drew a frame (a card, the task list) as last drawn, so the
 // prose under one knows its own blank row is already there. Written while drawing.
-const framedCalls = new Set<string>()
+const framedCalls = new Map<string, true>()
+const FRAMED_MAX = 2000
 // Each reply block's top gap, fixed the first time it draws (§6: a drawn row never moves).
 const replyGaps = new Map<string, number>()
 // The message each reply draw belongs to, so a remount keeps what its first draw decided.
@@ -87,7 +110,9 @@ const messageOf = (request: string, key: string, turn: string | null) => {
 }
 const GAPS_MAX = 2000
 
+// Least recently remembered goes first: a key written again moves to the newest end.
 const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number) => {
+  m.delete(k)
   m.set(k, v)
 
   while (m.size > max) {
@@ -105,18 +130,36 @@ function frozenCard(key: string, ready: boolean, make: () => Part[][][]): Part[]
 
   const lines = make()
 
-  if (ready) {
-    cardLines.set(key, lines)
-
-    while (cardLines.size > CARDS_MAX) {
-      const oldest = cardLines.keys().next().value
-
-      if (oldest === undefined) break
-      cardLines.delete(oldest)
-    }
-  }
+  if (ready) remember(cardLines, key, lines, CARDS_MAX)
 
   return lines
+}
+// Which submit stamp each turn rule shows, by the row's request: the same prompt typed
+// twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
+// that just landed when it is free (the row the engine draws for it), else the oldest
+// stamp no other row holds (rows redrawn in transcript order after a reload), so an
+// earlier rule never takes a later submit's time. Written while drawing.
+// shortcut: an older row with the same text that first draws after a reload, between a
+// submit and its own row, takes that submit; the new row then shows the older time.
+const promptClaims = new Map<string, number>()
+// Rows each claim map remembers, oldest dropped first.
+const CLAIMS_MAX = 500
+// The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
+let lastSubmitted: number | undefined
+const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) => {
+  const same = list.filter(p => p.text.trim() === text.trim())
+  const held = promptClaims.get(row)
+  const kept = held === undefined ? undefined : same.find(p => p.at === held)
+
+  if (kept !== undefined) return kept
+
+  const taken = new Set([...promptClaims.entries()].filter(([r]) => r !== row).map(([, at]) => at))
+  const free = same.filter(p => !taken.has(p.at))
+  const pick = free.find(p => p.at === lastSubmitted) ?? free[0]
+
+  if (pick !== undefined) remember(promptClaims, row, pick.at, CLAIMS_MAX)
+
+  return pick
 }
 // Main-loop calls whose permission check asked the person, until the call returns.
 const asked = atom({ plugin: 'ghostframe', key: 'asked' } as const, [] as string[], { shape: 'asked-1' })
@@ -125,10 +168,17 @@ const asked = atom({ plugin: 'ghostframe', key: 'asked' } as const, [] as string
 const firstKey = (t: string) => t.replace(/\s+/g, ' ').trim().slice(0, 100)
 /** Two block keys name the same block: equal, or one (≥ 20 chars) a prefix of the other while it streams. */
 const sameKey = (x: string, k: string) => k.length > 0 && (x === k || (k.length >= 20 && x.startsWith(k)) || (x.length >= 20 && k.startsWith(x)))
-const isTurnOpener = (keys: readonly string[], text: string) => {
+/**
+ * Whether an entry recorded under `entry` belongs to a block placed in `turn`: the same
+ * turn, or either side unknown (a block not in the flow, an opener seeded from history).
+ */
+// A block with no place in the turn's flow (a summary row): it may match any turn's opener.
+const ANY_TURN = undefined
+const inTurn = (entry: string | null | undefined, turn: string | null | undefined) => entry === undefined || turn === undefined || entry === turn
+const isTurnOpener = (list: readonly FirstText[], text: string, turn: string | null | undefined) => {
   const k = firstKey(text)
 
-  return keys.some(x => sameKey(x, k))
+  return list.some(x => inTurn(x.turn, turn) && sameKey(x.key, k))
 }
 
 /**
@@ -231,7 +281,7 @@ async function noteFlow($: EngineInterface, content: Content) {
     }
   }
 
-  if (items.length > 0) await update($, flow, list => [...list, ...items].slice(-600))
+  if (items.length > 0) await update($, flow, list => capTurns([...list, ...items], FLOW_MAX, turn))
   if (links.length > 0) await update($, tally, t => ({ ...t, sources: [...new Set([...t.sources, ...links])] }))
 }
 
@@ -243,8 +293,16 @@ async function noteFlow($: EngineInterface, content: Content) {
 // above never changes once tools follow.
 const THOUGHT_ALWAYS_MS = 10_000
 
-async function snapshotCaps($: EngineInterface, key: string, content: Content, opensOnTool: boolean) {
-  let c = await read($, caps)
+async function snapshotCaps($: EngineInterface, key: string, turn: string | null, content: Content, opensOnTool: boolean) {
+  // Taken and reset in one write: a hook or skill noted meanwhile is never lost between them.
+  let c = NO_CAPS
+
+  await update($, caps, held => {
+    c = held
+
+    return NO_CAPS
+  })
+
   const isWork = opensOnTool || content.some(b => b.type === 'tool_use')
 
   if (!isWork && c.thoughtMs < THOUGHT_ALWAYS_MS) c = { ...c, thoughtMs: 0 }
@@ -259,8 +317,9 @@ async function snapshotCaps($: EngineInterface, key: string, content: Content, o
     if (server !== undefined) c = withMcp(c, server.replace(/^claude_ai_/, ''))
   }
 
-  if (hasCaps(c)) await update($, openers, list => [...list, { key, caps: c }].slice(-300))
-  await update($, caps, () => NO_CAPS)
+  const snapped = c
+
+  if (hasCaps(snapped)) await update($, openers, list => capTurns([...list, { key, turn, caps: snapped }], OPENERS_MAX, turn))
 }
 
 // What a finished main-loop call adds to the turn: the tally, test counts, what shipped.
@@ -309,8 +368,8 @@ async function afterCall(
 }
 
 // The capability line a turn's opener carries (by its text key or its first call's id).
-async function openerCaps($: EngineInterface, match: (key: string) => boolean, width: number) {
-  const found = (await read($, openers)).toReversed().find(o => match(o.key))
+async function openerCaps($: EngineInterface, match: (o: OpenerCaps) => boolean, width: number) {
+  const found = (await read($, openers)).toReversed().find(match)
 
   return found === undefined ? undefined : capsLine(found.caps, width)
 }
@@ -328,6 +387,11 @@ async function noteHook($: EngineInterface, event: string, result: unknown, agen
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+
+// User rows the engine writes itself (a slash command's echo, its output, a reminder, a
+// task notice, a `!` shell): no typed prompt. `$.session.messages()` rows carry no origin,
+// so the known tags are the test; a prompt that starts with any other `<` is the person's.
+const INJECTED = /^\s*<(command-|local-command|system-reminder|task-notification|bash-|user-prompt-submit-hook)/
 
 const RELOADED = /^\s*([\w.@/-]+): reloaded \((\d+) hooks?\b[^)]*\)\s*$/
 
@@ -480,6 +544,32 @@ function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite[] = []
   return { cited, lists, tables, sources, own, all, mine, mineListed, listsHere: ownListed.length > 0 }
 }
 
+// A reply redraws on every state change; its blocks and citations change only with its
+// text and what the turn cited above it. Held per text and per request, bounded.
+const MEMO_MAX = 200
+const blockMemo = new Map<string, Block[]>()
+const citeMemo = new Map<string, { blocks: readonly Block[]; out: ReturnType<typeof citationsOf> }>()
+
+function blocksOf(text: string): Block[] {
+  const blocks = blockMemo.get(text) ?? splitBlocks(text)
+
+  remember(blockMemo, text, blocks, MEMO_MAX)
+
+  return blocks
+}
+
+// Keyed by the request and what came before; the blocks themselves (one text's, by
+// identity) must match too, since the result's maps are keyed by block.
+function citationsFor(request: string, blocks: readonly Block[], earlier: readonly TurnCite[]) {
+  const key = `${request}␟${JSON.stringify(earlier)}`
+  const had = citeMemo.get(key)
+  const out = had !== undefined && had.blocks === blocks ? had.out : citationsOf(blocks, earlier)
+
+  remember(citeMemo, key, { blocks, out }, MEMO_MAX)
+
+  return out
+}
+
 /** The tools that fetch from the web: a turn using one draws [ SOURCES ] frames (§0.2). */
 const WEB_TOOLS = new Set(['WebSearch', 'WebFetch'])
 const isWebTool = (tool: string | undefined) => tool !== undefined && WEB_TOOLS.has(tool)
@@ -508,6 +598,13 @@ function quietOutput(tool: string, output: unknown): unknown {
   if (strip(o['stdout']) === o['stdout'] && strip(o['stderr']) === o['stderr']) return output
 
   return { ...o, stdout: strip(o['stdout']), stderr: strip(o['stderr']) }
+}
+
+/** A row's render event as the engine should draw it: its output quieted (`quietOutput`), else the event itself. */
+const quietEvent = <E extends { props: { tool: string; output?: unknown } }>(e: E): E => {
+  const output = quietOutput(e.props.tool, e.props.output)
+
+  return output === e.props.output ? e : { ...e, props: { ...e.props, output } }
 }
 
 // One block on the grid. Wide: a 12-column gutter holds `label` beside the content.
@@ -971,8 +1068,7 @@ export const register: Register = on => {
 
     // Turn open rule with the submit time (dropped when we never saw the submit),
     // then `you` in the gutter and the message behind a ▎ rail on every row.
-    const stamps = await read($, prompts)
-    const stamp = stamps.toReversed().find(p => p.text.trim() === e.props.text.trim())
+    const stamp = claimPrompt(e.requestId, e.props.text, await read($, prompts))
     const rows = wrapPlain(e.props.text, width - 2)
     const ui = $.ui.resolve(e)
 
@@ -1020,7 +1116,7 @@ export const register: Register = on => {
       const plain = e.props.text.replace(/\s+/g, ' ').trim()
       const rows = wrapPlain(plain, width)
       const key = plain.replace(/…$/, '').trim()
-      const label = e.props.isFirstOfReply && key.length >= 20 && isTurnOpener(await read($, firstTexts), key) ? 'claude' : ''
+      const label = e.props.isFirstOfReply && key.length >= 20 && isTurnOpener(await read($, firstTexts), key, ANY_TURN) ? 'claude' : ''
 
       return cell(
         sui,
@@ -1033,7 +1129,7 @@ export const register: Register = on => {
       )
     }
 
-    const blocks = splitBlocks(e.props.text)
+    const blocks = blocksOf(e.props.text)
 
     if (blocks.length === 0) {
       return next(e)
@@ -1048,7 +1144,12 @@ export const register: Register = on => {
     const isOffScreen = e.props.onScreen === null
     const key = firstKey(e.props.text)
     const blocksSoFar = await read($, flow)
-    const place = flowPlace(blocksSoFar, f => f.kind === 'text' && sameKey(f.key, key), live, await read($, currentTurn))
+    const turnNow = await read($, currentTurn)
+    // Its own key first: a later block that only starts like this one is another block.
+    // A prefix (text still streaming) is looked for in the running turn only.
+    const place =
+      flowPlace(blocksSoFar, f => f.kind === 'text' && f.key === key, false, turnNow) ??
+      flowPlace(blocksSoFar, f => f.kind === 'text' && (!live || f.turn === turnNow) && sameKey(f.key, key), live, turnNow)
     // This draw's message, across remounts (see `messageOf`).
     const message = messageOf(e.requestId, key, place?.turn ?? null)
 
@@ -1056,7 +1157,7 @@ export const register: Register = on => {
     // Numbers run through the turn, not just this message: a reply split over several
     // messages (prose, a list, a Sources list) numbers each source once.
     const earlier = place === undefined ? [] : turnCites(blocksSoFar, place.turn, place.at)
-    const { cited, lists, tables, mine, mineListed, listsHere } = citationsOf(blocks, earlier)
+    const { cited, lists, tables, mine, mineListed, listsHere } = citationsFor(e.requestId, blocks, earlier)
     // §0.2 citations, decided once and the same on every draw, streaming or done: a turn
     // that used a web tool (search, fetch) before this message draws [ SOURCES ] frames and
     // no footnote lines; any other turn draws footnote lines under the blocks that hold the
@@ -1161,14 +1262,7 @@ export const register: Register = on => {
       if (hold === undefined) {
         frozen.delete(tableKey)
       } else {
-        frozen.set(tableKey, hold)
-
-        while (frozen.size > FROZEN_MAX) {
-          const oldest = frozen.keys().next().value
-
-          if (oldest === undefined) break
-          frozen.delete(oldest)
-        }
+        remember(frozen, tableKey, hold, FROZEN_MAX)
       }
     }
 
@@ -1312,9 +1406,10 @@ export const register: Register = on => {
 
     // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
     // every tool call too). A reply that opens on a wide table gets the label on its own row.
-    const isOpener = e.props.isFirstOfReply && isTurnOpener(await read($, firstTexts), e.props.text)
+    // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
+    const isOpener = e.props.isFirstOfReply && isTurnOpener(await read($, firstTexts), e.props.text, place?.turn)
     // The capability line takes `claude`'s row; the reply follows a blank row below it.
-    const capsRow = isOpener ? await openerCaps($, k => sameKey(k, key), width) : undefined
+    const capsRow = isOpener ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
     const label = isOpener && capsRow === undefined ? 'claude' : ''
     const opensWide = segments[0]?.wide === true
     // A browser frame left open right above this block: its bottom edge first.
@@ -1383,7 +1478,7 @@ export const register: Register = on => {
         const tools: string[] = []
 
         for (const m of found) {
-          if (m.role === 'user' && m.text.trim().length > 0 && !m.text.trimStart().startsWith('<') && (m.toolResults ?? []).length === 0) {
+          if (m.role === 'user' && m.text.trim().length > 0 && !INJECTED.test(m.text) && (m.toolResults ?? []).length === 0) {
             waiting = true
           } else if (m.role === 'assistant' && waiting && m.text.trim().length > 0) {
             keys.push(firstKey(m.text))
@@ -1395,8 +1490,12 @@ export const register: Register = on => {
           }
         }
 
-        await update($, firstTexts, list => [...new Set([...keys, ...list])].slice(-500))
-        await update($, firstTools, list => [...new Set([...tools.filter(t => t.length > 0), ...list])].slice(-500))
+        // Seeded openers carry no turn (history has none); one already recorded keeps its own.
+        // One entry per turn, so a plain cut drops whole turns.
+        await update($, firstTexts, list =>
+          [...[...new Set(keys)].filter(k => !list.some(x => x.key === k)).map(k => ({ key: k })), ...list].slice(-FIRSTS_MAX)
+        )
+        await update($, firstTools, list => [...new Set([...tools.filter(t => t.length > 0), ...list])].slice(-FIRSTS_MAX))
       }
     } catch {
       // No history: live turns still mark their openers.
@@ -1426,15 +1525,17 @@ export const register: Register = on => {
         // Claude's first visible block decides: prose text, or a tool call (the activity header).
         const opener = e.message.content.find(b => (b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0) || b.type === 'tool_use')
 
+        const turn = await read($, currentTurn)
+
         if (opener?.type === 'text' && typeof opener['text'] === 'string') {
           const key = firstKey(opener['text'])
-          await snapshotCaps($, key, e.message.content, false)
-          await update($, firstTexts, list => [...list, key].slice(-500))
+          await snapshotCaps($, key, turn, e.message.content, false)
+          await update($, firstTexts, list => [...list, { key, turn }].slice(-FIRSTS_MAX))
           await update($, awaitingFirst, () => false)
         } else if (opener?.type === 'tool_use' && typeof opener['id'] === 'string') {
           const id = opener['id']
-          await snapshotCaps($, id, e.message.content, true)
-          await update($, firstTools, list => [...list, id].slice(-500))
+          await snapshotCaps($, id, turn, e.message.content, true)
+          await update($, firstTools, list => [...list, id].slice(-FIRSTS_MAX))
           await update($, awaitingFirst, () => false)
         }
       }
@@ -1462,37 +1563,52 @@ export const register: Register = on => {
     }
 
     const id = e.tool_use_id
-    let at = 0
+    const now = async () => {
+      try {
+        return await $.clock.now()
+      } catch {
+        return undefined // a clock that fails costs the step its time; the step still settles
+      }
+    }
+    const at = await now()
 
     try {
-      at = await $.clock.now().catch(() => 0)
       const turn = await read($, currentTurn)
-      await update($, steps, list => [...list, { id, turn, at, ms: null, tool: e.tool }].slice(-400))
+      await update($, steps, list => capTurns([...list, { id, turn, at: at ?? 0, ms: null, tool: e.tool }], STEPS_MAX, turn))
     } catch {
       // A stamp that fails costs the row its time, nothing more.
     }
 
-    const ran = await next(e)
+    let ran: Awaited<ReturnType<typeof next>> | undefined
 
     try {
-      await afterCall($, e, ran)
-    } catch {
-      // A card that can't be read costs the row its card; the activity output stays.
-    }
+      ran = await next(e)
 
-    try {
-      const end = await $.clock.now()
-      const ok = ran.isError !== true && ran.deny === undefined
-      await update($, steps, list => list.map(s => (s.id === id ? { ...s, ms: end - at, ok } : s)))
-
-      if ((await read($, asked)).includes(id)) {
-        await update($, asked, list => list.filter(x => x !== id))
+      try {
+        await afterCall($, e, ran)
+      } catch {
+        // A card that can't be read costs the row its card; the activity output stays.
       }
-    } catch {
-      // as above
-    }
 
-    return ran
+      return ran
+    } finally {
+      // Always settled. A start or end the clock couldn't give: 0ms at the known end, so the
+      // step never counts toward its turn's time; neither known: the step is dropped.
+      const end = await now()
+      const when = at ?? end
+      const ms = at !== undefined && end !== undefined ? end - at : 0
+      const ok = ran !== undefined && ran.isError !== true && ran.deny === undefined
+
+      try {
+        await update($, steps, list => (when === undefined ? list.filter(s => s.id !== id) : list.map(s => (s.id === id ? { ...s, at: when, ms, ok } : s))))
+
+        if ((await read($, asked)).includes(id)) {
+          await update($, asked, list => list.filter(x => x !== id))
+        }
+      } catch {
+        // as above
+      }
+    }
   }).catch((_$, e, next) => next(e))
 
   // Permission: note a main-loop call whose check asks the person, so its row can say it
@@ -1518,11 +1634,11 @@ export const register: Register = on => {
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
-    const output = quietOutput(e.props.tool, e.props.output)
-    const quiet = output === e.props.output ? e : { ...e, props: { ...e.props, output } }
+    // Only the paths that hand the row to the engine pay for the quieted output.
+    const quiet = () => quietEvent(e)
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
-      return next(quiet)
+      return next(quiet())
     }
 
     const p = e.props
@@ -1541,7 +1657,7 @@ export const register: Register = on => {
     const blocks = await read($, flow)
     const place = flowPlace(blocks, f => f.kind === 'tool' && f.key === p.tool_use_id, await read($, streaming), await read($, currentTurn))
     const above = browserOpenAbove(blocks, place)
-    const capsRow = opensTurn ? await openerCaps($, k => k === p.tool_use_id, width) : undefined
+    const capsRow = opensTurn ? await openerCaps($, o => o.key === p.tool_use_id, width) : undefined
     const ui = $.ui.resolve(e)
     const head = activityHead(list, p.tool_use_id)
     const time = stepTime(list, p.tool_use_id)
@@ -1556,7 +1672,7 @@ export const register: Register = on => {
     }
 
     if (step === undefined) {
-      return engineInGutter(ui, await next(quiet), head, lay, opensTurn, { close: above, caps: capsRow, gap })
+      return engineInGutter(ui, await next(quiet()), head, lay, opensTurn, { close: above, caps: capsRow, gap })
     }
 
     // A browser call whose place is known: one row of the session frame. The first of a
@@ -1602,7 +1718,7 @@ export const register: Register = on => {
       first === undefined ? undefined : flowPlace(blocks, f => f.kind === 'tool' && f.key === first, await read($, streaming), await read($, currentTurn))
     const extra = {
       close: browserOpenAbove(blocks, place),
-      caps: opensTurn ? await openerCaps($, k => k === first, width) : undefined,
+      caps: opensTurn ? await openerCaps($, o => o.key === first, width) : undefined,
       gap: afterNarration(blocks, place)
     }
     const ui = $.ui.resolve(e)
@@ -1654,17 +1770,17 @@ export const register: Register = on => {
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
     const { tool, output, isErrored } = e.props
-    const quieted = quietOutput(tool, output)
-    const quiet = quieted === output ? e : { ...e, props: { ...e.props, output: quieted } }
+    // Only the paths that hand the result to the engine pay for the quieted output.
+    const quiet = () => quietEvent(e)
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
-      return next(quiet)
+      return next(quiet())
     }
 
     const ui = $.ui.resolve(e)
     const { Box } = ui
     // The engine's own result block, indented under its row in the content column.
-    const engine = async () => engineInGutter(ui, await next(quiet), undefined, lay, false)
+    const engine = async () => engineInGutter(ui, await next(quiet()), undefined, lay, false)
 
     // A step folded into its turn's settled row takes its result with it.
     if (foldOf(await read($, steps), e.props.tool_use_id, isBrowserTool) !== undefined) {
@@ -1697,7 +1813,7 @@ export const register: Register = on => {
           ...(ship !== undefined ? [shippedFrame(width, ship)] : [])
         ])
 
-        framedCalls.add(id)
+        remember(framedCalls, id, true, FRAMED_MAX)
 
         return inGrid(
           ui,
@@ -1752,7 +1868,7 @@ export const register: Register = on => {
 
       if (lines === undefined) return engine()
 
-      framedCalls.add(e.props.tool_use_id)
+      remember(framedCalls, e.props.tool_use_id, true, FRAMED_MAX)
 
       return inGrid(ui, undefined, lay, drawFrame(ui, lines))
     }
@@ -1765,6 +1881,7 @@ export const register: Register = on => {
     if (!e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
       await update($, prompts, list => [...list, { text: e.text, at }].slice(-100))
+      lastSubmitted = at
     }
 
     return next(e)
@@ -1774,10 +1891,11 @@ export const register: Register = on => {
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
       lastClosed = e.turnId
-      // Every reader of `streaming` (each reply on screen) draws again: tables re-flow.
-      await update($, streaming, () => false)
 
       try {
+        // Every reader of `streaming` (each reply on screen) draws again: tables re-flow.
+        await update($, streaming, () => false)
+
         const used = await read($, tally)
         const browser = openRunBefore(await read($, flow), Number.MAX_SAFE_INTEGER, e.turnId)
 
@@ -1788,6 +1906,8 @@ export const register: Register = on => {
         // The next turn starts counting afresh, whatever happened above.
         await update($, tally, () => NO_TALLY)
         await update($, caps, () => NO_CAPS)
+        // A turn that ended before any reply (aborted, a local command) opens nothing later.
+        await update($, awaitingFirst, () => false)
       }
     }
 
@@ -1811,13 +1931,13 @@ export const register: Register = on => {
     const kept = held === undefined ? undefined : fits.find(c => c.turn === held)
 
     if (kept !== undefined) return kept
-    if (fits.length === 1) return fits[0]
 
+    // Every path claims: a row's one fit would otherwise be free for the next row to take.
     const taken = new Set([...footerClaims.entries()].filter(([r]) => r !== row).map(([, t]) => t))
     const free = fits.filter(c => c.turn !== undefined && !taken.has(c.turn))
     const pick = free.find(c => c.turn === lastClosed) ?? free[0]
 
-    if (pick?.turn !== undefined) remember(footerClaims, row, pick.turn, 500)
+    if (pick?.turn !== undefined) remember(footerClaims, row, pick.turn, CLAIMS_MAX)
 
     return pick
   }

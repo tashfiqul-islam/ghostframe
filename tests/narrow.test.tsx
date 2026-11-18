@@ -207,7 +207,9 @@ for (const columns of WIDTHS) {
     })
     expect(await you.find({ type: 'Text', text: /^you$/ })).toBeDefined()
     expect((await you.findAll({ type: 'Box' })).some(b => b.props['paddingLeft'] === INSET)).toBe(true)
-    for (const l of await rows(you)) expect(vw(l)).toBeLessThanOrEqual(w)
+    const youRows = await rows(you)
+    expect(youRows.length).toBeGreaterThan(0)
+    for (const l of youRows) expect(vw(l)).toBeLessThanOrEqual(w)
     await you.unmount()
 
     // The step row and its card.
@@ -227,7 +229,9 @@ for (const columns of WIDTHS) {
       }
     })
     expect(await row.find({ type: 'Text', text: /^claude$/ })).toBeDefined()
-    for (const l of await rows(row)) expect(vw(l)).toBeLessThanOrEqual(w)
+    const stepRows = await rows(row)
+    expect(stepRows.length).toBeGreaterThan(0)
+    for (const l of stepRows) expect(vw(l)).toBeLessThanOrEqual(w)
     await row.unmount()
 
     const card = await $.ui.mount({

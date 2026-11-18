@@ -215,7 +215,8 @@ test('fallback: a backslash escape other than \\|; an escaped pipe parses', () =
   expect(kindOf([...HEAD, '| a\\*b | 2 |'])).toBe('wide')
   const piped = splitBlocks([...HEAD, '| a \\| b | 2 |'].join('\n'))[0]
   expect(piped?.kind).toBe('table')
-  if (piped?.kind === 'table') expect(piped.table.rows[0]?.[0]?.runs.map(r => r.t).join('')).toBe('a | b')
+  if (piped?.kind !== 'table') throw new Error('not a table')
+  expect(piped.table.rows[0]?.[0]?.runs.map(r => r.t).join('')).toBe('a | b')
 })
 
 test('fallback: $$ math in a cell', () => {
@@ -266,6 +267,7 @@ test('a marker cut off with its cell (line limit, narrow) gets no footnote entry
 
   // At 60 columns the long headlines hit the 4-line limit: whatever entries remain each
   // have their marker drawn in the table, and a dropped marker has no entry.
+  expect(entries.length).toBeGreaterThan(0)
   for (const m of entries) expect(`${m} drawn: ${table.includes(m)}`).toBe(`${m} drawn: true`)
   for (const m of ['¹', '²', '³']) if (!table.includes(m)) expect(note).not.toContain(m)
 })
@@ -330,7 +332,9 @@ test('with a link in the opening line too: numbering follows reading order, ever
   expect(rows.some(l => l.includes('[ SOURCES ]'))).toBe(false)
   expect(notes).toHaveLength(2)
   expect(notes[0]).toContain('¹ github.com · releases')
-  for (const m of notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []) expect(body).toContain(m)
+  const marks = notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []
+  expect(marks.length).toBeGreaterThan(0)
+  for (const m of marks) expect(body).toContain(m)
   // The opening line's note sits right under it, before the table.
   const lead = rows.findIndex(l => l.includes('GitHub releases page¹'))
   expect(rows[lead + 1]).toBe(notes[0])
@@ -341,6 +345,8 @@ test('the on-screen turn as sent: every numbered note has its marker; the listed
   const notes = rows.filter(l => /^\s*┄┄┄┄ /.test(l))
   const body = rows.filter(l => !/^\s*┄┄┄┄ /.test(l)).join('\n')
 
-  for (const m of notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []) expect(body).toContain(m)
+  const marks = notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []
+  expect(marks.length).toBeGreaterThan(0)
+  for (const m of marks) expect(body).toContain(m)
   expect(notes.find(l => l.includes('Releases'))).toMatch(/┄┄┄┄ · /)
 })
