@@ -1,4 +1,4 @@
-import { TEST_CMD, changeParts } from './activity'
+import { COMMIT_HEAD, GIT_COMMIT, GIT_PUSH, TEST_CMD, changeParts } from './activity'
 import { C, fmtDuration, pad, vw } from './grid'
 import { clipLabel, sourceLabel } from './research'
 import { frameLines } from './states'
@@ -139,31 +139,41 @@ export type Ship = {
   pr?: { n: number; url: string; head?: string; base?: string }
 }
 
-const flag = (command: string, names: string[]) => {
-  for (const n of names) {
-    const m = new RegExp(`(?:^|\\s)${n}(?:\\s+|=)("[^"]*"|'[^']*'|\\S+)`).exec(command)
+/** A command's words, quotes respected: `--title "fix -B main"` is two words, the second still quoted. */
+const words = (command: string) => command.match(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g) ?? []
+const unquote = (word: string) => word.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
 
-    if (m?.[1] !== undefined) return m[1].replace(/^["']|["']$/g, '')
+/** A flag's value (`--base main`, `--base=main`, `-B main`); a flag inside a quoted word is not one. */
+const flag = (command: string, names: string[]) => {
+  const ws = words(command)
+
+  for (const n of names) {
+    for (const [i, w] of ws.entries()) {
+      const next = ws[i + 1]
+
+      if (w === n && next !== undefined) return unquote(next)
+      if (w.startsWith(`${n}=`)) return unquote(w.slice(n.length + 1))
+    }
   }
 
   return undefined
 }
 
-export const isShipCommand = (command: string) => /\bgit\s+(commit|push)\b|\bgh\s+pr\s+create\b/.test(command)
+export const isShipCommand = (command: string) => GIT_COMMIT.test(command) || GIT_PUSH.test(command) || /\bgh\s+pr\s+create\b/.test(command)
 
 /** What a shell call shipped, read from its command and output; nothing → undefined. */
 export function parseShip(id: string, command: string, raw: string): Ship | undefined {
   const text = clean(raw)
   const ship: Ship = { id }
 
-  if (/\bgit\s+commit\b/.test(command)) {
-    const head = /^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m.exec(text)
+  if (GIT_COMMIT.test(command)) {
+    const head = COMMIT_HEAD.exec(text)
     const stat = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/.exec(text)
 
     if (head !== null) {
       ship.commit = {
-        sha: (head[2] ?? '').slice(0, 7),
-        subject: (head[3] ?? '').trim(),
+        sha: (head[1] ?? '').slice(0, 7),
+        subject: (head[2] ?? '').trim(),
         files: Number(stat?.[1] ?? 0),
         adds: Number(stat?.[2] ?? 0),
         dels: Number(stat?.[3] ?? 0)
@@ -171,7 +181,7 @@ export function parseShip(id: string, command: string, raw: string): Ship | unde
     }
   }
 
-  if (/\bgit\s+push\b/.test(command)) {
+  if (GIT_PUSH.test(command)) {
     const m = /^\s*[+*=!-]?\s*(?:[0-9a-f]+\.\.\.?[0-9a-f]+|\[new branch\]|\[new tag\])\s+(\S+)\s+->\s+(\S+)/m.exec(text)
 
     if (m !== null) ship.push = { from: m[1] ?? '', to: m[2] ?? '' }

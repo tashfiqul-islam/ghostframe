@@ -40,8 +40,36 @@ export type Block =
  */
 export type ListItem = { depth: number; marker: string; text: string; loose?: boolean }
 
-const FENCE = /^\s{0,3}(```|~~~)/
-const HEADING = /^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$/
+const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/
+// Linear on purpose: the closing `#` run is cut in code (`headingText`), not by backtracking.
+const HEADING = /^\s{0,3}#{1,6}\s+(.*)$/
+
+/** A heading's text without its closing `#` run and the spaces around it. */
+const headingText = (raw: string) => {
+  const t = raw.trimEnd()
+  let end = t.length
+
+  while (end > 0 && t[end - 1] === '#') end--
+
+  return t.slice(0, end).trimEnd()
+}
+
+/** An open fence: its character and run length. */
+type Fence = { ch: string; n: number }
+
+/**
+ * The open fence after `line` (CommonMark): a fence line opens one; only a run of the
+ * same character, at least as long, with nothing after it, closes it.
+ */
+function fenceAfter(open: Fence | undefined, line: string): Fence | undefined {
+  const m = FENCE.exec(line)
+  const run = m?.[1] ?? ''
+
+  if (m === null) return open
+  if (open === undefined) return { ch: run.charAt(0), n: run.length }
+
+  return run.charAt(0) === open.ch && run.length >= open.n && (m[2] ?? '').trim().length === 0 ? undefined : open
+}
 // Block markdown we don't lay out ourselves: lists, quotes, tables, html, rules, indented code.
 const NOT_SIMPLE = /^\s{0,3}([-*+]\s|\d+[.)]\s|>|\||<|(-{3,}|\*{3,}|_{3,})\s*$)|^\s{4,}|\t/
 
@@ -51,14 +79,12 @@ export function splitBlocks(text: string): Block[] {
   const whole = /\n[ \t]*$/.test(text.replace(/\r\n?/g, '\n'))
   const raw: string[][] = []
   let cur: string[] = []
-  let fenced = false
+  let fence: Fence | undefined
 
-  for (const line of text.replace(/\r\n?/g, '\n').replace(/\s+$/, '').split('\n')) {
-    if (FENCE.test(line)) {
-      fenced = !fenced
-    }
+  for (const line of text.replace(/\r\n?/g, '\n').trimEnd().split('\n')) {
+    fence = fenceAfter(fence, line)
 
-    if (!fenced && line.trim().length === 0) {
+    if (fence === undefined && line.trim().length === 0) {
       if (cur.length > 0) {
         raw.push(cur)
         cur = []
@@ -131,13 +157,13 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
 
   // A table may sit inside a block (a lead-in line right above it): split around it.
   {
-    let fenced = false
+    let fence: Fence | undefined
     const inFence = lines.map(l => {
-      const was = fenced
+      const was = fence
 
-      if (FENCE.test(l)) fenced = !fenced
+      fence = fenceAfter(fence, l)
 
-      return was || FENCE.test(l)
+      return was !== undefined || FENCE.test(l)
     })
     const start = lines.findIndex((l, i) => !inFence[i] && !inFence[i + 1] && l.includes('|') && isSeparator(lines[i + 1] ?? ''))
 
@@ -178,7 +204,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
   const head = lines.length === 1 ? HEADING.exec(lines[0] ?? '') : null
 
   if (head) {
-    const runs = parseInline(head[1] ?? '')
+    const runs = parseInline(headingText(head[1] ?? ''))
 
     if (runs !== undefined) {
       out.push({ kind: 'heading', text: runs.map(r => r.t).join('') })
@@ -286,9 +312,10 @@ const inlineOk = (t: string) => t.length === 0 || parseInline(t) !== undefined |
 function titleOf(line: string): string | undefined {
   const t = line.trim()
   const head = HEADING.exec(t)?.[1]
+  const headText = head === undefined ? undefined : headingText(head)
   const bold = /^(?:\*\*|__)([^*_]+?)(?:\*\*|__):?$/.exec(t)?.[1]
   const plain = /[.!?]$/.test(t) || t.length > PLAIN_TITLE_MAX ? undefined : t
-  const raw = (head ?? bold ?? plain)?.replace(/:$/, '').trim()
+  const raw = (headText ?? bold ?? plain)?.replace(/:$/, '').trim()
 
   if (raw === undefined || raw.length === 0 || raw.length > TITLE_MAX) return undefined
 

@@ -385,6 +385,7 @@ test('streaming a looped Steps figure in narrow mode: no bracket, the ↺ line u
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const { rows, all, sawBracketOpen } = await stream($, 80)
   expect(sawBracketOpen).toBe(false)
+  expect(rows.length).toBeGreaterThan(0)
   expect(rows.some(l => /[┐┘]/.test(l))).toBe(false)
   const bottom = all.findIndex(l => /^\+┄+\+$/.test(l))
   expect(all[bottom + 1]?.trimEnd()).toBe('↺ 3–5 repeat per tool call')

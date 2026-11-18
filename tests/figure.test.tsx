@@ -121,6 +121,8 @@ test('a streaming figure: the frame opens at the measure, drawn rows never chang
     const frame = (await rows(ui)).filter(l => /^[+┆]/.test(l))
     const closed = FULL.slice(0, cut).split('```').length > 2
 
+    // A closed fence always draws its frame: the checks below never pass on nothing.
+    if (closed) expect(frame.length).toBeGreaterThan(0)
     if (frame.length > 0) {
       for (const l of frame) expect(vw(l)).toBe(96) // fixed width from the first row on
       // Rows already drawn never change; while open there is no bottom edge. The top

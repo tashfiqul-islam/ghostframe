@@ -25,9 +25,11 @@ export const sup = (n: number) => [...String(n)].map(d => SUP[Number(d)] ?? d).j
 const LINK = /\[([^[\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)/g
 const MARK = /[\uE000-\uE0FF]/
 // `owner/repo#123 (https://\u2026)` \u2192 `owner/repo#123\u00B9`
-const REPO_REF = /([\w.-]+\/[\w.-]+#\d+)\s*\((https?:\/\/[^\s()]+)\)/g
+// The lookbehinds start a match only where a word or a space run begins, so a long word or
+// run of spaces is scanned once, not once per character.
+const REPO_REF = /(?<![\w.-])([\w.-]+\/[\w.-]+#\d+)\s*\((https?:\/\/[^\s()]+)\)/g
 // `\u2026 word (https://\u2026)` \u2192 `\u2026 word\u00B9`
-const PAREN_URL = /\s*\((https?:\/\/[^\s()]+)\)/g
+const PAREN_URL = /(?<!\s)\s*\((https?:\/\/[^\s()]+)\)/g
 // `<https://\u2026>` and a bare `https://\u2026` \u2192 its host, then the marker
 const AUTOLINK = /<(https?:\/\/[^\s<>]+)>/g
 const BARE_URL = /https?:\/\/[^\s<>()[\]`]+/g
@@ -51,6 +53,8 @@ const numberOf = (numbering: Numbering, url: string) => {
 export function parseCited(text: string, numbering: Numbering): { runs: Run[]; cites: Cite[] } | undefined {
   // An image (`![alt](url)`) is not a link: the engine draws it.
   if (/!\[/.test(text.replace(/(`+)[^`]+?\1/g, ''))) return undefined
+  // A character already in the marker range (a Nerd Font glyph) would bind to a link.
+  if (MARK.test(text)) return undefined
 
   const links: { title: string; url: string }[] = []
   const mark = (title: string, url: string) => {
@@ -85,8 +89,7 @@ export function parseCited(text: string, numbering: Numbering): { runs: Run[]; c
 
   if (runs === undefined || runs.some(r => r.s === 'code' && MARK.test(r.t))) return undefined
 
-  const out: Run[] = []
-  const cites: Cite[] = []
+  const pieces: (Run | { link: { title: string; url: string } })[] = []
 
   for (const r of runs) {
     for (const piece of r.t.split(/([\uE000-\uE0FF])/)) {
@@ -96,16 +99,27 @@ export function parseCited(text: string, numbering: Numbering): { runs: Run[]; c
         const link = links[piece.charCodeAt(0) - 0xe000]
 
         if (link === undefined) return undefined
-
-        const n = numberOf(numbering, link.url)
-
-        out.push({ t: sup(n), s: 'cite' })
-
-        if (!cites.some(c => c.n === n)) cites.push({ n, url: link.url, title: link.title })
+        pieces.push({ link })
       } else {
-        out.push({ t: piece, s: r.s })
+        pieces.push({ t: piece, s: r.s })
       }
     }
+  }
+
+  // Numbers only once the whole paragraph parsed: a paragraph left to the engine takes none.
+  const out: Run[] = []
+  const cites: Cite[] = []
+
+  for (const p of pieces) {
+    if (!('link' in p)) {
+      out.push(p)
+      continue
+    }
+
+    const n = numberOf(numbering, p.link.url)
+
+    out.push({ t: sup(n), s: 'cite' })
+    if (!cites.some(c => c.n === n)) cites.push({ n, url: p.link.url, title: p.link.title })
   }
 
   return { runs: out, cites }
@@ -207,10 +221,9 @@ export function sourcesCites(items: readonly { title: string; url: string }[], n
  */
 export function sourceLabel(url: string): string {
   const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:www\.)?([^/?#]+)([^?#]*)/i.exec(url.trim())
-  const host = (m?.[1] ?? url).toLowerCase()
+  const host = (urlHost(url) ?? m?.[1] ?? url).toLowerCase()
   const segs = (m?.[2] ?? '')
     .split('/')
-    .filter(x => x.length > 0)
     .map(x => {
       try {
         return decodeURIComponent(x)
@@ -218,6 +231,9 @@ export function sourceLabel(url: string): string {
         return x
       }
     })
+    // Control and format characters (U+202E and the like) would reorder or hide the label.
+    .map(x => x.replace(/[\p{Cc}\p{Cf}]/gu, ''))
+    .filter(x => x.length > 0)
 
   if (host === 'github.com' && segs.length >= 2) {
     const [, repo, kind, n] = segs
@@ -230,6 +246,17 @@ export function sourceLabel(url: string): string {
   const last = meaningful[meaningful.length - 1]
 
   return last === undefined ? host : `${host} · ${dropId(last)}`
+}
+
+/** The host the URL parser reads (no `user@`, keeps a port), without `www.`; not a URL → undefined. */
+function urlHost(url: string): string | undefined {
+  try {
+    const { host } = new URL(url.trim())
+
+    return host.length > 0 ? host.replace(/^www\./, '') : undefined
+  } catch {
+    return undefined // not an absolute URL (`bun.sh/x`): the pattern reads it
+  }
 }
 
 // A slug's trailing hash or ID: a final `-`/`_` chunk of 8+ hex characters or digits, with
@@ -382,9 +409,13 @@ export function footnoteLines(cites: readonly Cite[], width: number, byTitle = f
 export function sourcesFrame(cites: readonly Cite[], width: number, listed: readonly { url: string; title: string }[] = []): Part[][] {
   const inner = width - 4
   const all: Cite[] = [...cites, ...listed.map(l => ({ n: 0, url: l.url, title: l.title }))]
-  const noW = Math.max(1, ...cites.map(c => String(c.n).length))
+  // Reduced, not spread: `Math.max(...xs)` overflows the stack on a long list.
+  const noW = cites.reduce((w, c) => Math.max(w, String(c.n).length), 1)
   const titles = all.map(c => sourceTitle(c, all))
-  const titleW = Math.min(Math.max(...titles.map(t => vw(t)), 8), Math.floor(inner * 0.4))
+  const titleW = Math.min(
+    titles.reduce((w, t) => Math.max(w, vw(t)), 8),
+    Math.floor(inner * 0.4)
+  )
   const urlW = Math.max(6, inner - noW - 2 - titleW - 2)
   const rows: Part[][] = all.map((c, i) => [
     c.n > 0 ? { t: `${pad(String(c.n), noW, 'right')}  `, color: C.link } : { t: `${pad('·', noW, 'right')}  `, color: C.dim },

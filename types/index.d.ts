@@ -11,8 +11,11 @@ export type StepStamp = { id: string; turn: string | null; at: number; ms: numbe
 /** What a turn used before its first visible block (the capability line). */
 export type CapsStamp = { skills: string[]; hooks: string[]; mcp: string[]; thoughtMs: number }
 
-/** The capability line a turn's opener (its first text's key, or its first tool call's id) carries. */
-export type OpenerCaps = { key: string; caps: CapsStamp }
+/** The capability line a turn's opener (its first text's key, or its first tool call's id) carries, with the turn it opened. */
+export type OpenerCaps = { key: string; turn: string | null; caps: CapsStamp }
+
+/** A turn's first prose block: its key, and the turn it opened (absent when seeded from history). */
+export type FirstText = { key: string; turn?: string | null }
 
 /** What a whole turn used, for the close rule's tally. */
 export type TallyStamp = {
@@ -55,7 +58,7 @@ declare module 'claude-code' {
       closes: Shaped<TurnClose[]>
       steps: Shaped<StepStamp[]>
       turn: Shaped<string | null>
-      firstTexts: Shaped<string[]>
+      firstTexts: Shaped<FirstText[]>
       awaitingFirst: Shaped<boolean>
       firstTools: Shaped<string[]>
       asked: Shaped<string[]>
