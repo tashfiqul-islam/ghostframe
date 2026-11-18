@@ -44,29 +44,33 @@ const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/
 // Linear on purpose: the closing `#` run is cut in code (`headingText`), not by backtracking.
 const HEADING = /^\s{0,3}#{1,6}\s+(.*)$/
 
-/** A heading's text without its closing `#` run and the spaces around it. */
+/**
+ * A heading's text without its closing `#` run (CommonMark): the run goes only after a
+ * space or tab, or when it is the whole text, so `C#` keeps its `#`.
+ */
 const headingText = (raw: string) => {
   const t = raw.trimEnd()
   let end = t.length
 
   while (end > 0 && t[end - 1] === '#') end--
 
-  return t.slice(0, end).trimEnd()
+  return end === 0 || t[end - 1] === ' ' || t[end - 1] === '\t' ? t.slice(0, end).trimEnd() : t
 }
 
 /** An open fence: its character and run length. */
 type Fence = { ch: string; n: number }
 
 /**
- * The open fence after `line` (CommonMark): a fence line opens one; only a run of the
- * same character, at least as long, with nothing after it, closes it.
+ * The open fence after `line` (CommonMark): a fence line opens one, unless it is a
+ * backtick run with a backtick in its info string (inline code); only a run of the same
+ * character, at least as long, with nothing after it, closes it.
  */
 function fenceAfter(open: Fence | undefined, line: string): Fence | undefined {
   const m = FENCE.exec(line)
   const run = m?.[1] ?? ''
 
   if (m === null) return open
-  if (open === undefined) return { ch: run.charAt(0), n: run.length }
+  if (open === undefined) return run.startsWith('`') && (m[2] ?? '').includes('`') ? undefined : { ch: run.charAt(0), n: run.length }
 
   return run.charAt(0) === open.ch && run.length >= open.n && (m[2] ?? '').trim().length === 0 ? undefined : open
 }

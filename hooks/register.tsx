@@ -55,6 +55,8 @@ const FIRSTS_MAX = 500
  * A turn-keyed list cut back to `max` entries a whole turn at a time, oldest first, so an
  * old row never loses part of its turn on a redraw. `current`'s turn is never cut.
  */
+// shortcut: one filter pass per dropped turn, and a current turn longer than `max` stays
+// whole; fine at caps of a few hundred, batch the cut if a cap grows to many thousands.
 const capTurns = <T extends { turn?: string | null | undefined }>(list: T[], max: number, current: string | null | undefined): T[] => {
   let out = list
 
@@ -133,9 +135,17 @@ function frozenCard(key: string, ready: boolean, make: () => Part[][][]): Part[]
   return lines
 }
 // Which submit stamp each turn rule shows, by the row's request: the same prompt typed
-// twice has two stamps, and each row keeps the oldest one no other row holds, so an
+// twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
+// that just landed when it is free (the row the engine draws for it), else the oldest
+// stamp no other row holds (rows redrawn in transcript order after a reload), so an
 // earlier rule never takes a later submit's time. Written while drawing.
+// shortcut: an older row with the same text that first draws after a reload, between a
+// submit and its own row, takes that submit; the new row then shows the older time.
 const promptClaims = new Map<string, number>()
+// Rows each claim map remembers, oldest dropped first.
+const CLAIMS_MAX = 500
+// The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
+let lastSubmitted: number | undefined
 const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) => {
   const same = list.filter(p => p.text.trim() === text.trim())
   const held = promptClaims.get(row)
@@ -144,9 +154,10 @@ const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
   if (kept !== undefined) return kept
 
   const taken = new Set([...promptClaims.entries()].filter(([r]) => r !== row).map(([, at]) => at))
-  const pick = same.find(p => !taken.has(p.at))
+  const free = same.filter(p => !taken.has(p.at))
+  const pick = free.find(p => p.at === lastSubmitted) ?? free[0]
 
-  if (pick !== undefined) remember(promptClaims, row, pick.at, 500)
+  if (pick !== undefined) remember(promptClaims, row, pick.at, CLAIMS_MAX)
 
   return pick
 }
@@ -161,6 +172,8 @@ const sameKey = (x: string, k: string) => k.length > 0 && (x === k || (k.length 
  * Whether an entry recorded under `entry` belongs to a block placed in `turn`: the same
  * turn, or either side unknown (a block not in the flow, an opener seeded from history).
  */
+// A block with no place in the turn's flow (a summary row): it may match any turn's opener.
+const ANY_TURN = undefined
 const inTurn = (entry: string | null | undefined, turn: string | null | undefined) => entry === undefined || turn === undefined || entry === turn
 const isTurnOpener = (list: readonly FirstText[], text: string, turn: string | null | undefined) => {
   const k = firstKey(text)
@@ -585,6 +598,13 @@ function quietOutput(tool: string, output: unknown): unknown {
   if (strip(o['stdout']) === o['stdout'] && strip(o['stderr']) === o['stderr']) return output
 
   return { ...o, stdout: strip(o['stdout']), stderr: strip(o['stderr']) }
+}
+
+/** A row's render event as the engine should draw it: its output quieted (`quietOutput`), else the event itself. */
+const quietEvent = <E extends { props: { tool: string; output?: unknown } }>(e: E): E => {
+  const output = quietOutput(e.props.tool, e.props.output)
+
+  return output === e.props.output ? e : { ...e, props: { ...e.props, output } }
 }
 
 // One block on the grid. Wide: a 12-column gutter holds `label` beside the content.
@@ -1096,7 +1116,7 @@ export const register: Register = on => {
       const plain = e.props.text.replace(/\s+/g, ' ').trim()
       const rows = wrapPlain(plain, width)
       const key = plain.replace(/…$/, '').trim()
-      const label = e.props.isFirstOfReply && key.length >= 20 && isTurnOpener(await read($, firstTexts), key, undefined) ? 'claude' : ''
+      const label = e.props.isFirstOfReply && key.length >= 20 && isTurnOpener(await read($, firstTexts), key, ANY_TURN) ? 'claude' : ''
 
       return cell(
         sui,
@@ -1547,7 +1567,7 @@ export const register: Register = on => {
       try {
         return await $.clock.now()
       } catch {
-        return undefined
+        return undefined // a clock that fails costs the step its time; the step still settles
       }
     }
     const at = await now()
@@ -1615,11 +1635,7 @@ export const register: Register = on => {
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
     // Only the paths that hand the row to the engine pay for the quieted output.
-    const quiet = () => {
-      const output = quietOutput(e.props.tool, e.props.output)
-
-      return output === e.props.output ? e : { ...e, props: { ...e.props, output } }
-    }
+    const quiet = () => quietEvent(e)
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(quiet())
@@ -1755,11 +1771,7 @@ export const register: Register = on => {
     const width = lay?.width
     const { tool, output, isErrored } = e.props
     // Only the paths that hand the result to the engine pay for the quieted output.
-    const quiet = () => {
-      const quieted = quietOutput(tool, output)
-
-      return quieted === output ? e : { ...e, props: { ...e.props, output: quieted } }
-    }
+    const quiet = () => quietEvent(e)
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(quiet())
@@ -1869,6 +1881,7 @@ export const register: Register = on => {
     if (!e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
       await update($, prompts, list => [...list, { text: e.text, at }].slice(-100))
+      lastSubmitted = at
     }
 
     return next(e)
@@ -1924,7 +1937,7 @@ export const register: Register = on => {
     const free = fits.filter(c => c.turn !== undefined && !taken.has(c.turn))
     const pick = free.find(c => c.turn === lastClosed) ?? free[0]
 
-    if (pick?.turn !== undefined) remember(footerClaims, row, pick.turn, 500)
+    if (pick?.turn !== undefined) remember(footerClaims, row, pick.turn, CLAIMS_MAX)
 
     return pick
   }

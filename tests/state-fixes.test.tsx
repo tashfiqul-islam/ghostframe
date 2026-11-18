@@ -41,7 +41,7 @@ const reply = ($: Engine, text: string, requestId?: string) =>
 
 const hasClaude = async (ui: Awaited<ReturnType<typeof reply>>) => (await ui.find({ type: 'Text', text: /^claude$/ })) !== undefined
 
-// ─── CORR-02: each footer row keeps the close it first drew ──────────────────
+// ─── Each footer row keeps the close it first drew ──────────────────
 
 test('footer: a row keeps its own turn when a later turn of about the same length lands', async ($, on) => {
   engine(on)
@@ -81,7 +81,7 @@ test('footer: a row keeps its own turn when a later turn of about the same lengt
   expect(await shown(b)).toContain('5s · 200 tokens')
 })
 
-// ─── CORR-01: the same prompt typed twice ────────────────────────────────────
+// ─── The same prompt typed twice ────────────────────────────────────
 
 test('a prompt typed twice: each turn rule shows its own submit time, kept when the next lands', async ($, on) => {
   let now = new Date(2026, 10, 17, 2, 10).getTime()
@@ -110,7 +110,7 @@ test('a prompt typed twice: each turn rule shows its own submit time, kept when 
   expect(await shown(first)).not.toContain('02:15')
 })
 
-// ─── CORR-04: a clock that fails mid-call ────────────────────────────────────
+// ─── A clock that fails mid-call ────────────────────────────────────
 
 test('a clock that fails at a call’s start or end: the step still settles, no time from 0', async ($, on) => {
   engine(on)
@@ -161,7 +161,7 @@ test('a clock that fails at a call’s start or end: the step still settles, no 
   expect(step).toMatch(/0\.0s$/)
 })
 
-// ─── CORR-10: a turn that ends with no reply clears the opener wait ──────────
+// ─── A turn that ends with no reply clears the opener wait ──────────
 
 test('a command whose turn ends with no reply: the next unprompted turn’s prose is no opener', async ($, on) => {
   engine(on)
@@ -189,7 +189,7 @@ test('a command whose turn ends with no reply: the next unprompted turn’s pros
   await opener.unmount()
 })
 
-// ─── CORR-08: a resumed prompt that starts with `<` ──────────────────────────
+// ─── A resumed prompt that starts with `<` ──────────────────────────
 
 test('history: a typed prompt that starts with `<` (pasted HTML) still opens its turn; injected tags do not', async ($, on) => {
   engine(on)
@@ -213,7 +213,29 @@ test('history: a typed prompt that starts with `<` (pasted HTML) still opens its
   await injected.unmount()
 })
 
-// ─── CORR-03: a long turn keeps its first step ───────────────────────────────
+// ─── After a reload, the newest submit goes to the row that draws for it ─────
+
+test('a prompt typed again after a reload: the new turn rule shows the new submit time', async ($, on) => {
+  let now = new Date(2026, 10, 17, 2, 10).getTime()
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('clock.now', () => ({ value: now }))
+
+  // The first submit's row drew before a reload: its claim went with the module.
+  await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })
+  now = new Date(2026, 10, 17, 2, 15).getTime()
+  await $.prompt.submit({ text: 'continue', wait: false, origin: { kind: 'composer' } })
+  const fresh = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'UserMessage',
+    requestId: 'u2',
+    viewport: VIEW,
+    props: { text: 'continue', origin: { kind: 'composer' }, isExpanded: false }
+  } as never)
+  expect(textAt(await fresh.drawn(), 120).join('\n')).toContain('02:15')
+})
+
+// ─── A long turn keeps its first step ───────────────────────────────
 
 test('a turn with 450 steps keeps its activity head on its first step', { timeoutMs: 60_000 }, async ($, on) => {
   engine(on)
@@ -244,7 +266,7 @@ test('a turn with 450 steps keeps its activity head on its first step', { timeou
   await first.unmount()
 })
 
-// ─── CORR-06: an opener matches only within its own turn ─────────────────────
+// ─── An opener matches only within its own turn ─────────────────────
 
 test('mid-turn prose that starts like an earlier turn’s opener gets no `claude`', async ($, on) => {
   engine(on)

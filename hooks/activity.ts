@@ -29,12 +29,15 @@ export type Step = {
 export type CallFlags = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean; isAsking?: boolean }
 
 /**
- * A test runner in command position: the command's start or after `&&` `||` `;` `|`, past
- * any `VAR=x` and a launcher (`npx`, `bunx`, `pnpm exec`, `npm run`, `bun run`…). Group 1
- * is the runner. A name in an argument (`cat vitest.config.ts`, `npm i -D jest`) is not one.
+ * A test runner in command position: the command's start or after a new line, `&&` `||`
+ * `;` `|` `(`, past any `VAR=x`, a wrapper (`time`, `env`, `sudo`, `exec`, `nohup`,
+ * `bash -c "`), a launcher (`npx`, `bunx`, `uvx`, `pnpm exec`, `npm run`, `bun run`,
+ * `uv run`, `poetry run`, `pipenv run`, `python -m`…) and a path (`./node_modules/.bin/`).
+ * Group 1 is the runner. A name in an argument (`cat vitest.config.ts`, `npm i -D jest`)
+ * is not one.
  */
 export const TEST_CMD =
-  /(?:^|&&|\|\||[;|])\s*(?:\w+=\S*\s+)*(?:(?:npx|bunx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun)\s+)?(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
+  /(?:^|&&|\|\||[;|(\n])\s*(?:(?:\w+=\S*|time|env|sudo|exec|nohup)\s+|(?:ba|z|da)?sh\s+-c\s+["']?)*(?:(?:npx|bunx|uvx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun|uv\s+run|poetry\s+run|pipenv\s+run|python3?\s+-m)\s+)?(?:[\w.~-]*\/)*(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
 // The engine's own denial messages only; a shell's `Permission denied` is an ordinary error.
 const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
 

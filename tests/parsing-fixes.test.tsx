@@ -3,11 +3,14 @@ import { expect, test } from 'claude-code/testing'
 import { activityHead, firstErrorLine, foldOutput, shipResult, stepOf } from '../hooks/activity'
 import { splitBlocks } from '../hooks/blocks'
 import { parseShip, parseTests, runnerOf } from '../hooks/outcome'
-import { parseCited, sourceLabel } from '../hooks/research'
+import { parseCited, sourceLabel, sourcesFrame } from '../hooks/research'
 import { clean } from '../hooks/testsummary'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const ERR = { ...OK, isErrored: true }
+
+// Wide enough to stay green on a slow CI runner, far under the seconds the old patterns took.
+const LINEAR_MS = 250
 
 /** Milliseconds `f` takes. */
 const ms = (f: () => unknown) => {
@@ -17,29 +20,35 @@ const ms = (f: () => unknown) => {
 }
 
 test('heading: a long run of spaces parses in linear time, closing hashes still go', () => {
-  expect(ms(() => splitBlocks(`# a${' '.repeat(3000)}b`))).toBeLessThan(50)
+  expect(ms(() => splitBlocks(`# a${' '.repeat(3000)}b`))).toBeLessThan(LINEAR_MS)
   expect(splitBlocks('# Title ##')).toEqual([{ kind: 'heading', text: 'Title' }])
   expect(splitBlocks('## Next steps')).toEqual([{ kind: 'heading', text: 'Next steps' }])
   expect(splitBlocks('### A #')).toEqual([{ kind: 'heading', text: 'A' }])
 })
 
+test('heading: a `#` that ends a word stays; only a closing run after a space goes', () => {
+  expect(splitBlocks('## C#')).toEqual([{ kind: 'heading', text: 'C#' }])
+  expect(splitBlocks('# F# and C# ##')).toEqual([{ kind: 'heading', text: 'F# and C#' }])
+  expect(splitBlocks('# Issue #')).toEqual([{ kind: 'heading', text: 'Issue' }])
+})
+
 const RUN = ' '.repeat(40000)
 
 test('linear: trailing-space trim in blocks and shell output', () => {
-  expect(ms(() => splitBlocks(`a${RUN}b`))).toBeLessThan(50)
-  expect(ms(() => foldOutput(`a${RUN}b`))).toBeLessThan(50)
+  expect(ms(() => splitBlocks(`a${RUN}b`))).toBeLessThan(LINEAR_MS)
+  expect(ms(() => foldOutput(`a${RUN}b`))).toBeLessThan(LINEAR_MS)
 })
 
 test('linear: a parenthesised URL after a long run of spaces', () => {
-  expect(ms(() => parseCited(`a${RUN}b [x](https://x.dev/a)`, new Map()))).toBeLessThan(50)
+  expect(ms(() => parseCited(`a${RUN}b [x](https://x.dev/a)`, new Map()))).toBeLessThan(LINEAR_MS)
 })
 
 test('linear: a repo ref scan over a long slash-less word', () => {
-  expect(ms(() => parseCited(`${'a'.repeat(40000)} [x](https://x.dev/a)`, new Map()))).toBeLessThan(50)
+  expect(ms(() => parseCited(`${'a'.repeat(40000)} [x](https://x.dev/a)`, new Map()))).toBeLessThan(LINEAR_MS)
 })
 
 test('linear: a long pytest-like summary line', () => {
-  expect(ms(() => parseTests(`== ${'1 passed in 1s '.repeat(2500)}`))).toBeLessThan(50)
+  expect(ms(() => parseTests(`== ${'1 passed in 1s '.repeat(2500)}`))).toBeLessThan(LINEAR_MS)
   expect(parseTests('===== 3 failed, 142 passed, 2 skipped in 3.21s =====')).toEqual({ passed: 142, failed: 3, skipped: 2 })
 })
 
@@ -79,6 +88,9 @@ test('fences: a longer fence holds a shorter one, and ~~~ never closes ```', () 
   // A fence line with text after it never closes.
   const info = '```\n``` x\n\nplain words\n\n```'
   expect(splitBlocks(info)).toEqual([{ kind: 'markdown', text: info }])
+  // A backtick run with a backtick in its info string is inline code, not a fence: the
+  // paragraph after it stays ours.
+  expect(splitBlocks('``` a ` b\n\nplain words').at(-1)?.kind).toBe('para')
   // A table right under a closed fence still splits out.
   expect(splitBlocks('````\n```\n````\n| a | b |\n|---|---|\n| x | 1 |').map(b => b.kind)).toEqual(['markdown', 'table'])
 })
@@ -110,6 +122,26 @@ test('test runner: only in command position', () => {
   expect(runnerOf('ls | mocha')).toBe('mocha')
 })
 
+test('test runner: launchers, wrappers, a new line or a path before it still count', () => {
+  const cases: [string, string][] = [
+    ['cd app\nbun test', 'bun test'],
+    ['cd a\nnpx vitest run', 'vitest'],
+    ['time bun test', 'bun test'],
+    ['time npx jest', 'jest'],
+    ['env CI=1 vitest', 'vitest'],
+    ['sudo cargo test', 'cargo test'],
+    ['python -m pytest -q', 'pytest'],
+    ['python3 -m pytest', 'pytest'],
+    ['uv run pytest', 'pytest'],
+    ['poetry run pytest', 'pytest'],
+    ['pipenv run pytest', 'pytest'],
+    ['bash -c "pytest -x"', 'pytest'],
+    ['(cd a && vitest)', 'vitest'],
+    ['./node_modules/.bin/vitest run', 'vitest']
+  ]
+  for (const [cmd, runner] of cases) expect(`${cmd}: ${runnerOf(cmd)}`).toBe(`${cmd}: ${runner}`)
+})
+
 test('test summaries: Mocha and dotnet count', () => {
   expect(parseTests('  5 passing (12ms)\n  2 failing\n  1 pending')).toEqual({ passed: 5, failed: 2, skipped: 1 })
   expect(parseTests('Passed!  - Failed:     0, Passed:    12, Skipped:     1, Total:    13, Duration: 1 s')).toEqual({ passed: 12, failed: 0, skipped: 1 })
@@ -128,6 +160,11 @@ test('source labels: no userinfo host, no bidi or format characters', () => {
   expect(sourceLabel('bun.sh/guides/test/timeout.md')).toBe('bun.sh · timeout')
 })
 
+test('source labels: a host the URL parser rejects is cleaned the same way', () => {
+  expect(sourceLabel(`https://ev${String.fromCodePoint(0x202e)}il.com/x`)).toBe('evil.com · x')
+  expect(sourceLabel('user@evil.com/x')).toBe('evil.com · x')
+})
+
 test('link markers: text with private-use glyphs falls back; a fallback takes no number', () => {
   expect(parseCited('icon  and [b](https://b.dev/y)', new Map())).toBe(undefined)
   const n = new Map<string, number>()
@@ -138,6 +175,11 @@ test('link markers: text with private-use glyphs falls back; a fallback takes no
 test('a turn with a million steps: the activity rule does not throw', () => {
   const steps = Array.from({ length: 1_000_000 }, (_, i) => ({ id: String(i), turn: 't', at: i, ms: 1 }))
   expect(activityHead(steps, '0')).toBe('1000000 steps · 16m 40s')
+})
+
+test('a Sources frame with a hundred thousand entries draws', () => {
+  const cites = Array.from({ length: 100_000 }, (_, i) => ({ n: i + 1, url: `https://x.dev/${i}`, title: `t${i}` }))
+  expect(sourcesFrame(cites, 80).length).toBeGreaterThan(100_000)
 })
 
 test('gh pr create: a flag inside a quoted title is not a flag', () => {

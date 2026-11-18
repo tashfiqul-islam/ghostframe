@@ -221,7 +221,7 @@ export function sourcesCites(items: readonly { title: string; url: string }[], n
  */
 export function sourceLabel(url: string): string {
   const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:www\.)?([^/?#]+)([^?#]*)/i.exec(url.trim())
-  const host = (urlHost(url) ?? m?.[1] ?? url).toLowerCase()
+  const host = cleanHost(urlHost(url) ?? m?.[1] ?? url)
   const segs = (m?.[2] ?? '')
     .split('/')
     .map(x => {
@@ -231,8 +231,7 @@ export function sourceLabel(url: string): string {
         return x
       }
     })
-    // Control and format characters (U+202E and the like) would reorder or hide the label.
-    .map(x => x.replace(/[\p{Cc}\p{Cf}]/gu, ''))
+    .map(x => x.replace(INVISIBLE, ''))
     .filter(x => x.length > 0)
 
   if (host === 'github.com' && segs.length >= 2) {
@@ -247,6 +246,20 @@ export function sourceLabel(url: string): string {
 
   return last === undefined ? host : `${host} · ${dropId(last)}`
 }
+
+// Control and format characters (U+202E and the like) would reorder or hide a label.
+const INVISIBLE = /[\p{Cc}\p{Cf}]/gu
+
+/**
+ * A host as a label shows it, whichever path read it: no invisible characters, no
+ * `user@` (the last `@` wins, as in the URL parser), no `www.`, lower case.
+ */
+const cleanHost = (host: string) =>
+  host
+    .replace(INVISIBLE, '')
+    .replace(/^.*@/, '')
+    .replace(/^www\./i, '')
+    .toLowerCase()
 
 /** The host the URL parser reads (no `user@`, keeps a port), without `www.`; not a URL → undefined. */
 function urlHost(url: string): string | undefined {
@@ -345,13 +358,26 @@ const GENERIC_TITLE = /^(post|page|here|link|docs|release notes|article|blog|sou
  * (`post · bun-v1.4.4`). A unique, specific title is unchanged.
  */
 export function sourceTitle(c: Cite, all: readonly Cite[]): string {
+  return titled(c, all.filter(x => titleKey(x.title) === titleKey(c.title)).length > 1)
+}
+
+/** Every source's list title, in order: `sourceTitle` for each, the titles counted once. */
+export function sourceTitles(all: readonly Cite[]): string[] {
+  const counts = all.reduce((m, x) => m.set(titleKey(x.title), (m.get(titleKey(x.title)) ?? 0) + 1), new Map<string, number>())
+
+  return all.map(c => titled(c, (counts.get(titleKey(c.title)) ?? 0) > 1))
+}
+
+const titleKey = (title: string) => title.trim().toLowerCase()
+
+/** `c`'s list title; `repeated`: another source in the list has the same title. */
+function titled(c: Cite, repeated: boolean): string {
   const title = c.title.trim()
   const key = title.toLowerCase()
   const label = sourceLabel(c.url)
   const host = label.split(' · ')[0] ?? label
   const short = label.split(' · ').pop() ?? label
   const generic = GENERIC_TITLE.test(title) || key.replace(/^www\./, '') === host.toLowerCase()
-  const repeated = all.filter(x => x.title.trim().toLowerCase() === key).length > 1
 
   return (generic || repeated) && short.toLowerCase() !== key ? `${title} · ${short}` : title
 }
@@ -379,6 +405,7 @@ export function footnoteLines(cites: readonly Cite[], width: number, byTitle = f
   const lead = vw(NOTE_LEAD)
   const perLine = Math.max(1, Math.floor((width - lead + vw(NOTE_GAP)) / (NOTE_MIN + vw(NOTE_GAP))))
   const lines: Part[][] = []
+  const titles = byTitle ? sourceTitles(cites) : []
 
   for (let at = 0; at < cites.length; at += perLine) {
     const chunk = cites.slice(at, at + perLine)
@@ -386,10 +413,11 @@ export function footnoteLines(cites: readonly Cite[], width: number, byTitle = f
     const parts: Part[] = [{ t: at === 0 ? NOTE_LEAD : ' '.repeat(lead), color: C.hairline }]
 
     chunk.forEach((c, i) => {
+      const title = titles[at + i] ?? c.title
       // `n` 0: a source with no marker (a Sources list item): a dim `·`, not a number.
       const mark = c.n > 0 ? `${sup(c.n)} ` : '· '
       // A URL's label clips in the middle (it ends on its most specific part); a title at a word.
-      const text = byTitle ? clip(sourceTitle(c, cites), Math.max(1, share - vw(mark))) : clipLabel(sourceLabel(c.url), Math.max(1, share - vw(mark)))
+      const text = byTitle ? clip(title, Math.max(1, share - vw(mark))) : clipLabel(sourceLabel(c.url), Math.max(1, share - vw(mark)))
 
       if (i > 0) parts.push({ t: NOTE_GAP, color: C.dim })
       // Link colour on the marker only; the label is muted (§0.2 URLs).
@@ -411,7 +439,7 @@ export function sourcesFrame(cites: readonly Cite[], width: number, listed: read
   const all: Cite[] = [...cites, ...listed.map(l => ({ n: 0, url: l.url, title: l.title }))]
   // Reduced, not spread: `Math.max(...xs)` overflows the stack on a long list.
   const noW = cites.reduce((w, c) => Math.max(w, String(c.n).length), 1)
-  const titles = all.map(c => sourceTitle(c, all))
+  const titles = sourceTitles(all)
   const titleW = Math.min(
     titles.reduce((w, t) => Math.max(w, vw(t)), 8),
     Math.floor(inner * 0.4)
