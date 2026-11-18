@@ -1,0 +1,46 @@
+name: PR
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+# Concurrency is per job: a body-only edit must never cancel a title check that a push started.
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # The squash commit takes the PR title. Required checks are recorded per commit and never
+  # carried forward, so every push needs a fresh result; on edits it runs only when the title
+  # changed. Only the files commitlint needs are checked out.
+  title:
+    name: Conventional title
+    if: github.event.action != 'edited' || github.event.changes.title != null
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    concurrency:
+      group: pr-title-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read # check out the commitlint config
+    steps:
+      - name: Check out commitlint config and lockfile
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /tools/
+            /mise.toml
+            /.github/actions/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Bun and dev tools
+        uses: $/.github/actions/setup
+
+      - name: Lint the title with commitlint (same rules as the commit-msg hook)
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" | bun run --cwd tools commitlint --verbose
