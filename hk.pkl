@@ -1,21 +1,54 @@
 amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
 
-// Opt in with `hk install`. CI runs the same checks, so the hook is a convenience.
+// Opt in with `mise run setup` (runs `hk install --mise`). CI runs the same checks.
+local typescript = List("**/*.ts", "**/*.tsx")
+
+local oxlint = new Step {
+  glob = typescript
+  check = "bun run --cwd tools lint"
+}
+
+local oxfmt = new Step {
+  glob = List("**/*.{ts,tsx,json,jsonc,md,yml,yaml}")
+  exclude = List("tools/bun.lock")
+  check = "bun run --cwd tools fmt:check"
+  fix = "bun run --cwd tools fmt"
+}
+
+local typecheck = new Step {
+  glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
+  check = "bun run --cwd tools typecheck"
+}
+
+local actionlint = new Step {
+  glob = List(".github/workflows/*.yml")
+  check = "actionlint {{files}}"
+}
+
+local zizmor = new Step {
+  // zizmor also audits composite actions; actionlint only understands workflows.
+  glob = List(".github/workflows/*.yml", ".github/actions/**/action.yml")
+  check = "zizmor --offline {{files}}"
+}
+
+local shellcheck = new Step {
+  glob = List("**/*.sh")
+  check = "shellcheck {{files}}"
+}
+
+local lychee = new Step {
+  glob = List("**/*.md")
+  check = "lychee --offline --include-fragments --no-progress {{files}}"
+}
+
 local linters = new Mapping<String, Step> {
-  ["oxfmt"] {
-    glob = List("**/*.ts", "**/*.tsx", "**/*.json", "**/*.jsonc", "**/*.md", "**/*.yml", "**/*.yaml")
-    check = "bun run --cwd tools fmt:check"
-    fix = "bun run --cwd tools fmt"
-  }
-  ["oxlint"] {
-    glob = List("**/*.ts", "**/*.tsx")
-    depends = "oxfmt"
-    check = "bun run --cwd tools lint"
-  }
-  ["tsc"] {
-    glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
-    check = "bun run --cwd tools typecheck"
-  }
+  ["oxlint"] = oxlint
+  ["oxfmt"] = (oxfmt) { depends = "oxlint" }
+  ["typecheck"] = typecheck
+  ["actionlint"] = actionlint
+  ["zizmor"] = zizmor
+  ["shellcheck"] = shellcheck
+  ["lychee"] = lychee
 }
 
 hooks {
@@ -24,7 +57,19 @@ hooks {
     stash = "git"
     steps = linters
   }
-  ["check"] {
+  ["commit-msg"] {
+    steps {
+      ["commitlint"] { check = "bun run --cwd tools commitlint --edit {{commit_msg_file}}" }
+    }
+  }
+  ["pre-push"] {
+    steps {
+      ["check"] { check = "bun run --cwd tools check" }
+    }
+  }
+  ["check"] { steps = linters }
+  ["fix"] {
+    fix = true
     steps = linters
   }
 }

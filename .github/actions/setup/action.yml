@@ -1,0 +1,28 @@
+name: Set up toolchain
+description: >-
+  Install tools pinned in mise.toml and, optionally, the dev tools in tools/ from the frozen
+  lockfile. Expects the repository (or the files the job needs) checked out. Load it with
+  `uses: $/.github/actions/setup`.
+
+inputs:
+  tools:
+    description: Space-separated mise tools to install, e.g. "bun actionlint".
+    required: false
+    default: bun
+  install:
+    description: "Whether to install the dev tools in tools/: 'true' or 'false'."
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain (${{ inputs.tools }} via mise)
+      uses: jdx/mise-action@d5574b52816a478f9d4e6529a3f6ff17a8a36785 # v5.2.8
+      with:
+        install_args: ${{ inputs.tools }}
+
+    - name: Install dev tools (frozen lockfile, scripts off)
+      if: inputs.install == 'true'
+      shell: bash
+      run: bun install --cwd tools --frozen-lockfile --ignore-scripts

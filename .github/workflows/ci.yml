@@ -1,15 +1,16 @@
-name: ci
+name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
-
-permissions: {}
+  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions: {}
 
 defaults:
   run:
@@ -23,20 +24,26 @@ env:
   DISABLE_AUTOUPDATER: '1'
 
 jobs:
-  gate:
-    name: gate
+  check:
+    name: Quality gate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      contents: read # check out the code
+      contents: read # check out this repo
     steps:
-      - name: Check out
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install Claude Code CLI
+      - name: Set up toolchain and dev tools
         id: setup
+        uses: $/.github/actions/setup
+        with:
+          tools: bun actionlint zizmor shellcheck lychee
+
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        id: cli
         run: |
           mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/claude-config"
           curl --fail --silent --show-error --location --output "$RUNNER_TEMP/bin/claude" \
@@ -47,53 +54,56 @@ jobs:
           # An empty config dir: the gates need no login and read no user settings.
           echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/claude-config" >> "$GITHUB_ENV"
 
-      - name: Validate plugin
+      # The gate (`mise run check` locally), one step per tool so a failure names itself. Where a
+      # tool speaks GitHub's annotation format, errors land inline on the PR diff. tsc and the
+      # type-aware lint rules need the engine's generated declarations, which only a local session
+      # writes (they are never committed), so they run in the local gate only.
+      - name: Validate plugin (claude plugin validate)
+        if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin validate .
 
-      - name: Test plugin
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+      - name: Test plugin (claude plugin test)
+        if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin test .
 
-      - name: Install bun
-        id: bun
-        if: ${{ !cancelled() }}
-        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
-        with:
-          install_args: bun
-
-      - name: Install dev tools
-        id: tools
-        if: ${{ !cancelled() && steps.bun.outcome == 'success' }}
-        run: bun install --cwd tools --frozen-lockfile --ignore-scripts
-
-      - name: Check format
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
-        run: bun run --cwd tools fmt:check
-
-      # Type-aware rules and tsc need the engine's generated declarations, which only a
-      # local session writes (they are never committed), so CI runs the syntax rules.
-      - name: Lint
-        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+      - name: Lint (oxlint, syntax rules)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools lint:ci
 
-  workflows:
-    name: workflows
+      - name: Format check (oxfmt)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun run --cwd tools fmt:check
+
+      - name: Lint workflows (actionlint)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          # shellcheck disable=SC2016 # `$err` is a Go template variable, not a shell one
+          actionlint -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}},title=actionlint {{$err.Kind}}::{{$err.Message}}
+          {{end}}'
+
+      - name: Audit workflows (zizmor)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: zizmor --offline --persona auditor --format github .github
+
+      - name: Lint shell scripts (shellcheck)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          mapfile -t scripts < <(git ls-files '*.sh')
+          if (( ${#scripts[@]} )); then shellcheck "${scripts[@]}"; else echo "No shell scripts."; fi
+
+      - name: Check docs links and anchors (lychee, offline)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: mise run lint-docs
+
+  dependencies:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     permissions:
-      contents: read # check out the workflows
+      contents: read # read the dependency diff
     steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Review dependency changes for vulnerabilities
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
-          persist-credentials: false
-
-      - name: Lint workflows
-        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
-
-      - name: Audit workflows
-        if: ${{ !cancelled() }}
-        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
-        with:
-          advanced-security: false
-          persona: auditor
+          fail-on-severity: moderate
