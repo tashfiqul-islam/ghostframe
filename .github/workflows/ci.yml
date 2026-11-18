@@ -1,4 +1,5 @@
 name: CI
+run-name: "CI · ${{ github.event_name == 'pull_request' && format('#{0} {1}', github.event.pull_request.number, github.event.pull_request.title) || github.ref_name }}"
 
 on:
   push:
@@ -36,7 +37,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up toolchain and dev tools
+      - name: Set up toolchain (mise) and dev tools (tools/)
         id: setup
         uses: $/.github/actions/setup
         with:
@@ -62,15 +63,15 @@ jobs:
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin validate .
 
-      - name: Test plugin (claude plugin test)
+      - name: Run plugin tests (claude plugin test)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin test .
 
-      - name: Lint (oxlint, syntax rules)
+      - name: Lint TypeScript (oxlint, syntax rules)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools lint:ci
 
-      - name: Format check (oxfmt)
+      - name: Check formatting (oxfmt)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools fmt:check
 
