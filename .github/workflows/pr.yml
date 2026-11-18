@@ -1,4 +1,5 @@
-name: PR
+name: Pull request checks
+run-name: "Pull request checks · #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}"
 
 on:
   pull_request:
@@ -27,7 +28,7 @@ jobs:
     permissions:
       contents: read # check out the commitlint config
     steps:
-      - name: Check out commitlint config and lockfile
+      - name: Check out tools/ (commitlint config and lockfile)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -37,7 +38,7 @@ jobs:
             /.github/actions/
           sparse-checkout-cone-mode: false
 
-      - name: Set up Bun and dev tools
+      - name: Set up Bun (mise) and dev tools (tools/)
         uses: $/.github/actions/setup
 
       - name: Lint the title with commitlint (same rules as the commit-msg hook)
