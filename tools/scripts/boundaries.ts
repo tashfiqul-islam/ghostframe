@@ -4,7 +4,8 @@
 //   hooks/cockpit/**     cockpit/**, shared/**, types/, `claude-code`
 //   hooks/transcript/**  transcript/**, shared/**, types/, `claude-code`, and the cockpit's public surface only
 //   hooks/register.tsx   anything under hooks/ (it composes the features)
-// and no file may re-export (`export … from`, `export *`): every import names the module that defines it.
+// and no file may re-export (`export … from`, `export *`): every import names the module that defines it. It also
+// checks hooks/README.md against the folders under hooks/: every folder it names exists, and every folder is named.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, posix, relative, sep } from 'node:path'
 
@@ -59,6 +60,40 @@ export function violations(files: ReadonlyMap<string, string>): string[] {
   return found
 }
 
+// A hooks folder as hooks/README.md names it: `shared/`, `transcript/sites/reply/`, … (backticked, ending in a slash).
+const README_FOLDER = /`((?:shared|cockpit|transcript)(?:\/[a-z-]+)*)\/`/g
+
+/**
+ * Where hooks/README.md and the folders under hooks/ disagree, so the README cannot go stale: a folder it names
+ * that does not exist, or a folder that exists and it does not name.
+ * @param readme the README's text
+ * @param folders every folder under hooks/, relative to hooks/ with forward slashes (`transcript/sites`)
+ * @returns one message per mismatch, empty when they agree
+ */
+export function readmeDrift(readme: string, folders: readonly string[]): string[] {
+  const named = new Set(Array.from(readme.matchAll(README_FOLDER), m => m[1] ?? ''))
+  const exist = new Set(folders)
+
+  return [
+    ...[...named].filter(f => !exist.has(f)).map(f => `hooks/README.md names \`${f}/\`, which does not exist`),
+    ...[...exist].filter(f => !named.has(f)).map(f => `hooks/${f}/ exists but hooks/README.md does not name it`)
+  ]
+}
+
+/** Every folder under `dir`, relative to it with forward slashes. */
+function foldersUnder(dir: string, base = '', out: string[] = []): string[] {
+  for (const name of readdirSync(join(dir, base))) {
+    const rel = base === '' ? name : `${base}/${name}`
+
+    if (statSync(join(dir, rel)).isDirectory()) {
+      out.push(rel)
+      foldersUnder(dir, rel, out)
+    }
+  }
+
+  return out
+}
+
 /** Every .ts/.tsx file under `dir`, keyed by its path relative to `root` with forward slashes. */
 function sources(root: string, dir: string, out: Map<string, string> = new Map()): Map<string, string> {
   for (const name of readdirSync(dir)) {
@@ -101,14 +136,25 @@ function selfTest(): void {
     if (!got.some(v => expected.test(v))) fail(`${file} should be refused (${expected}); got ${JSON.stringify(got)}`)
   }
 
-  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught)`)
+  const readme = 'Layout:\n- `shared/`: helpers.\n- `cockpit/`: the pane.\n- `cockpit/steps/`: the step log.'
+
+  if (readmeDrift(readme, ['shared', 'cockpit', 'cockpit/steps']).length > 0) fail('a README that matches its folders was refused')
+  if (!readmeDrift(readme, ['shared', 'cockpit']).some(v => /names `cockpit\/steps\/`, which does not exist/.test(v))) {
+    fail('a README naming a missing folder passed')
+  }
+  if (!readmeDrift(readme, ['shared', 'cockpit', 'cockpit/steps', 'transcript']).some(v => /transcript\/ exists but/.test(v))) {
+    fail('a folder the README does not name passed')
+  }
+
+  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways)`)
 }
 
 if (process.argv.includes('--self-test')) {
   selfTest()
 } else {
   const root = process.cwd()
-  const found = violations(sources(root, join(root, 'hooks')))
+  const hooks = join(root, 'hooks')
+  const found = [...violations(sources(root, hooks)), ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))]
 
   if (found.length > 0) {
     console.error(found.join('\n'))
