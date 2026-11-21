@@ -1,6 +1,6 @@
 // Cockpit, phase 1: the seat. The pane opens at session start, docks at the width rule (hooks/seat.ts)
 // and draws an empty frame with a column ruler. Spec: docs/design/cockpit-v7.md E.36, C.1 and E.24.
-import type { EngineInterface, Register, SessionStartInput, UiOpenResult } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, SessionStartInput, UiOpenResult } from 'claude-code'
 
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { C } from './tokens'
@@ -23,6 +23,30 @@ let openedAt: number | undefined
 let leftAt: number | undefined
 /** The person's `/cockpit` ran where no dock exists, so an inline pane is theirs and stays. */
 let isAskedInline = false
+
+// Cockpit is unfinished, so it is off unless asked for: the `cockpit` option (/config, `pluginConfigs`)
+// or GHOSTFRAME_COCKPIT=1 for a test session. Off, it opens nothing and draws nothing.
+/** The `cockpit` option, as `register` received it. */
+let isOptionOn = false
+/** GHOSTFRAME_COCKPIT, as read at session start. */
+let isEnvOn = false
+const OFF_NOTE = 'cockpit is off · enable with /config (Cockpit pane) or GHOSTFRAME_COCKPIT=1'
+
+const isOn = () => isOptionOn || isEnvOn
+
+/**
+ * Whether GHOSTFRAME_COCKPIT turns Cockpit on. An environment the engine cannot read leaves it off:
+ * this must never be what holds back the rest of `session.start`.
+ * @param $ the engine interface
+ * @returns true for `1`, `true`, `on` or `yes`
+ */
+async function isEnvSet($: EngineInterface): Promise<boolean> {
+  try {
+    return /^(1|true|on|yes)$/i.test((await $.env.get('GHOSTFRAME_COCKPIT')) ?? '')
+  } catch {
+    return false
+  }
+}
 
 /**
  * Opens (or re-opens) the pane at the width rule for a terminal this wide.
@@ -79,8 +103,9 @@ function rulerRow(width: number, isTens: boolean): string {
  */
 export async function startCockpit($: EngineInterface, e: SessionStart): Promise<void> {
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
+  isEnvOn = await isEnvSet($)
 
-  if (e.isInteractive && e.surface === 'terminal') {
+  if (isOn() && e.isInteractive && e.surface === 'terminal') {
     void $.ui.open({ id: PANE, columns: FIRST_COLUMNS }).catch((error: unknown) => logSeatError($, error))
   }
 }
@@ -88,9 +113,16 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
 /**
  * Adds Cockpit's hooks: the `/cockpit` command and the pane's drawing.
  * @param on the `on` that `register` receives
+ * @param options the plugin's options; `cockpit: true` turns Cockpit on
  */
-export function registerCockpit(on: On): void {
+export function registerCockpit(on: On, options: PluginOptions): void {
+  isOptionOn = options['cockpit'] === true
+
   on('command.run', { command: PANE }, async ($, e) => {
+    if (!isOn()) {
+      return { text: OFF_NOTE }
+    }
+
     const isPlaced = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isPlaced)
 
     if (isPlaced) {
@@ -107,7 +139,11 @@ export function registerCockpit(on: On): void {
     return { text: opened.isPlaced ? `pane open · ${paneColumns(columns)} columns` : `pane not placed · ${opened.reason}` }
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, ($, e) => {
+  on('ui.render', { component: 'Pane', requestId: PANE }, ($, e, next) => {
+    if (!isOn()) {
+      return next(e)
+    }
+
     const { Box, Text } = $.ui.resolve(e)
     const { placement, bodyColumns, scroll } = e.props
     const viewport = e.viewport

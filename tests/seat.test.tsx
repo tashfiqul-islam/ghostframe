@@ -51,7 +51,10 @@ const PANE = {
 
 type Opened = { id: string; columns?: number }
 
-test('session start registers /cockpit and opens the pane, passing columns', async ($, on) => {
+// Cockpit is off by default (unfinished work never shows in daily use); these tests turn it on.
+const ON = { options: { cockpit: true } }
+
+test('session start registers /cockpit and opens the pane, passing columns', ON, async ($, on) => {
   const opened: Opened[] = []
   const registered: string[] = []
   on('command.register', (_, e) => {
@@ -72,7 +75,7 @@ test('session start registers /cockpit and opens the pane, passing columns', asy
   expect(typeof opened[0]?.columns).toBe('number')
 })
 
-test('a docked pane opens again with the width rule when the terminal width changes, once per width', async ($, on) => {
+test('a docked pane opens again with the width rule when the terminal width changes, once per width', ON, async ($, on) => {
   const opened: Opened[] = []
   on('ui.open', (_, e) => {
     opened.push(e)
@@ -97,7 +100,7 @@ test('a docked pane opens again with the width rule when the terminal width chan
   await at184.unmount()
 })
 
-test('an inline pane nobody asked for is closed', async ($, on) => {
+test('an inline pane nobody asked for is closed', ON, async ($, on) => {
   const closed: string[] = []
   on('ui.close', (_, e) => {
     closed.push(e.id)
@@ -114,7 +117,7 @@ test('an inline pane nobody asked for is closed', async ($, on) => {
   await ui.unmount()
 })
 
-test('/cockpit opens the pane at the width rule for the terminal it ran in, and closes a placed one', async ($, on) => {
+test('/cockpit opens the pane at the width rule for the terminal it ran in, and closes a placed one', ON, async ($, on) => {
   const opened: Opened[] = []
   const closed: string[] = []
   let placed = false
@@ -140,7 +143,7 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   expect(second.text).toMatch(/closed/)
 })
 
-test('the pane draws an empty frame with a column ruler as wide as its body', async $ => {
+test('the pane draws an empty frame with a column ruler as wide as its body', ON, async $ => {
   const ui = await $.ui.mount({ ...PANE, viewport: { columns: 127, rows: 50, isFullscreen: true } })
   const units = await ui.find({ type: 'Text', text: /^0123456789/ })
   expect(units?.text).toBe('0123456789'.repeat(8).slice(0, 72))
