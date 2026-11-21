@@ -1,14 +1,69 @@
-// Cockpit, phase 1: the seat. The pane opens at session start, docks at the width rule (hooks/seat.ts)
-// and draws an empty frame with a column ruler. Spec: docs/design/cockpit-v7.md E.36, C.1 and E.24.
-import type { EngineInterface, PluginOptions, Register, SessionStartInput, UiOpenResult } from 'claude-code'
+// Cockpit: the pane beside the transcript. Phase 1, the seat: it opens at session start and docks at the
+// width rule (hooks/seat.ts). Phase 2, the step log: it draws the turn's `[ STEPS ]` (hooks/steplog.ts).
+// Spec: docs/design/cockpit-v7.md C.1, E.24, E.36 to E.39; docs/design/cockpit-v7-amendments.md.
+import { atom, read, update } from 'claude-code'
+import type { EngineInterface, PluginOptions, Register, SessionStartInput, ToolCallInput, UiOpenResult } from 'claude-code'
 
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
-import { C } from './tokens'
+import { endTurn, newLog, settleStep, startStep, stepRows } from './steplog'
+import type { Outcome } from './steplog'
 
 type On = Parameters<Register>[0]
 type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 
 const PANE = 'cockpit'
+
+// The current (or last) main-loop turn's steps. Change the tag when a step's fields change.
+const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, 0), { shape: 'stepLog-1' })
+
+/**
+ * A main-loop turn starts: its log starts empty, on its own clock.
+ * @param $ the engine interface
+ * @param turn the turn's id
+ * @param at when its prompt was submitted (wall clock, ms); undefined, its first step starts the clock
+ */
+export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, () => newLog(turn, at ?? null))
+}
+
+/**
+ * A main-loop call starts: its row appears.
+ * @param $ the engine interface
+ * @param e the call
+ * @param at the wall clock in ms
+ * @param cwd the session's folder, for relative paths
+ */
+export async function logStepStart($: EngineInterface, e: ToolCallInput, at: number, cwd: string | undefined): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
+}
+
+/**
+ * A main-loop call ends: its row settles.
+ * @param $ the engine interface
+ * @param e the call
+ * @param outcome what `next(e)` resolved to; undefined when it threw
+ * @param at the wall clock in ms
+ */
+export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: Outcome | undefined, at: number): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: outcome ?? { isError: true, text: 'failed' } }))
+}
+
+/**
+ * A main-loop turn ends: a step still running was cut.
+ * @param $ the engine interface
+ * @param durationMs how long the turn ran
+ */
+export async function logTurnEnd($: EngineInterface, durationMs: number): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, log => endTurn(log, durationMs))
+}
 
 // The first open comes before any drawing has measured the terminal: ask for the hero width,
 // and the first Pane render opens again at the width rule.
@@ -86,16 +141,6 @@ function logSeatError($: EngineInterface, error: unknown): void {
 }
 
 /**
- * One row of the column ruler: the tens digit every ten columns, or every units digit.
- * @param width the pane's body columns
- * @param isTens the tens row
- * @returns the row, exactly `width` cells
- */
-function rulerRow(width: number, isTens: boolean): string {
-  return Array.from({ length: width }, (_, i) => (isTens ? (i % 10 === 0 ? String(Math.floor(i / 10) % 10) : ' ') : String(i % 10))).join('')
-}
-
-/**
  * Cockpit's part of `session.start` (a plugin hooks it once): registers `/cockpit` and opens the pane.
  * Unasked, the engine docks it from 144 columns (110 once asked) and holds it undrawn below that.
  * @param $ the engine interface
@@ -139,7 +184,7 @@ export function registerCockpit(on: On, options: PluginOptions): void {
     return { text: opened.isPlaced ? `pane open · ${paneColumns(columns)} columns` : `pane not placed · ${opened.reason}` }
   })
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, ($, e, next) => {
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
     if (!isOn()) {
       return next(e)
     }
@@ -164,19 +209,20 @@ export function registerCockpit(on: On, options: PluginOptions): void {
       }
     }
 
-    const terminal = viewport === undefined ? '?' : String(terminalColumns(placement, viewport.columns, bodyColumns))
+    // `[ STEPS ]` alone, fitted to the body so the engine never scrolls it (E.37).
+    const rows = stepRows(await read($, stepLog), bodyColumns, scroll.bodyRows)
 
     return (
       <Box flexDirection="column">
-        <Text color={C.muted} wrap="truncate">
-          {rulerRow(bodyColumns, true)}
-        </Text>
-        <Text color={C.muted} wrap="truncate">
-          {rulerRow(bodyColumns, false)}
-        </Text>
-        <Text color={C.muted} wrap="truncate">
-          {`${bodyColumns} of ${terminal} columns · ${scroll.bodyRows} rows · ${placement}`}
-        </Text>
+        {rows.map((row, i) => (
+          <Text key={`row:${i}`} wrap="truncate">
+            {row.map((p, j) => (
+              <Text key={`${j}`} color={p.color} {...(p.bold === true ? { weight: 'bold' as const } : {})}>
+                {p.t}
+              </Text>
+            ))}
+          </Text>
+        ))}
       </Box>
     )
   })

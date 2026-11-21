@@ -39,7 +39,7 @@ export type CallFlags = { isRunning: boolean; isErrored: boolean; isInterrupted:
 export const TEST_CMD =
   /(?:^|&&|\|\||[;|(\n])\s*(?:(?:\w+=\S*|time|env|sudo|exec|nohup)\s+|(?:ba|z|da)?sh\s+-c\s+["']?)*(?:(?:npx|bunx|uvx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun|uv\s+run|poetry\s+run|pipenv\s+run|python3?\s+-m)\s+)?(?:[\w.~-]*\/)*(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
 // The engine's own denial messages only; a shell's `Permission denied` is an ordinary error.
-const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
+export const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
 
 // `git` and its global options (`-C dir`, `-c k=v`, `--no-pager`) before the subcommand.
 const GIT = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+--[\w-]+(?:=\S+)?)*\s+`
@@ -257,7 +257,7 @@ const plus = (n: number): Tone => ({ text: `+${n}`, color: C.add })
 const minus = (n: number): Tone => ({ text: `−${n}`, color: C.del })
 
 /** The result column for a finished, successful call; undefined → just `ok`. */
-function resultOf(tool: string, output: unknown): Tone[] | undefined {
+export function resultOf(tool: string, output: unknown): Tone[] | undefined {
   const o = obj(output)
 
   switch (tool) {

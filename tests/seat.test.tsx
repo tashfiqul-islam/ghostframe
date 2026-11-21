@@ -142,12 +142,3 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   expect(closed).toEqual(['cockpit'])
   expect(second.text).toMatch(/closed/)
 })
-
-test('the pane draws an empty frame with a column ruler as wide as its body', ON, async $ => {
-  const ui = await $.ui.mount({ ...PANE, viewport: { columns: 127, rows: 50, isFullscreen: true } })
-  const units = await ui.find({ type: 'Text', text: /^0123456789/ })
-  expect(units?.text).toBe('0123456789'.repeat(8).slice(0, 72))
-  const tens = await ui.find({ type: 'Text', text: /^0 {9}1/ })
-  expect(tens?.text.length).toBe(72)
-  await ui.unmount()
-})
