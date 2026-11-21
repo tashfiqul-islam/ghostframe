@@ -15,9 +15,16 @@ local oxfmt = new Step {
   fix = "bun run --cwd tools fmt"
 }
 
+// tsrs, the Rust port of the TypeScript 7 checker, is the only type checker (tools/package.json).
 local typecheck = new Step {
-  glob = List("**/*.ts", "**/*.tsx", "tsconfig.json")
+  glob = List("**/*.ts", "**/*.tsx", "**/tsconfig*.json")
   check = "bun run --cwd tools typecheck"
+}
+
+// The repo is TypeScript-only: a JavaScript file anywhere fails (mise.toml, lint-js).
+local nojs = new Step {
+  glob = List("**/*.js", "**/*.mjs", "**/*.cjs", "**/*.jsx")
+  check = "mise run lint-js"
 }
 
 local actionlint = new Step {
@@ -45,6 +52,7 @@ local linters = new Mapping<String, Step> {
   ["oxlint"] = oxlint
   ["oxfmt"] = (oxfmt) { depends = "oxlint" }
   ["typecheck"] = typecheck
+  ["no-js"] = nojs
   ["actionlint"] = actionlint
   ["zizmor"] = zizmor
   ["shellcheck"] = shellcheck

@@ -56,9 +56,26 @@ jobs:
           echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/claude-config" >> "$GITHUB_ENV"
 
       # The gate (`mise run check` locally), one step per tool so a failure names itself. Where a
-      # tool speaks GitHub's annotation format, errors land inline on the PR diff. tsc and the
-      # type-aware lint rules need the engine's generated declarations, which only a local session
-      # writes (they are never committed), so they run in the local gate only.
+      # tool speaks GitHub's annotation format, errors land inline on the PR diff. The plugin's own
+      # type-check (tsconfig.json) and the type-aware lint rules need the engine's generated
+      # declarations, which only a local session writes (Claude Code's early-access API file, never
+      # committed), so they run in the local gate only. The dev tools (tools/tsconfig.json) need
+      # only Bun's types, so they are type-checked here, by tsrs (the repo's only type checker).
+      - name: Check the repo is TypeScript-only (no tracked JavaScript)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: mise run lint-js
+
+      - name: Type-check the dev tools (tsrs, tools/tsconfig.json)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun run --cwd tools typecheck:tools
+
+      - name: Check the Cockpit spec regenerates byte for byte (mockgen)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          bun tools/mockgen/gen/build.ts "$RUNNER_TEMP/cockpit-v7.md"
+          cmp docs/design/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
+          sha256sum docs/design/cockpit-v7.md
+
       - name: Validate plugin (claude plugin validate)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin validate .

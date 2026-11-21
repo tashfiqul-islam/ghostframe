@@ -3,8 +3,6 @@ import { defineConfig } from 'oxlint'
 // Run from the repository root: `oxlint -c tools/oxlint.config.ts` (the tools/ scripts do).
 export default defineConfig({
   plugins: ['typescript', 'unicorn', 'oxc', 'import', 'promise', 'jsdoc'],
-  // `jsdoc` is oxlint's native port (tag hygiene); the JS plugin adds only `require-jsdoc`.
-  jsPlugins: [{ name: 'jsdoc-js', specifier: 'eslint-plugin-jsdoc' }],
   categories: {
     correctness: 'error',
     suspicious: 'error',
@@ -28,16 +26,7 @@ export default defineConfig({
     // The engine's `on(...).catch(($, e, next) => next(e))` is a hook fallback, not a Promise catch.
     'promise/no-callback-in-promise': 'off',
 
-    // Code documentation: TSDoc on every export, well-formed tags everywhere.
-    // Off until the register split documents every export (it turns this on).
-    'jsdoc-js/require-jsdoc': [
-      'off',
-      {
-        publicOnly: true,
-        require: { FunctionDeclaration: true, ArrowFunctionExpression: true },
-        contexts: ['TSInterfaceDeclaration', 'TSTypeAliasDeclaration', 'ExportNamedDeclaration > VariableDeclaration']
-      }
-    ],
+    // Code documentation: well-formed TSDoc tags everywhere (oxlint's native jsdoc rules).
     'jsdoc/check-tag-names': 'error',
     'jsdoc/empty-tags': 'error',
     'jsdoc/no-defaults': 'error',
@@ -54,10 +43,9 @@ export default defineConfig({
         'no-await-in-loop': 'off',
         'no-shadow': 'off',
         'typescript/no-unsafe-type-assertion': 'off',
-        'unicorn/consistent-function-scoping': 'off',
-        'jsdoc-js/require-jsdoc': 'off'
+        'unicorn/consistent-function-scoping': 'off'
       }
     }
   ],
-  ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**', '**/mockgen/**']
+  ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**']
 })

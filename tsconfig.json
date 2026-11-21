@@ -1,36 +1,12 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // The engine writes and owns the base config in .claude-plugin/types (never committed):
-  // target and lib es2023 (the hook host's runtime), JSX against `h`, the engine's own
-  // declarations, strict and noUncheckedIndexedAccess. This layer makes everything else strict.
-  "extends": "./.claude-plugin/types/tsconfig.json",
+  // The plugin: hooks/, types/ and tests/. The engine writes and owns the first base in .claude-plugin/types
+  // (never committed): target and lib es2023 (the hook host's runtime), JSX against `h`, and the engine's own
+  // declarations as the only `types`. The second base is ours and wins where they overlap.
+  "extends": ["./.claude-plugin/types/tsconfig.json", "./tsconfig.base.json"],
   "compilerOptions": {
-    // Type-check only; the engine loads the .ts sources itself.
-    "noEmit": true,
+    // A repeat check reads what the last one learned.
     "incremental": true,
-    "tsBuildInfoFile": "tools/node_modules/.cache/tsbuildinfo",
-
-    // Modules: imports kept verbatim, every file a module, only erasable TypeScript syntax.
-    "module": "Preserve",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "resolveJsonModule": true,
-    "verbatimModuleSyntax": true,
-    "isolatedModules": true,
-    "erasableSyntaxOnly": true,
-    "noUncheckedSideEffectImports": true,
-
-    // Strictness: everything on.
-    "strict": true,
-    "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false
+    "tsBuildInfoFile": "tools/node_modules/.cache/plugin.tsbuildinfo"
   }
 }
