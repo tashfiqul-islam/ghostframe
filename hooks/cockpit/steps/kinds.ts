@@ -16,6 +16,12 @@ export const firstLine = (t: string): string =>
 export const isShell = (tool: string): tool is 'Bash' | 'PowerShell' => tool === 'Bash' || tool === 'PowerShell'
 export const command = (input: unknown): string => firstLine(str(rec(input)['command']) ?? '')
 
+/**
+ * Calls that draw no `[ STEPS ]` row: the to-do tools (`[ TODO ]` shows what they do) and the engine's own plumbing
+ * (loading deferred tools, waiting for MCP servers, reading the task list back).
+ */
+export const UNLISTED: ReadonlySet<string> = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch', 'WaitForMcpServers'])
+
 /** The E.12 kind word for a call. */
 export function kindOf(tool: string, input: unknown): string {
   if (isShell(tool)) return TEST_CMD.test(command(input)) ? 'test' : 'shell'

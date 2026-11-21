@@ -51,6 +51,28 @@ export function setDocked($: EngineInterface, value: boolean): void {
 }
 
 /**
+ * Cockpit's part of a standalone call's row (`ToolUse`: an `Agent` launch, a fetch, a search) while quiet: nothing,
+ * except a `↗` row for a push or a pull request, as for a folded group.
+ * @param $ the engine interface
+ * @param e the render
+ * @param width the transcript rule's width
+ * @returns the rows' tree (an empty Box draws nothing)
+ */
+export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse', 'terminal'>, width: number): Promise<RenderElement> {
+  const ui = $.ui.resolve(e)
+  const log = await readLog($)
+  const steps = [...log.steps, ...(log.prev?.steps ?? [])]
+  const p = e.props
+  const rows = shipRows(
+    [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }],
+    id => steps.find(s => s.id === id)?.clock,
+    width
+  )
+
+  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
+}
+
+/**
  * Cockpit's part of a folded `ToolGroup` while quiet: nothing, except a `↗` row for a push or a pull request.
  * @param $ the engine interface
  * @param e the render

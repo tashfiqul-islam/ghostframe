@@ -109,3 +109,60 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   expect(rows.some(r => /FILES|SOURCES/.test(r))).toBe(false)
   expect(rows).toContainEqual(expect.stringMatching(/\[ TODO \] ┄+ 1 of 2 done$/))
 })
+
+test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `printf >> notes3.txt` is a row', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  // Git as the work tree reads at the turn's start, after the printf, and after the formatter: README.md was changed
+  // before the turn; the printf adds notes3.txt (new, untracked); the formatter changes src/app.ts.
+  const tracked = ['4\t0\tREADME.md\n', '4\t0\tREADME.md\n', '4\t0\tREADME.md\n2\t1\tsrc/app.ts\n']
+  const others = ['', 'notes3.txt\0', 'notes3.txt\0']
+  let diffs = 0
+  let lists = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: tracked[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: others[Math.min(lists++, 2)] ?? '', stderr: '' } } as never
+  })
+  on('fs.read', () => ({ value: 'three\n' }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+
+  await call($, 'Bash', 'b1', { command: `printf 'three\n' >> "$PWD/notes3.txt"` })
+  await call($, 'Bash', 'b2', { command: 'bun run fmt' })
+
+  const rows = await paneText($)
+  // README.md was changed before the turn: no row. The turn's own: notes3.txt (new), then src/app.ts.
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ FILES \] ┄+ 2 changed · \+3 −1$/))
+  expect([...new Set(rows.filter(r => /^ {2}\S+\.(txt|ts|md) /.test(r)).map(r => r.trim().split(/\s+/)[0]))]).toEqual(['notes3.txt', 'src/app.ts'])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}notes3\.txt +new {4}\+1 {6}$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}src\/app\.ts +\+2 {4}−1$/))
+})
+
+test('an append to a file the turn created counts too: its lines are read again at each shell step', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const content = ['', 'one\ntwo\n', 'one\ntwo\nthree\n']
+  let lists = 0
+  let reads = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: lists++ === 0 ? '' : 'notes5.txt\0', stderr: '' } } as never
+  })
+  on('fs.read', () => ({ value: content[Math.min(++reads, 2)] ?? '' }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: `printf 'one\ntwo\n' >> "$PWD/notes5.txt"` })
+  await call($, 'Bash', 'b2', { command: `printf 'three\n' >> "$PWD/notes5.txt"` })
+
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}notes5\.txt +new {4}\+3 {6}$/))
+})

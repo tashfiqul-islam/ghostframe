@@ -71,8 +71,9 @@ function startTimers($: EngineInterface, isTurn: boolean): void {
  * @param $ the engine interface
  * @param turn the turn's id
  * @param at when its prompt was typed (wall clock, ms); undefined when none was
+ * @param cwd the session's folder, where the turn's file changes are read
  */
-export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined): Promise<void> {
+export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined, cwd?: string): Promise<void> {
   if (!isOn()) return
 
   const now = await $.clock.now()
@@ -82,7 +83,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
     await update($, stepLog, log => newTurn(log, turn, at))
-    await startWork($)
+    await startWork($, cwd)
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
   }

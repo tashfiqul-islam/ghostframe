@@ -81,3 +81,24 @@ test('a failed fetch or search is a source problem: ✕ in [ STEPS ], but no ope
   shell = endTurn(shell, 2_000, false, 2_000)
   expect(receiptOf(shell)).toMatchObject({ state: 'failed', failures: 1 })
 })
+
+test('to-do calls and the engine`s own plumbing draw no [ STEPS ] row: [ TODO ] shows the list', () => {
+  let log = newTurn(newLog(null, null), 't1', 0)
+
+  for (const [id, tool] of [
+    ['k1', 'TaskCreate'],
+    ['k2', 'TaskUpdate'],
+    ['k3', 'TodoWrite'],
+    ['k4', 'TaskList'],
+    ['k5', 'TaskGet'],
+    ['k6', 'ToolSearch'],
+    ['k7', 'WaitForMcpServers'],
+    ['r1', 'Read']
+  ] as const) {
+    log = startStep(log, { id, tool, input: { file_path: 'a.ts' }, at: 1_000 })
+    log = settleStep(log, { id, tool, input: { file_path: 'a.ts' }, outcome: { result: {} }, at: 2_000 })
+  }
+
+  expect(log.steps.map(s => s.kind)).toEqual(['read'])
+  expect(receiptOf(endTurn(log, 2_000, false, 2_000)).steps).toBe(1)
+})

@@ -1,7 +1,7 @@
 // Cockpit's step log: one turn's tool calls as `[ STEPS ]` rows (spec E.12, E.37, E.39, H.5; amendments 1
 // and 2). Pure: hooks/cockpit/log.ts keeps the log in $.state and draws what `stepRows` returns.
 import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
-import { fixKey, kindOf, subjectOf } from './kinds'
+import { UNLISTED, fixKey, kindOf, subjectOf } from './kinds'
 import { outcomeOf, plural } from './results'
 
 /** A call as it starts: its id, tool, input, and the wall clock in ms. */
@@ -114,6 +114,8 @@ const clockOf = (log: StepLog, at: number) => Math.max(0, at - (log.startedAt ??
  * in this turn, so a parallel launch is one row (amendment 1).
  */
 export function startStep(started: StepLog, call: StepStart, cwd?: string): StepLog {
+  if (UNLISTED.has(call.tool)) return started
+
   const log = started.startedAt === null ? { ...started, startedAt: call.at, segmentStart: started.segmentStart ?? call.at } : started
   const kind = kindOf(call.tool, call.input)
 

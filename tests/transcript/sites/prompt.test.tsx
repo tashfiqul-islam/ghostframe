@@ -108,3 +108,18 @@ test('docked: an agent`s message (`peer`, from an agent) and its notice (`task-n
   expect(await texts({ text: 'Background command finished', origin: { kind: 'task-notification' }, task: { id: 'b7', status: 'completed' } })).not.toEqual([])
   await pane.unmount()
 })
+
+test('a prompt that starts with a URL verb keeps its first letter: `Fetch https://…`', async ($, on) => {
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  const t = 'Fetch https://bun.sh/docs and https://httpbin.org/status/404 with WebFetch.'
+  const ui = await $.ui.mount({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'UserMessage',
+    viewport: VIEW,
+    props: { text: t, origin: { kind: 'composer' }, isExpanded: false }
+  } as never)
+  const shown = (await ui.findAll({ type: 'Text' })).map(x => x.text)
+  await ui.unmount()
+  expect(shown.some(x => x.startsWith(' Fetch https://bun.sh'))).toBe(true)
+})
