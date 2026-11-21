@@ -1,12 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  // The plugin: hooks/, types/ and tests/. The engine writes and owns the first base in .claude-plugin/types
-  // (never committed): target and lib es2023 (the hook host's runtime), JSX against `h`, and the engine's own
-  // declarations as the only `types`. The second base is ours and wins where they overlap.
+  // The plugin's source: hooks/ and types/ (tests/ has its own project, tests/tsconfig.json). The engine writes and
+  // owns the first base in .claude-plugin/types (never committed): target and lib es2023 (the hook host's runtime),
+  // JSX against `h`, and the engine's own declarations as the only `types`. The second base is ours and wins where
+  // they overlap.
   "extends": ["./.claude-plugin/types/tsconfig.json", "./tsconfig.base.json"],
   "compilerOptions": {
     // A repeat check reads what the last one learned.
     "incremental": true,
     "tsBuildInfoFile": "tools/node_modules/.cache/plugin.tsbuildinfo"
-  }
+  },
+  "include": ["hooks", "types"]
 }

@@ -1,4 +1,4 @@
-import type { Elements } from 'claude-code'
+import type { Elements, RenderElement } from 'claude-code'
 
 import { G, RULE_LEAD } from './layout'
 import { C } from './tokens'
@@ -11,7 +11,7 @@ export type Ui = Elements['terminal']
 
 export type RuleLabel = { text: string; color: string }
 
-export function Rule(ui: Ui, left?: RuleLabel, right?: RuleLabel, width?: number) {
+export function Rule(ui: Ui, left?: RuleLabel, right?: RuleLabel, width?: number): RenderElement {
   const { Box, Text } = ui
 
   return (

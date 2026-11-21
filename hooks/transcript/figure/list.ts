@@ -128,7 +128,7 @@ export function countOf(list: List): string {
 const BRACKET_MIN = 12 // the narrowest content column a bracket may leave
 
 /** The list's rows at `inner` cells, the notes under the frame, and whether a row was cut. */
-export function listLines(list: List, inner: number, narrow: boolean, closed: boolean) {
+export function listLines(list: List, inner: number, narrow: boolean, closed: boolean): { rows: Part[][]; notes: Part[][]; cut: boolean } {
   const { items, repeat, back } = list
   const index = (n: number) => items.findIndex(i => Number(i.mark) === n)
   // The bracket's right-most column: room for ` label` after it inside the frame.

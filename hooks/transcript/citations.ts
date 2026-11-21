@@ -15,8 +15,8 @@ import { numberTable } from './table/parse'
  * omitted), in first-cited order: what numbers the next block's markers continue from.
  * A Sources list naming one again keeps its own title.
  */
-export const turnCites = (list: readonly FlowStamp[], turn: string | null, before = list.length) => {
-  const out: { url: string; title: string; listed?: boolean; marked?: boolean }[] = []
+export const turnCites = (list: readonly FlowStamp[], turn: string | null, before: number = list.length): TurnCite[] => {
+  const out: TurnCite[] = []
 
   for (const f of list.slice(0, before)) {
     if (f.turn !== turn || f.kind !== 'text') continue
@@ -42,6 +42,19 @@ export type Prepared = { title?: string | undefined; items: { depth: number; mar
  */
 type TurnCite = { url: string; title: string; listed?: boolean; marked?: boolean }
 
+/** What `citationsOf` reads off a reply's blocks: see there. */
+export type Citations = {
+  cited: Map<Block, { runs?: Run[]; cites: Cites; byTitle: boolean; unmarked?: TurnCite[] }>
+  lists: Map<Block, Prepared>
+  tables: Map<Block, { block: Extract<Block, { kind: 'table' }>; cites: Cites }>
+  sources: { n: number; url: string; title: string }[]
+  own: TurnCite[]
+  all: TurnCite[]
+  mine: { n: number; url: string; title: string }[]
+  mineListed: TurnCite[]
+  listsHere: boolean
+}
+
 /**
  * One pass over a reply's blocks: each block's runs and the sources it cites, numbered
  * through the turn (`earlier`: what the turn's earlier messages cited, in order), and
@@ -50,7 +63,7 @@ type TurnCite = { url: string; title: string; listed?: boolean; marked?: boolean
  * Only blocks the mod draws itself cite anything: a block left to the engine (a table or
  * paragraph we can't parse) never numbers a source, so it can't leave a footnote behind.
  */
-export function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite[] = []) {
+export function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite[] = []): Citations {
   const numbering: Numbering = new Map()
   const byNumber = new Map<number, Cites[number] & { listed?: boolean; marked?: boolean }>()
   const touched = new Set<number>()
@@ -182,7 +195,7 @@ export function blocksOf(text: string): Block[] {
 
 // Keyed by the request and what came before; the blocks themselves (one text's, by
 // identity) must match too, since the result's maps are keyed by block.
-export function citationsFor(request: string, blocks: readonly Block[], earlier: readonly TurnCite[]) {
+export function citationsFor(request: string, blocks: readonly Block[], earlier: readonly TurnCite[]): Citations {
   const key = `${request}␟${JSON.stringify(earlier)}`
   const had = citeMemo.get(key)
   const out = had !== undefined && had.blocks === blocks ? had.out : citationsOf(blocks, earlier)

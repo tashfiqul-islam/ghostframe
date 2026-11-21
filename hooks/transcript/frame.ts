@@ -41,7 +41,7 @@ export function frameBottom(width: number, meta?: Part): Part[] {
 // ─── Frame labels: one style for every `[ TITLE ]` ───────────────────────────
 // Accent title, normal weight, dim brackets. Every frame label is drawn from here
 // (frameTop below, and the diff card's own top edge in register.tsx).
-export const LABEL = { text: C.accent, bracket: C.dim } as const
+export const LABEL: { readonly text: typeof C.accent; readonly bracket: typeof C.dim } = { text: C.accent, bracket: C.dim } as const
 
 /** `[ TITLE ]` as parts; `inner` (counts beside a diff card's path) goes before the `]`. */
 export function frameLabel(title: string, inner: readonly Part[] = []): Part[] {

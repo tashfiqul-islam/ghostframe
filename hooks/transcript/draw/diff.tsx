@@ -1,5 +1,5 @@
 // A new file's diff card: its framed, numbered rows.
-import type { RenderChildren } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 
 import { changeParts } from '../../shared/calls/results'
 import { G } from '../../shared/layout'
@@ -13,7 +13,7 @@ import { frameLabel } from '../frame'
 import { sessionCwd } from '../ledger/session'
 
 // `+┄┄ [ path · +18 −4 ] ┄┄┄…┄┄ 22 lines +`, numbered rows, folded past 12 (§5.5).
-export const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width: number) => {
+export const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width: number): RenderElement => {
   const { Box, Text } = ui
   const inner = width - 4
   const MAX = 12

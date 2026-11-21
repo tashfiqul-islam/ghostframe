@@ -1,6 +1,6 @@
 // Cockpit's part of the left while its pane is docked (spec E.1, E.5, E.32, E.33): the quiet transcript's `↗` rows
 // and receipt, and the one-row live area.
-import type { EngineInterface, RenderInput } from 'claude-code'
+import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { drawRows } from './draw'
 import { liveRow } from './head'
@@ -12,7 +12,7 @@ import { isOn } from './switch'
 let isDocked = false
 
 /** Whether the left is quiet now: Cockpit on and its pane docked (phase 4). Off, the transcript is as it was. */
-export const isQuiet = () => isOn() && isDocked
+export const isQuiet = (): boolean => isOn() && isDocked
 
 /**
  * Sets whether the pane is docked. A change redraws the transcript, so it turns quiet, or back, at once.
@@ -33,7 +33,7 @@ export function setDocked($: EngineInterface, docked: boolean): void {
  * @param width the transcript rule's width
  * @returns the rows' tree (an empty Box draws nothing)
  */
-export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number) {
+export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
@@ -54,7 +54,12 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
  *   footer before `turn.complete` keeps it, and the old footer must not flash); undefined for an earlier turn
  *   that has no receipt, which keeps the old footer
  */
-export async function drawReceipt($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>, turn: string | undefined, width: number) {
+export async function drawReceipt(
+  $: EngineInterface,
+  e: RenderInput<'TurnDuration', 'terminal'>,
+  turn: string | undefined,
+  width: number
+): Promise<RenderElement | undefined> {
   const ui = $.ui.resolve(e)
   const current = (await readLog($)).turn
   const wanted = turn ?? current
@@ -80,7 +85,7 @@ export async function drawReceipt($: EngineInterface, e: RenderInput<'TurnDurati
  * @param e the render
  * @returns the row's tree, or undefined
  */
-export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'terminal'>) {
+export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'terminal'>): Promise<RenderElement | undefined> {
   if (!isOn() || !isDocked || e.viewport === undefined) return undefined
 
   const now = await $.clock.now()

@@ -16,7 +16,7 @@ const replyGaps = new Map<string, number>()
 // that message's request: its frozen table layouts and gap. Written while drawing.
 const drawnMessages = new Map<string, Keyed>()
 const sameMessage = new Map<string, string>()
-export const messageOf = (request: string, key: string, turn: string | null) => {
+export const messageOf = (request: string, key: string, turn: string | null): string => {
   const had = sameMessage.get(request)
 
   if (had !== undefined) return had

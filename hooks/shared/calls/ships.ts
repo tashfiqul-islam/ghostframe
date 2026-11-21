@@ -31,7 +31,7 @@ const flag = (command: string, names: string[]) => {
   return undefined
 }
 
-export const isShipCommand = (command: string) => GIT_COMMIT.test(command) || GIT_PUSH.test(command) || /\bgh\s+pr\s+create\b/.test(command)
+export const isShipCommand = (command: string): boolean => GIT_COMMIT.test(command) || GIT_PUSH.test(command) || /\bgh\s+pr\s+create\b/.test(command)
 
 /** What a shell call shipped, read from its command and output; nothing → undefined. */
 export function parseShip(id: string, command: string, raw: string): Ship | undefined {

@@ -1,4 +1,6 @@
 // One reply block drawn by its kind: prose, a heading, a table, a list, a figure, cited text, a Sources list.
+import type { RenderElement } from 'claude-code'
+
 import type { Lay } from '../../../shared/layout'
 import type { Ui } from '../../../shared/rule'
 import { clip } from '../../../shared/text'
@@ -35,7 +37,7 @@ export type Reply = Prose & {
  * @param gap the rows of margin above it
  * @returns the block's node, or null when it draws nothing
  */
-export function drawBlock(reply: Reply, b: Block, blockKey: string, gap: number) {
+export function drawBlock(reply: Reply, b: Block, blockKey: string, gap: number): RenderElement | null {
   const { ui, lay, width, quiet, framed, tableDraws } = reply
   const { cited, lists, tables } = reply.citations
   const { Box, Markdown } = ui

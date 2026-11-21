@@ -23,19 +23,19 @@ export type Cell = { runs: Run[]; empty: boolean }
 export type Table = { header: string[]; rows: Cell[][]; align: Align[]; kind: Kind[]; nameFirst: boolean; links?: { url: string; title: string }[] }
 
 const SEP_CELL = /^\s*:?-+:?\s*$/
-export const NUMBER = /^[−+-]?[$€£¥]?\d[\d,]*(\.\d+)?\s*(%|[a-zA-Zµ]{1,3})?$/
-export const MARK = /^(✓|✗|—|-|–|yes|no)?$/i
+export const NUMBER: RegExp = /^[−+-]?[$€£¥]?\d[\d,]*(\.\d+)?\s*(%|[a-zA-Zµ]{1,3})?$/
+export const MARK: RegExp = /^(✓|✗|—|-|–|yes|no)?$/i
 const DATE = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$|^\d{1,2}:\d{2}(\s?[AP]M)?$/i
 const PATH = /^[~.]?[\w.@~-]*[\\/][^\s]*$|^[\w.-]+\.[a-z0-9]{1,5}$/i
 
-export const plain = (c: Cell) =>
+export const plain = (c: Cell): string =>
   c.runs
     .map(r => r.t)
     .join('')
     .trim()
 const words = (s: string) => (s.length === 0 ? 0 : s.split(/\s+/).length)
 
-export const isSeparator = (line: string) => line.includes('|') && splitRow(line).every(c => SEP_CELL.test(c))
+export const isSeparator = (line: string): boolean => line.includes('|') && splitRow(line).every(c => SEP_CELL.test(c))
 
 export function splitRow(line: string): string[] {
   let s = line.trim()
@@ -62,7 +62,7 @@ function urlCell(text: string): Run[] | undefined {
 }
 
 /** A one-run cell that reads as a path: clipped in the middle, never wrapped. */
-export const isPathCell = (c: Cell) => c.runs.length === 1 && PATH.test(c.runs[0]?.t ?? '')
+export const isPathCell = (c: Cell): boolean => c.runs.length === 1 && PATH.test(c.runs[0]?.t ?? '')
 
 /**
  * Header, separator, rows; undefined (the engine draws the table, full width) only for:

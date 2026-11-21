@@ -2,7 +2,7 @@
 const SOURCES_LABEL = /^\s{0,3}(?:#{1,6}\s+)?(?:\*\*|__)?sources?:?(?:\*\*|__)?:?\s*$/i
 const SOURCE_ITEM = /^\s{0,3}(?:[-*+]|\d+[.)])\s+\[([^[\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)\s*(?:[-–—:·]\s*.*)?$/
 
-export const isSourcesLabel = (line: string) => SOURCES_LABEL.test(line)
+export const isSourcesLabel = (line: string): boolean => SOURCES_LABEL.test(line)
 
 /** A block's lines as a sources list (label optional when `labelled` says the line above was it). */
 export function sourceItems(lines: readonly string[], labelled: boolean): { title: string; url: string }[] | undefined {
@@ -44,4 +44,5 @@ export function pendingSourceItems(lines: readonly string[], labelled: boolean):
 }
 
 /** A line that may still become a Sources label as it streams (`S`, `Sour`, `**Sources`). */
-export const isSourcesLabelPrefix = (line: string) => /^\s{0,3}(?:#{1,6}\s+)?(?:\*\*|__)?s(?:o(?:u(?:r(?:c(?:e(?:s)?)?)?)?)?)?:?(?:\*\*|__)?:?\s*$/i.test(line)
+export const isSourcesLabelPrefix = (line: string): boolean =>
+  /^\s{0,3}(?:#{1,6}\s+)?(?:\*\*|__)?s(?:o(?:u(?:r(?:c(?:e(?:s)?)?)?)?)?)?:?(?:\*\*|__)?:?\s*$/i.test(line)

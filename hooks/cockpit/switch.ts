@@ -9,7 +9,7 @@ let isOptionOn = false
 let isEnvOn = false
 export const OFF_NOTE = 'cockpit is off · enable with /config (Cockpit pane) or GHOSTFRAME_COCKPIT=1'
 
-export const isOn = () => isOptionOn || isEnvOn
+export const isOn = (): boolean => isOptionOn || isEnvOn
 
 /**
  * Keeps the `cockpit` option, as `register` received it.

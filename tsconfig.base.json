@@ -8,6 +8,10 @@
   "compilerOptions": {
     // Type-check only: Bun and the plugin host run the .ts sources themselves.
     "noEmit": true,
+    // Required by isolatedDeclarations; noEmit keeps anything from being written.
+    "declaration": true,
+    // Exported functions and values declare their types (owner ruling Q29), so a reader never infers them.
+    "isolatedDeclarations": true,
 
     // Modules: imports kept as written, every file a module, only syntax a type-stripper can erase.
     "module": "Preserve",

@@ -1,4 +1,6 @@
 // A reply's prose lines: laid out on the measure, drawn as one Text per block; a list's items under their markers.
+import type { RenderElement } from 'claude-code'
+
 import type { Ui } from '../../../shared/rule'
 import { clip, vw } from '../../../shared/text'
 import { C } from '../../../shared/tokens'
@@ -13,7 +15,7 @@ export type Prose = { width: number; quiet: boolean; base: string }
 // Every prose block, heading and table is ONE Text: its lines are laid out and clipped
 // here, then joined with `\n`, so a redraw while text streams replaces the block whole
 // and can never leave a stale sibling line behind. Keys come from block position.
-export const drawLines = ({ Box, Text }: Ui, lines: Span[][], lineKey: string, gap: number) => (
+export const drawLines = ({ Box, Text }: Ui, lines: Span[][], lineKey: string, gap: number): RenderElement => (
   <Box key={lineKey} marginTop={gap}>
     <Text wrap="wrap">
       {lines.flatMap((line, li) => [
@@ -34,7 +36,7 @@ export const drawLines = ({ Box, Text }: Ui, lines: Span[][], lineKey: string, g
   </Box>
 )
 
-export const runsLine = ({ base, quiet }: Prose, line: Run[][], room: number) =>
+export const runsLine = ({ base, quiet }: Prose, line: Run[][], room: number): Span[] =>
   spansOf(
     clipRuns(
       line.flatMap((word, wi) => (wi > 0 ? [{ t: ' ', s: 'plain' as const }, ...word] : word)),

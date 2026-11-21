@@ -1,4 +1,6 @@
 // Lines of parts drawn as Text: one line, a stack of lines, a frame with its margins.
+import type { RenderElement } from 'claude-code'
+
 import type { Part } from '../../shared/parts'
 import type { Ui } from '../../shared/rule'
 
@@ -8,7 +10,7 @@ import type { Ui } from '../../shared/rule'
 // text, then the whole URL, which overruns the measure and pushes later footnotes off
 // the line. A Text can't carry the escape itself (control characters are dropped), so
 // the label alone is drawn: never the raw URL, at the cost of the click.
-export const drawParts = (ui: Ui, parts: readonly Part[], key: string) => {
+export const drawParts = (ui: Ui, parts: readonly Part[], key: string): RenderElement => {
   const { Text } = ui
 
   return (
@@ -25,7 +27,7 @@ export const drawParts = (ui: Ui, parts: readonly Part[], key: string) => {
 }
 
 // Frame pieces stacked with no margins (a frame drawn across several rows).
-export const drawRows = (ui: Ui, lines: readonly Part[][], key: string) => {
+export const drawRows = (ui: Ui, lines: readonly Part[][], key: string): RenderElement => {
   const { Box } = ui
 
   return (
@@ -35,7 +37,7 @@ export const drawRows = (ui: Ui, lines: readonly Part[][], key: string) => {
   )
 }
 
-export const drawFrame = (ui: Ui, lines: readonly Part[][]) => {
+export const drawFrame = (ui: Ui, lines: readonly Part[][]): RenderElement => {
   const { Box } = ui
 
   return (

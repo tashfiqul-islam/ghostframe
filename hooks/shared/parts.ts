@@ -34,4 +34,4 @@ export function fitParts(parts: readonly Part[], n: number): Part[] {
   return out
 }
 
-export const partsWidth = (parts: readonly Part[]) => parts.reduce((w, p) => w + vw(p.t), 0)
+export const partsWidth = (parts: readonly Part[]): number => parts.reduce((w, p) => w + vw(p.t), 0)

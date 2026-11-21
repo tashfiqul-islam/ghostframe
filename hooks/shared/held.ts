@@ -1,7 +1,7 @@
 // ─── Held: bounded in-memory stores ─────────────────────────────────────────
 
 // Least recently remembered goes first: a key written again moves to the newest end.
-export const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number) => {
+export const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number): void => {
   m.delete(k)
   m.set(k, v)
 

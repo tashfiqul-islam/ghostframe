@@ -8,13 +8,13 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 export const rec = (v: unknown): Record<string, unknown> => (isRecord(v) ? v : {})
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim().length > 0 ? v : undefined)
 export const int = (v: unknown): number | undefined => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : undefined)
-export const firstLine = (t: string) =>
+export const firstLine = (t: string): string =>
   t
     .split('\n')
     .find(l => l.trim().length > 0)
     ?.trim() ?? ''
-export const isShell = (tool: string) => tool === 'Bash' || tool === 'PowerShell'
-export const command = (input: unknown) => firstLine(str(rec(input)['command']) ?? '')
+export const isShell = (tool: string): tool is 'Bash' | 'PowerShell' => tool === 'Bash' || tool === 'PowerShell'
+export const command = (input: unknown): string => firstLine(str(rec(input)['command']) ?? '')
 
 /** The E.12 kind word for a call. */
 export function kindOf(tool: string, input: unknown): string {

@@ -1,5 +1,5 @@
 // Activity on the gutter grid: our rows under the activity rule and `claude`, or the engine's row indented to the dots.
-import type { RenderChildren } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 
 import type { Lay } from '../../shared/layout'
 import type { Part } from '../../shared/parts'
@@ -18,7 +18,7 @@ import { drawActivityRule } from './step'
 // body (a frame opening after plain steps).
 type Extra = { close?: number | undefined; caps?: Part[] | undefined; gap?: boolean | undefined }
 
-export const inGrid = (ui: Ui, head: string | undefined, lay: Lay, body: RenderChildren, label = false, extra: Extra = {}) => {
+export const inGrid = (ui: Ui, head: string | undefined, lay: Lay, body: RenderChildren, label: boolean = false, extra: Extra = {}): RenderElement => {
   const { Box } = ui
   const closing = (extra.close ?? 0) > 0
 
@@ -49,7 +49,7 @@ export const inGrid = (ui: Ui, head: string | undefined, lay: Lay, body: RenderC
 }
 
 // `+┄┄┄…┄┄ 5 actions +`: closes the browser frame above, in the content column.
-export const closeRow = (ui: Ui, lay: Lay, actions: number) => {
+export const closeRow = (ui: Ui, lay: Lay, actions: number): RenderElement => {
   const { Box } = ui
 
   return (
@@ -65,7 +65,7 @@ export const closeRow = (ui: Ui, lay: Lay, actions: number) => {
 // activity rule and `claude` still draw, as siblings above it, and the engine's node is
 // indented by a padded gutter Text so its dot lines up with the step dots. The node
 // itself never sits under a Box that has a width.
-export const engineInGutter = (ui: Ui, node: RenderChildren, head: string | undefined, lay: Lay, label: boolean, extra: Extra = {}) => {
+export const engineInGutter = (ui: Ui, node: RenderChildren, head: string | undefined, lay: Lay, label: boolean, extra: Extra = {}): RenderElement => {
   const { Box, Text } = ui
   const closing = (extra.close ?? 0) > 0
   // The caps line takes the `claude` label's row; the head (or the node) follows. Narrow,

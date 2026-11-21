@@ -10,9 +10,9 @@ const ANSI = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/
 const NOISE = /^[ \t]*Shell cwd was reset to [^\n]*(?:\n|$)/gm
 
 /** Output without the engine's own notes (`Shell cwd was reset to …`). */
-export const stripNoise = (t: string) => t.replace(NOISE, '')
+export const stripNoise = (t: string): string => t.replace(NOISE, '')
 
-export const clean = (t: string) => stripNoise(t.replace(/\r\n?/g, '\n').replace(ANSI, ''))
+export const clean = (t: string): string => stripNoise(t.replace(/\r\n?/g, '\n').replace(ANSI, ''))
 
 export type TestCounts = { passed: number; failed: number; skipped: number }
 

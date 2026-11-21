@@ -79,7 +79,7 @@ export function tableDraws(
   live: boolean,
   isOffScreen: boolean,
   tables: ReturnType<typeof citationsOf>['tables']
-) {
+): Map<Block, Drawn> {
   let tableNo = 0
   const plans = blocks.flatMap(b => {
     if (b.kind !== 'table') return []

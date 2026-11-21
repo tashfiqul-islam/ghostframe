@@ -34,7 +34,7 @@ export function cellWords(runs: Run[]): Run[][] {
   return out
 }
 
-export const cellsWidth = (runs: Run[]) => drawnWidth(runs)
+export const cellsWidth = (runs: Run[]): number => drawnWidth(runs)
 
 export type Layout = { widths: number[]; hidden: number }
 

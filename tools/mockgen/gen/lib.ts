@@ -137,7 +137,7 @@ export function lr(left: Src, right: Src, w: number, bg = '.'): Line {
   return [...l, ...sp(1, bg), ...r]
 }
 
-export function setBg(cells: Line, bg: string, from = 0, to = cells.length): Line {
+export function setBg(cells: Line, bg: string, from: number = 0, to: number = cells.length): Line {
   return cells.map((c, i) => (i >= from && i < to && c.bg === '.' ? { ...c, bg } : c))
 }
 
@@ -366,6 +366,8 @@ export function transcript(F: number): Transcript {
 }
 
 // ---------------------------------------------------------------- pane kit
+/** the glyph a step row starts with */
+export type Mark = 'you' | 'fail' | 'pass' | 'block' | 'need' | 'commit' | 'out' | 'run' | 'think' | 'say'
 const MARK = {
   you: ['▍', 'a'],
   fail: ['✕', 'r'],
@@ -377,9 +379,7 @@ const MARK = {
   run: ['▸', 'b'],
   think: ['∴', 'd'],
   say: ['│', 'H']
-} as const satisfies Record<string, readonly [string, string]>
-/** the glyph a step row starts with */
-export type Mark = keyof typeof MARK
+} as const satisfies Record<Mark, readonly [string, string]>
 
 /** one row of STEPS: a tool step, or a sentence Claude said (say) */
 export type Step = { time?: string; kind?: string; subj?: string; res?: string; mark?: Mark | ''; resFg?: string; say?: string; open?: boolean }

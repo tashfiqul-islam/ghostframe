@@ -1,11 +1,11 @@
 // Linear on purpose: the closing `#` run is cut in code (`headingText`), not by backtracking.
-export const HEADING = /^\s{0,3}#{1,6}\s+(.*)$/
+export const HEADING: RegExp = /^\s{0,3}#{1,6}\s+(.*)$/
 
 /**
  * A heading's text without its closing `#` run (CommonMark): the run goes only after a
  * space or tab, or when it is the whole text, so `C#` keeps its `#`.
  */
-export const headingText = (raw: string) => {
+export const headingText = (raw: string): string => {
   const t = raw.trimEnd()
   let end = t.length
 

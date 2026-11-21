@@ -1,4 +1,6 @@
 // Cockpit's rows as terminal Text lines, for the pane and the quiet left alike.
+import type { RenderElement } from 'claude-code'
+
 import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 
@@ -8,7 +10,7 @@ import type { Ui } from '../shared/rule'
  * @param rows the rows
  * @returns the lines
  */
-export function drawRows(ui: Pick<Ui, 'Text'>, rows: readonly (readonly Part[])[]) {
+export function drawRows(ui: Pick<Ui, 'Text'>, rows: readonly (readonly Part[])[]): RenderElement[] {
   const { Text } = ui
 
   return rows.map((row, i) => (

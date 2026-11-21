@@ -126,7 +126,7 @@ export function browserTarget(b: BrowserTool, input: unknown): string {
 }
 
 /** The URL a call goes to, for the URL bar: a `goto`'s `url`. */
-export const browserUrl = (b: BrowserTool, input: unknown) => (browserVerb(b, input) === 'goto' ? s(obj(input)['url']) : undefined)
+export const browserUrl = (b: BrowserTool, input: unknown): string | undefined => (browserVerb(b, input) === 'goto' ? s(obj(input)['url']) : undefined)
 
 // ─── Frame pieces, each exactly `width` cells ────────────────────────────────
 

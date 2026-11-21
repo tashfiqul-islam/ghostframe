@@ -1,5 +1,5 @@
 // A reply's summary row: text written between tool calls, dim in the content column.
-import type { EngineInterface, RenderInput } from 'claude-code'
+import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import type { Lay } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
@@ -15,7 +15,7 @@ import { wrapPlain } from '../../prose'
  * @param lay the grid's layout at this width
  * @returns the summary's row
  */
-export async function drawSummary($: EngineInterface, e: RenderInput<'AssistantMessage', 'terminal'>, lay: Lay) {
+export async function drawSummary($: EngineInterface, e: RenderInput<'AssistantMessage', 'terminal'>, lay: Lay): Promise<RenderElement> {
   const width = lay.width
   const sui = $.ui.resolve(e)
   const { Text } = sui

@@ -11,7 +11,7 @@ import type { Step } from './steps'
 
 /** Lay a step out in `width` cells: target clipped to whatever the result and time leave. */
 /** The time column, `   1m 12s`; '' when there is no time. */
-export const timeCellOf = (time: string) => (time.length === 0 ? '' : `   ${pad(time, Math.max(TIME_W, vw(time)), 'right')}`)
+export const timeCellOf = (time: string): string => (time.length === 0 ? '' : `   ${pad(time, Math.max(TIME_W, vw(time)), 'right')}`)
 
 /**
  * The least room a target keeps before its row gives something up (§4 narrow): the
@@ -19,7 +19,11 @@ export const timeCellOf = (time: string) => (time.length === 0 ? '' : `   ${pad(
  */
 export const MIN_TARGET = 16
 
-export function layoutStep(step: Step, time: string, width: number) {
+export function layoutStep(
+  step: Step,
+  time: string,
+  width: number
+): { verb: string; target: string; gap: string; timeCell: string; detail: string | undefined } {
   const result = step.result.map(r => r.text).join(' ')
   const roomWith = (t: string) => width - LEAD - vw(result) - vw(timeCellOf(t)) - 2
   const shown = time.length > 0 && roomWith(time) < MIN_TARGET ? '' : time

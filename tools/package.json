@@ -4,7 +4,7 @@
   "description": "Development tools for the ghostframe mod. Kept out of the plugin root: a package.json with a lockfile there makes Claude Code install dependencies on every user's machine.",
   "type": "module",
   "scripts": {
-    "typecheck": "cd .. && tsrs -p . && tsrs -p tools",
+    "typecheck": "cd .. && tsrs -p . && tsrs -p tests && tsrs -p tools",
     "typecheck:tools": "tsrs -p .",
     "lint": "cd .. && oxlint -c tools/oxlint.config.ts --type-aware --deny-warnings",
     "lint:ci": "cd .. && oxlint -c tools/oxlint.config.ts --deny-warnings --format github",

@@ -27,14 +27,14 @@ export const NO_TALLY: Tally = { skills: [], hooks: 0, agents: 0, sources: [], b
 const THOUGHT_MIN_MS = 1000
 
 /** `superpowers:systematic-debugging` → `systematic-debugging`. */
-export const skillName = (s: string) => s.split(':').pop() ?? s
+export const skillName = (s: string): string => s.split(':').pop() ?? s
 
 const addTo = (list: readonly string[], x: string) => (list.includes(x) ? [...list] : [...list, x])
 export const withSkill = (c: Caps, s: string): Caps => ({ ...c, skills: addTo(c.skills, skillName(s)) })
 export const withHook = (c: Caps, h: string): Caps => ({ ...c, hooks: addTo(c.hooks, h) })
 export const withMcp = (c: Caps, server: string): Caps => ({ ...c, mcp: addTo(c.mcp, server) })
 
-export const hasCaps = (c: Caps) => c.skills.length > 0 || c.hooks.length > 0 || c.mcp.length > 0 || c.thoughtMs >= THOUGHT_MIN_MS
+export const hasCaps = (c: Caps): boolean => c.skills.length > 0 || c.hooks.length > 0 || c.mcp.length > 0 || c.thoughtMs >= THOUGHT_MIN_MS
 
 /**
  * A classic hook's answer, in words, only when it changed something: blocked or denied
@@ -102,7 +102,7 @@ export function capsLine(c: Caps, width: number): Part[] | undefined {
 }
 
 /** Level 3 (§0): the turn ran agents, a browser, research, tests, shipping or skills. */
-export const isRun = (t: Tally) => t.skills.length > 0 || t.agents > 0 || t.sources.length > 0 || t.browser > 0 || t.tests > 0 || t.shipped > 0
+export const isRun = (t: Tally): boolean => t.skills.length > 0 || t.agents > 0 || t.sources.length > 0 || t.browser > 0 || t.tests > 0 || t.shipped > 0
 
 const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

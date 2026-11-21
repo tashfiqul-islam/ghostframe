@@ -4,7 +4,7 @@ import { fmtDuration } from '../../shared/time'
 export type StepLike = { id: string; turn: string | null; at: number; ms: number | null; tool?: string; ok?: boolean }
 
 /** First start to last end of some steps; a loop, not `Math.max(...)`, so no step count overflows the stack. */
-export const wallOf = (steps: readonly StepLike[]) =>
+export const wallOf = (steps: readonly StepLike[]): number =>
   steps.reduce((m, x) => Math.max(m, x.at + (x.ms ?? 0)), -Infinity) - steps.reduce((m, x) => Math.min(m, x.at), Infinity)
 
 /** The rule's `N steps · wall time` when `id` opens its turn's activity; else undefined. */

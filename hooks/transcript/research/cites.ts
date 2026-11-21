@@ -15,7 +15,7 @@ export type Numbering = Map<string, number>
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 // oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
-export const sup = (n: number) => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')
+export const sup = (n: number): string => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')
 
 // `[label](https://…)`, one level of parentheses allowed inside the URL.
 const LINK = /\[([^[\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)/g
@@ -122,7 +122,7 @@ export function parseCited(text: string, numbering: Numbering): { runs: Run[]; c
 }
 
 /** True when the text is a paragraph `parseCited` can lay out. */
-export const isCited = (text: string) => parseCited(text, new Map()) !== undefined
+export const isCited = (text: string): boolean => parseCited(text, new Map()) !== undefined
 
 /**
  * The text up to an inline link still being written (`see [post](https://bun.co`):

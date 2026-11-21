@@ -49,7 +49,7 @@ export function drawnText(runs: readonly Run[], i: number): string {
 }
 
 /** Cells a line of runs takes as drawn. */
-export const drawnWidth = (runs: readonly Run[]) => runs.reduce((n, _, i) => n + vw(drawnText(runs, i)), 0)
+export const drawnWidth = (runs: readonly Run[]): number => runs.reduce((n, _, i) => n + vw(drawnText(runs, i)), 0)
 
 /** Runs as drawn, one line's worth: `spanOf` each, chip text from `drawnText`. */
 export function spansOf(runs: readonly Run[], base: string, quiet = false): Span[] {
@@ -135,7 +135,7 @@ export function toWords(runs: Run[]): Word[] {
 }
 
 /** Cells a run takes on screen: a code chip carries one space of padding each side. */
-export const runWidth = (r: Run) => (r.s === 'code' ? vw(r.t) + 2 : vw(r.t))
+export const runWidth = (r: Run): number => (r.s === 'code' ? vw(r.t) + 2 : vw(r.t))
 const wordWidth = (w: Word) => w.reduce((n, r) => n + runWidth(r), 0)
 
 function greedy(words: Word[], width: number): Word[][] {

@@ -32,10 +32,10 @@ const BOTTOM = /^\+-+\+$/
 const ROW = /^\|(.*)\|$/
 
 /** A bare fence line, the only kind a figure opens with. */
-export const isBareFence = (line: string) => OPEN.test(line)
+export const isBareFence = (line: string): boolean => OPEN.test(line)
 
 /** Whether a fence's first line is an mdxcn figure's top edge. */
-export const isFigureTop = (line: string | undefined) => line !== undefined && TOP.test(line.trimEnd())
+export const isFigureTop = (line: string | undefined): boolean => line !== undefined && TOP.test(line.trimEnd())
 
 /**
  * A fence's body as a figure, or undefined (malformed: the caller keeps the plain code

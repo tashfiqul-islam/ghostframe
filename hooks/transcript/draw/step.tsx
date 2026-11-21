@@ -1,4 +1,6 @@
 // A step row and the activity rule over a turn's first step, and a step's time.
+import type { RenderElement } from 'claude-code'
+
 import type { StepStamp } from '../../../types'
 import { G } from '../../shared/layout'
 import type { Ui } from '../../shared/rule'
@@ -9,7 +11,7 @@ import { VERB_W } from '../activity/steps'
 import type { Step } from '../activity/steps'
 
 // One step row in the content column: `● verb    target ……… result   time`, then `╰─ detail`.
-export const drawStep = (ui: Ui, step: Step, time: string, width: number, key: string) => {
+export const drawStep = (ui: Ui, step: Step, time: string, width: number, key: string): RenderElement => {
   const { Box, Text } = ui
   const l = layoutStep(step, time, width)
 
@@ -39,7 +41,7 @@ export const drawStep = (ui: Ui, step: Step, time: string, width: number, key: s
 }
 
 // `activity ┄┄┄┄┄┄┄┄┄┄┄┄┄ 6 steps · 41s`, the mini rule over a turn's first step.
-export const drawActivityRule = (ui: Ui, label: string) => {
+export const drawActivityRule = (ui: Ui, label: string): RenderElement => {
   const { Box, Text } = ui
 
   return (
@@ -61,7 +63,7 @@ export const drawActivityRule = (ui: Ui, label: string) => {
   )
 }
 
-export const stepTime = (list: readonly StepStamp[], id: string | undefined) => {
+export const stepTime = (list: readonly StepStamp[], id: string | undefined): string => {
   const ms = list.find(s => s.id === id)?.ms
 
   return ms === null || ms === undefined ? '' : fmtDuration(ms)

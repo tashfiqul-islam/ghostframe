@@ -14,7 +14,7 @@ import { C } from '../../shared/tokens'
 export const DOT_W = 2 // `● `
 export const VERB_W = 8
 export const TIME_W = 6 // `1m 12s`; a longer time widens its own cell, never clips
-export const LEAD = DOT_W + VERB_W // target column, from the content edge
+export const LEAD: number = DOT_W + VERB_W // target column, from the content edge
 
 export type Step = {
   dot: Tone

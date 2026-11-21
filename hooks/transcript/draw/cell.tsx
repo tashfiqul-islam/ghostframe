@@ -1,5 +1,5 @@
 // A block on the gutter grid: `label` (`claude`, `you`) in the 12-column gutter beside it, or above it narrow.
-import type { RenderChildren } from 'claude-code'
+import type { RenderChildren, RenderElement } from 'claude-code'
 
 import type { Lay } from '../../shared/layout'
 import type { Ui } from '../../shared/rule'
@@ -9,7 +9,7 @@ import { C } from '../../shared/tokens'
 // Narrow (§4): `label` is a caption line above, the content inset 2 at full width.
 type Label = { text: string; color: string }
 
-export const cell = (ui: Ui, lay: Lay, label: Label | undefined, body: RenderChildren, marginTop = 0, key?: string) => {
+export const cell = (ui: Ui, lay: Lay, label: Label | undefined, body: RenderChildren, marginTop: number = 0, key?: string): RenderElement => {
   const { Box, Text } = ui
   const text = label?.text ?? ''
   const content = (

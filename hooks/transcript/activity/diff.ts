@@ -10,7 +10,7 @@ import { clipPath } from '../../shared/url'
  * fixed parts take 12 (15 with the ` · ` before counts), the path clips at
  * folder boundaries, the ┄ run takes the rest.
  */
-export function diffTop(width: number, path: string, parts: Tone[], meta: string) {
+export function diffTop(width: number, path: string, parts: Tone[], meta: string): { title: string; fill: number; total: number } {
   const counts = parts.length > 0 ? 3 + vw(parts.map(p => p.text).join(' ')) : 0
   const fixed = 12 + counts + vw(meta)
   const title = clipPath(path, Math.max(4, width - fixed - 2))

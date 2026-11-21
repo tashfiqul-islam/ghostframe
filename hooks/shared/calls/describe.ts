@@ -12,17 +12,17 @@ import { obj, s } from './fields'
  * Group 1 is the runner. A name in an argument (`cat vitest.config.ts`, `npm i -D jest`)
  * is not one.
  */
-export const TEST_CMD =
+export const TEST_CMD: RegExp =
   /(?:^|&&|\|\||[;|(\n])\s*(?:(?:\w+=\S*|time|env|sudo|exec|nohup)\s+|(?:ba|z|da)?sh\s+-c\s+["']?)*(?:(?:npx|bunx|uvx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun|uv\s+run|poetry\s+run|pipenv\s+run|python3?\s+-m)\s+)?(?:[\w.~-]*\/)*(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
 // The engine's own denial messages only; a shell's `Permission denied` is an ordinary error.
-export const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
+export const DENIED: RegExp = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
 
 // `git` and its global options (`-C dir`, `-c k=v`, `--no-pager`) before the subcommand.
 const GIT = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+--[\w-]+(?:=\S+)?)*\s+`
-export const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
-export const GIT_PUSH = new RegExp(`${GIT}push\\b`)
+export const GIT_COMMIT: RegExp = new RegExp(`${GIT}commit\\b`)
+export const GIT_PUSH: RegExp = new RegExp(`${GIT}push\\b`)
 /** A commit's header line, `[main a1b2c3d] subject` or `[detached HEAD a1b2c3d] subject`: group 1 the SHA, 2 the subject. */
-export const COMMIT_HEAD = /^\[(?:detached HEAD|[^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m
+export const COMMIT_HEAD: RegExp = /^\[(?:detached HEAD|[^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m
 
 /** `mcp__github__list_pull_requests` → [`github`, `list_pull_requests`]. */
 export function mcpName(tool: string): [string, string] | undefined {

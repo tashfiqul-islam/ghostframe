@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The plugin's tests: the plugin's settings, without isolatedDeclarations. Its rule is for the plugin's own
+  // exports (owner ruling Q29); a test file's helpers are not an interface anyone imports.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "declaration": false,
+    "isolatedDeclarations": false,
+    "tsBuildInfoFile": "../tools/node_modules/.cache/tests.tsbuildinfo"
+  },
+  "include": ["."]
+}
