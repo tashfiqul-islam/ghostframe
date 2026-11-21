@@ -1,9 +1,10 @@
 import { expect, test } from 'claude-code/testing'
 
+import { addAgent, endAgent } from '../../hooks/cockpit/agents/roster'
 import { paneRows } from '../../hooks/cockpit/head'
 import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, settleStep, startStep } from '../../hooks/cockpit/steps/log'
 import type { Outcome } from '../../hooks/cockpit/steps/log'
-import type { StepLog } from '../../types'
+import type { RosterAgent, StepLog } from '../../types'
 import { W, T0, failed } from '../support/cockpit'
 
 const text = (log: StepLog, now: number, rows = 30) => paneRows(log, now, W, rows).map(row => row.map(p => p.t).join(''))
@@ -162,4 +163,61 @@ test('a pane too short for the head, one blank row and three step rows shows the
   expect(fits.length).toBe(7)
   expect(fits[2]).toBe(' '.repeat(W))
   expect(fits[3]).toMatch(/\[ STEPS \]/)
+})
+
+const crew = (n: number): RosterAgent[] =>
+  Array.from({ length: n }, (_, i) => i).reduce<RosterAgent[]>(
+    (r, i) => addAgent(r, { id: `a${i}`, call: `c${i}`, parent: null, name: `Agent ${i}`, isBackground: true, at: T0 }),
+    []
+  )
+const withAgents = (log: StepLog, roster: readonly RosterAgent[], rows: number) =>
+  paneRows(log, T0 + 5_000, W, rows, false, roster).map(row => row.map(p => p.t).join(''))
+const twelveSteps = () => {
+  let log = turnOne()
+
+  for (let i = 0; i < 12; i++) log = step(log, `s${i}`, 'Read', { file_path: `f${i}.ts` }, ok({ file: { numLines: i } }), i * 1_000)
+
+  return endTurn(log, 12_000)
+}
+
+test('[ AGENTS ] sits below [ STEPS ], one blank row between every section (amendment 2)', () => {
+  const rows = withAgents(twelveSteps(), crew(3), 40)
+  const at = (re: RegExp) => rows.findIndex(r => re.test(r))
+  const agents = at(/\[ AGENTS \]/)
+
+  expect(rows[at(/\[ STEPS \]/) - 1]).toBe(' '.repeat(W))
+  expect(rows[agents - 1]).toBe(' '.repeat(W))
+  expect(rows[agents - 2]).toMatch(/f11\.ts/)
+  expect(rows.slice(agents + 1)).toHaveLength(3)
+  expect(rows.length).toBeLessThanOrEqual(40)
+  for (const row of rows) expect(row.length).toBe(W)
+})
+
+test('a short pane: [ AGENTS ] is measured first and gives way, to the agents not done, then to its label', () => {
+  let roster = crew(7)
+
+  for (const id of ['a0', 'a1', 'a2', 'a3', 'a4']) roster = endAgent(roster, { id, status: 'completed', text: 'ok', at: T0 })
+
+  // 22 rows: head 2, blank, steps want 3 rows (under 24) plus label and the earlier row; agents keep all 7.
+  expect(withAgents(twelveSteps(), roster, 22).filter(r => /^[◇✕] /.test(r))).toHaveLength(7)
+  // 13 rows: the 5 done agents go, the 2 running stay.
+  const thirteen = withAgents(twelveSteps(), roster, 13)
+  expect(thirteen.filter(r => /^[◇✕] /.test(r)).map(r => r.slice(2, 9))).toEqual(['Agent 5', 'Agent 6'])
+  expect(thirteen.length).toBeLessThanOrEqual(13)
+  // 10 rows: the label alone, still counting; [ STEPS ] keeps its three rows.
+  const ten = withAgents(twelveSteps(), roster, 10)
+  expect(ten.at(-1)).toMatch(/^┄ \[ AGENTS \] ┄+ 2 running · 5 done$/)
+  expect(ten.filter(r => /\.ts/.test(r)).length).toBeGreaterThanOrEqual(3)
+  expect(ten.length).toBeLessThanOrEqual(10)
+})
+
+test('idle: [ AGENTS ] shows the last turn`s agents frozen; with none it folds away', () => {
+  let roster = crew(2)
+  roster = endAgent(roster, { id: 'a0', status: 'completed', text: '2 findings', at: T0 + 3_000 })
+  roster = endAgent(roster, { id: 'a1', status: 'failed', text: 'context limit', at: T0 + 4_000 })
+  const later = (now: number) => paneRows(twelveSteps(), now, W, 40, false, roster).map(row => row.map(p => p.t).join(''))
+
+  expect(later(T0 + 60_000)).toEqual(later(T0 + 600_000))
+  expect(later(T0 + 60_000).filter(r => /^[◇✕] /.test(r))).toEqual([expect.stringMatching(/ {6}3s$/), expect.stringMatching(/ {6}4s$/)])
+  expect(withAgents(twelveSteps(), [], 40).some(r => /AGENTS/.test(r))).toBe(false)
 })

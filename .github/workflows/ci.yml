@@ -20,8 +20,8 @@ defaults:
 env:
   # The CLI is the mod's runtime and test runner. Bump both lines together:
   # the checksum comes from downloads.claude.ai/claude-code-releases/<version>/manifest.json.
-  CLAUDE_CODE_VERSION: 2.1.326
-  CLAUDE_CODE_SHA256: b6b3647d981130dc44fc670846ae97b6cde531ffb667cf9c4d17cfcafb38cb37
+  CLAUDE_CODE_VERSION: 2.1.329
+  CLAUDE_CODE_SHA256: 30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d
   DISABLE_AUTOUPDATER: '1'
 
 jobs:

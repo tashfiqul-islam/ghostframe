@@ -19,7 +19,24 @@ const STEPS_MAX = 5_000
 
 /** An empty log for a turn that started at `startedAt`; unknown (null), the turn's first step starts its clock. */
 export function newLog(turn: string | null, startedAt: number | null): StepLog {
-  return { turn, startedAt, steps: [], dropped: 0, turnNo: 0, isTurnRunning: false, said: '', mode: null, modeSince: null, asking: [], last: null, prev: null }
+  return {
+    turn,
+    startedAt,
+    segmentStart: startedAt,
+    segmentFrom: 0,
+    segmentMs: 0,
+    workedMs: 0,
+    steps: [],
+    dropped: 0,
+    turnNo: 0,
+    isTurnRunning: false,
+    said: '',
+    mode: null,
+    modeSince: null,
+    asking: [],
+    last: null,
+    prev: null
+  }
 }
 
 /**
@@ -30,6 +47,28 @@ export function newTurn(log: StepLog, turn: string, startedAt: number | null): S
   const prev = log.steps.length > 0 ? { turnNo: log.turnNo, steps: log.steps, dropped: log.dropped } : log.prev
 
   return { ...newLog(turn, startedAt), turnNo: log.turnNo + 1, isTurnRunning: true, prev }
+}
+
+/**
+ * A main-loop turn no prompt was typed for starts (its agents' reports, say): it carries on the typed turn before
+ * it, its number and its steps, with a start, a first step and a time of its own for its receipt. Before any typed
+ * turn, it is a turn of its own.
+ */
+export function continueTurn(log: StepLog, turn: string, at: number): StepLog {
+  if (log.turnNo === 0) return newTurn(log, turn, at)
+
+  return {
+    ...log,
+    turn,
+    isTurnRunning: true,
+    segmentStart: at,
+    segmentFrom: log.steps.length + log.dropped,
+    segmentMs: 0,
+    said: '',
+    mode: null,
+    modeSince: null,
+    asking: []
+  }
 }
 
 /** Claude said something in this turn: its first sentence is `[ NOW ]`'s row 1. */
@@ -68,7 +107,7 @@ const clockOf = (log: StepLog, at: number) => Math.max(0, at - (log.startedAt ??
  * in this turn, so a parallel launch is one row (amendment 1).
  */
 export function startStep(started: StepLog, call: StepStart, cwd?: string): StepLog {
-  const log = started.startedAt === null ? { ...started, startedAt: call.at } : started
+  const log = started.startedAt === null ? { ...started, startedAt: call.at, segmentStart: started.segmentStart ?? call.at } : started
   const kind = kindOf(call.tool, call.input)
 
   if (kind === 'agent') {
@@ -131,13 +170,10 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
   const clock = clockOf(log, end.at)
 
   if (row.kind === 'agent') {
-    const failedNow = end.outcome.isError === true || end.outcome.deny !== undefined
-    const done = (row.done ?? 0) + (failedNow ? 0 : 1)
-    const failed = (row.failed ?? 0) + (failedNow ? 1 : 0)
-    const isRunning = done + failed < (row.calls?.length ?? 1)
-    const result = isRunning ? '' : [`${done} done`, ...(failed > 0 ? [`${failed} failed`] : [])].join(' · ')
+    const isFailed = end.outcome.isError === true || end.outcome.deny !== undefined
 
-    return { ...log, steps: log.steps.with(at, { ...row, done, failed, isRunning, result, clock: isRunning ? row.clock : clock }) }
+    // A background agent's call returns as it launches: its report ends it (`endLaunched`).
+    return !isFailed && isLaunchedOnly(end.outcome.result) ? log : endLaunched(log, end.id, isFailed, end.at)
   }
 
   const fixes = log.steps.some((s, i) => i < at && s.key === row.key && isOpen(log.steps, i))
@@ -146,6 +182,43 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
 
   // The step is answered; the model is called again: `[ NOW ]` says `waiting` from here.
   return { ...log, asking, mode: 'requesting', modeSince: end.at, steps: log.steps.with(at, { ...row, result, mark, isRunning: false, clock }) }
+}
+
+/** Whether an Agent call's record says it only launched its agent, which runs on in the background. */
+function isLaunchedOnly(result: unknown): boolean {
+  const status = typeof result === 'object' && result !== null && 'status' in result ? result.status : undefined
+
+  return status === 'async_launched' || status === 'remote_launched'
+}
+
+/**
+ * One agent of a launch ended (amendment 1): the launch counts it once, by its Agent call's id, whether its report
+ * or its call's return said so first; the row settles, `6 done · 1 failed`, when the last of its agents has ended.
+ * A launch of an earlier turn (its agents ran in the background) settles in that turn's steps.
+ */
+export function endLaunched(log: StepLog, call: string, isFailed: boolean, at: number): StepLog {
+  // `clockAt` undefined: an earlier turn's launch, whose start is no longer known, keeps its row's clock.
+  const settle = (steps: readonly LogStep[], clockAt: number | undefined): LogStep[] | undefined => {
+    const i = steps.findIndex(s => s.kind === 'agent' && s.calls?.includes(call) === true)
+    const row = steps[i]
+
+    if (row === undefined || row.ended?.includes(call) === true) return undefined
+
+    const ended = [...(row.ended ?? []), call]
+    const done = (row.done ?? 0) + (isFailed ? 0 : 1)
+    const failed = (row.failed ?? 0) + (isFailed ? 1 : 0)
+    const isRunning = ended.length < (row.calls?.length ?? 1)
+    const result = isRunning ? '' : [`${done} done`, ...(failed > 0 ? [`${failed} failed`] : [])].join(' · ')
+
+    return steps.with(i, { ...row, ended, done, failed, isRunning, result, mark: '', clock: isRunning || clockAt === undefined ? row.clock : clockAt })
+  }
+  const own = settle(log.steps, clockOf(log, at))
+
+  if (own !== undefined) return { ...log, steps: own }
+
+  const prev = log.prev === null ? undefined : settle(log.prev.steps, undefined)
+
+  return prev === undefined || log.prev === null ? log : { ...log, prev: { ...log.prev, steps: prev } }
 }
 
 /** `[ LAST ]`'s verdict: the state word, the story in a few words, and what waits. */
@@ -178,42 +251,55 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
 }
 
 /**
- * The turn ended after `durationMs`: a step still running was cut (an interrupted turn has no receipt; correction G),
- * its clock the turn's end, or where it started when the turn's start is unknown. The head turns to `[ LAST ]`.
- * `endedAt` (Cockpit's clock) makes the turn's time `endedAt − startedAt`: the one value the head, the receipt and
- * the live row all read. Without it, or without a known start, the engine's `engineMs` stands.
+ * An engine turn ended: a step still running was cut (an interrupted turn has no receipt; correction G), its clock
+ * the turn's end, or where it started when the turn's start is unknown. The head turns to `[ LAST ]`. One clock:
+ * `endedAt` (Cockpit's) makes the engine turn's time `endedAt − segmentStart`, the one value its receipt and the
+ * live row read; `[ LAST ]` adds the typed turn's earlier engine turns (`workedMs`). Without `endedAt`, or without
+ * a known start, the engine's `engineMs` stands.
  */
 export function endTurn(log: StepLog, engineMs: number, isAborted = false, endedAt?: number): StepLog {
-  const durationMs = endedAt !== undefined && log.startedAt !== null ? Math.max(0, endedAt - log.startedAt) : engineMs
-  const turnEnd = log.startedAt === null ? undefined : durationMs
-  const steps = log.steps.map(s => (s.isRunning ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
-  const last: LastTurn = { ...verdict(steps, isAborted), durationMs, endedAt: log.startedAt === null ? null : log.startedAt + durationMs }
+  const segmentMs = endedAt !== undefined && log.segmentStart !== null ? Math.max(0, endedAt - log.segmentStart) : engineMs
+  const turnEnd = log.startedAt === null ? undefined : endedAt !== undefined ? Math.max(0, endedAt - log.startedAt) : log.workedMs + segmentMs
+  // A launch still running when the turn ends ran its agents in the background: it settles when they report.
+  const isCut = (s: LogStep) => s.isRunning && (isAborted || s.kind !== 'agent')
+  const steps = log.steps.map(s => (isCut(s) ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
+  const workedMs = log.workedMs + segmentMs
+  const last: LastTurn = { ...verdict(steps, isAborted), durationMs: workedMs, endedAt: log.segmentStart === null ? null : log.segmentStart + segmentMs }
 
-  return { ...log, steps, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
+  return { ...log, steps, segmentMs, workedMs, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
 }
 
 const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
-/** A finished turn's receipt (E.32): its state, steps, failures and how many were fixed, files changed, its last commit, failures left open. */
-export function receiptOf(log: StepLog): Receipt {
-  const steps = log.steps
-  const failed = steps.flatMap((s, i) => (s.mark === '✕' ? [i] : []))
+/**
+ * A finished engine turn's receipt (E.32): its state, and its own steps only (a turn its agents' reports started
+ * borrows nothing from the typed turn before it): their count, failures and how many were fixed, files changed,
+ * the last commit, the failures left open, and its time. `waiting` while `agents` background agents still run.
+ */
+export function receiptOf(log: StepLog, agents = 0): Receipt {
+  const from = Math.max(0, log.segmentFrom - log.dropped)
+  const all = log.steps
+  const failed = all.flatMap((s, i) => (i >= from && s.mark === '✕' ? [i] : []))
   const open = failed.flatMap(i => {
-    const s = steps[i]
+    const s = all[i]
 
-    return s === undefined || !isOpen(steps, i) ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
+    return s === undefined || !isOpen(all, i) ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
   })
+  const steps = all.slice(from)
   const files = new Set(steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject))
+  const isCut = log.last?.state === 'interrupted'
+  const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'
 
   return {
     turn: log.turn,
-    state: log.last?.state ?? 'done',
-    steps: steps.length + log.dropped,
+    state,
+    agents: state === 'waiting' ? agents : 0,
+    steps: Math.max(0, all.length + log.dropped - log.segmentFrom),
     failures: failed.length,
     fixed: failed.length - open.length,
     files: files.size,
     commit: steps.findLast(s => s.mark === '±')?.result ?? '',
     open,
-    durationMs: log.last?.durationMs ?? 0
+    durationMs: log.segmentMs
   }
 }

@@ -2,8 +2,8 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { isQuiet } from '../../../cockpit/left'
-import { layout } from '../../../shared/layout'
+import { drawTurnReceipt, isQuiet } from '../../../cockpit/left'
+import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
 import { blocksOf, citationsFor, turnCites } from '../../citations'
@@ -139,6 +139,9 @@ export function registerReply(on: On): void {
     // the block starts and kept: a card collapsing later never moves this block.
     const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
     const gap = replyGap(message, prev, place?.turn)
+    // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
+    const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
+    const receipt = isQuietLeft && endsTurn && place.turn !== null ? await drawTurnReceipt($, e, place.turn, ruleWidth(lay) ?? width) : undefined
 
     return (
       <Box flexDirection="column">
@@ -174,6 +177,7 @@ export function registerReply(on: On): void {
               'sources'
             )}
         </Box>
+        {receipt}
       </Box>
     )
   })

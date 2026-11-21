@@ -56,7 +56,8 @@ export type StepMark = '' | '✕' | '✓' | '±' | '↗'
 
 /**
  * One `[ STEPS ]` row. `clock` is the turn clock in ms: at the start while running, at the end once settled.
- * `key` is what a later step must share to fix it. An agent launch (amendment 1) lists its `calls` and counts them.
+ * `key` is what a later step must share to fix it. An agent launch (amendment 1) lists its `calls`, counts them
+ * `done` and `failed`, and keeps in `ended` the calls already counted (a report and the call's return both end one).
  */
 export type LogStep = {
   id: string
@@ -70,6 +71,7 @@ export type LogStep = {
   calls?: string[]
   done?: number
   failed?: number
+  ended?: string[]
 }
 
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
@@ -79,13 +81,22 @@ export type LastTurn = { state: 'done' | 'failed' | 'interrupted'; story: string
 export type PrevSteps = { turnNo: number; steps: LogStep[]; dropped: number }
 
 /**
- * Cockpit's log for the current (or last) main-loop turn. `dropped` counts the oldest steps past the cap.
- * The head reads the rest: the turn's number, whether it runs, the last thing Claude said, the spinner's mode
- * and since when (wall clock, ms), the steps waiting on a permission answer, and how the turn ended.
+ * Cockpit's log for the current (or last) typed turn: the turn the person's prompt started, and the turns its
+ * agents' reports start after it, which carry on its steps and its number (`turnNo` counts typed prompts only).
+ * `turn` is the engine's id of the turn running now (or last), whose receipt this log writes. `startedAt` is the
+ * typed turn's start, the steps' clock; `segmentStart`, `segmentFrom` and `segmentMs` are the engine turn's own
+ * start, its first step (counting `dropped`) and its time; `workedMs`, the time of the typed turn's engine turns
+ * so far. `dropped` counts the oldest steps past the cap. The head reads the rest: whether a turn runs, the last
+ * thing Claude said, the spinner's mode and since when (wall clock, ms), the steps waiting on a permission
+ * answer, and how the turn ended.
  */
 export type StepLog = {
   turn: string | null
   startedAt: number | null
+  segmentStart: number | null
+  segmentFrom: number
+  segmentMs: number
+  workedMs: number
   steps: LogStep[]
   dropped: number
   turnNo: number
@@ -102,13 +113,15 @@ export type StepLog = {
 export type OpenFailure = { kind: string; subject: string; result: string; clock: number }
 
 /**
- * What a finished turn's receipt says (spec E.32, amendment 3), by the turn's id, so a receipt drawn again later
- * still shows its own turn: the state, the counts, the last commit's short hash (or ''), the failures left open,
- * and the turn's time on Cockpit's clock.
+ * What a finished engine turn's receipt says (spec E.32, amendment 3), by the engine's turn id, so a receipt drawn
+ * again later still shows its own turn: the state (`waiting` while background agents run on, `agents` of them),
+ * its own counts (never another turn's), the last commit's short hash (or ''), the failures left open, and the
+ * turn's time on Cockpit's clock.
  */
 export type Receipt = {
   turn: string | null
-  state: LastTurn['state']
+  state: LastTurn['state'] | 'waiting'
+  agents: number
   steps: number
   failures: number
   fixed: number
@@ -116,6 +129,27 @@ export type Receipt = {
   commit: string
   open: OpenFailure[]
   durationMs: number
+}
+
+/**
+ * One agent in Cockpit's `[ AGENTS ]` (spec E.40), in launch order: its id (`agent.spawn`'s `agentId`), the Agent call
+ * that launched it (`call`, '' when none did), its parent agent (null for the main loop's), its name (the call's
+ * description), whether it runs in the background, its state, the kind and subject of its current step (or, once it
+ * ended, the head of its report or the reason it failed), its step count, and when it started and ended (wall
+ * clock, ms).
+ */
+export type RosterAgent = {
+  id: string
+  call: string
+  parent: string | null
+  name: string
+  isBackground: boolean
+  state: 'running' | 'done' | 'failed'
+  kind: string
+  subject: string
+  steps: number
+  startedAt: number
+  endedAt: number | null
 }
 
 declare module 'claude-code' {
@@ -140,6 +174,7 @@ declare module 'claude-code' {
       frame: Shaped<number>
       stepLog: Shaped<StepLog>
       receipts: Shaped<Receipt[]>
+      roster: Shaped<RosterAgent[]>
     }
   }
 }

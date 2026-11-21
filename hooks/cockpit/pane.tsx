@@ -4,7 +4,7 @@ import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 import { drawRows } from './draw'
 import { paneRows } from './head'
 import { setDocked } from './left'
-import { readLog, readSecond } from './log'
+import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn } from './switch'
 
@@ -125,11 +125,13 @@ export function registerPane(on: On): void {
       }
     }
 
-    // The head, one blank row, then `[ STEPS ]`, fitted to the body so the engine never scrolls it (E.37).
-    // Reading `second` redraws this each second while a turn runs; only the running step's clock changes.
+    // The head, `[ STEPS ]` and `[ AGENTS ]`, fitted to the body so the engine never scrolls it (E.37).
+    // Reading `second` redraws this each second while a turn or a background agent runs; only the clocks change.
     await readSecond($)
     const log = await readLog($)
-    const rows = paneRows(log, log.isTurnRunning ? await $.clock.now() : 0, bodyColumns, scroll.bodyRows, e.props.isPromptCovered === true)
+    const roster = await readRoster($)
+    const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
+    const rows = paneRows(log, isTicking ? await $.clock.now() : 0, bodyColumns, scroll.bodyRows, e.props.isPromptCovered === true, roster)
 
     return <Box flexDirection="column">{drawRows(ui, rows)}</Box>
   })

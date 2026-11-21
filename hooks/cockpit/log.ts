@@ -1,20 +1,24 @@
-// Cockpit's log of the main loop (spec E.24, E.38, H.1): the step log, the receipts and the timers, kept in $.state,
-// and the events that write them.
+// Cockpit's log of the main loop (spec E.24, E.38, E.40, H.1): the step log, the roster of agents, the receipts and
+// the timers, kept in $.state, and the events that write them.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer, ToolCallInput } from 'claude-code'
 
-import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
+import { addAgent, agentStep, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents, waitingOn } from './agents/roster'
+import type { AgentEnd, AgentStart } from './agents/roster'
+import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
-import type { Receipt, StepLog } from '../../types'
+import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { isOn } from './switch'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
-const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-2' })
+const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
+// The agents of the current (or last) turn, and background agents still running from earlier ones (E.40).
+const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-1' })
 // Counters the timers bump while a turn runs: each second (the pane's running clock) and each spinner frame.
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-2' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-3' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -48,19 +52,56 @@ function stopTimers(): void {
 }
 
 /**
- * A main-loop turn starts: its log starts empty, on its own clock, and the timers start.
+ * Starts the timers: both while a turn runs; the second alone while only background agents do, so their rows'
+ * clocks go on in an idle pane.
+ * @param $ the engine interface
+ * @param isTurn whether a turn runs
+ */
+function startTimers($: EngineInterface, isTurn: boolean): void {
+  stopTimers()
+  timers = [$.clock.every(SECOND_MS, () => void tickSecond($)), ...(isTurn ? [$.clock.every(FRAME_MS, () => void tickFrame($))] : [])]
+}
+
+/**
+ * A main-loop turn starts, and the timers with it. A turn the person typed for starts a new log on its own clock
+ * (its number the next typed prompt's) and a new roster; a turn no prompt was typed for (its agents' reports)
+ * carries on the typed turn before it, with its number, steps and roster.
  * @param $ the engine interface
  * @param turn the turn's id
- * @param at when its prompt was submitted (wall clock, ms); undefined (no prompt was typed), now
+ * @param at when its prompt was typed (wall clock, ms); undefined when none was
  */
 export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined): Promise<void> {
   if (!isOn()) return
 
-  const startedAt = at ?? (await $.clock.now())
-  await update($, stepLog, log => newTurn(log, turn, startedAt))
+  const now = await $.clock.now()
+
+  if (at === undefined) {
+    await update($, stepLog, log => continueTurn(log, turn, now))
+  } else {
+    await update($, stepLog, log => newTurn(log, turn, at))
+    await settleUnreported($, now)
+    await update($, roster, startTurnAgents)
+  }
+
   lastMode = undefined
-  stopTimers()
-  timers = [$.clock.every(SECOND_MS, () => void tickSecond($)), $.clock.every(FRAME_MS, () => void tickFrame($))]
+  startTimers($, true)
+}
+
+/**
+ * Agents still running here that the engine's own list says ended (correction M: the list is the roster's second
+ * source), for a run whose report never came. A list the engine cannot give leaves them as they are.
+ * @param $ the engine interface
+ * @param now the wall clock in ms
+ */
+async function settleUnreported($: EngineInterface, now: number): Promise<void> {
+  if (!anyRunning(await read($, roster))) return
+
+  try {
+    const listed = await $.agent.list()
+    await update($, roster, list => reconcile(list, listed, now))
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`)
+  }
 }
 
 // The mode last written, so a stream of text chunks writes the log once, not once per chunk.
@@ -145,11 +186,75 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
 export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean): Promise<void> {
   if (!isOn()) return
 
-  stopTimers()
   const now = await $.clock.now()
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
-  const receipt = receiptOf(await read($, stepLog))
+  await update($, roster, list => endTurnAgents(list, isAborted, now))
+  const waiting = waitingOn(await read($, roster))
+  const receipt = receiptOf(await read($, stepLog), waiting)
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+
+  if (anyRunning(await read($, roster))) startTimers($, false)
+  else stopTimers()
+}
+
+/**
+ * An agent started (`agent.spawn`): its row appears in `[ AGENTS ]`.
+ * @param $ the engine interface
+ * @param start the agent, its launching call, its parent and its name
+ */
+export async function logAgentStart($: EngineInterface, start: Omit<AgentStart, 'at'>): Promise<void> {
+  if (!isOn()) return
+
+  const at = await $.clock.now()
+  await update($, roster, list => addAgent(list, { ...start, at }))
+}
+
+/**
+ * An agent's own call started (`tool.call` with its `agentId`): its row says what it does now.
+ * @param $ the engine interface
+ * @param id the agent's id
+ * @param e the call
+ * @param cwd the session's folder, for relative paths
+ */
+export async function logAgentStep($: EngineInterface, id: string, e: ToolCallInput, cwd: string | undefined): Promise<void> {
+  if (!isOn()) return
+
+  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd) : list))
+}
+
+/**
+ * An agent reported (`agent.report`): its row settles, and so does its launch in `[ STEPS ]` once every agent of
+ * it has. The last background agent to end stops the clock of an idle pane.
+ * @param $ the engine interface
+ * @param end the agent and how it ended
+ */
+export async function logAgentEnd($: EngineInterface, end: Omit<AgentEnd, 'at'>): Promise<void> {
+  if (!isOn()) return
+
+  const at = await $.clock.now()
+  const agent = (await read($, roster)).find(a => a.id === end.id)
+
+  if (agent === undefined) return
+
+  await update($, roster, list => endAgent(list, { ...end, at }))
+
+  // The launch counts each agent once (`endLaunched` keeps which); a later report of a finished one counts nothing.
+  if (agent.parent === null && agent.call.length > 0) {
+    await update($, stepLog, log => endLaunched(log, agent.call, end.status !== 'completed', at))
+  }
+
+  const log = await read($, stepLog)
+
+  if (!log.isTurnRunning && !anyRunning(await read($, roster))) stopTimers()
+}
+
+/**
+ * The roster; read while drawing, so the drawing follows it.
+ * @param $ the engine interface
+ * @returns the agents, in launch order
+ */
+export async function readRoster($: EngineInterface): Promise<RosterAgent[]> {
+  return read($, roster)
 }
 
 /**

@@ -42,7 +42,7 @@ export function registerTurns(on: On): void {
       await updateStreaming($, () => true)
 
       try {
-        // A turn no prompt was typed for (a notice, a queued task) starts its clock at its first step.
+        // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
         await logTurnStart($, e.turnId, unclaimedSubmit)
         unclaimedSubmit = undefined
       } catch {
@@ -53,9 +53,12 @@ export function registerTurns(on: On): void {
     return next(e)
   })
 
-  // Stamp each typed prompt with the clock, for its turn rule.
+  // Stamp each prompt the person typed with the clock, for its turn rule and Cockpit's turn. An agent's report
+  // (`peer`, meta) and a task's notice are not typed: the turn they start carries on the typed one.
   on('prompt.submit', async ($, e, next) => {
-    if (!e.isMeta && e.command === undefined && e.text.trim().length > 0) {
+    const isTyped = e.origin.kind === 'composer' || e.origin.kind === 'bridge'
+
+    if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
       await updatePrompts($, list => [...list, { text: e.text, at }].slice(-100))
       lastSubmitted = at

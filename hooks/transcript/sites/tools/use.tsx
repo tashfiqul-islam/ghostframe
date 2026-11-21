@@ -2,6 +2,7 @@
 // the fold row, or the engine's row in the grid.
 import type { On } from 'claude-code'
 
+import { isQuiet } from '../../../cockpit/left'
 import { layout } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { stepParts } from '../../activity/row'
@@ -35,6 +36,12 @@ export function registerToolUse(on: On): void {
     }
 
     const p = e.props
+
+    // Quiet: an agent launch is the pane's (`[ STEPS ]` and `[ AGENTS ]`); the engine's launch row draws nothing.
+    if (isQuiet() && (p.tool === 'Agent' || p.tool === 'Task')) {
+      return $.ui.resolve(e).Box({})
+    }
+
     const isAsking = (await readAsked($)).includes(p.tool_use_id)
     const browser = browserTool(p.tool)
     const step = stepOf(

@@ -3,7 +3,7 @@
 import type { On } from 'claude-code'
 
 import type { TurnClose } from '../../../types'
-import { drawLive, drawReceipt, isQuiet } from '../../cockpit/left'
+import { drawLive, isQuiet } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
@@ -72,7 +72,17 @@ export function registerChrome(on: On): void {
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || e.props.isExpanded || e.props.waitingFor) {
+    if (e.surface !== 'terminal' || e.props.isExpanded) {
+      return next(e)
+    }
+
+    // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
+    // reports start share one footer, or get none, so a footer can't say which turn it closes.
+    if (isQuiet()) {
+      return $.ui.resolve(e).Box({})
+    }
+
+    if (e.props.waitingFor) {
       return next(e)
     }
 
@@ -83,16 +93,6 @@ export function registerChrome(on: On): void {
     }
 
     const mine = claimClose(e.requestId, e.props.durationMs, await readCloses($))
-    const quietWidth = ruleWidth(layout(e.viewport?.columns))
-
-    // Quiet: the receipt (E.32) in place of the footer, on Cockpit's one clock.
-    if (isQuiet() && quietWidth !== undefined) {
-      const drawn = await drawReceipt($, e, mine?.turn, quietWidth)
-
-      if (drawn !== undefined) {
-        return drawn
-      }
-    }
     const tokens = mine?.tokens === null || mine?.tokens === undefined ? '' : fmtTokens(mine.tokens)
     const label = [took, tokens, mine?.tally ?? ''].filter(x => x.length > 0).join(G.sep)
     const ui = $.ui.resolve(e)

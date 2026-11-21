@@ -1,17 +1,23 @@
 // Cockpit's head (spec E.38, H.1 to H.3, amendment 2): `[ NOW ]` while a turn runs, `[ LAST ]` when it has
-// ended, one blank row, then `[ STEPS ]`; and the left's one-row live area. Pure: pane.tsx and left.tsx draw it.
-import type { LogStep, StepLog } from '../../types'
+// ended, then `[ STEPS ]` and `[ AGENTS ]`, one blank row between each; and the left's one-row live area. Pure:
+// pane.tsx and left.tsx draw it.
+import type { LogStep, RosterAgent, StepLog } from '../../types'
 import type { Part } from '../shared/parts'
 import { vw } from '../shared/text'
 import { fmtClock, formatSpan } from '../shared/time'
 import { C } from '../shared/tokens'
+import { waitingOn } from './agents/roster'
+import { agentRows } from './agents/rows'
+import type { AgentsLevel } from './agents/rows'
 import { cut, sectionLabel, stepRows } from './steps/rows'
 
 const KIND_W = 9 // the kind word's 8 cells and a space
 const LEAD = 2 + KIND_W
 const CLOCK_W = 7
 const CLOCK_GAP = 2
-const STEP_ROWS_MIN = 3 // below the head, one blank row and a label: fewer than this many step rows shows the head alone
+const STEP_ROWS_MIN = 3 // below the head, one blank row and a label: fewer than this many step rows shows no steps
+const STEP_ROWS_WANT = 6 // what `[ AGENTS ]` gives way for (3 in a pane under 24 rows; E.37 step 4)
+const LEVELS: readonly (AgentsLevel | 'none')[] = ['full', 'running', 'label', 'none']
 
 /** The spinner's frames (H.1), one every 100 ms: the only animated cell on screen. */
 export const FRAMES = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
@@ -86,8 +92,11 @@ function nowRows(log: StepLog, now: number, width: number, isPromptCovered: bool
 
 const STATE_COLOR = { done: C.ok, failed: C.err, interrupted: C.warn } as const
 
-/** `[ LAST ]`: the label with the turn and when it ended; the state word, the story, the time; what waits. */
-function lastRows(log: StepLog, width: number): Part[][] {
+/**
+ * `[ LAST ]`: the label with the turn and when it ended; the state word, the story, the time; what waits. While
+ * background agents still run, the turn is not done: `waiting · N agents`, in the agents' colour.
+ */
+function lastRows(log: StepLog, width: number, waiting: number): Part[][] {
   const last = log.last
 
   if (log.turnNo === 0 || last === null) {
@@ -97,13 +106,15 @@ function lastRows(log: StepLog, width: number): Part[][] {
   const when = last.endedAt === null ? '' : ` · ${fmtClock(last.endedAt)}`
   const time = formatSpan(last.durationMs)
   const room = width - 2 - CLOCK_GAP - CLOCK_W
-  const story = cut(`${last.state} · ${last.story}`, room).slice(last.state.length)
+  const isWaiting = waiting > 0 && last.state === 'done'
+  const state = isWaiting ? `waiting · ${plural(waiting, 'agent')}` : last.state
+  const story = cut(`${state} · ${last.story}`, room).slice(state.length)
 
   return [
     sectionLabel('LAST', [{ t: `turn ${log.turnNo}${when}`, color: C.muted }], width),
     [
-      { t: `  ${last.state}`, color: STATE_COLOR[last.state] },
-      { t: story + spaces(room - vw(last.state) - vw(story)), color: C.text },
+      { t: `  ${state}`, color: isWaiting ? C.agent : STATE_COLOR[last.state] },
+      { t: story + spaces(room - vw(state) - vw(story)), color: C.text },
       { t: spaces(CLOCK_GAP) + spaces(CLOCK_W - vw(time)) + time, color: C.muted }
     ],
     ...(last.wait.length > 0 ? [line(`  ${last.wait}`, width, C.muted)] : [])
@@ -111,29 +122,46 @@ function lastRows(log: StepLog, width: number): Part[][] {
 }
 
 /**
- * The whole pane, fitted to `rows` (E.37 with amendment 2): the head, one blank row, then `[ STEPS ]` for this
- * turn, or for the last turn that had steps while this one has none. Too short for three step rows: the head alone.
+ * The whole pane, fitted to `rows` (E.37 with amendment 2): the head, then `[ STEPS ]` for this turn (or for the last
+ * turn that had steps while this one has none), then `[ AGENTS ]`, one blank row between each. `[ AGENTS ]` is
+ * measured first, and gives way (to the agents not done, then to its label, then to nothing) until `[ STEPS ]` has
+ * 6 rows (3 in a pane under 24 rows), or as many as it has steps. Too short for three step rows: no steps.
  * @param log the turn's log
- * @param now the wall clock in ms, for the running step's own clock
+ * @param now the wall clock in ms, for the running step's and the agents' clocks
  * @param width the pane's body columns
  * @param rows the pane's body rows
  * @param isPromptCovered a dialog covers the prompt (the `Pane` prop): a permission answer is awaited
+ * @param roster the agents, in launch order
  * @returns one Part list per row
  */
-export function paneRows(log: StepLog, now: number, width: number, rows: number, isPromptCovered = false): Part[][] {
-  const head = log.isTurnRunning ? nowRows(log, now, width, isPromptCovered) : lastRows(log, width)
+export function paneRows(log: StepLog, now: number, width: number, rows: number, isPromptCovered = false, roster: readonly RosterAgent[] = []): Part[][] {
+  const waiting = waitingOn(roster)
+  const head = log.isTurnRunning ? nowRows(log, now, width, isPromptCovered) : lastRows(log, width, waiting)
   const own = log.steps.length > 0 || log.dropped > 0
   const shown = own ? log : log.prev === null ? undefined : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
-  const room = rows - head.length - 1
+  const count = shown === undefined ? 0 : shown.steps.length + shown.dropped
+  const want = rows < 24 ? STEP_ROWS_MIN : STEP_ROWS_WANT
+  const stepsNeed = shown === undefined ? 0 : 1 + 1 + Math.max(STEP_ROWS_MIN, Math.min(want, count + (count > want ? 1 : 0)))
+  const blank = line('', width, C.muted)
+  let agents: Part[][] = []
 
-  if (shown === undefined || room < 1 + STEP_ROWS_MIN) return head
+  for (const level of LEVELS) {
+    agents = level === 'none' ? [] : agentRows(roster, now, width, level)
 
-  return [...head, line('', width, C.muted), ...stepRows(shown, width, room, own ? 'STEPS' : `STEPS · TURN ${log.prev?.turnNo ?? 0}`)]
+    if (rows - head.length - (agents.length > 0 ? 1 + agents.length : 0) - stepsNeed >= 0) break
+  }
+
+  const lower = agents.length > 0 ? [blank, ...agents] : []
+  const room = rows - head.length - lower.length - 1
+  const steps = shown === undefined || room < 1 + STEP_ROWS_MIN ? [] : stepRows(shown, width, room, own ? 'STEPS' : `STEPS · TURN ${log.prev?.turnNo ?? 0}`)
+  const fitted = [...head, ...(steps.length > 0 ? [blank, ...steps] : []), ...lower]
+
+  return fitted.length <= rows ? fitted : head
 }
 
 /**
  * The left's live area while docked (E.33, H.1): one row, the spinner frame, `working` (or `writing` while the
- * answer streams), and the turn's elapsed time on the time edge.
+ * answer streams), and the engine turn's elapsed time on the time edge, the time its receipt will show.
  * @param log the turn's log
  * @param now the wall clock in ms
  * @param frame the spinner's frame count
@@ -142,7 +170,7 @@ export function paneRows(log: StepLog, now: number, width: number, rows: number,
  */
 export function liveRow(log: StepLog, now: number, frame: number, width: number): Part[] {
   const word = log.mode === 'responding' ? 'writing' : 'working'
-  const time = since(now, log.startedAt)
+  const time = since(now, log.segmentStart)
   const glyph = FRAMES[frame % FRAMES.length] ?? FRAMES[0] ?? ''
 
   return [
