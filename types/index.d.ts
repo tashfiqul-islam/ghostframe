@@ -103,7 +103,8 @@ export type OpenFailure = { kind: string; subject: string; result: string; clock
 
 /**
  * What a finished turn's receipt says (spec E.32, amendment 3), by the turn's id, so a receipt drawn again later
- * still shows its own turn: the state, the counts, the failures left open, and the turn's time on Cockpit's clock.
+ * still shows its own turn: the state, the counts, the last commit's short hash (or ''), the failures left open,
+ * and the turn's time on Cockpit's clock.
  */
 export type Receipt = {
   turn: string | null
@@ -112,6 +113,7 @@ export type Receipt = {
   failures: number
   fixed: number
   files: number
+  commit: string
   open: OpenFailure[]
   durationMs: number
 }

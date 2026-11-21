@@ -46,7 +46,9 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
   const meta = [
     ...(receipt.steps > 0 ? [plural(receipt.steps, 'step')] : []),
     ...exceptions,
-    ...(receipt.files > 0 ? [plural(receipt.files, 'file')] : [])
+    ...(receipt.files > 0 ? [plural(receipt.files, 'file')] : []),
+    // The turn made a commit: its short hash, the one thing a later turn may want to find again.
+    ...(receipt.commit.length > 0 ? [`± ${receipt.commit}`] : [])
   ].join(' · ')
   const time = formatSpan(receipt.durationMs)
   const tail = meta.length > 0 ? ` ${meta} · ` : ' '

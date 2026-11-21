@@ -26,7 +26,7 @@ const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(n
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-1' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-2' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000

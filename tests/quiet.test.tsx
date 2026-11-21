@@ -252,6 +252,31 @@ test('docked: a failure nothing fixed gets a `still failing` row above the recei
   await pane.unmount()
 })
 
+test('docked: a turn that committed names its commit in the receipt, `± <sha>`, before the time', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const commit: Call = {
+    id: 'c1',
+    tool: 'Bash',
+    input: { command: 'git commit -m "ci: pin Bun"' },
+    result: { result: { stdout: '[fix/ci 7be09d2a1] ci: pin Bun\n 1 file changed\n', stderr: '' }, text: 'ok' },
+    ms: 1_000
+  }
+  engine(on, [...CALLS, commit], clock)
+  const pane = await $.ui.mount(PANE)
+  await $.prompt.submit({ text: 'fix and commit', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'fix and commit', turnId: 't1' })
+
+  for (const c of [...CALLS, commit]) await $.tool.call({ tool: c.tool, ...c.input, tool_use_id: c.id } as never)
+
+  clock.now = T0 + 164_000
+  await $.turn.complete({ answer: 'x', durationMs: 160_000, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  const ui = await $.ui.mount(receipt(160_000))
+  expect((await ui.find({ type: 'Text', text: /^─ done/ }))?.text).toMatch(/ 4 steps · 1 failure → fixed · 1 file · ± 7be09d2 · 2m 44s$/)
+  await ui.unmount()
+  await pane.unmount()
+})
+
 test('docked: an interrupted turn has no receipt (correction G)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, [], clock)

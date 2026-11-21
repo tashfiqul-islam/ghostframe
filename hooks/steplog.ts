@@ -459,7 +459,7 @@ export function endTurn(log: StepLog, engineMs: number, isAborted = false, ended
 
 const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
-/** A finished turn's receipt (E.32): its state, steps, failures and how many were fixed, files changed, failures left open. */
+/** A finished turn's receipt (E.32): its state, steps, failures and how many were fixed, files changed, its last commit, failures left open. */
 export function receiptOf(log: StepLog): Receipt {
   const steps = log.steps
   const failed = steps.flatMap((s, i) => (s.mark === '✕' ? [i] : []))
@@ -477,6 +477,7 @@ export function receiptOf(log: StepLog): Receipt {
     failures: failed.length,
     fixed: failed.length - open.length,
     files: files.size,
+    commit: steps.findLast(s => s.mark === '±')?.result ?? '',
     open,
     durationMs: log.last?.durationMs ?? 0
   }
