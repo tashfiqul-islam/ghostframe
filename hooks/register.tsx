@@ -5,7 +5,7 @@ import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStam
 import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
-import { registerCockpit, startCockpit } from './cockpit'
+import { logStepEnd, logStepStart, logTurnEnd, logTurnStart, registerCockpit, startCockpit } from './cockpit'
 import { C, G, Rule, clip, fmtClock, fmtDuration, fmtTokens, layout, pad, ruleWidth, vw } from './grid'
 import type { Lay, Ui } from './grid'
 import { splitBlocks } from './blocks'
@@ -147,6 +147,8 @@ const promptClaims = new Map<string, number>()
 const CLAIMS_MAX = 500
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
 let lastSubmitted: number | undefined
+// The same stamp, until a main-loop turn takes it as its start (Cockpit's turn clock).
+let unclaimedSubmit: number | undefined
 const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) => {
   const same = list.filter(p => p.text.trim() === text.trim())
   const held = promptClaims.get(row)
@@ -1556,6 +1558,14 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined) {
       await update($, currentTurn, () => e.turnId)
       await update($, streaming, () => true)
+
+      try {
+        // A turn no prompt was typed for (a notice, a queued task) starts its clock at its first step.
+        await logTurnStart($, e.turnId, unclaimedSubmit)
+        unclaimedSubmit = undefined
+      } catch {
+        // A log that can't start costs the pane this turn's steps, nothing more.
+      }
     }
 
     return next(e)
@@ -1584,6 +1594,12 @@ export const register: Register = (on, options) => {
       // A stamp that fails costs the row its time, nothing more.
     }
 
+    try {
+      await logStepStart($, e, at ?? 0, cwd)
+    } catch {
+      // A pane row that fails costs the pane that row; the call runs as it would.
+    }
+
     let ran: Awaited<ReturnType<typeof next>> | undefined
 
     try {
@@ -1610,6 +1626,12 @@ export const register: Register = (on, options) => {
         if ((await read($, asked)).includes(id)) {
           await update($, asked, list => list.filter(x => x !== id))
         }
+      } catch {
+        // as above
+      }
+
+      try {
+        await logStepEnd($, e, ran, end ?? when ?? 0)
       } catch {
         // as above
       }
@@ -1887,6 +1909,7 @@ export const register: Register = (on, options) => {
       const at = await $.clock.now()
       await update($, prompts, list => [...list, { text: e.text, at }].slice(-100))
       lastSubmitted = at
+      unclaimedSubmit = at
     }
 
     return next(e)
@@ -1913,6 +1936,12 @@ export const register: Register = (on, options) => {
         await update($, caps, () => NO_CAPS)
         // A turn that ended before any reply (aborted, a local command) opens nothing later.
         await update($, awaitingFirst, () => false)
+
+        try {
+          await logTurnEnd($, e.durationMs)
+        } catch {
+          // A step left running reads `running` until the next turn starts.
+        }
       }
     }
 

@@ -51,6 +51,30 @@ export type ShipStamp = {
   pr?: { n: number; url: string; head?: string; base?: string }
 }
 
+/** The mark a settled step row carries in Cockpit's `[ STEPS ]`: none, failed, a passing check that fixed a failure, committed, published. */
+export type StepMark = '' | '✕' | '✓' | '±' | '↗'
+
+/**
+ * One `[ STEPS ]` row. `clock` is the turn clock in ms: at the start while running, at the end once settled.
+ * `key` is what a later step must share to fix it. An agent launch (amendment 1) lists its `calls` and counts them.
+ */
+export type LogStep = {
+  id: string
+  kind: string
+  subject: string
+  key: string
+  result: string
+  mark: StepMark
+  isRunning: boolean
+  clock: number
+  calls?: string[]
+  done?: number
+  failed?: number
+}
+
+/** Cockpit's step log for the current (or last) main-loop turn; `dropped` counts the oldest steps past the cap. */
+export type StepLog = { turn: string | null; startedAt: number | null; steps: LogStep[]; dropped: number }
+
 declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
@@ -69,6 +93,7 @@ declare module 'claude-code' {
       flow: Shaped<FlowStamp[]>
       testRuns: Shaped<TestRunStamp[]>
       ships: Shaped<ShipStamp[]>
+      stepLog: Shaped<StepLog>
     }
   }
 }
