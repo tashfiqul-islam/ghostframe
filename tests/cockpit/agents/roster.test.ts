@@ -6,24 +6,27 @@ import type { RosterAgent } from '../../../types'
 const T = 1_000_000
 const start = (id: string, isBackground = true, parent: string | null = null) => ({ id, call: `c-${id}`, parent, name: `Agent ${id}`, isBackground, at: T })
 
-test('a resumed agent (woken for its child`s report: same id, no call) runs again in its own row, keeping its launch', () => {
+test('a wake-up (the same id again, no call) leaves the row as it is: it never makes a finished agent run again', () => {
   let roster = addAgent([], start('p'))
   roster = addAgent(roster, start('q'))
   roster = agentStep(roster, 'p', 'Read', { file_path: 'a.ts' })
-  roster = endAgent(roster, { id: 'p', status: 'completed', text: 'partial', at: T + 5_000 })
-  roster = addAgent(roster, { id: 'p', call: '', parent: null, name: 'Agent p', isBackground: true, at: T + 9_000 })
+  const running = addAgent(roster, { id: 'p', call: '', parent: null, name: 'Agent p', isBackground: true, at: T + 2_000 })
+  expect(running).toEqual(roster)
 
-  expect(roster.map(a => a.id)).toEqual(['p', 'q'])
-  expect(roster[0]).toMatchObject({ call: 'c-p', state: 'running', steps: 1, startedAt: T, endedAt: null })
+  roster = endAgent(roster, { id: 'p', status: 'completed', text: 'partial', at: T + 5_000 })
+  const woken = addAgent(roster, { id: 'p', call: '', parent: null, name: 'Agent p', isBackground: true, at: T + 9_000 })
+  expect(woken.map(a => a.id)).toEqual(['p', 'q'])
+  expect(woken[0]).toMatchObject({ call: 'c-p', state: 'done', steps: 1, startedAt: T, endedAt: T + 5_000 })
 })
 
-test('a report ends an agent once: done with its head, failed with its reason; a second report changes nothing', () => {
+test('a report ends an agent: done with its head, failed with its reason', () => {
   let roster = addAgent([], start('a'))
   roster = endAgent(roster, { id: 'a', status: 'completed', text: '\n**4 findings** in two files', at: T + 1_000 })
   expect(roster[0]).toMatchObject({ state: 'done', kind: 'done', subject: '4 findings in two files', endedAt: T + 1_000 })
 
-  const again = endAgent(roster, { id: 'a', status: 'failed', text: 'late', at: T + 9_000 })
-  expect(again[0]).toEqual(roster[0])
+  // A later report of a finished agent brings its newer head and end; it never runs again.
+  const again = endAgent(roster, { id: 'a', status: 'completed', text: '5 findings', at: T + 9_000 })
+  expect(again[0]).toMatchObject({ state: 'done', subject: '5 findings', endedAt: T + 9_000 })
 
   const failed = endAgent(addAgent([], start('b')), { id: 'b', status: 'failed', text: '', at: T })
   expect(failed[0]).toMatchObject({ state: 'failed', subject: 'failed' })

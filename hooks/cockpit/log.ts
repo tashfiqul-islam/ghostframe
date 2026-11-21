@@ -234,10 +234,11 @@ export async function logAgentEnd($: EngineInterface, end: Omit<AgentEnd, 'at'>)
   const at = await $.clock.now()
   const agent = (await read($, roster)).find(a => a.id === end.id)
 
-  if (agent === undefined || agent.state !== 'running') return
+  if (agent === undefined) return
 
   await update($, roster, list => endAgent(list, { ...end, at }))
 
+  // The launch counts each agent once (`endLaunched` keeps which); a later report of a finished one counts nothing.
   if (agent.parent === null && agent.call.length > 0) {
     await update($, stepLog, log => endLaunched(log, agent.call, end.status !== 'completed', at))
   }

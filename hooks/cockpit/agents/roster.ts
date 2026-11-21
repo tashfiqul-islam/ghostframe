@@ -30,11 +30,9 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
   }
   const at = roster.findIndex(a => a.id === start.id)
 
-  const known = roster[at]
-
-  // A resumed agent (a parent the engine wakes for its child's report: the same id, no launching call) runs again
-  // in its own row, keeping its launch, its start and its steps: rows never move.
-  if (known !== undefined) return roster.with(at, { ...known, state: 'running', endedAt: null })
+  // A known id is the engine waking an agent (a parent, to read its child's report): its row stays as it is. An
+  // agent runs from its spawn to its final report; a wake-up never makes a finished one run again.
+  if (at >= 0) return [...roster]
 
   const list = [...roster, agent]
   const over = list.length - ROSTER_MAX
@@ -61,11 +59,12 @@ function head(text: string): string {
 
 /**
  * An agent reported: done, its subject the head of the report; or failed (a stop counts as a failure), its subject
- * the reason. Its time freezes. A second report changes nothing.
+ * the reason. Its time freezes. A later report of a finished agent (a parent woken for its child's) brings its
+ * newer head and end, never `running` again.
  */
 export function endAgent(roster: readonly RosterAgent[], end: AgentEnd): RosterAgent[] {
   return roster.map(a => {
-    if (a.id !== end.id || a.state !== 'running') return a
+    if (a.id !== end.id) return a
 
     const isDone = end.status === 'completed'
     const said = head(end.text)

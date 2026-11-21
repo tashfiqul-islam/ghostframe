@@ -274,3 +274,58 @@ test('the nested agent of the sequence: inset under its parent, its launch settl
   expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^─ waiting · 1 agent ─+ 1 step · 2s$/)])
   await docked.unmount()
 })
+
+test('nested, to the end: parent launches child, child reports, parent is woken, parent reports; all three places read done', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const docked = await $.ui.mount(PANE)
+
+  await typed($, 'nest')
+  await $.turn.start({ text: 'nest', turnId: 't1' })
+  await $.tool.call({ tool: 'Agent', description: 'Nest parent', prompt: 'go', tool_use_id: 'n1' } as never)
+  await spawn($, 'n1', 'Nest parent')
+  await $.tool.call({ tool: 'Agent', description: 'Nest child', prompt: 'go', tool_use_id: 'k1', agentId: 'ag-Nest parent' } as never)
+  await spawn($, 'k1', 'Nest child', 'ag-Nest parent')
+  await $.session.append(respond([text('Parent launched.')], 'm1'))
+  clock.now += 2_000
+  await $.turn.complete({ answer: 'x', durationMs: 2_000, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  // The child reports to its parent; the engine wakes the parent (its id again, no call); the parent reports.
+  clock.now += 3_000
+  await report($, 'ag-Nest child', '42')
+  await spawn($, '', 'Nest parent')
+  await report($, 'ag-Nest parent', '42 lines')
+  // A wake-up after the final report (seen on screen) changes nothing.
+  await spawn($, '', 'Nest parent')
+
+  // The parent's report reaches the main loop as a turn of its own.
+  await delivered($, 'ag-Nest parent')
+  await $.turn.start({ text: '<agent-message>', turnId: 'r1' })
+  await $.session.append(respond([text('Agent "Nest parent" finished: 42.')], 'm2'))
+  clock.now += 1_000
+  await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r1', reason: 'answer' })
+
+  const rows = await paneOf(docked)
+  // The head.
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}done · /))
+  expect(rows.some(r => /waiting/.test(r))).toBe(false)
+  // The roster: its label's totals match its rows.
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 2 done · 1 nested$/))
+  expect(rows.filter(r => /^ *◇ Nest/.test(r))).toEqual([
+    expect.stringMatching(/^◇ Nest parent {12}done {3}42 lines/),
+    expect.stringMatching(/^ {2}◇ Nest child {11}done {3}42/)
+  ])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent {4}1 launched +1 done/))
+  // The receipts: waiting while the parent ran, done once it had reported.
+  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^─ waiting · 1 agent ─/)])
+  expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^─ done ─+ no steps · 1s$/)])
+
+  // The next typed turn is done too: nothing is left running.
+  await typed($, 'thanks')
+  await $.turn.start({ text: 'thanks', turnId: 't2' })
+  await $.session.append(respond([text('You are welcome.')], 'm3'))
+  clock.now += 1_000
+  await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 't2', reason: 'answer' })
+  expect(await receiptsUnder($, 'You are welcome.')).toEqual([expect.stringMatching(/^─ done ─/)])
+  await docked.unmount()
+})
