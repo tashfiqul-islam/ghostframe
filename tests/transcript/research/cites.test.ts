@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { parseCited, sup } from '../../../hooks/transcript/research/cites'
+import { parseCited } from '../../../hooks/transcript/research/cites'
+import { sup } from '../../../hooks/shared/text'
 import { footnoteLines } from '../../../hooks/transcript/research/footnotes'
 import { partsWidth } from '../../../hooks/shared/parts'
 import { LINEAR_MS, ms, RUN } from '../../support/linear'

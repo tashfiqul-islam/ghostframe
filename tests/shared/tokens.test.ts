@@ -21,7 +21,8 @@ test('tokens: one small set, the names the design uses; add/del share ok/err', a
       'surface',
       'text',
       'textBright',
-      'warn'
+      'warn',
+      'web'
     ].toSorted()
   )
   expect(C.add).toBe(C.ok)

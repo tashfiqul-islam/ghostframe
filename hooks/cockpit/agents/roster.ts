@@ -26,7 +26,9 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
     subject: 'reading its brief',
     steps: 0,
     startedAt: start.at,
-    endedAt: null
+    endedAt: null,
+    subjectAt: start.at,
+    pending: null
   }
   const at = roster.findIndex(a => a.id === start.id)
 
@@ -40,11 +42,25 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
   return over > 0 ? list.filter((a, i) => a.state === 'running' || i >= over) : list
 }
 
-/** An agent's own call started: its row says what it does now, and counts the step. */
-export function agentStep(roster: readonly RosterAgent[], id: string, tool: string, input: unknown, cwd?: string): RosterAgent[] {
-  return roster.map(a =>
-    a.id === id && a.state === 'running' ? { ...a, kind: kindOf(tool, input), subject: subjectOf(tool, input, cwd), steps: a.steps + 1 } : a
-  )
+const SUBJECT_MS = 1_000 // an agent's subject changes at most once a second (E.40)
+
+/**
+ * An agent's own call started at `at`: the step counts at once; its row says what it does now if its subject last
+ * changed a second ago or more, else the step waits as `pending` (see `shownStep`), so a fast agent never flickers.
+ */
+export function agentStep(roster: readonly RosterAgent[], id: string, tool: string, input: unknown, cwd: string | undefined, at: number): RosterAgent[] {
+  return roster.map(a => {
+    if (a.id !== id || a.state !== 'running') return a
+
+    const step = { kind: kindOf(tool, input), subject: subjectOf(tool, input, cwd) }
+
+    return at - a.subjectAt >= SUBJECT_MS ? { ...a, ...step, steps: a.steps + 1, subjectAt: at, pending: null } : { ...a, steps: a.steps + 1, pending: step }
+  })
+}
+
+/** What a running agent's row says at `now`: its pending step once a second has passed since its subject changed. */
+export function shownStep(a: RosterAgent, now: number): { kind: string; subject: string } {
+  return a.state === 'running' && a.pending !== null && now - a.subjectAt >= SUBJECT_MS ? a.pending : { kind: a.kind, subject: a.subject }
 }
 
 /** The first line of a report with its Markdown marks taken off: `4 findings`. */
@@ -70,7 +86,7 @@ export function endAgent(roster: readonly RosterAgent[], end: AgentEnd): RosterA
     const said = head(end.text)
     const subject = isDone ? said : end.status === 'stopped' ? 'stopped' : said.length > 0 ? said : 'failed'
 
-    return { ...a, state: isDone ? 'done' : 'failed', kind: isDone ? 'done' : 'failed', subject, endedAt: end.at }
+    return { ...a, state: isDone ? 'done' : 'failed', kind: isDone ? 'done' : 'failed', subject, endedAt: end.at, pending: null }
   })
 }
 

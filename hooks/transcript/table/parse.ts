@@ -2,7 +2,8 @@ import { vw } from '../../shared/text'
 import { sourceLabel } from '../../shared/url'
 import { parseInline } from '../prose'
 import type { Run } from '../prose'
-import { parseCited, sup } from '../research/cites'
+import { sup } from '../../shared/text'
+import { parseCited } from '../research/cites'
 import type { Numbering } from '../research/cites'
 
 // ─── Plain table shape (DESIGN.md §5.18, amended) ────────────────────────────

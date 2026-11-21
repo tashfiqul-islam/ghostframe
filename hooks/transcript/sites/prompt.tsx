@@ -2,7 +2,7 @@
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
 import type { PromptStamp } from '../../../types'
-import { isQuiet } from '../../cockpit/left'
+import { isQuietRow } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { Rule } from '../../shared/rule'
 import { fmtClock } from '../../shared/time'
@@ -75,7 +75,7 @@ export function registerPrompt(on: On): void {
     const { Box, Text } = $.ui.resolve(e)
 
     // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing.
-    if (isQuiet() && (await isAgentRow($, e.props))) {
+    if (isQuietRow(e.requestId) && (await isAgentRow($, e.props))) {
       return <Box />
     }
 

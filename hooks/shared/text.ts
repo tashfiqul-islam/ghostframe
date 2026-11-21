@@ -169,3 +169,9 @@ export function pad(s: string, n: number, align: 'left' | 'right' | 'center' = '
 
   return c + ' '.repeat(gap)
 }
+
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+
+/** A footnote mark, `¹²`: the answer's, the left's Sources frame and Cockpit's `[ SOURCES ]` all number with it. */
+// oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
+export const sup = (n: number): string => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')

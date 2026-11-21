@@ -3,7 +3,7 @@ import type { Part } from '../../shared/parts'
 import { clip, vw } from '../../shared/text'
 import { C } from '../../shared/tokens'
 import { sourceLabel } from '../../shared/url'
-import { sup } from './cites'
+import { sup } from '../../shared/text'
 import type { Cite } from './cites'
 import { clipLabel, sourceTitles } from './labels'
 

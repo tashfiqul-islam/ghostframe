@@ -3,7 +3,7 @@
 import type { On } from 'claude-code'
 
 import type { TurnClose } from '../../../types'
-import { drawLive, isQuiet } from '../../cockpit/left'
+import { drawLive, isQuietRow } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
@@ -78,7 +78,7 @@ export function registerChrome(on: On): void {
 
     // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
     // reports start share one footer, or get none, so a footer can't say which turn it closes.
-    if (isQuiet()) {
+    if (isQuietRow(e.requestId)) {
       return $.ui.resolve(e).Box({})
     }
 

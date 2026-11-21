@@ -2,8 +2,8 @@
 // the fold row, or the engine's row in the grid.
 import type { On } from 'claude-code'
 
-import { isQuiet } from '../../../cockpit/left'
-import { layout } from '../../../shared/layout'
+import { drawQuietCall, isQuietRow } from '../../../cockpit/left'
+import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { stepParts } from '../../activity/row'
 import { activityHead } from '../../activity/rule'
@@ -37,9 +37,10 @@ export function registerToolUse(on: On): void {
 
     const p = e.props
 
-    // Quiet: an agent launch is the pane's (`[ STEPS ]` and `[ AGENTS ]`); the engine's launch row draws nothing.
-    if (isQuiet() && (p.tool === 'Agent' || p.tool === 'Task')) {
-      return $.ui.resolve(e).Box({})
+    // Quiet: every step is the pane's, a fetch or an agent launch as much as a folded group; only a push or a pull
+    // request leaves a row here (E.5).
+    if (isQuietRow(e.requestId)) {
+      return drawQuietCall($, e, ruleWidth(lay) ?? width)
     }
 
     const isAsking = (await readAsked($)).includes(p.tool_use_id)

@@ -107,3 +107,45 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   expect(closed).toEqual(['cockpit'])
   expect(second.text).toMatch(/closed/)
 })
+
+// Correction C: a permission dialog or question card grows the pane. Every row stays where it was; the new rows stay blank.
+test('a dialog opening mid-turn moves nothing: the rows stay put while bodyRows grows, and when it shrinks back', ON, async ($, on) => {
+  let now = 1_000_000
+  on('clock.now', () => ({ value: now }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('tool.call', () => {
+    now += 1_000
+
+    return { result: { file: { numLines: 9 } }, text: 'ok' }
+  })
+  on('agent.list', () => ({ value: [] as never }))
+
+  await $.prompt.submit({ text: 'read them', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'read them', turnId: 't1' })
+
+  for (let i = 0; i < 30; i++) await $.tool.call({ tool: 'Read', file_path: `f${i}.ts`, tool_use_id: `r${i}` } as never)
+  await $.tool.call({ tool: 'TodoWrite', todos: [{ content: 'Read them', status: 'in_progress', activeForm: 'Reading' }], tool_use_id: 'td' } as never)
+
+  const drawAt = async (bodyRows: number, isPromptCovered: boolean) => {
+    const ui = await $.ui.mount({
+      ...PANE,
+      props: { ...PANE.props, bodyColumns: 72, ...(isPromptCovered ? { isPromptCovered: true as const } : {}), scroll: { ...PANE.props.scroll, bodyRows } },
+      viewport: { columns: 127, rows: 50, isFullscreen: true }
+    })
+    // Every Text drawn, rows and their parts, in order: the same list is the same rows in the same places.
+    const rows = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    await ui.unmount()
+
+    return rows
+  }
+
+  const before = await drawAt(24, false)
+  const open = await drawAt(31, true)
+  const after = await drawAt(24, false)
+
+  expect(before.filter(t => /^┄ \[ (NOW|STEPS|TODO) \]/.test(t))).toHaveLength(3)
+  expect(open).toEqual(before)
+  expect(after).toEqual(before)
+})

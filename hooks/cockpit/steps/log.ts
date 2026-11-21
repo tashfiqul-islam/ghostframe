@@ -1,7 +1,7 @@
 // Cockpit's step log: one turn's tool calls as `[ STEPS ]` rows (spec E.12, E.37, E.39, H.5; amendments 1
 // and 2). Pure: hooks/cockpit/log.ts keeps the log in $.state and draws what `stepRows` returns.
 import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
-import { fixKey, kindOf, subjectOf } from './kinds'
+import { UNLISTED, fixKey, kindOf, subjectOf } from './kinds'
 import { outcomeOf, plural } from './results'
 
 /** A call as it starts: its id, tool, input, and the wall clock in ms. */
@@ -93,11 +93,18 @@ export function askStep(log: StepLog, id: string): StepLog {
   return log.asking.includes(id) ? log : { ...log, asking: [...log.asking, id] }
 }
 
-/** Whether a failed step is still open: no later step with its key settled without failing. */
+// A fetch or search that fails is a source problem, not the turn's (amendment 6): its row keeps its ✕ and its status,
+// and [ SOURCES ] its pink status, but nothing waits on it being fixed.
+const SOURCE_KINDS = new Set(['fetch', 'web'])
+
+/** Whether a step failed in a way the turn is answerable for: a failed fetch or search is not. */
+export const isTurnFailure = (s: LogStep): boolean => s.mark === '✕' && !SOURCE_KINDS.has(s.kind)
+
+/** Whether a failed step is still open: a turn failure no later step with its key settled without failing. */
 export function isOpen(steps: readonly LogStep[], index: number): boolean {
   const s = steps[index]
 
-  return s !== undefined && s.mark === '✕' && !steps.slice(index + 1).some(t => !t.isRunning && t.key === s.key && t.mark !== '✕')
+  return s !== undefined && isTurnFailure(s) && !steps.slice(index + 1).some(t => !t.isRunning && t.key === s.key && t.mark !== '✕')
 }
 
 const clockOf = (log: StepLog, at: number) => Math.max(0, at - (log.startedAt ?? at))
@@ -107,6 +114,8 @@ const clockOf = (log: StepLog, at: number) => Math.max(0, at - (log.startedAt ??
  * in this turn, so a parallel launch is one row (amendment 1).
  */
 export function startStep(started: StepLog, call: StepStart, cwd?: string): StepLog {
+  if (UNLISTED.has(call.tool)) return started
+
   const log = started.startedAt === null ? { ...started, startedAt: call.at, segmentStart: started.segmentStart ?? call.at } : started
   const kind = kindOf(call.tool, call.input)
 
@@ -231,7 +240,7 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
 
   if (steps.length === 0) return { state: 'done', story: 'no steps', wait: '' }
 
-  const failures = steps.filter(s => s.mark === '✕')
+  const failures = steps.filter(isTurnFailure)
   const open = failures.filter(s => isOpen(steps, steps.indexOf(s)))
   const first = open[0]
 
@@ -279,7 +288,7 @@ const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 export function receiptOf(log: StepLog, agents = 0): Receipt {
   const from = Math.max(0, log.segmentFrom - log.dropped)
   const all = log.steps
-  const failed = all.flatMap((s, i) => (i >= from && s.mark === '✕' ? [i] : []))
+  const failed = all.flatMap((s, i) => (i >= from && isTurnFailure(s) ? [i] : []))
   const open = failed.flatMap(i => {
     const s = all[i]
 

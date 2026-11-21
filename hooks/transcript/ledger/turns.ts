@@ -5,6 +5,7 @@ import type { On } from 'claude-code'
 import { logMode, logTurnEnd, logTurnStart } from '../../cockpit/log'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
+import { sessionCwd } from './session'
 import { readFlow, readTally, updateAwaitingFirst, updateCaps, updateCloses, updatePrompts, updateStreaming, updateTally, updateTurn } from './state'
 
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
@@ -43,7 +44,7 @@ export function registerTurns(on: On): void {
 
       try {
         // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
-        await logTurnStart($, e.turnId, unclaimedSubmit)
+        await logTurnStart($, e.turnId, unclaimedSubmit, sessionCwd())
         unclaimedSubmit = undefined
       } catch {
         // A log that can't start costs the pane this turn's steps, nothing more.

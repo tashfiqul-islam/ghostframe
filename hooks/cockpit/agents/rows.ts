@@ -6,6 +6,7 @@ import type { Part } from '../../shared/parts'
 import { vw } from '../../shared/text'
 import { formatSpan } from '../../shared/time'
 import { C } from '../../shared/tokens'
+import { shownStep } from './roster'
 import { cut, sectionLabel } from '../steps/rows'
 
 /** How much of `[ AGENTS ]` the pane has room for (E.37's ladder): every row, the agents not done, or the label. */
@@ -61,13 +62,14 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
   const isFailed = a.state === 'failed'
   const glyph: Part = isFailed ? { t: '✕', color: C.err } : { t: '◇', color: isDone ? C.dim : C.agent }
   const name = cut(a.name, nameW)
-  const subject = a.subject + (deeper > 0 ? ` +${deeper} nested` : '')
+  const step = shownStep(a, now)
+  const subject = step.subject + (deeper > 0 ? ` +${deeper} nested` : '')
   // The kind slot is 8 cells for a running agent's kind and 7 for `done` and `failed`, as E.40 draws them.
   const mid: Part[] = isFailed
     ? [{ t: 'failed ', color: C.err, bold: true }, ...(isWide ? [{ t: subject, color: C.muted }] : [])]
     : isDone
       ? [{ t: 'done   ', color: C.dim }, ...(isWide ? [{ t: subject, color: C.dim }] : [])]
-      : [{ t: a.kind.padEnd(7).slice(0, 7), color: C.muted }, ...(isWide ? [{ t: ` ${subject}`, color: C.text }] : [])]
+      : [{ t: step.kind.padEnd(7).slice(0, 7), color: C.muted }, ...(isWide ? [{ t: ` ${subject}`, color: C.text }] : [])]
   const time = formatSpan(Math.max(0, (a.endedAt ?? now) - a.startedAt))
   const right = `${String(a.steps).padStart(3)} · ${time.padStart(7)}`
   const left: Part[] = [

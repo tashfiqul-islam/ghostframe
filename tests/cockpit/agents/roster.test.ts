@@ -9,7 +9,7 @@ const start = (id: string, isBackground = true, parent: string | null = null) =>
 test('a wake-up (the same id again, no call) leaves the row as it is: it never makes a finished agent run again', () => {
   let roster = addAgent([], start('p'))
   roster = addAgent(roster, start('q'))
-  roster = agentStep(roster, 'p', 'Read', { file_path: 'a.ts' })
+  roster = agentStep(roster, 'p', 'Read', { file_path: 'a.ts' }, undefined, T + 1_000)
   const running = addAgent(roster, { id: 'p', call: '', parent: null, name: 'Agent p', isBackground: true, at: T + 2_000 })
   expect(running).toEqual(roster)
 

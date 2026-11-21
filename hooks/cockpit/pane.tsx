@@ -2,15 +2,15 @@
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
 import { drawRows } from './draw'
-import { paneRows } from './head'
+import { paneRows } from './fit'
 import { setDocked } from './left'
 import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn } from './switch'
+import { readWork } from './work'
+import { PANE } from './mode'
 
 export type On = Parameters<Register>[0]
-
-export const PANE = 'cockpit'
 
 // The first open comes before any drawing has measured the terminal: ask for the hero width,
 // and the first Pane render opens again at the width rule.
@@ -25,6 +25,12 @@ let openedAt: number | undefined
 let leftAt: number | undefined
 /** The person's `/cockpit` ran where no dock exists, so an inline pane is theirs and stays. */
 let isAskedInline = false
+/**
+ * The pane's body rows while no dialog covers the prompt. A permission dialog or a question card grows the pane
+ * (correction C); the pane is still fitted to this height, so every row stays where it was and the new rows stay
+ * blank until the dialog closes.
+ */
+let openRows: number | undefined
 
 /**
  * Opens (or re-opens) the pane at the width rule for a terminal this wide.
@@ -125,13 +131,19 @@ export function registerPane(on: On): void {
       }
     }
 
-    // The head, `[ STEPS ]` and `[ AGENTS ]`, fitted to the body so the engine never scrolls it (E.37).
+    // Every section, fitted to the body so the engine never scrolls it (E.37).
     // Reading `second` redraws this each second while a turn or a background agent runs; only the clocks change.
     await readSecond($)
     const log = await readLog($)
     const roster = await readRoster($)
+    const work = await readWork($)
     const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
-    const rows = paneRows(log, isTicking ? await $.clock.now() : 0, bodyColumns, scroll.bodyRows, e.props.isPromptCovered === true, roster)
+    const isCovered = e.props.isPromptCovered === true
+
+    if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
+
+    const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
+    const rows = paneRows(log, isTicking ? await $.clock.now() : 0, bodyColumns, fitTo, isCovered, { roster, work })
 
     return <Box flexDirection="column">{drawRows(ui, rows)}</Box>
   })

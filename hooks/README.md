@@ -13,10 +13,13 @@ The folders are the index. Each folder below holds files of one responsibility, 
   the LRU and turn caps, URL and path labels.
 - `shared/calls/`: what a tool call was and what it returned: its verb and target, result summaries, test-run
   counts, commits, pushes and pull requests.
-- `cockpit/`: the pane's seat and width rule, the off switch, the step log's atoms and timers, the pane render, the
-  `[ NOW ]`/`[ LAST ]` head, the quiet left (receipt, `↗` rows, the one-row live area).
+- `cockpit/`: the pane's seat and width rule, the off switch, the step log's atoms and timers, the turn's work
+  (to-dos, files, pages), the pane render and its fitting (sections, order, the fold ladder), the `[ NOW ]`/`[ LAST ]`
+  head, the quiet left (receipts, `↗` rows, the one-row live area) and its mode, decided per turn (on, docked, and
+  Cockpit's tab shown) and kept by each row from its first draw.
 - `cockpit/steps/`: the step log itself: kinds and subjects, results, the log's updates and verdict, the fitted rows.
 - `cockpit/agents/`: `[ AGENTS ]`: the roster of agents (launch, steps, report, resume) and its rows.
+- `cockpit/sections/`: `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: what each call adds to them, and their rows.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
 - `transcript/blocks/`: splitting a reply into blocks: headings, lists, fences.
@@ -70,9 +73,10 @@ message or its finished notice), the `ToolUse` of an `Agent` call, and each `Age
 - **A render site:** a module under `transcript/sites/` that exports `register…(on)` with its
   `on('ui.render', { component }, …)` hook; call it from `register.tsx`. Pure layout goes in the matching
   `transcript/` folder, drawing helpers in `transcript/draw/`.
-- **A cockpit section:** its pure rows in `cockpit/` (beside `head.ts`, or a folder like `steps/` if it needs
-  several files), its state in `cockpit/log.ts`, fitted into the pane by `cockpit/head.ts`'s `paneRows`. Anything the
-  transcript must call goes in one of the cockpit's public modules.
+- **A cockpit section:** its pure updates and rows in `cockpit/sections/` (or a folder of its own, like `agents/`, if it
+  needs several files), its state in `cockpit/log.ts` or `cockpit/work.ts`, fitted into the pane by `cockpit/fit.ts`'s
+  `paneRows` (its place in the order and on the fold ladder). Anything the transcript must call goes in one of the
+  cockpit's public modules.
 - **A shared helper:** only when both features use it; it goes in `shared/` (or `shared/calls/` for tool-call
   parsing) and imports nothing from a feature.
 - **An engine event:** add it to the ledger module that owns its kind (session, turns, calls, capabilities); an
