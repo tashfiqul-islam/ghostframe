@@ -10,7 +10,7 @@ import { footnoteLines } from '../../../hooks/transcript/research/footnotes'
 import { sourcesFrame } from '../../../hooks/transcript/research/sources'
 import { clipRuns } from '../../../hooks/transcript/table/cells'
 
-// ─── 2. Generic and repeated titles get their URL's last part ───────────────
+// ─── Generic and repeated titles get their URL's last part ───────────────
 
 test('sources titles: generic or repeated → "<title> · <short label>"; specific ones unchanged', () => {
   const cites = [
@@ -50,7 +50,7 @@ test('sources titles: generic or repeated → "<title> · <short label>"; specif
   expect(notes).toContain('post · bun-v1.4.4')
 })
 
-// ─── 3. Slugs: trailing IDs dropped, clipped at the end at a hyphen ─────────
+// ─── Slugs: trailing IDs dropped, clipped at the end at a hyphen ─────────
 
 test('URL labels: a trailing hash or ID is dropped; a long slug clips at its end, at a hyphen', () => {
   const medium = 'https://medium.com/@mernstackdevbykevin/bun-1-4-is-it-finally-ready-for-production-f8381f2fbd79'

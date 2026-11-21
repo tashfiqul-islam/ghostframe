@@ -11,7 +11,7 @@ import { splitBlocks } from '../../hooks/transcript/blocks/split'
 import { C } from '../../hooks/shared/tokens'
 import { OK } from '../support/step'
 
-// ─── 4. Footnote labels ──────────────────────────────────────────────────────
+// ─── Footnote labels ──────────────────────────────────────────────────────
 
 test('source labels: repo#N for issues and PRs, owner/repo for a repo, host · last segment otherwise', async () => {
   expect(sourceLabel('https://github.com/anthropics/claude-code/issues/108931')).toBe('claude-code#108931')

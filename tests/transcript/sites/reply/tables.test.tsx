@@ -12,7 +12,7 @@ async function lines(ui: { findAll: (q: { type: string }) => Promise<{ props: Re
   return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'wrap').flatMap(t => t.text.split('\n'))
 }
 
-// ─── 2. Chips before punctuation keep table columns aligned ─────────────────
+// ─── Chips before punctuation keep table columns aligned ─────────────────
 
 const CHIPS = [
   '| Version | Highlights | Post |',
@@ -54,7 +54,7 @@ for (const columns of [120, 70]) {
   })
 }
 
-// ─── 3. Narrow tables keep a blank line between rows that wrap ──────────────
+// ─── Narrow tables keep a blank line between rows that wrap ──────────────
 
 const WRAPPY = [
   '| Version | Highlights |',

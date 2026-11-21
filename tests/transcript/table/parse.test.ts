@@ -9,7 +9,7 @@ import { REPLY, TABLE_ONLY } from '../../support/releases'
 // link, so `parseTable` gave up and the block went `wide`. The Sources list (four items)
 // then drew its own footnote line, with no markers anywhere.
 
-// ─── 1. The cause ────────────────────────────────────────────────────────────
+// ─── The cause ────────────────────────────────────────────────────────────
 
 test('repro: the on-screen reply parses as a table now; before, the link-in-text cell sent it wide', () => {
   expect(splitBlocks(REPLY).map(b => b.kind)).toEqual(['para', 'table', 'sources'])
@@ -18,7 +18,7 @@ test('repro: the on-screen reply parses as a table now; before, the link-in-text
   expect(splitBlocks(plain).map(b => b.kind)).toEqual(['para', 'table'])
 })
 
-// ─── 4. Every remaining fallback, one test each ──────────────────────────────
+// ─── Every remaining fallback, one test each ──────────────────────────────
 
 const kindOf = (lines: string[]) => splitBlocks(lines.join('\n'))[0]?.kind
 const HEAD = ['| a | b |', '|---|---|']

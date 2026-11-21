@@ -5,8 +5,8 @@ import { VIEW } from '../../../support/view'
 import { engine, engineText } from '../../../support/engine'
 import { respond } from '../../../support/respond'
 
-// Session-state fixes: each row keeps what it claimed, a failing clock still settles a
-// step, long turns keep their head, and openers match only within their own turn.
+// A standalone tool call's row (ToolUse): it keeps the step it claimed, a failing clock still settles the
+// step, a long turn keeps its activity head, `claude` labels the turn's first step, and browser runs share a frame.
 
 // ─── A clock that fails mid-call ────────────────────────────────────
 

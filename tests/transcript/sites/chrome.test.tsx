@@ -12,7 +12,7 @@ import { VIEW } from '../../support/view'
 import { respond, respondText } from '../../support/respond'
 import { REPLY } from '../../support/releases'
 
-// ─── 2. Measure ──────────────────────────────────────────────────────────────
+// ─── Measure ──────────────────────────────────────────────────────────────
 
 for (const [columns, edge] of [
   [140, 12 + 96],
@@ -54,7 +54,7 @@ for (const [columns, edge] of [
   })
 }
 
-// ─── 7. Engine lines ─────────────────────────────────────────────────────────
+// ─── Engine lines ─────────────────────────────────────────────────────────
 
 test('engine lines: info notices and command output are one muted/dim line clipped at the measure', async ($, on) => {
   on('ui.render', engineText as never)

@@ -123,7 +123,7 @@ test('clips first, then hides right-most columns', async () => {
 })
 
 test('tables we cannot parse go to the engine at full width', async () => {
-  // A link inside other text now parses; every remaining condition: tests/tablelinks.test.tsx.
+  // A link inside other text now parses; every remaining condition: tests/transcript/table/parse.test.ts.
   const linked = ['| a | b |', '|---|---|', '| see [docs](https://x.dev) here | 1 |']
   expect(splitBlocks(linked.join('\n'))[0]?.kind).toBe('table')
 

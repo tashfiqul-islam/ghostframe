@@ -285,7 +285,7 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
 
     // Nothing the mod draws runs past the window, and every frame row is whole.
     for (const l of lines) expect(vw(l)).toBeLessThanOrEqual(columns)
-    const text = `specimen at ${columns} columns (rendered by tests/specimen.test.tsx)\n${'═'.repeat(Math.min(columns, 60))}\n${lines.join('\n')}\n`
+    const text = `specimen at ${columns} columns (rendered by tests/plugin/specimen.test.tsx)\n${'═'.repeat(Math.min(columns, 60))}\n${lines.join('\n')}\n`
 
     // The test kit gives a test no file system, so the text goes to the log between
     // markers; tools/specimens.ts runs this suite and writes each file.

@@ -106,7 +106,7 @@ test('prose right after a browser run closes its frame above itself', async ($, 
   await ui.unmount()
 })
 
-// ─── Refinements: final evidence, quiet counts, frozen cards, thinking ──────
+// ─── Final evidence, quiet counts, frozen cards, thinking ──────
 
 test('thinking: hidden on a turn with no tools; shown on a work turn; shown past 10s anywhere', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
