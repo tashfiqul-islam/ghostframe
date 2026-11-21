@@ -29,8 +29,8 @@ test('three agents in parallel: one row each in launch order, with kind, subject
     expect.stringMatching(/^◇ Read draw {14}start {3}reading its brief +0 · {6}2s$/)
   ])
 
-  roster = agentStep(roster, 'a2', 'Read', { file_path: '/r/hooks/cockpit/switch.ts' }, '/r')
-  roster = agentStep(roster, 'a2', 'Bash', { command: 'wc -l switch.ts' })
+  roster = agentStep(roster, 'a2', 'Read', { file_path: '/r/hooks/cockpit/switch.ts' }, '/r', T + 1_000)
+  roster = agentStep(roster, 'a2', 'Bash', { command: 'wc -l switch.ts' }, undefined, T + 1_500)
   const rows = text(roster, T + 12_000)
   // The row changes in place: the second agent stays second, saying what it does now.
   expect(rows[2]).toMatch(/^◇ Read switch {12}shell {3}wc -l switch\.ts +2 · {5}12s$/)
@@ -40,7 +40,7 @@ test('three agents in parallel: one row each in launch order, with kind, subject
 
 test('a running agent is lavender; a done one goes muted, says `done` and the head of its report, and its time freezes', () => {
   let roster = launched(['Audit tests'])
-  roster = agentStep(roster, 'a1', 'Read', { file_path: 'a.ts' })
+  roster = agentStep(roster, 'a1', 'Read', { file_path: 'a.ts' }, undefined, T + 1_000)
   const running = agentRows(roster, T + 5_000, 72)[1] ?? []
   expect(running[0]).toEqual({ t: '◇', color: C.agent })
   expect(running.find(p => p.t.startsWith('Audit tests'))?.color).toBe(C.agent)
@@ -86,7 +86,7 @@ test('a nested agent is inset 2 cells under its parent and rides with it; a thir
   // Launched after `Audit tests`, the child still sits under its parent: rows never move, they make room.
   roster = addAgent(roster, { id: 'n1', call: 'k1', parent: 'a1', name: 'Verify release dates', isBackground: false, at: T + 1_000 })
   roster = addAgent(roster, { id: 'n2', call: 'k2', parent: 'n1', name: 'Deep check', isBackground: false, at: T + 2_000 })
-  roster = agentStep(roster, 'n1', 'Read', { file_path: 'a.ts' })
+  roster = agentStep(roster, 'n1', 'Read', { file_path: 'a.ts' }, undefined, T + 2_000)
   const rows = text(roster, T + 18_000)
   expect(rows).toHaveLength(4)
   expect(rows[1]).toMatch(/^◇ Research toolchain /)
@@ -103,7 +103,7 @@ test('a nested agent is inset 2 cells under its parent and rides with it; a thir
 
 test('narrow: at 40 columns the subject goes, the name and the counts stay', () => {
   let roster = launched(['Audit register.tsx'])
-  roster = agentStep(roster, 'a1', 'Read', { file_path: 'hooks/register.tsx' })
+  roster = agentStep(roster, 'a1', 'Read', { file_path: 'hooks/register.tsx' }, undefined, T + 1_000)
   const rows = text(roster, T + 72_000, 40)
   expect(rows[1]).toBe('◇ Audit register.… read      1 ·  1m 12s')
   for (const r of rows) expect(vw(r)).toBe(40)
@@ -116,4 +116,15 @@ test('the pane`s ladder: `running` keeps the agents not done, `label` keeps the 
   expect(text(roster, T, 72, 'running').map(r => r.slice(0, 4))).toEqual(['┄ [ ', '◇ A2', '✕ A3'])
   expect(text(roster, T, 72, 'label')).toHaveLength(1)
   expect(agentRows([], T, 72)).toEqual([])
+})
+
+test('an agent`s subject changes at most once a second: a step within the second waits, then shows', () => {
+  let roster = launched(['Fast'])
+  roster = agentStep(roster, 'a1', 'Read', { file_path: 'a.ts' }, undefined, T + 1_000)
+  roster = agentStep(roster, 'a1', 'Read', { file_path: 'b.ts' }, undefined, T + 1_200)
+  roster = agentStep(roster, 'a1', 'Read', { file_path: 'c.ts' }, undefined, T + 1_400)
+
+  // Every step counts at once; the subject stays on a.ts until its second is up.
+  expect(text(roster, T + 1_500)[1]).toMatch(/^◇ Fast +read {4}a\.ts +3 · /)
+  expect(text(roster, T + 2_000)[1]).toMatch(/^◇ Fast +read {4}c\.ts +3 · /)
 })

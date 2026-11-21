@@ -106,6 +106,7 @@ test('a nested agent rides under its parent; the parent, woken for its child`s r
   await $.turn.start({ text: 'nest', turnId: 't1' })
   await $.tool.call({ tool: 'Agent', description: 'Nest parent', prompt: 'go', tool_use_id: 'c1' } as never)
   await spawn($, 'c1', 'Nest parent')
+  clock.now += 1_000
   await $.tool.call({ tool: 'Agent', description: 'Nest child', prompt: 'go', tool_use_id: 'k1', agentId: 'ag-Nest parent' } as never)
   await spawn($, 'k1', 'Nest child', 'ag-Nest parent')
 

@@ -131,7 +131,7 @@ export function registerCalls(on: On): void {
       }
 
       try {
-        await logStepEnd($, e, ran, end ?? when ?? 0)
+        await logStepEnd($, e, ran, end ?? when ?? 0, sessionCwd())
       } catch {
         // as above
       }

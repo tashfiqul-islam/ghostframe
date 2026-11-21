@@ -4,7 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
-import { logSaid } from '../../cockpit/log'
+import { logCited, logSaid } from '../../cockpit/log'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
 import { capTurns } from '../../shared/held'
@@ -62,7 +62,11 @@ async function noteFlow($: EngineInterface, content: Content) {
   }
 
   if (items.length > 0) await updateFlow($, list => capTurns([...list, ...items], FLOW_MAX, turn))
-  if (links.length > 0) await updateTally($, t => ({ ...t, sources: [...new Set([...t.sources, ...links])] }))
+  if (links.length > 0) {
+    await updateTally($, t => ({ ...t, sources: [...new Set([...t.sources, ...links])] }))
+    // Cockpit's `[ SOURCES ]` marks its pages as the answer numbers them.
+    await logCited($, earlier)
+  }
 }
 
 // The opener fixes its capability line now: what the turn used so far, plus the skills

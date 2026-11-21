@@ -136,7 +136,8 @@ export type Receipt = {
  * that launched it (`call`, '' when none did), its parent agent (null for the main loop's), its name (the call's
  * description), whether it runs in the background, its state, the kind and subject of its current step (or, once it
  * ended, the head of its report or the reason it failed), its step count, and when it started and ended (wall
- * clock, ms).
+ * clock, ms). The subject changes at most once a second (E.40): `subjectAt` is when it last did, and `pending` the
+ * newer step it will show once that second is up.
  */
 export type RosterAgent = {
   id: string
@@ -150,6 +151,30 @@ export type RosterAgent = {
   steps: number
   startedAt: number
   endedAt: number | null
+  subjectAt: number
+  pending: { kind: string; subject: string } | null
+}
+
+/** One to-do item (spec E.41): its id (the task's, or its place in a TodoWrite list), its text and its state. */
+export type TodoItem = { id: string; text: string; state: 'pending' | 'in_progress' | 'completed' }
+
+/** One file the turn changed (spec E.42): its path from the project root, `new` or `del` (or ''), and its +/− lines. */
+export type FileChange = { path: string; tag: '' | 'new' | 'del'; adds: number; dels: number }
+
+/** One page the turn read (spec E.43): its URL, a title (the answer's link text, a search result's, or ''), and its HTTP status ('' unknown). */
+export type SourcePage = { url: string; title: string; status: string }
+
+/**
+ * What a typed turn worked on, for `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: the session's to-do list (kept across
+ * turns until a turn starts with every item done; `isRevised` once items were added or removed after work began),
+ * the files changed and the pages read in order of first touch, and the pages the answer cites, in mark order.
+ */
+export type TurnWork = {
+  todo: TodoItem[]
+  isRevised: boolean
+  files: FileChange[]
+  sources: SourcePage[]
+  cited: { url: string; title: string }[]
 }
 
 declare module 'claude-code' {
@@ -175,6 +200,7 @@ declare module 'claude-code' {
       stepLog: Shaped<StepLog>
       receipts: Shaped<Receipt[]>
       roster: Shaped<RosterAgent[]>
+      work: Shaped<TurnWork>
     }
   }
 }

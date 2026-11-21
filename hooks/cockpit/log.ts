@@ -9,11 +9,12 @@ import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode,
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { isOn } from './switch'
+import { noteCited, noteWork, startWork } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
 // The agents of the current (or last) turn, and background agents still running from earlier ones (E.40).
-const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-1' })
+const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-2' })
 // Counters the timers bump while a turn runs: each second (the pane's running clock) and each spinner frame.
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
@@ -79,6 +80,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
     await update($, stepLog, log => newTurn(log, turn, at))
+    await startWork($)
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
   }
@@ -138,17 +140,32 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
 }
 
 /**
- * A main-loop call ends: its row settles.
+ * A main-loop call ends: its row settles, and what it did joins the turn's to-dos, files and pages.
  * @param $ the engine interface
  * @param e the call
  * @param outcome what `next(e)` resolved to; undefined when it threw
  * @param at the wall clock in ms
+ * @param cwd the session's folder, for paths from the project root
  */
-export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: Outcome | undefined, at: number): Promise<void> {
+export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: Outcome | undefined, at: number, cwd?: string): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: outcome ?? { isError: true, text: 'failed' } }))
+  const ran = outcome ?? { isError: true as const, text: 'failed' }
+  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
+  await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
+}
+
+/**
+ * The answer cites pages: their marks in `[ SOURCES ]`, in the order the transcript numbers them. An answer that
+ * cites nothing leaves the marks the turn already has.
+ * @param $ the engine interface
+ * @param cited the pages, first-cited order
+ */
+export async function logCited($: EngineInterface, cited: readonly { url: string; title: string }[]): Promise<void> {
+  if (!isOn() || cited.length === 0) return
+
+  await noteCited($, cited)
 }
 
 /**
@@ -219,7 +236,8 @@ export async function logAgentStart($: EngineInterface, start: Omit<AgentStart, 
 export async function logAgentStep($: EngineInterface, id: string, e: ToolCallInput, cwd: string | undefined): Promise<void> {
   if (!isOn()) return
 
-  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd) : list))
+  const at = await $.clock.now()
+  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd, at) : list))
 }
 
 /**

@@ -1,4 +1,5 @@
 import { sourceLabel } from '../../shared/url'
+import { sup } from '../../shared/text'
 import { parseInline } from '../prose'
 import type { Run } from '../prose'
 
@@ -12,10 +13,6 @@ export type Cite = { n: number; url: string; title: string }
 
 /** Numbers handed out so far in one message, by URL. */
 export type Numbering = Map<string, number>
-
-const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
-// oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
-export const sup = (n: number): string => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')
 
 // `[label](https://…)`, one level of parentheses allowed inside the URL.
 const LINK = /\[([^[\]\n]+)\]\((https?:\/\/[^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)/g
