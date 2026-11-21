@@ -1,7 +1,15 @@
-import { C, G, clip, clipMiddle, fmtDuration, pad, vw } from './grid'
-import type { Part } from './states'
-import { clipLabel, sourceLabel } from './research'
-import { clean, parseTests, stripNoise } from './testsummary'
+import { COMMIT_HEAD, DENIED, GIT_COMMIT, describe } from './shared/calls/describe'
+import { num, obj, s } from './shared/calls/fields'
+import { firstErrorLine, resultOf } from './shared/calls/results'
+import type { Tone } from './shared/calls/results'
+import { parseTests, stripNoise } from './shared/calls/tests'
+import { G } from './shared/layout'
+import type { Part } from './shared/parts'
+import { clip, pad, vw } from './shared/text'
+import { fmtDuration } from './shared/time'
+import { C } from './shared/tokens'
+import { clipPath } from './shared/url'
+import { clipLabel } from './research'
 
 // ─── Activity timeline (DESIGN.md §5.4 under §0.1 r1, r2, r14) ───────────────
 // One row per step: `● verb    target ……… result   time`, frameless. State is
@@ -13,7 +21,6 @@ export const VERB_W = 8
 export const TIME_W = 6 // `1m 12s`; a longer time widens its own cell, never clips
 export const LEAD = DOT_W + VERB_W // target column, from the content edge
 
-export type Tone = { text: string; color: string }
 export type Step = {
   dot: Tone
   verb: string
@@ -27,296 +34,6 @@ export type Step = {
 
 /** `isAsking`: a person-facing permission ask is open for this call (from `tool.check`). */
 export type CallFlags = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean; isAsking?: boolean }
-
-/**
- * A test runner in command position: the command's start or after a new line, `&&` `||`
- * `;` `|` `(`, past any `VAR=x`, a wrapper (`time`, `env`, `sudo`, `exec`, `nohup`,
- * `bash -c "`), a launcher (`npx`, `bunx`, `uvx`, `pnpm exec`, `npm run`, `bun run`,
- * `uv run`, `poetry run`, `pipenv run`, `python -m`…) and a path (`./node_modules/.bin/`).
- * Group 1 is the runner. A name in an argument (`cat vitest.config.ts`, `npm i -D jest`)
- * is not one.
- */
-export const TEST_CMD =
-  /(?:^|&&|\|\||[;|(\n])\s*(?:(?:\w+=\S*|time|env|sudo|exec|nohup)\s+|(?:ba|z|da)?sh\s+-c\s+["']?)*(?:(?:npx|bunx|uvx|pnpm\s+exec|pnpm|yarn|npm\s+run|bun\s+run|bun|uv\s+run|poetry\s+run|pipenv\s+run|python3?\s+-m)\s+)?(?:[\w.~-]*\/)*(vitest|jest|pytest|playwright\s+test|bun\s+test|claude\s+plugin\s+test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|cargo\s+test|go\s+test|dotnet\s+test|mocha)\b(?![./])/
-// The engine's own denial messages only; a shell's `Permission denied` is an ordinary error.
-export const DENIED = /doesn't want to proceed|user (denied|rejected)|^\s*Permission to use .+ has been denied/im
-
-// `git` and its global options (`-C dir`, `-c k=v`, `--no-pager`) before the subcommand.
-const GIT = String.raw`\bgit(?:\s+-[Cc]\s+\S+|\s+--[\w-]+(?:=\S+)?)*\s+`
-export const GIT_COMMIT = new RegExp(`${GIT}commit\\b`)
-export const GIT_PUSH = new RegExp(`${GIT}push\\b`)
-/** A commit's header line, `[main a1b2c3d] subject` or `[detached HEAD a1b2c3d] subject`: group 1 the SHA, 2 the subject. */
-export const COMMIT_HEAD = /^\[(?:detached HEAD|[^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m
-
-const s = (v: unknown): string | undefined => (typeof v === 'string' && v.trim().length > 0 ? v : undefined)
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
-const obj = (v: unknown): Record<string, unknown> | undefined => (isRecord(v) ? v : undefined)
-const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
-
-const HOME = /^(?:[A-Za-z]:)?\/(?:Users|home)\/[^/]+(?=\/|$)/i
-
-const norm = (x: string) => x.replace(/\\/g, '/').replace(/\/+$/, '')
-
-/**
- * A path as shown: forward slashes only; relative inside the session's folder;
- * `~` for the home folder outside it (`~/AppData/Local/Temp/x.txt`).
- */
-export function relPath(p: string, cwd: string | undefined): string {
-  const a = norm(p)
-
-  if (cwd !== undefined && cwd.length > 0) {
-    const b = norm(cwd)
-
-    if (a.toLowerCase().startsWith(`${b.toLowerCase()}/`)) return a.slice(b.length + 1)
-  }
-
-  return a.replace(HOME, '~')
-}
-
-/**
- * Clip a path in the middle at folder boundaries: keep its head (`~/AppData`, `src`)
- * and as many trailing segments as fit (`~/AppData/…/Temp/notebook-scratch.txt`).
- * Falls back to a plain middle clip when even the file name doesn't fit.
- */
-export function clipPath(p: string, n: number): string {
-  if (vw(p) <= n) return p
-
-  const parts = p.split('/')
-  const headCount = parts[0] === '~' || /^[A-Za-z]:$/.test(parts[0] ?? '') || parts[0] === '' ? 2 : 1
-
-  // Keep `lead` + `…/` + as many trailing segments as fit (always the file name).
-  const keepTail = (lead: string, stop: number): string | undefined => {
-    let tail = parts[parts.length - 1] ?? ''
-
-    if (vw(`${lead}…/${tail}`) > n) return undefined
-
-    for (let i = parts.length - 2; i >= stop; i--) {
-      const next = `${parts[i]}/${tail}`
-
-      if (vw(`${lead}…/${next}`) > n) break
-      tail = next
-    }
-
-    return `${lead}…/${tail}`
-  }
-
-  if (parts.length > headCount + 1) {
-    const withHead = keepTail(`${parts.slice(0, headCount).join('/')}/`, headCount)
-
-    if (withHead !== undefined) return withHead
-  }
-
-  if (parts.length > 1) {
-    const bare = keepTail('', 1)
-
-    if (bare !== undefined) return bare
-  }
-
-  return clipMiddle(p, n)
-}
-
-/** `mcp__github__list_pull_requests` → [`github`, `list_pull_requests`]. */
-export function mcpName(tool: string): [string, string] | undefined {
-  const m = /^mcp__(.+?)__(.+)$/.exec(tool)
-
-  return m ? [m[1] ?? '', m[2] ?? ''] : undefined
-}
-
-/** The verb and target of a call, or undefined when we don't know the tool's shape. */
-export function describe(
-  tool: string,
-  input: unknown,
-  cwd?: string
-): { verb: string; target: string; isPath: boolean; targetColor?: string; isLabel?: boolean } | undefined {
-  const i = obj(input)
-
-  if (i === undefined) return undefined
-
-  const path = (k: string) => {
-    const v = s(i[k])
-
-    return v === undefined ? undefined : { target: relPath(v, cwd), isPath: true }
-  }
-
-  switch (tool) {
-    case 'Read': {
-      const p = path('file_path')
-      return p && { verb: 'read', ...p }
-    }
-    case 'Edit':
-    case 'MultiEdit': {
-      const p = path('file_path')
-      return p && { verb: 'edit', ...p }
-    }
-    case 'NotebookEdit': {
-      const p = path('notebook_path')
-      return p && { verb: 'edit', ...p }
-    }
-    case 'Write': {
-      const p = path('file_path')
-      return p && { verb: 'write', ...p }
-    }
-    case 'Bash':
-    case 'PowerShell': {
-      const cmd = s(i['command'])?.split('\n')[0]?.trim()
-      const said = s(i['description'])?.replace(/\s+/g, ' ').trim()
-      return cmd === undefined ? undefined : { verb: TEST_CMD.test(cmd) ? 'test' : 'shell', target: said ?? cmd, isPath: false }
-    }
-    case 'Grep': {
-      const pat = s(i['pattern'])
-      const where = s(i['path']) ?? s(i['glob'])
-      return pat === undefined ? undefined : { verb: 'search', target: where ? `"${pat}" in ${relPath(where, cwd)}` : `"${pat}"`, isPath: false }
-    }
-    case 'Glob': {
-      const pat = s(i['pattern'])
-      return pat === undefined ? undefined : { verb: 'find', target: pat, isPath: false }
-    }
-    case 'WebFetch': {
-      const url = s(i['url'])
-      return url === undefined ? undefined : { verb: 'fetch', target: sourceLabel(url), isPath: false, isLabel: true, targetColor: C.muted } // a URL label, muted (§0.2)
-    }
-    case 'WebSearch': {
-      const q = s(i['query'])
-      return q === undefined ? undefined : { verb: 'search', target: q, isPath: false }
-    }
-    case 'Agent':
-    case 'Task': {
-      const d = s(i['description']) ?? s(i['subagent_type'])
-      return d === undefined ? undefined : { verb: 'agent', target: d, isPath: false }
-    }
-    case 'TodoWrite':
-      return Array.isArray(i['todos']) ? { verb: 'todo', target: `${i['todos'].length} items`, isPath: false } : undefined
-    case 'Skill': {
-      const name = s(i['skill'])
-      return name === undefined ? undefined : { verb: 'skill', target: name, isPath: false }
-    }
-    case 'AskUserQuestion': {
-      const qs = Array.isArray(i['questions']) ? i['questions'] : []
-      const first = s(obj(qs[0])?.['question'])
-
-      if (first === undefined) return undefined
-
-      return { verb: 'ask', target: qs.length > 1 ? `${qs.length} questions` : first, isPath: false }
-    }
-    case 'ExitPlanMode':
-      return { verb: 'plan', target: 'plan for review', isPath: false }
-    case 'EnterPlanMode':
-      return { verb: 'plan', target: 'entered plan mode', isPath: false }
-    case 'TaskCreate': {
-      const subject = s(i['subject'])
-      return subject === undefined ? undefined : { verb: 'task', target: subject, isPath: false }
-    }
-    case 'TaskUpdate': {
-      const id = s(i['taskId'])
-      const subject = s(i['subject'])
-      return id === undefined ? undefined : { verb: 'task', target: subject ? `#${id} ${subject}` : `#${id}`, isPath: false }
-    }
-    default: {
-      const m = mcpName(tool)
-      return m ? { verb: 'mcp', target: `${m[0]} · ${m[1]}`, isPath: false } : undefined
-    }
-  }
-}
-
-/** First meaningful line of an error text, without the "Exit code N" restatement or wrapper tags. */
-export function firstErrorLine(text: string): string {
-  const line = clean(text)
-    .replace(/<\/?[a-z_-]+>/gi, '')
-    .split('\n')
-    .map(l => l.trim())
-    .find(l => l.length > 0 && !/^(error:\s*)?exit code\b/i.test(l))
-
-  return line ?? ''
-}
-
-const lineCount = (t: string) => (t.length === 0 ? 0 : t.replace(/\n+$/, '').split('\n').length)
-
-/** +a −r from a structuredPatch. */
-export function patchCounts(patch: unknown): { adds: number; dels: number } | undefined {
-  if (!Array.isArray(patch)) return undefined
-
-  let adds = 0
-  let dels = 0
-
-  for (const h of patch) {
-    const lines = obj(h)?.['lines']
-
-    if (!Array.isArray(lines)) return undefined
-
-    for (const l of lines) {
-      if (typeof l !== 'string') continue
-      if (l.startsWith('+')) adds++
-      else if (l.startsWith('-')) dels++
-    }
-  }
-
-  return { adds, dels }
-}
-
-const plus = (n: number): Tone => ({ text: `+${n}`, color: C.add })
-const minus = (n: number): Tone => ({ text: `−${n}`, color: C.del })
-
-/** The result column for a finished, successful call; undefined → just `ok`. */
-export function resultOf(tool: string, output: unknown): Tone[] | undefined {
-  const o = obj(output)
-
-  switch (tool) {
-    case 'Read': {
-      const n = num(obj(o?.['file'])?.['numLines'])
-      return n === undefined ? undefined : [{ text: `${n} lines`, color: C.muted }]
-    }
-    case 'Edit':
-    case 'MultiEdit':
-    case 'Write': {
-      const c = patchCounts(o?.['structuredPatch'])
-
-      if (c && (c.adds > 0 || c.dels > 0)) return changeParts(c.adds, c.dels)
-
-      const content = s(o?.['content'])
-      const n = content === undefined ? 0 : lineCount(content)
-      return tool === 'Write' && n > 0 ? changeParts(n, 0) : undefined
-    }
-    case 'Grep': {
-      const mode = s(o?.['mode'])
-      const n = mode === 'content' ? num(o?.['numLines']) : mode === 'count' ? num(o?.['numMatches']) : num(o?.['numFiles'])
-      const unit = mode === 'content' ? 'lines' : mode === 'count' ? 'matches' : 'files'
-
-      if (n === undefined) return undefined
-
-      return [{ text: n === 0 ? 'no matches' : `${n} ${n === 1 ? unit.replace(/s$/, '') : unit}`, color: C.muted }]
-    }
-    case 'Glob': {
-      const n = num(o?.['numFiles'])
-      return n === undefined ? undefined : [{ text: n === 0 ? 'no files' : `${n} ${n === 1 ? 'file' : 'files'}`, color: C.muted }]
-    }
-    case 'WebSearch': {
-      const r = o?.['results']
-      return Array.isArray(r) ? [{ text: `${r.length} results`, color: C.muted }] : undefined
-    }
-    case 'WebFetch': {
-      const code = num(o?.['code'])
-      return code === undefined ? undefined : [{ text: `${code}`, color: code < 400 ? C.ok : C.err }]
-    }
-    case 'AskUserQuestion': {
-      const answers = Object.values(obj(o?.['answers']) ?? {}).filter((a): a is string => typeof a === 'string')
-
-      if (answers.length === 0) return undefined
-      if (answers.length > 1) return [{ text: `${answers.length} answered`, color: C.ok }]
-
-      return [{ text: `❯ ${clip(answers[0] ?? '', ANSWER_W)}`, color: C.link }]
-    }
-    case 'ExitPlanMode':
-      return [{ text: 'approved', color: C.ok }]
-    case 'TaskCreate': {
-      const id = s(obj(o?.['task'])?.['id'])
-      return id === undefined ? undefined : [{ text: `#${id}`, color: C.muted }]
-    }
-    default:
-      return undefined
-  }
-}
-
-const ANSWER_W = 28
 
 /** TaskUpdate's result reads its own input: the status it set. */
 function taskStatus(input: unknown): Tone[] | undefined {
@@ -622,11 +339,6 @@ export function foldOutput(stdout: string): { lines: string[]; more: number; las
 }
 
 // ─── Diff card (§5.5) ────────────────────────────────────────────────────────
-
-/** `+18 −4`, `+3`, `−2`: zero sides left out; none at all → []. */
-export function changeParts(adds: number, dels: number): Tone[] {
-  return [...(adds > 0 ? [plus(adds)] : []), ...(dels > 0 ? [minus(dels)] : [])]
-}
 
 /**
  * Top edge `+┄┄ [ title · +a −r ] ┄…┄ meta +` in exactly `width` cells:

@@ -1,8 +1,11 @@
 import { expect, test } from 'claude-code/testing'
 
-import { LEAD, activityHead, changeParts, clipPath, describe, diffRows, diffTop, foldOutput, layoutStep, relPath, stepOf } from '../hooks/activity'
+import { LEAD, activityHead, diffRows, diffTop, foldOutput, layoutStep, stepOf } from '../hooks/activity'
 import type { Step } from '../hooks/activity'
-import { vw } from '../hooks/grid'
+import { describe } from '../hooks/shared/calls/describe'
+import { changeParts } from '../hooks/shared/calls/results'
+import { vw } from '../hooks/shared/text'
+import { clipPath, relPath } from '../hooks/shared/url'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const CWD = 'D:\\Projects\\app'

@@ -1,12 +1,13 @@
-import { COMMIT_HEAD, GIT_COMMIT, GIT_PUSH, TEST_CMD, changeParts } from './activity'
-import { C, fmtDuration, pad, vw } from './grid'
-import { clipLabel, sourceLabel } from './research'
+import { changeParts } from './shared/calls/results'
+import type { TestCounts } from './shared/calls/tests'
+import type { Ship } from './shared/calls/ships'
+import type { Part } from './shared/parts'
+import { pad, vw } from './shared/text'
+import { fmtDuration } from './shared/time'
+import { C } from './shared/tokens'
+import { sourceLabel } from './shared/url'
+import { clipLabel } from './research'
 import { frameLines } from './states'
-import { clean, stripNoise } from './testsummary'
-import type { TestCounts } from './testsummary'
-import type { Part } from './states'
-
-export { parseTests } from './testsummary'
 
 // ─── Outcome cards (DESIGN.md §5.15, §5.16 under §0.1 r10, r11) ──────────────
 // Read from a shell call's own output when it ends (tool.call), stored by its id,
@@ -16,15 +17,6 @@ export { parseTests } from './testsummary'
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 export type TestRun = TestCounts & { id: string; turn?: string | null; runner: string }
-
-/** The runner a command starts, in words (`vitest`, `bun test`, `pytest`). */
-export function runnerOf(command: string): string | undefined {
-  const m = TEST_CMD.exec(command)
-
-  if (m === null) return undefined
-
-  return (m[1] ?? m[0]).replace(/\s+/g, ' ').replace(/ run /, ' ')
-}
 
 /** The previous run of the same runner, before `id`. */
 export function previousRun(runs: readonly TestRun[], id: string): TestRun | undefined {
@@ -131,76 +123,6 @@ export function mergeShips(stepList: readonly Turned[], shipList: readonly Ship[
 
 // ─── Shipped ─────────────────────────────────────────────────────────────────
 
-export type Ship = {
-  id: string
-  turn?: string | null
-  commit?: { sha: string; subject: string; files: number; adds: number; dels: number }
-  push?: { from: string; to: string }
-  pr?: { n: number; url: string; head?: string; base?: string }
-}
-
-/** A command's words, quotes respected: `--title "fix -B main"` is two words, the second still quoted. */
-const words = (command: string) => command.match(/(?:"[^"]*"|'[^']*'|[^\s"'])+/g) ?? []
-const unquote = (word: string) => word.replace(/"([^"]*)"|'([^']*)'/g, '$1$2')
-
-/** A flag's value (`--base main`, `--base=main`, `-B main`); a flag inside a quoted word is not one. */
-const flag = (command: string, names: string[]) => {
-  const ws = words(command)
-
-  for (const n of names) {
-    for (const [i, w] of ws.entries()) {
-      const next = ws[i + 1]
-
-      if (w === n && next !== undefined) return unquote(next)
-      if (w.startsWith(`${n}=`)) return unquote(w.slice(n.length + 1))
-    }
-  }
-
-  return undefined
-}
-
-export const isShipCommand = (command: string) => GIT_COMMIT.test(command) || GIT_PUSH.test(command) || /\bgh\s+pr\s+create\b/.test(command)
-
-/** What a shell call shipped, read from its command and output; nothing → undefined. */
-export function parseShip(id: string, command: string, raw: string): Ship | undefined {
-  const text = clean(raw)
-  const ship: Ship = { id }
-
-  if (GIT_COMMIT.test(command)) {
-    const head = COMMIT_HEAD.exec(text)
-    const stat = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/.exec(text)
-
-    if (head !== null) {
-      ship.commit = {
-        sha: (head[1] ?? '').slice(0, 7),
-        subject: (head[2] ?? '').trim(),
-        files: Number(stat?.[1] ?? 0),
-        adds: Number(stat?.[2] ?? 0),
-        dels: Number(stat?.[3] ?? 0)
-      }
-    }
-  }
-
-  if (GIT_PUSH.test(command)) {
-    const m = /^\s*[+*=!-]?\s*(?:[0-9a-f]+\.\.\.?[0-9a-f]+|\[new branch\]|\[new tag\])\s+(\S+)\s+->\s+(\S+)/m.exec(text)
-
-    if (m !== null) ship.push = { from: m[1] ?? '', to: m[2] ?? '' }
-  }
-
-  if (/\bgh\s+pr\s+create\b/.test(command)) {
-    const m = /(https:\/\/\S+\/pull\/(\d+))/.exec(text)
-
-    if (m !== null) {
-      const head = flag(command, ['--head', '-H'])
-      const base = flag(command, ['--base', '-B'])
-
-      ship.pr = { n: Number(m[2]), url: m[1] ?? '', ...(head !== undefined ? { head } : {}), ...(base !== undefined ? { base } : {}) }
-    }
-  }
-
-  return ship.commit || ship.push || ship.pr ? ship : undefined
-}
-
 const LABEL_W = 8
 const label = (t: string): Part => ({ t: pad(t, LABEL_W), color: C.muted })
 
@@ -243,18 +165,4 @@ export function shippedFrame(width: number, ship: Ship): Part[][] {
   const meta = ship.pr !== undefined ? 'PR open' : ship.push !== undefined ? 'pushed' : 'committed'
 
   return frameLines(width, 'SHIPPED', { t: meta, color: C.ok }, rows)
-}
-
-/** A shell call's output as text: stdout and stderr, or the error text the model read. */
-export function shellText(output: unknown): string {
-  if (typeof output === 'string') return stripNoise(output)
-
-  if (typeof output === 'object' && output !== null) {
-    const stdout = 'stdout' in output ? output.stdout : undefined
-    const stderr = 'stderr' in output ? output.stderr : undefined
-
-    return stripNoise([stdout, stderr].filter((x): x is string => typeof x === 'string').join('\n'))
-  }
-
-  return ''
 }

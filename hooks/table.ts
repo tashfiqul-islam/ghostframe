@@ -1,7 +1,8 @@
-import { cellWidth, clipMiddle, cutWords, vw } from './grid'
+import { cellWidth, clipMiddle, cutWords, vw } from './shared/text'
+import { sourceLabel } from './shared/url'
 import { drawnWidth, parseInline, runWidth, toWords, wrapWords } from './prose'
 import type { Run } from './prose'
-import { cutLabel, parseCited, sourceLabel, sup } from './research'
+import { cutLabel, parseCited, sup } from './research'
 import type { Numbering } from './research'
 
 // ─── Plain table shape (DESIGN.md §5.18, amended) ────────────────────────────

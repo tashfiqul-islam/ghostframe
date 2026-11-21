@@ -1,7 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
-import { endTurn, formatSpan, newLog, settleStep, startStep, stepRows } from '../hooks/steplog'
+import { endTurn, newLog, settleStep, startStep, stepRows } from '../hooks/steplog'
 import type { Outcome, StepLog } from '../hooks/steplog'
+import { formatSpan } from '../hooks/shared/time'
 
 const W = 72
 const text = (log: StepLog, rows = 30, width = W) => stepRows(log, width, rows).map(row => row.map(p => p.t).join(''))

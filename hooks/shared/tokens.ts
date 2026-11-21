@@ -20,5 +20,3 @@ export const C = {
   add: '#96d292', // `+N`, added diff lines (the same green as `ok`, named for diffs)
   del: '#ec84a0' // `−N`, removed diff lines (the same red as `err`, named for diffs)
 } as const
-
-export type Token = keyof typeof C

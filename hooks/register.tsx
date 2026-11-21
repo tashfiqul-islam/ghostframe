@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TestRunStamp, TurnClose } from '../types'
-import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
+import { VERB_W, activityHead, diffRows, diffTop, foldOf, foldRow, layoutStep, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
 import {
@@ -21,13 +21,26 @@ import {
   runningTurn,
   startCockpit
 } from './cockpit'
-import { C, G, Rule, clip, fmtClock, fmtDuration, fmtTokens, layout, pad, ruleWidth, vw } from './grid'
-import type { Lay, Ui } from './grid'
+import { mcpName, runnerOf } from './shared/calls/describe'
+import { changeParts } from './shared/calls/results'
+import { isShipCommand, parseShip, shellText } from './shared/calls/ships'
+import { parseTests, stripNoise } from './shared/calls/tests'
+import { capTurns, remember } from './shared/held'
+import { G, layout, ruleWidth } from './shared/layout'
+import type { Lay } from './shared/layout'
+import { fitParts, partsWidth } from './shared/parts'
+import type { Part } from './shared/parts'
+import { Rule } from './shared/rule'
+import type { Ui } from './shared/rule'
+import { clip, pad, vw } from './shared/text'
+import { fmtClock, fmtDuration, fmtTokens } from './shared/time'
+import { C } from './shared/tokens'
+import { relPath } from './shared/url'
 import { splitBlocks } from './blocks'
 import { figureLines } from './figure'
 import type { Block } from './blocks'
 import { NO_CAPS, NO_TALLY, capsLine, hasCaps, hookOutcome, skillName, spinnerWord, tallyText, withHook, withMcp, withSkill } from './live'
-import { cardCalls, isShipCommand, mergeShips, parseShip, parseTests, previousRun, runnerOf, shellText, shippedFrame, testsFrame } from './outcome'
+import { cardCalls, mergeShips, previousRun, shippedFrame, testsFrame } from './outcome'
 import { parseInline, spansOf, toWords, wrapPlain, wrapWords } from './prose'
 import type { Run, Span } from './prose'
 import { footnoteLines, parseCited, sourcesFrame, sup } from './research'
@@ -35,9 +48,7 @@ import type { sourcesCites } from './research'
 import type { Numbering } from './research'
 import { GAP as TABLE_GAP, cellAlign, cellLines, clipRuns, headerAlign, numberTable, padding, streamLayout } from './table'
 import type { Drawn, Frozen } from './table'
-import { stripNoise } from './testsummary'
-import { commandNotice, fitParts, frameLabel, frameRow, partsWidth, planLine, tasksFrame } from './states'
-import type { Part } from './states'
+import { commandNotice, frameLabel, frameRow, planLine, tasksFrame } from './states'
 
 // Session state (survives a reload). Change a shape tag when its fields change.
 const prompts = atom({ plugin: 'ghostframe', key: 'prompts' } as const, [] as PromptStamp[], { shape: 'prompts-1' })
@@ -67,23 +78,6 @@ const FLOW_MAX = 600
 const OPENERS_MAX = 300
 const FIRSTS_MAX = 500
 
-/**
- * A turn-keyed list cut back to `max` entries a whole turn at a time, oldest first, so an
- * old row never loses part of its turn on a redraw. `current`'s turn is never cut.
- */
-// shortcut: one filter pass per dropped turn, and a current turn longer than `max` stays
-// whole; fine at caps of a few hundred, batch the cut if a cap grows to many thousands.
-const capTurns = <T extends { turn?: string | null | undefined }>(list: T[], max: number, current: string | null | undefined): T[] => {
-  let out = list
-
-  while (out.length > max && out[0] !== undefined && out[0].turn !== current) {
-    const oldest = out[0].turn
-
-    out = out.filter(x => x.turn !== oldest)
-  }
-
-  return out
-}
 // True while a main-loop turn runs: tables keep their columns until it completes.
 const streaming = atom({ plugin: 'ghostframe', key: 'streaming' } as const, false, { shape: 'streaming-1' })
 // Each streamed table's frozen columns; a reply taller than the window keeps them for good.
@@ -125,19 +119,6 @@ const messageOf = (request: string, key: string, turn: string | null) => {
   return owner
 }
 const GAPS_MAX = 2000
-
-// Least recently remembered goes first: a key written again moves to the newest end.
-const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number) => {
-  m.delete(k)
-  m.set(k, v)
-
-  while (m.size > max) {
-    const oldest = m.keys().next().value
-
-    if (oldest === undefined) break
-    m.delete(oldest)
-  }
-}
 
 function frozenCard(key: string, ready: boolean, make: () => Part[][][]): Part[][][] {
   const held = cardLines.get(key)

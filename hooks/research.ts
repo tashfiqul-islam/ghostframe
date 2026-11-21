@@ -1,8 +1,11 @@
-import { C, G, clip, clipMiddle, pad, vw } from './grid'
+import { G } from './shared/layout'
+import type { Part } from './shared/parts'
+import { clip, clipMiddle, pad, vw } from './shared/text'
+import { C } from './shared/tokens'
+import { sourceLabel } from './shared/url'
 import { parseInline } from './prose'
 import type { Run } from './prose'
 import { frameLines } from './states'
-import type { Part } from './states'
 
 // ─── Research (DESIGN.md §5.13 under §0.1 r7) ────────────────────────────────
 // Inline links in a paragraph become blue superscript markers; under the paragraph,
@@ -14,8 +17,6 @@ export type Cite = { n: number; url: string; title: string }
 
 /** Numbers handed out so far in one message, by URL. */
 export type Numbering = Map<string, number>
-
-export const MAX_FOOTNOTES = 4
 
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 // oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
@@ -210,79 +211,6 @@ export function sourcesCites(items: readonly { title: string; url: string }[], n
   return out
 }
 
-/**
- * A source as a footnote names it:
- * - a GitHub issue or PR → `repo#123` (`claude-code#108931`)
- * - a GitHub repo page → `owner/repo`
- * - anything else → host without `www.`, ` · `, its last meaningful path segment
- *   (`bun.com · runtime-behavior`); a bare host stays the host.
- * A trailing hash or ID on the slug is dropped (`…-f8381f2fbd79`). Only what still
- * doesn't fit is clipped, by `clipLabel`.
- */
-export function sourceLabel(url: string): string {
-  const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?:www\.)?([^/?#]+)([^?#]*)/i.exec(url.trim())
-  const host = cleanHost(urlHost(url) ?? m?.[1] ?? url)
-  const segs = (m?.[2] ?? '')
-    .split('/')
-    .map(x => {
-      try {
-        return decodeURIComponent(x)
-      } catch {
-        return x
-      }
-    })
-    .map(x => x.replace(INVISIBLE, ''))
-    .filter(x => x.length > 0)
-
-  if (host === 'github.com' && segs.length >= 2) {
-    const [, repo, kind, n] = segs
-
-    if ((kind === 'issues' || kind === 'pull') && n !== undefined && /^\d+$/.test(n)) return `${repo}#${n}`
-    if (segs.length === 2) return `${segs[0]}/${repo}`
-  }
-
-  const meaningful = segs.map(x => x.replace(/\.(html?|md|php|aspx?)$/i, '')).filter(x => x.length > 0 && !/^(index|default)$/i.test(x))
-  const last = meaningful[meaningful.length - 1]
-
-  return last === undefined ? host : `${host} · ${dropId(last)}`
-}
-
-// Control and format characters (U+202E and the like) would reorder or hide a label.
-const INVISIBLE = /[\p{Cc}\p{Cf}]/gu
-
-/**
- * A host as a label shows it, whichever path read it: no invisible characters, no
- * `user@` (the last `@` wins, as in the URL parser), no `www.`, lower case.
- */
-const cleanHost = (host: string) =>
-  host
-    .replace(INVISIBLE, '')
-    .replace(/^.*@/, '')
-    .replace(/^www\./i, '')
-    .toLowerCase()
-
-/** The host the URL parser reads (no `user@`, keeps a port), without `www.`; not a URL → undefined. */
-function urlHost(url: string): string | undefined {
-  try {
-    const { host } = new URL(url.trim())
-
-    return host.length > 0 ? host.replace(/^www\./, '') : undefined
-  } catch {
-    return undefined // not an absolute URL (`bun.sh/x`): the pattern reads it
-  }
-}
-
-// A slug's trailing hash or ID: a final `-`/`_` chunk of 8+ hex characters or digits, with
-// at least one digit (so an English word made of a–f letters stays).
-const TRAILING_ID = /[-_](?=[0-9a-f]*\d)[0-9a-f]{8,}$/i
-
-/** `bun-1-4-is-it-ready-f8381f2fbd79` → `bun-1-4-is-it-ready`; a slug that is all ID stays. */
-const dropId = (slug: string) => {
-  const t = slug.replace(TRAILING_ID, '')
-
-  return t.length > 0 ? t : slug
-}
-
 const SLUG_LABEL = /^(.+?) · (.+)$/
 
 /**
@@ -382,13 +310,6 @@ function titled(c: Cite, repeated: boolean): string {
   return (generic || repeated) && short.toLowerCase() !== key ? `${title} · ${short}` : title
 }
 
-/** `https://www.vitest.dev/guide/cli/` → `vitest.dev/guide/cli`. */
-export const shortUrl = (url: string) =>
-  url
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .replace(/\/$/, '')
-
 const NOTE_LEAD = `${G.hEdge.repeat(4)} `
 const NOTE_GAP = '   '
 const NOTE_MIN = 12 // the narrowest entry worth its own room: `¹ ` and about ten cells of address
@@ -453,18 +374,4 @@ export function sourcesFrame(cites: readonly Cite[], width: number, listed: read
   const meta = [cites.length > 0 ? `${cites.length} cited` : '', listed.length > 0 ? `${listed.length} listed` : ''].filter(x => x.length > 0).join(G.sep)
 
   return frameLines(width, 'SOURCES', { t: meta, color: C.muted }, rows)
-}
-
-/** Every distinct http(s) link in a text, for the turn's source count. */
-export function linksIn(text: string): string[] {
-  const out: string[] = []
-
-  // Every web address, linked or bare (a link's own URL is one of them).
-  for (const m of text.matchAll(BARE_URL)) {
-    const url = m[0].replace(/[.,;:!?'"]+$/, '')
-
-    if (!out.includes(url)) out.push(url)
-  }
-
-  return out
 }

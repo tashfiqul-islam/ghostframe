@@ -1,7 +1,9 @@
-import { mcpName } from './activity'
-import { C, clip, vw } from './grid'
+import { mcpName } from './shared/calls/describe'
+import type { Part } from './shared/parts'
+import { clip, vw } from './shared/text'
+import { C } from './shared/tokens'
+import { splitUrl } from './shared/url'
 import { frameBottom, frameRow, frameTop } from './states'
-import type { Part } from './states'
 
 // ─── Browser session (DESIGN.md §5.14) ───────────────────────────────────────
 // A run of browser calls draws as one [ BROWSER ] frame across its rows: the first
@@ -68,13 +70,6 @@ export function browserVerb(b: BrowserTool, input: unknown): string {
   const a = actionOf(b, input)
 
   return VERBS.find(([re]) => re.test(a))?.[1] ?? clip(a.replace(/_/g, ' '), 8)
-}
-
-/** `https://localhost:5173/products?page=6` → [`localhost:5173`, `/products?page=6`]. */
-export function splitUrl(url: string): [string, string] {
-  const m = /^(?:[a-z][a-z0-9+.-]*:\/\/)?([^/?#]*)(.*)$/i.exec(url.trim())
-
-  return [m?.[1] ?? url, m?.[2] ?? '']
 }
 
 /** What the step acts on, from the call's own input; undefined → the verb alone. */

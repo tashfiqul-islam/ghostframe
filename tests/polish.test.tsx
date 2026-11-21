@@ -2,8 +2,10 @@ import { expect, test } from 'claude-code/testing'
 
 import { stepOf, foldRow } from '../hooks/activity'
 import { splitBlocks } from '../hooks/blocks'
-import { C, clip, clipMiddle, vw } from '../hooks/grid'
-import { footnoteLines, sourceLabel, sourcesFrame } from '../hooks/research'
+import { clip, clipMiddle, vw } from '../hooks/shared/text'
+import { C } from '../hooks/shared/tokens'
+import { sourceLabel } from '../hooks/shared/url'
+import { footnoteLines, sourcesFrame } from '../hooks/research'
 import { commandNotice } from '../hooks/states'
 import { textAt } from './text'
 

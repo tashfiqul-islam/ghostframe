@@ -1,45 +1,16 @@
-import { C, G, clip, pad, vw } from './grid'
+import { G } from './shared/layout'
+import { fitParts, partsWidth } from './shared/parts'
+import type { Part } from './shared/parts'
+import { clip, pad, vw } from './shared/text'
+import { C } from './shared/tokens'
 
 // ─── States and notices (DESIGN.md §5.10 under §0.1) ─────────────────────────
 // Pure line builders: every framed line is exactly `width` cells, so no row can
 // wrap and no edge can drift. Anything we can't read → undefined, and the caller
 // hands the site back to the engine.
 
-/** One coloured piece of a framed line. */
-export type Part = { t: string; color: string; bold?: boolean; href?: string }
-
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 const obj = (v: unknown): Record<string, unknown> | undefined => (isRecord(v) ? v : undefined)
-
-/** Clip `parts` to `n` cells (the cut part ends in `…`), then pad with spaces to exactly `n`. */
-export function fitParts(parts: readonly Part[], n: number): Part[] {
-  const out: Part[] = []
-  let used = 0
-
-  for (const p of parts) {
-    const room = n - used
-
-    if (room <= 0) break
-
-    const w = vw(p.t)
-
-    if (w <= room) {
-      out.push(p)
-      used += w
-    } else {
-      const t = clip(p.t, room)
-      out.push({ ...p, t })
-      used += vw(t)
-      break
-    }
-  }
-
-  if (used < n) out.push({ t: ' '.repeat(n - used), color: C.text })
-
-  return out
-}
-
-export const partsWidth = (parts: readonly Part[]) => parts.reduce((w, p) => w + vw(p.t), 0)
 
 /**
  * A whole frame, `width` cells on every line:

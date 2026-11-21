@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { stepOf, foldRow, foldSummary } from '../hooks/activity'
 import { splitBlocks } from '../hooks/blocks'
 import { parseCited } from '../hooks/research'
-import { partsWidth } from '../hooks/states'
+import { partsWidth } from '../hooks/shared/parts'
 
 const VIEW = { columns: 120, rows: 40 }
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }

@@ -2,9 +2,9 @@ import { expect, test } from 'claude-code/testing'
 
 import { splitBlocks } from '../hooks/blocks'
 import { WIDER_NOTE, figureLines, toneRow } from '../hooks/figure'
-import { vw } from '../hooks/grid'
+import { partsWidth } from '../hooks/shared/parts'
+import { vw } from '../hooks/shared/text'
 import { cellLines, layoutTable } from '../hooks/table'
-import { partsWidth } from '../hooks/states'
 
 // Verbatim from https://mdxcn.dev/llms.txt `## MDX`: one fence per recipe type in the
 // mdxcn skill's recipes.md that has fenced ASCII (Flow has none).

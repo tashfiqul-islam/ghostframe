@@ -12,8 +12,8 @@ import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steplog'
 import type { Outcome } from './steplog'
 import type { Receipt } from '../types'
-import type { Ui } from './grid'
-import type { Part } from './states'
+import type { Part } from './shared/parts'
+import type { Ui } from './shared/rule'
 
 type On = Parameters<Register>[0]
 type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>

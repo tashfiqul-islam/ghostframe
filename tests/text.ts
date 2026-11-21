@@ -4,7 +4,7 @@
 // one-row overflow-hidden fillers, and Text that truncates or wraps. Engine nodes draw
 // their `text` prop (Markdown) or nothing.
 
-import { vw } from '../hooks/grid'
+import { vw } from '../hooks/shared/text'
 
 type Node = string | { type: string; props?: Record<string, unknown>; children?: unknown[] }
 

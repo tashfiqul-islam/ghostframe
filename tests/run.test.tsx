@@ -3,9 +3,12 @@ import { expect, test } from 'claude-code/testing'
 import { stepOf } from '../hooks/activity'
 import { browserTarget, browserTool, browserVerb, openRunBefore, urlBar, browserTop, browserBottom } from '../hooks/browser'
 import { NO_CAPS, NO_TALLY, capsLine, hookOutcome, spinnerWord, tallyText } from '../hooks/live'
-import { parseShip, parseTests, runnerOf, shippedFrame, testsFrame } from '../hooks/outcome'
+import { shippedFrame, testsFrame } from '../hooks/outcome'
 import { footnoteLines, parseCited, sourcesFrame, sup } from '../hooks/research'
-import { partsWidth } from '../hooks/states'
+import { runnerOf } from '../hooks/shared/calls/describe'
+import { parseShip } from '../hooks/shared/calls/ships'
+import { parseTests } from '../hooks/shared/calls/tests'
+import { partsWidth } from '../hooks/shared/parts'
 
 const VIEW = { columns: 120, rows: 40 }
 const W = 96 // the measure at 120 columns (min(96, 120 − 14))

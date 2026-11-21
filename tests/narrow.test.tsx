@@ -1,10 +1,11 @@
 import { expect, test } from 'claude-code/testing'
 
 import { layoutStep, stepOf } from '../hooks/activity'
-import { INSET, layout, vw } from '../hooks/grid'
+import { INSET, layout } from '../hooks/shared/layout'
+import { partsWidth } from '../hooks/shared/parts'
+import { vw } from '../hooks/shared/text'
 import { footnoteLines, sourcesFrame } from '../hooks/research'
 import { spansOf } from '../hooks/prose'
-import { partsWidth } from '../hooks/states'
 import { shippedFrame, testsFrame } from '../hooks/outcome'
 import { browserTop, urlBar } from '../hooks/browser'
 

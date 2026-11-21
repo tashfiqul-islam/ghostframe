@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { vw } from '../hooks/grid'
+import { vw } from '../hooks/shared/text'
 import { splitBlocks } from '../hooks/blocks'
 import { parseInline, runWidth, toWords, wrapPlain, wrapWords } from '../hooks/prose'
 

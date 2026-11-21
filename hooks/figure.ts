@@ -1,6 +1,9 @@
-import { C, G, clip, vw } from './grid'
-import { fitParts, frameBottom, frameRow, frameTop, partsWidth } from './states'
-import type { Part } from './states'
+import { G } from './shared/layout'
+import { fitParts, partsWidth } from './shared/parts'
+import type { Part } from './shared/parts'
+import { clip, vw } from './shared/text'
+import { C } from './shared/tokens'
+import { frameBottom, frameRow, frameTop } from './states'
 
 // ─── mdxcn figures (DESIGN.md §5.7) ──────────────────────────────────────────
 // The mdxcn skill writes its figures as a bare fence holding framed ASCII (from

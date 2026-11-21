@@ -1,12 +1,15 @@
 // Cockpit's step log: one turn's tool calls as `[ STEPS ]` rows (spec E.12, E.37, E.39, H.5; amendments 1
 // and 2). Pure: hooks/cockpit.tsx keeps the log in $.state and draws what `stepRows` returns.
 import type { LastTurn, Receipt, StepLog, LogStep, StepMark } from '../types'
-import { DENIED, describe, firstErrorLine, mcpName, relPath, resultOf, TEST_CMD } from './activity'
-import { cellWidth, vw } from './grid'
-import { isShipCommand, parseShip, runnerOf, shellText } from './outcome'
-import type { Part } from './states'
-import { parseTests } from './testsummary'
-import { C } from './tokens'
+import { DENIED, describe, mcpName, TEST_CMD, runnerOf } from './shared/calls/describe'
+import { firstErrorLine, resultOf } from './shared/calls/results'
+import { isShipCommand, parseShip, shellText } from './shared/calls/ships'
+import { parseTests } from './shared/calls/tests'
+import type { Part } from './shared/parts'
+import { cellWidth, vw } from './shared/text'
+import { formatSpan } from './shared/time'
+import { C } from './shared/tokens'
+import { relPath } from './shared/url'
 
 export type { LogStep, StepLog } from '../types'
 
@@ -64,26 +67,6 @@ export function noteMode(log: StepLog, mode: string, at: number): StepLog {
 /** A step waits on the person's permission answer. */
 export function askStep(log: StepLog, id: string): StepLog {
   return log.asking.includes(id) ? log : { ...log, asking: [...log.asking, id] }
-}
-
-const two = (n: number) => String(n).padStart(2, '0')
-
-/**
- * One duration, as spec H.5 writes it everywhere: `0.4s`, `12s`, `4m 03s`, `1h 12m`, `1d 02h`.
- * @param ms the duration
- * @returns the string, at most 7 cells
- */
-export function formatSpan(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return ''
-  if (ms < 1_000) return `${(Math.floor(ms / 100) / 10).toFixed(1)}s`
-
-  const s = Math.floor(ms / 1_000)
-
-  if (s < 60) return `${s}s`
-  if (s < 3_600) return `${Math.floor(s / 60)}m ${two(s % 60)}s`
-  if (s < 86_400) return `${Math.floor(s / 3_600)}h ${two(Math.floor((s % 3_600) / 60))}m`
-
-  return `${Math.floor(s / 86_400)}d ${two(Math.floor((s % 86_400) / 3_600))}h`
 }
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)

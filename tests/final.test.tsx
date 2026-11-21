@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { vw } from '../hooks/grid'
+import { vw } from '../hooks/shared/text'
 
 const respond = (content: unknown[], uuid: string) =>
   ({

@@ -1,7 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import { stepOf } from '../hooks/activity'
-import { commandNotice, frameLines, partsWidth, planLine, tasksFrame } from '../hooks/states'
+import { commandNotice, frameLines, planLine, tasksFrame } from '../hooks/states'
+import { partsWidth } from '../hooks/shared/parts'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const VIEW = { columns: 120, rows: 40 }
