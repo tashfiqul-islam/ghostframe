@@ -1,7 +1,7 @@
 // A folded group of reads and searches (`ToolGroup`): one step row per call, the fold row, or the engine's line.
 import type { On } from 'claude-code'
 
-import { drawQuietGroup, isQuiet } from '../../../cockpit/left'
+import { drawQuietGroup, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { activityHead } from '../../activity/rule'
@@ -29,7 +29,7 @@ export function registerToolGroup(on: On): void {
     }
 
     // Quiet: the steps are the pane's; only a push or a pull request leaves a row here (E.5).
-    if (isQuiet()) {
+    if (isQuietRow(e.requestId)) {
       return drawQuietGroup($, e, ruleWidth(lay) ?? width)
     }
 

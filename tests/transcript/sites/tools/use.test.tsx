@@ -343,35 +343,39 @@ test('a browser run is one frame across its rows; the next block and the close r
 
 // ─── Docked Cockpit: an agent launch is the pane's ──────────────────
 
-test('docked: an `Agent` call`s row draws nothing; undocked it is drawn as before', ON, async ($, on) => {
+test('docked: an `Agent` call`s row draws nothing; one drawn before the dock keeps the engine`s row', ON, async ($, on) => {
   engine(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
-  const row = {
-    plugin: 'ghostframe',
-    surface: 'terminal',
-    component: 'ToolUse',
-    requestId: 'c1',
-    viewport: VIEW,
-    props: {
-      tool_use_id: 'c1',
-      tool: 'Agent',
-      input: { description: 'Read seat', prompt: 'go' },
-      isRunning: false,
-      isErrored: false,
-      isInterrupted: false,
-      isExpanded: false
-    }
-  } as never
-  const texts = async () => {
-    const ui = await $.ui.mount(row)
+  const row = (id: string) =>
+    ({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolUse',
+      requestId: id,
+      viewport: VIEW,
+      props: {
+        tool_use_id: id,
+        tool: 'Agent',
+        input: { description: 'Read seat', prompt: 'go' },
+        isRunning: false,
+        isErrored: false,
+        isInterrupted: false,
+        isExpanded: false
+      }
+    }) as never
+  const texts = async (id: string) => {
+    const ui = await $.ui.mount(row(id))
     const t = (await ui.findAll({ type: 'Text' })).map(x => x.text).filter(x => x.trim().length > 0)
     await ui.unmount()
 
     return t
   }
 
-  expect(await texts()).not.toEqual([])
+  const before = await texts('c1')
+  expect(before).not.toEqual([])
   const pane = await $.ui.mount(PANE)
-  expect(await texts()).toEqual([])
+  expect(await texts('c2')).toEqual([])
+  // A row drawn before the pane docked never changes.
+  expect(await texts('c1')).toEqual(before)
   await pane.unmount()
 })

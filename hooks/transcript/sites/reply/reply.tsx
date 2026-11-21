@@ -2,7 +2,7 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { drawTurnReceipt, isQuiet } from '../../../cockpit/left'
+import { drawTurnReceipt, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -39,7 +39,7 @@ export function registerReply(on: On): void {
     // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
     // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
     // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
-    if (isQuiet() && (await isHiddenNarration($, e.props.text))) {
+    if (isQuietRow(e.requestId) && (await isHiddenNarration($, e.props.text))) {
       const { Box } = $.ui.resolve(e)
 
       return <Box />
@@ -124,7 +124,7 @@ export function registerReply(on: On): void {
     // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
     // every tool call too). A reply that opens on a wide table gets the label on its own row.
     // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
-    const isQuietLeft = isQuiet()
+    const isQuietLeft = isQuietRow(e.requestId)
     const isOpener = isQuietLeft
       ? place !== undefined && isQuietOpenerAt(blocksSoFar, place.at)
       : e.props.isFirstOfReply && isTurnOpener(await readFirstTexts($), e.props.text, place?.turn)

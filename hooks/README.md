@@ -15,7 +15,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
   counts, commits, pushes and pull requests.
 - `cockpit/`: the pane's seat and width rule, the off switch, the step log's atoms and timers, the turn's work
   (to-dos, files, pages), the pane render and its fitting (sections, order, the fold ladder), the `[ NOW ]`/`[ LAST ]`
-  head, the quiet left (receipts, `↗` rows, the one-row live area).
+  head, the quiet left (receipts, `↗` rows, the one-row live area) and its mode, decided per turn (on, docked, and
+  Cockpit's tab shown) and kept by each row from its first draw.
 - `cockpit/steps/`: the step log itself: kinds and subjects, results, the log's updates and verdict, the fitted rows.
 - `cockpit/agents/`: `[ AGENTS ]`: the roster of agents (launch, steps, report, resume) and its rows.
 - `cockpit/sections/`: `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: what each call adds to them, and their rows.

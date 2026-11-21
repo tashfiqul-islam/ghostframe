@@ -8,6 +8,7 @@ import type { AgentEnd, AgentStart } from './agents/roster'
 import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
+import { noteShown } from './mode'
 import { isOn } from './switch'
 import { noteCited, noteWork, startWork } from './work'
 
@@ -75,6 +76,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
   if (!isOn()) return
 
   const now = await $.clock.now()
+  await noteShown($)
 
   if (at === undefined) {
     await update($, stepLog, log => continueTurn(log, turn, now))

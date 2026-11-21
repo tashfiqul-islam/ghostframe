@@ -42,6 +42,14 @@ Confirmed by probe 26: an open the plugin makes on its own is refused below 144 
 
 - This is what E.24 and C.1 already say. It is recorded here because it is now a requirement and not only a typed fact.
 
+### 6. A failed fetch or search is a source problem, not a turn failure
+
+Owner, 2026-11-22, from the phase 6 screen check: a 404 made the turn `failed` and left `✕ still failing · fetch · httpbin.org/status/404 · 404` above the receipt.
+
+- A `fetch` or `web` step that fails keeps its `✕` and its result in `[ STEPS ]`, and its status in `[ SOURCES ]` (err, bold). It adds no `still failing` row, and it never makes the receipt or `[ LAST ]` say `failed`, nor counts in their failures.
+- `still failing` stays for tests, builds, commands, edits and agents: every other kind.
+- Replaces: the parts of E.5 and E.32 that count any `✕` step as a failure of the turn.
+
 ## Corrections from the probes (facts, 2026-11-21)
 
 Observed in a real fullscreen session at 200 × 50, Claude Code 2.1.329. Each replaces a statement in the spec. Evidence is in [cockpit-v7-feasibility.md](cockpit-v7-feasibility.md).

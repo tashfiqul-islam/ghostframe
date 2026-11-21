@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { endLaunched, endTurn, newLog, newTurn, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import { endLaunched, endTurn, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 const launch = (ids: readonly string[]): StepLog => {
@@ -54,4 +54,30 @@ test('agents still running when the turn ends: the launch stays running and sett
   // Interrupted, the launch is cut with the turn.
   const cut = endTurn(launch(['c3']), 3_000, true, 3_000)
   expect(row(cut)).toMatchObject({ isRunning: false, result: 'interrupted' })
+})
+
+test('a failed fetch or search is a source problem: ✕ in [ STEPS ], but no open failure, and the turn is done (amendment 6)', () => {
+  let log = newTurn(newLog(null, null), 't1', 0)
+  log = startStep(log, { id: 'f1', tool: 'WebFetch', input: { url: 'https://httpbin.org/status/404', prompt: 'x' }, at: 1_000 })
+  log = settleStep(log, {
+    id: 'f1',
+    tool: 'WebFetch',
+    input: { url: 'https://httpbin.org/status/404', prompt: 'x' },
+    outcome: { isError: true, text: 'Request failed with status code 404' },
+    at: 2_000
+  })
+  log = startStep(log, { id: 's1', tool: 'WebSearch', input: { query: 'x' }, at: 2_000 })
+  log = settleStep(log, { id: 's1', tool: 'WebSearch', input: { query: 'x' }, outcome: { isError: true, text: 'search failed' }, at: 3_000 })
+  log = endTurn(log, 3_000, false, 3_000)
+
+  expect(log.steps.map(s => s.mark)).toEqual(['✕', '✕'])
+  expect(log.last?.state).toBe('done')
+  expect(receiptOf(log)).toMatchObject({ state: 'done', failures: 0, open: [] })
+
+  // A failing command is still the turn's failure.
+  let shell = newTurn(newLog(null, null), 't2', 0)
+  shell = startStep(shell, { id: 'b1', tool: 'Bash', input: { command: 'exit 3' }, at: 1_000 })
+  shell = settleStep(shell, { id: 'b1', tool: 'Bash', input: { command: 'exit 3' }, outcome: { isError: true, text: 'Exit code 3' }, at: 2_000 })
+  shell = endTurn(shell, 2_000, false, 2_000)
+  expect(receiptOf(shell)).toMatchObject({ state: 'failed', failures: 1 })
 })

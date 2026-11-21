@@ -2,28 +2,52 @@
 // and receipts, and the one-row live area.
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
+import { remember } from '../shared/held'
 import { drawRows } from './draw'
 import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
+import { docked, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
 import { isOn } from './switch'
 
-/** The pane is docked now: the left's live area is then one row (E.33); otherwise it is the engine's. */
-let isDocked = false
+/**
+ * Whether the left is quiet now (phase 4): Cockpit on, its pane docked, and its tab shown when the running turn
+ * started. For what is live (the spinner row, the agent list); a transcript row asks `isQuietRow`. Off, the
+ * transcript is as it was.
+ */
+export const isQuiet = (): boolean => isOn() && docked() && shownAtTurn()
 
-/** Whether the left is quiet now: Cockpit on and its pane docked (phase 4). Off, the transcript is as it was. */
-export const isQuiet = (): boolean => isOn() && isDocked
+// Each transcript row's mode, by its request: the mode of its first draw. A row once drawn never changes when the
+// pane is closed, docked again, or hidden behind another tab: only rows drawn later take the new mode.
+// shortcut: kept in the module, so a reload forgets it and rows drawn again after one take the mode of that moment.
+const rowModes = new Map<string, boolean>()
+const ROWS_MAX = 2_000
 
 /**
- * Sets whether the pane is docked. A change redraws the transcript, so it turns quiet, or back, at once.
- * @param $ the engine interface
- * @param docked whether it is
+ * Whether a transcript row draws quiet: the mode it was first drawn in, or the mode now for a new row.
+ * @param row the row's render request
+ * @returns whether it is quiet
  */
-export function setDocked($: EngineInterface, docked: boolean): void {
-  if (docked === isDocked) return
+export function isQuietRow(row: string | undefined): boolean {
+  if (row === undefined) return isQuiet()
 
-  isDocked = docked
-  $.ui.invalidate('ui.render')
+  const had = rowModes.get(row)
+
+  if (had !== undefined) return had
+
+  const now = isQuiet()
+  remember(rowModes, row, now, ROWS_MAX)
+
+  return now
+}
+
+/**
+ * Sets whether the pane is docked. Rows already drawn keep their mode; the live rows follow at once.
+ * @param $ the engine interface
+ * @param value whether it is
+ */
+export function setDocked($: EngineInterface, value: boolean): void {
+  if (setDockedFlag(value)) $.ui.invalidate('ui.render')
 }
 
 /**
@@ -83,7 +107,7 @@ export async function drawTurnReceipt(
  * @returns the row's tree, or undefined
  */
 export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'terminal'>): Promise<RenderElement | undefined> {
-  if (!isOn() || !isDocked || e.viewport === undefined) return undefined
+  if (!isQuiet() || e.viewport === undefined) return undefined
 
   const now = await $.clock.now()
   const ui = $.ui.resolve(e)

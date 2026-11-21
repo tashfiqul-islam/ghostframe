@@ -8,10 +8,9 @@ import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn } from './switch'
 import { readWork } from './work'
+import { PANE } from './mode'
 
 export type On = Parameters<Register>[0]
-
-export const PANE = 'cockpit'
 
 // The first open comes before any drawing has measured the terminal: ask for the hero width,
 // and the first Pane render opens again at the width rule.

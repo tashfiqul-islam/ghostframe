@@ -7,7 +7,8 @@
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 
 import { logAgentEnd, logAgentStart } from './log'
-import { FIRST_COLUMNS, PANE, logSeatError, registerPane } from './pane'
+import { PANE } from './mode'
+import { FIRST_COLUMNS, logSeatError, registerPane } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
 
