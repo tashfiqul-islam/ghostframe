@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { TestBody } from 'claude-code/testing'
 
-import { splitBlocks } from '../hooks/blocks'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
 import { textAt } from './text'
 
 // The reply seen on screen: a turn with no tools, one prose line, a table whose last cell

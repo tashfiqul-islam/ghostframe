@@ -1,9 +1,11 @@
 import { expect, test } from 'claude-code/testing'
 
-import { splitBlocks } from '../hooks/blocks'
-import { drawnWidth } from '../hooks/prose'
-import { GAP, MAX_LINES, cellLines, layoutTable, padding, parseTable } from '../hooks/table'
-import type { Cell, Table } from '../hooks/table'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { drawnWidth } from '../hooks/transcript/prose'
+import { GAP, layoutTable } from '../hooks/transcript/table/layout'
+import { MAX_LINES, cellLines, padding } from '../hooks/transcript/table/cells'
+import { parseTable } from '../hooks/transcript/table/parse'
+import type { Cell, Table } from '../hooks/transcript/table/parse'
 import { textAt } from './text'
 
 const STATUS = [

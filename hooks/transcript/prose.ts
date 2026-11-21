@@ -1,5 +1,5 @@
-import { cellWidth, vw } from './shared/text'
-import { C } from './shared/tokens'
+import { cellWidth, vw } from '../shared/text'
+import { C } from '../shared/tokens'
 
 // ─── Inline runs ─────────────────────────────────────────────────────────────
 /** `cite`: a footnote marker (`¹`), link colour, glued to the word before it. `label`: a URL's label, muted. */

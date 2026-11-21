@@ -1,12 +1,14 @@
 import { expect, test } from 'claude-code/testing'
 
-import { stepOf, foldRow } from '../hooks/activity'
-import { splitBlocks } from '../hooks/blocks'
+import { stepOf } from '../hooks/transcript/activity/steps'
+import { foldRow } from '../hooks/transcript/activity/fold'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
 import { clip, clipMiddle, vw } from '../hooks/shared/text'
 import { C } from '../hooks/shared/tokens'
 import { sourceLabel } from '../hooks/shared/url'
-import { footnoteLines, sourcesFrame } from '../hooks/research'
-import { commandNotice } from '../hooks/states'
+import { footnoteLines } from '../hooks/transcript/research/footnotes'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
+import { commandNotice } from '../hooks/transcript/notices'
 import { textAt } from './text'
 
 const respond = (content: unknown[], uuid: string) =>

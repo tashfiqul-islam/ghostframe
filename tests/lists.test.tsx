@@ -1,8 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { stepOf, foldRow, foldSummary } from '../hooks/activity'
-import { splitBlocks } from '../hooks/blocks'
-import { parseCited } from '../hooks/research'
+import { stepOf } from '../hooks/transcript/activity/steps'
+import { foldRow, foldSummary } from '../hooks/transcript/activity/fold'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { parseCited } from '../hooks/transcript/research/cites'
 import { partsWidth } from '../hooks/shared/parts'
 
 const VIEW = { columns: 120, rows: 40 }

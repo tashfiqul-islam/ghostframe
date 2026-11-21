@@ -1,7 +1,7 @@
-import { fitParts, partsWidth } from './shared/parts'
-import type { Part } from './shared/parts'
-import { fmtDuration } from './shared/time'
-import { C } from './shared/tokens'
+import { fitParts, partsWidth } from '../shared/parts'
+import type { Part } from '../shared/parts'
+import { fmtDuration } from '../shared/time'
+import { C } from '../shared/tokens'
 
 // ─── Live state and capabilities (DESIGN.md §5.11, §5.12, §5.17 under §0.1 r5, r10) ──
 // Pure builders. The capability line is one dim line under `claude`, in words; the

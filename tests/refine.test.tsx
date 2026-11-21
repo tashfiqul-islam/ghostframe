@@ -1,8 +1,10 @@
 import { expect, test } from 'claude-code/testing'
 
-import { splitBlocks } from '../hooks/blocks'
-import { footnoteLines, sourcesFrame } from '../hooks/research'
-import { cellLines, layoutTable } from '../hooks/table'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { footnoteLines } from '../hooks/transcript/research/footnotes'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
+import { cellLines } from '../hooks/transcript/table/cells'
+import { layoutTable } from '../hooks/transcript/table/layout'
 import { sourceLabel } from '../hooks/shared/url'
 
 const respond = (content: unknown[], uuid: string) =>

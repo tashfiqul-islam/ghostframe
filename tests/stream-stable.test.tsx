@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { splitBlocks } from '../hooks/blocks'
-import { streamLayout } from '../hooks/table'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { streamLayout } from '../hooks/transcript/table/layout'
 
 const VIEW = { columns: 160, rows: 65 }
 

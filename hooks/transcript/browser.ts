@@ -1,9 +1,9 @@
-import { mcpName } from './shared/calls/describe'
-import type { Part } from './shared/parts'
-import { clip, vw } from './shared/text'
-import { C } from './shared/tokens'
-import { splitUrl } from './shared/url'
-import { frameBottom, frameRow, frameTop } from './states'
+import { mcpName } from '../shared/calls/describe'
+import type { Part } from '../shared/parts'
+import { clip, vw } from '../shared/text'
+import { C } from '../shared/tokens'
+import { splitUrl } from '../shared/url'
+import { frameBottom, frameRow, frameTop } from './frame'
 
 // ─── Browser session (DESIGN.md §5.14) ───────────────────────────────────────
 // A run of browser calls draws as one [ BROWSER ] frame across its rows: the first

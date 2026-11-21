@@ -1,7 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { stepOf } from '../hooks/activity'
-import { commandNotice, frameLines, planLine, tasksFrame } from '../hooks/states'
+import { stepOf } from '../hooks/transcript/activity/steps'
+import { commandNotice } from '../hooks/transcript/notices'
+import { frameLines } from '../hooks/transcript/frame'
+import { planLine, tasksFrame } from '../hooks/transcript/states'
 import { partsWidth } from '../hooks/shared/parts'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }

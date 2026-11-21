@@ -1,13 +1,13 @@
-import { changeParts } from './shared/calls/results'
-import type { TestCounts } from './shared/calls/tests'
-import type { Ship } from './shared/calls/ships'
-import type { Part } from './shared/parts'
-import { pad, vw } from './shared/text'
-import { fmtDuration } from './shared/time'
-import { C } from './shared/tokens'
-import { sourceLabel } from './shared/url'
-import { clipLabel } from './research'
-import { frameLines } from './states'
+import { changeParts } from '../shared/calls/results'
+import type { TestCounts } from '../shared/calls/tests'
+import type { Ship } from '../shared/calls/ships'
+import type { Part } from '../shared/parts'
+import { pad, vw } from '../shared/text'
+import { fmtDuration } from '../shared/time'
+import { C } from '../shared/tokens'
+import { sourceLabel } from '../shared/url'
+import { clipLabel } from './research/labels'
+import { frameLines } from './frame'
 
 // ─── Outcome cards (DESIGN.md §5.15, §5.16 under §0.1 r10, r11) ──────────────
 // Read from a shell call's own output when it ends (tool.call), stored by its id,

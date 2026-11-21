@@ -1,12 +1,15 @@
 import { expect, test } from 'claude-code/testing'
 
-import { layoutStep } from '../hooks/activity'
+import { layoutStep } from '../hooks/transcript/activity/row'
 import { describe as describeCall } from '../hooks/shared/calls/describe'
 import { vw } from '../hooks/shared/text'
 import { C } from '../hooks/shared/tokens'
 import { sourceLabel } from '../hooks/shared/url'
-import { clipLabel, footnoteLines, sourceTitle, sourcesFrame } from '../hooks/research'
-import { clipRuns, headerAlign, parseTable } from '../hooks/table'
+import { clipLabel, sourceTitle } from '../hooks/transcript/research/labels'
+import { footnoteLines } from '../hooks/transcript/research/footnotes'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
+import { clipRuns, headerAlign } from '../hooks/transcript/table/cells'
+import { parseTable } from '../hooks/transcript/table/parse'
 import { textAt } from './text'
 
 // ─── 1. Header alignment follows a mostly-numeric column ─────────────────────

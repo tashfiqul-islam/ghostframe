@@ -1,13 +1,15 @@
 import { expect, test } from 'claude-code/testing'
 
-import { layoutStep, stepOf } from '../hooks/activity'
+import { layoutStep } from '../hooks/transcript/activity/row'
+import { stepOf } from '../hooks/transcript/activity/steps'
 import { INSET, layout } from '../hooks/shared/layout'
 import { partsWidth } from '../hooks/shared/parts'
 import { vw } from '../hooks/shared/text'
-import { footnoteLines, sourcesFrame } from '../hooks/research'
-import { spansOf } from '../hooks/prose'
-import { shippedFrame, testsFrame } from '../hooks/outcome'
-import { browserTop, urlBar } from '../hooks/browser'
+import { footnoteLines } from '../hooks/transcript/research/footnotes'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
+import { spansOf } from '../hooks/transcript/prose'
+import { shippedFrame, testsFrame } from '../hooks/transcript/outcome'
+import { browserTop, urlBar } from '../hooks/transcript/browser'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const WIDTHS = [90, 70, 50] as const

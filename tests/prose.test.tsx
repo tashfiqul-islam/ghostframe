@@ -1,8 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
 import { vw } from '../hooks/shared/text'
-import { splitBlocks } from '../hooks/blocks'
-import { parseInline, runWidth, toWords, wrapPlain, wrapWords } from '../hooks/prose'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { parseInline, runWidth, toWords, wrapPlain, wrapWords } from '../hooks/transcript/prose'
 
 const REPLY = [
   'A branch is a pointer to a commit. A worktree is a second checked-out folder, so you can have two branches open side by side without stashing.',
