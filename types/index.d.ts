@@ -56,7 +56,8 @@ export type StepMark = '' | '✕' | '✓' | '±' | '↗'
 
 /**
  * One `[ STEPS ]` row. `clock` is the turn clock in ms: at the start while running, at the end once settled.
- * `key` is what a later step must share to fix it. An agent launch (amendment 1) lists its `calls` and counts them.
+ * `key` is what a later step must share to fix it. An agent launch (amendment 1) lists its `calls`, counts them
+ * `done` and `failed`, and keeps in `ended` the calls already counted (a report and the call's return both end one).
  */
 export type LogStep = {
   id: string
@@ -70,6 +71,7 @@ export type LogStep = {
   calls?: string[]
   done?: number
   failed?: number
+  ended?: string[]
 }
 
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
@@ -118,6 +120,27 @@ export type Receipt = {
   durationMs: number
 }
 
+/**
+ * One agent in Cockpit's `[ AGENTS ]` (spec E.40), in launch order: its id (`agent.spawn`'s `agentId`), the Agent call
+ * that launched it (`call`, '' when none did), its parent agent (null for the main loop's), its name (the call's
+ * description), whether it runs in the background, its state, the kind and subject of its current step (or, once it
+ * ended, the head of its report or the reason it failed), its step count, and when it started and ended (wall
+ * clock, ms).
+ */
+export type RosterAgent = {
+  id: string
+  call: string
+  parent: string | null
+  name: string
+  isBackground: boolean
+  state: 'running' | 'done' | 'failed'
+  kind: string
+  subject: string
+  steps: number
+  startedAt: number
+  endedAt: number | null
+}
+
 declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
@@ -140,6 +163,7 @@ declare module 'claude-code' {
       frame: Shaped<number>
       stepLog: Shaped<StepLog>
       receipts: Shaped<Receipt[]>
+      roster: Shaped<RosterAgent[]>
     }
   }
 }

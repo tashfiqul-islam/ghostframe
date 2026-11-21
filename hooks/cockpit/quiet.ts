@@ -57,12 +57,13 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
   const lead = `─ ${receipt.state} `
   const fill = width - vw(lead) - vw(tail) - vw(time)
 
+  // A result that only repeats the subject (`exit 3`) is said once.
   const still = receipt.open.map(f =>
     edgeRow(
       [
         { t: '✕ ', color: C.err },
         { t: 'still failing', color: C.err, bold: true },
-        { t: ` · ${f.kind} · ${f.subject} · ${f.result}`, color: C.text }
+        { t: ` · ${f.kind} · ${f.subject}${f.result === f.subject || f.result.length === 0 ? '' : ` · ${f.result}`}`, color: C.text }
       ],
       formatSpan(f.clock),
       width

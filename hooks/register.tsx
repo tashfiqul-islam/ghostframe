@@ -5,6 +5,7 @@ import type { Register } from 'claude-code'
 
 import { registerCockpit } from './cockpit/feature'
 import { registerLedger } from './transcript/ledger/feature'
+import { registerAgentRows } from './transcript/sites/agents'
 import { registerChrome } from './transcript/sites/chrome'
 import { registerPrompt } from './transcript/sites/prompt'
 import { registerReply } from './transcript/sites/reply/reply'
@@ -21,4 +22,5 @@ export const register: Register = (on, options) => {
   registerToolGroup(on)
   registerToolResult(on)
   registerChrome(on)
+  registerAgentRows(on)
 }

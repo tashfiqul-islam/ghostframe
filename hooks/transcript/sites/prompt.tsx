@@ -1,7 +1,8 @@
 // The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail.
-import type { On } from 'claude-code'
+import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
 import type { PromptStamp } from '../../../types'
+import { isQuiet } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { Rule } from '../../shared/rule'
 import { fmtClock } from '../../shared/time'
@@ -36,6 +37,31 @@ function durationLabel(ms: number) {
 }
 
 /**
+ * Whether a row is one of this session's agents speaking: the notice that it finished (`task-notification`, its
+ * task an agent) or its message to the main loop (`peer`, from an agent's name or type). The engine's own list
+ * says which agents there are; a list it cannot give keeps the row.
+ * @param $ the engine interface
+ * @param p the row's props
+ * @returns whether the row is an agent's
+ */
+async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): Promise<boolean> {
+  const id = p.origin.kind === 'task-notification' ? p.task?.id : undefined
+  const from = p.origin.kind === 'peer' ? p.from?.name : undefined
+
+  if (id === undefined && from === undefined) return false
+
+  try {
+    const agents = await $.agent.list()
+
+    return agents.some(a => a.id === id || (from !== undefined && (a.name === from || a.type === from || a.description === from)))
+  } catch (error: unknown) {
+    $.ui.log(`ghostframe: agent list unavailable: ${String(error)}`)
+
+    return false
+  }
+}
+
+/**
  * Adds the user prompt's drawing (`UserMessage`).
  * @param on the `on` that `register` receives
  */
@@ -47,6 +73,11 @@ export function registerPrompt(on: On): void {
     }
 
     const { Box, Text } = $.ui.resolve(e)
+
+    // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing.
+    if (isQuiet() && (await isAgentRow($, e.props))) {
+      return <Box />
+    }
 
     if (e.props.origin.kind === 'task-notification') {
       const launched = /launched|started/i.test(e.props.text)

@@ -4,7 +4,25 @@ import { C } from '../../hooks/shared/tokens'
 
 test('tokens: one small set, the names the design uses; add/del share ok/err', async () => {
   expect(Object.keys(C).toSorted()).toEqual(
-    ['accent', 'add', 'bg', 'del', 'dim', 'err', 'hairline', 'link', 'muted', 'ok', 'rule', 'ruleStrong', 'surface', 'text', 'textBright', 'warn'].toSorted()
+    [
+      'accent',
+      'add',
+      'agent',
+      'bg',
+      'del',
+      'dim',
+      'err',
+      'hairline',
+      'link',
+      'muted',
+      'ok',
+      'rule',
+      'ruleStrong',
+      'surface',
+      'text',
+      'textBright',
+      'warn'
+    ].toSorted()
   )
   expect(C.add).toBe(C.ok)
   expect(C.del).toBe(C.err)

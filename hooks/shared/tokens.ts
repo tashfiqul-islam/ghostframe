@@ -14,6 +14,7 @@ export const C = {
   textBright: '#ececf1', // targets, numbers, bold, headings
   accent: '#fab387', // the single accent: titles, `claude`, running, the `▎` rail
   link: '#8fb8de', // footnote markers and Sources numbers; plan mode, questions
+  agent: '#b4a0de', // agent names and their `◇` (Cockpit's lavender, used for nothing else)
   ok: '#96d292', // done, pass, `ok`
   warn: '#e8b98a', // needs you, interrupted, budgets nearing a limit
   err: '#ec84a0', // failed, denied, exit codes

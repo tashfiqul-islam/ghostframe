@@ -72,7 +72,7 @@ export function registerChrome(on: On): void {
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    if (e.surface !== 'terminal' || e.props.isExpanded || e.props.waitingFor) {
+    if (e.surface !== 'terminal' || e.props.isExpanded || (e.props.waitingFor && !isQuiet())) {
       return next(e)
     }
 

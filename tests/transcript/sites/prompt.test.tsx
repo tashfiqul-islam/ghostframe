@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { ON, PANE } from '../../support/cockpit'
 import { REPLY } from '../../support/turn'
 import { VIEW } from '../../support/view'
 import { textAt } from '../../support/text'
@@ -77,4 +78,33 @@ test('a prompt typed again after a reload: the new turn rule shows the new submi
     props: { text: 'continue', origin: { kind: 'composer' }, isExpanded: false }
   } as never)
   expect(textAt(await fresh.drawn(), 120).join('\n')).toContain('02:15')
+})
+
+// Phase 5: docked, an agent's message to the main loop and its finished notice are the pane's.
+const agentRow = (props: Record<string, unknown>) =>
+  ({ plugin: 'ghostframe', surface: 'terminal', component: 'UserMessage', viewport: VIEW, props: { isExpanded: false, ...props } }) as never
+const FROM_AGENT = { text: 'seat.ts has 43 lines.', origin: { kind: 'peer' }, from: { name: 'Explore' } }
+
+test('docked: an agent`s message (`peer`, from an agent) and its notice (`task-notification`) draw nothing', ON, async ($, on) => {
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('agent.list', () => ({ value: [{ id: 'a1', name: 'scout', type: 'Explore', description: 'Read seat' }] as never }))
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  const texts = async (props: Record<string, unknown>) => {
+    const ui = await $.ui.mount(agentRow(props))
+    const t = (await ui.findAll({ type: 'Text' })).map(x => x.text).filter(x => x.trim().length > 0)
+    await ui.unmount()
+
+    return t
+  }
+
+  // Not docked yet: the engine's message row is drawn as before.
+  expect(await texts(FROM_AGENT)).toEqual(['engine'])
+
+  const pane = await $.ui.mount(PANE)
+  expect(await texts(FROM_AGENT)).toEqual([])
+  expect(await texts({ text: 'Agent "Read seat" finished', origin: { kind: 'task-notification' }, task: { id: 'a1', status: 'completed' } })).toEqual([])
+  // Another session's message, and a background shell's notice, are not an agent's: they stay.
+  expect(await texts({ text: 'hello', origin: { kind: 'peer' }, from: { name: 'other session' } })).toEqual(['engine'])
+  expect(await texts({ text: 'Background command finished', origin: { kind: 'task-notification' }, task: { id: 'b7', status: 'completed' } })).not.toEqual([])
+  await pane.unmount()
 })

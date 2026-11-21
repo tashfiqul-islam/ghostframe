@@ -116,6 +116,24 @@ test('docked: a failure nothing fixed gets a `still failing` row above the recei
   await pane.unmount()
 })
 
+test('docked: a still-failing result that only repeats its subject is said once: `shell · exit 3`', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const exit3: Call = { id: 'x1', tool: 'Bash', input: { command: 'exit 3' }, result: { isError: true, text: 'Exit code 3', result: 'Exit code 3' }, ms: 1_000 }
+  engine(on, [exit3], clock)
+  const pane = await $.ui.mount(PANE)
+  await $.prompt.submit({ text: 'exit 3', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'exit 3', turnId: 't1' })
+  await $.tool.call({ tool: 'Bash', command: 'exit 3', tool_use_id: 'x1' } as never)
+  clock.now = T0 + 3_000
+  await $.turn.complete({ answer: 'x', durationMs: 3_000, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  const ui = await $.ui.mount(receipt(3_000))
+  const still = (await ui.findAll({ type: 'Text', text: /^✕ still failing/ })).map(t => t.text)
+  expect(still).toEqual([expect.stringMatching(/^✕ still failing · shell · exit 3 +1s$/)])
+  await ui.unmount()
+  await pane.unmount()
+})
+
 test('docked: a turn that committed names its commit in the receipt, `± <sha>`, before the time', ON, async ($, on) => {
   const clock = { now: T0 }
   const commit: Call = {
