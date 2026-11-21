@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The options both projects share: the plugin (./tsconfig.json) and the dev tools (tools/tsconfig.json).
+  // Checked by tsrs, which tracks TypeScript 7.1.0-beta; options per the TypeScript 7.0 docs. Left out because 7.0
+  // makes them the default or implies them:
+  // strict (on), noUncheckedSideEffectImports (on), isolatedModules (implied by verbatimModuleSyntax),
+  // moduleResolution (bundler, implied by module preserve), forceConsistentCasingInFileNames (on).
+  "compilerOptions": {
+    // Type-check only: Bun and the plugin host run the .ts sources themselves.
+    "noEmit": true,
+
+    // Modules: imports kept as written, every file a module, only syntax a type-stripper can erase.
+    "module": "Preserve",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+
+    // Strictness beyond `strict`, all on.
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+
+    // Declarations we install but do not own are not ours to check.
+    "skipLibCheck": true
+  }
+}

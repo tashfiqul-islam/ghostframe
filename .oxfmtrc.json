@@ -6,5 +6,5 @@
   "trailingComma": "none",
   "arrowParens": "avoid",
   "endOfLine": "lf",
-  "ignorePatterns": [".claude-plugin/types/**", "tools/node_modules/**", "tools/bun.lock", "docs/design/cockpit-v7.md", "tools/mockgen/**"]
+  "ignorePatterns": [".claude-plugin/types/**", "tools/node_modules/**", "tools/bun.lock", "docs/design/cockpit-v7.md", "tools/mockgen/tpl/**"]
 }

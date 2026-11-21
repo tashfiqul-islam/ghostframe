@@ -1,6 +1,6 @@
 # Cockpit v7: amendments
 
-These override [cockpit-v7.md](cockpit-v7.md). The spec is kept byte for byte as generated (`node tools/mockgen/gen/build.mjs docs/design/cockpit-v7.md` reproduces it), so changes are recorded here and not edited into it. Where an amendment and the spec disagree, the amendment wins.
+These override [cockpit-v7.md](cockpit-v7.md). The spec is kept byte for byte as generated (`bun tools/mockgen/gen/build.ts docs/design/cockpit-v7.md`, or `bun run --cwd tools mockgen`, reproduces it), so changes are recorded here and not edited into it. Where an amendment and the spec disagree, the amendment wins.
 
 ## Decisions (owner, 2026-11-21)
 
@@ -18,7 +18,7 @@ This includes the head: one blank row between `[ NOW ]` / `[ LAST ]` and `[ STEP
 
 - Replaces: C.2 ("separated by 1 blank row when the pane has 24 body rows or more, and by none below that") and step 4 of the fitting rule in E.37, whose first move was to drop the blank rows.
 - The ladder of E.37 now starts at "`[ SOURCES ]` to its label". A pane too short for the head, one blank row and three step rows shows the head alone.
-- `fitPane` in `tools/mockgen/gen/lib.mjs` still implements the old rule (`gap: R >= 24 ? 1 : 0`); it is the reference for everything else in E.37, not for this.
+- `fitPane` in `tools/mockgen/gen/lib.ts` still implements the old rule (`gap: R >= 24 ? 1 : 0`); it is the reference for everything else in E.37, not for this.
 
 ### 3. The receipt says `done`, not `done · turn N`
 

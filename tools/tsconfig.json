@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The dev tools: the Cockpit mock generator (mockgen/) and the tool configs. Run by the pinned Bun (mise.toml),
+  // which tracks current JavaScript, so target and lib are ESNext and the only ambient types are Bun's.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "incremental": true,
+    "tsBuildInfoFile": "node_modules/.cache/tools.tsbuildinfo"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

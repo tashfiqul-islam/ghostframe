@@ -15,7 +15,7 @@ run = ["bun install --cwd tools --frozen-lockfile", "hk install --mise"]
 
 [tasks.check]
 description = "The whole gate: types, lint, format, plugin validation, tests, workflows, docs"
-run = ["bun run --cwd tools check", "mise run lint-actions", "mise run lint-docs"]
+run = ["mise run lint-js", "bun run --cwd tools check", "mise run lint-actions", "mise run lint-docs"]
 
 [tasks.lint-actions]
 description = "Lint and audit GitHub Actions workflows and composite actions"
@@ -25,3 +25,10 @@ run = ["actionlint", "zizmor --offline .github"]
 shell = "bash -c"
 description = "Check every relative link and #anchor in the Markdown docs (offline, deterministic)"
 run = "files=$(git ls-files '*.md'); [ -z \"$files\" ] || lychee --offline --include-fragments --no-progress $files"
+
+[tasks.lint-js]
+shell = "bash -c"
+# The repo is TypeScript-only: Bun and the plugin host run .ts directly. No file is allowlisted; one that truly
+# cannot be TypeScript would be excluded here by name, with its reason beside it.
+description = "Fail on any tracked JavaScript file (.js, .mjs, .cjs, .jsx)"
+run = "files=$(git ls-files -- '*.js' '*.mjs' '*.cjs' '*.jsx'); if [ -n \"$files\" ]; then printf 'JavaScript is not allowed here (the repo is TypeScript-only):\n%s\n' \"$files\"; exit 1; fi; echo 'No JavaScript files.'"
