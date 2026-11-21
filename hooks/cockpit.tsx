@@ -1,14 +1,17 @@
 // Cockpit: the pane beside the transcript. Phase 1, the seat: it opens at session start and docks at the
 // width rule (hooks/seat.ts). Phase 2, the step log: the turn's `[ STEPS ]` (hooks/steplog.ts). Phase 3, the
-// head: `[ NOW ]` / `[ LAST ]` above it, and the left's live area reduced to one row (hooks/head.ts).
-// Spec: docs/design/cockpit-v7.md C.1, E.24, E.33, E.36 to E.39, H; docs/design/cockpit-v7-amendments.md.
+// head: `[ NOW ]` / `[ LAST ]` above it, and the left's live area reduced to one row (hooks/head.ts). Phase 4,
+// the quiet left: docked, the transcript keeps the conversation, `↗` rows and the receipt (hooks/quiet.ts).
+// Spec: docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.39, H; cockpit-v7-amendments.md.
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, PluginOptions, Register, RenderInput, SessionStartInput, Timer, ToolCallInput, UiOpenResult } from 'claude-code'
 
 import { liveRow, paneRows } from './head'
+import { receiptRows, shipRows } from './quiet'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
-import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, settleStep, startStep } from './steplog'
+import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steplog'
 import type { Outcome } from './steplog'
+import type { Receipt } from '../types'
 import type { Ui } from './grid'
 import type { Part } from './states'
 
@@ -22,6 +25,9 @@ const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(n
 // Counters the timers bump while a turn runs: each second (the pane's running clock) and each spinner frame.
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
+// Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-2' })
+const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
 const FRAME_MS = 100 // H.1 asks 80 ms; the engine redraws a site at most ten times a second
@@ -57,12 +63,13 @@ function stopTimers(): void {
  * A main-loop turn starts: its log starts empty, on its own clock, and the timers start.
  * @param $ the engine interface
  * @param turn the turn's id
- * @param at when its prompt was submitted (wall clock, ms); undefined, its first step starts the clock
+ * @param at when its prompt was submitted (wall clock, ms); undefined (no prompt was typed), now
  */
 export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => newTurn(log, turn, at ?? null))
+  const startedAt = at ?? (await $.clock.now())
+  await update($, stepLog, log => newTurn(log, turn, startedAt))
   lastMode = undefined
   stopTimers()
   timers = [$.clock.every(SECOND_MS, () => void tickSecond($)), $.clock.every(FRAME_MS, () => void tickFrame($))]
@@ -140,16 +147,94 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
 }
 
 /**
- * A main-loop turn ends: a step still running was cut, the head turns to `[ LAST ]`, and the timers stop.
+ * A main-loop turn ends: a step still running was cut, the head turns to `[ LAST ]`, the timers stop, and the turn's
+ * receipt is kept. One clock: the turn's time is Cockpit's own, now less its start, for the head, the receipt and
+ * the live row alike; the engine's `durationMs` stands only when the start is unknown.
  * @param $ the engine interface
- * @param durationMs how long the turn ran
+ * @param durationMs how long the engine says the turn ran
  * @param isAborted whether it was interrupted (correction G: no receipt; `[ LAST ]` carries the state)
  */
 export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean): Promise<void> {
   if (!isOn()) return
 
   stopTimers()
-  await update($, stepLog, log => endTurn(log, durationMs, isAborted))
+  const now = await $.clock.now()
+  await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
+  const receipt = receiptOf(await read($, stepLog))
+  await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+}
+
+/** Whether the left is quiet now: Cockpit on and its pane docked (phase 4). Off, the transcript is as it was. */
+export const isQuiet = () => isOn() && isDocked
+
+/**
+ * Whether a main-loop turn runs now, and which; read while drawing, so the drawing follows the turn's end.
+ * @param $ the engine interface
+ * @returns the running turn's id, or undefined
+ */
+export async function runningTurn($: EngineInterface): Promise<string | undefined> {
+  const log = await read($, stepLog)
+
+  return log.isTurnRunning ? (log.turn ?? undefined) : undefined
+}
+
+/**
+ * Sets whether the pane is docked. A change redraws the transcript, so it turns quiet, or back, at once.
+ * @param $ the engine interface
+ * @param docked whether it is
+ */
+function setDocked($: EngineInterface, docked: boolean): void {
+  if (docked === isDocked) return
+
+  isDocked = docked
+  $.ui.invalidate('ui.render')
+}
+
+/**
+ * Cockpit's part of a folded `ToolGroup` while quiet: nothing, except a `↗` row for a push or a pull request.
+ * @param $ the engine interface
+ * @param e the render
+ * @param width the transcript rule's width
+ * @returns the rows' tree (an empty Box draws nothing)
+ */
+export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number) {
+  const ui = $.ui.resolve(e)
+  const log = await read($, stepLog)
+  const steps = [...log.steps, ...(log.prev?.steps ?? [])]
+  const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
+  const rows = shipRows(e.props.calls, clockOf, width)
+
+  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
+}
+
+/**
+ * Cockpit's part of `TurnDuration` while quiet: the receipt of the turn the footer stands for, with its
+ * `still failing` rows, and one blank row above. Nothing for an interrupted turn (correction G).
+ * @param $ the engine interface
+ * @param e the render
+ * @param turn the id of the turn the footer stands for, when known; unknown, the current turn's
+ * @param width the transcript rule's width
+ * @returns the tree; an empty one while the current turn's receipt is on its way (the engine may raise the
+ *   footer before `turn.complete` keeps it, and the old footer must not flash); undefined for an earlier turn
+ *   that has no receipt, which keeps the old footer
+ */
+export async function drawReceipt($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>, turn: string | undefined, width: number) {
+  const ui = $.ui.resolve(e)
+  const current = (await read($, stepLog)).turn
+  const wanted = turn ?? current
+  const receipt = (await read($, receipts)).findLast(r => r.turn === wanted)
+
+  if (receipt === undefined) return wanted === current ? <ui.Box /> : undefined
+
+  const rows = receiptRows(receipt, width)
+
+  return rows.length === 0 ? (
+    <ui.Box />
+  ) : (
+    <ui.Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, rows)}
+    </ui.Box>
+  )
 }
 
 // The first open comes before any drawing has measured the terminal: ask for the hero width,
@@ -291,6 +376,13 @@ export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'te
 export function registerCockpit(on: On, options: PluginOptions): void {
   isOptionOn = options['cockpit'] === true
 
+  // The person closed the pane: the transcript is no longer quiet.
+  on('ui.close', { id: PANE }, ($, e, next) => {
+    setDocked($, false)
+
+    return next(e)
+  })
+
   on('command.run', { command: PANE }, async ($, e) => {
     if (!isOn()) {
       return { text: OFF_NOTE }
@@ -300,6 +392,8 @@ export function registerCockpit(on: On, options: PluginOptions): void {
 
     if (isPlaced) {
       await $.ui.close({ id: PANE })
+
+      setDocked($, false)
 
       return { text: 'pane closed' }
     }
@@ -324,7 +418,7 @@ export function registerCockpit(on: On, options: PluginOptions): void {
 
     if (e.surface === 'terminal' && viewport !== undefined) {
       const columns = terminalColumns(placement, viewport.columns, bodyColumns)
-      isDocked = placement !== 'inline'
+      setDocked($, placement !== 'inline')
 
       if (placement === 'inline') {
         if (!isAskedInline && leftAt !== columns) {

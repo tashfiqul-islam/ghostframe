@@ -5,7 +5,22 @@ import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStam
 import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
-import { drawLive, logAsk, logMode, logSaid, logStepEnd, logStepStart, logTurnEnd, logTurnStart, registerCockpit, startCockpit } from './cockpit'
+import {
+  drawLive,
+  drawQuietGroup,
+  drawReceipt,
+  isQuiet,
+  logAsk,
+  logMode,
+  logSaid,
+  logStepEnd,
+  logStepStart,
+  logTurnEnd,
+  logTurnStart,
+  registerCockpit,
+  runningTurn,
+  startCockpit
+} from './cockpit'
 import { C, G, Rule, clip, fmtClock, fmtDuration, fmtTokens, layout, pad, ruleWidth, vw } from './grid'
 import type { Lay, Ui } from './grid'
 import { splitBlocks } from './blocks'
@@ -178,6 +193,23 @@ const sameKey = (x: string, k: string) => k.length > 0 && (x === k || (k.length 
 // A block with no place in the turn's flow (a summary row): it may match any turn's opener.
 const ANY_TURN = undefined
 const inTurn = (entry: string | null | undefined, turn: string | null | undefined) => entry === undefined || turn === undefined || entry === turn
+// Text before these tools is a question or a plan put to the person: they must act on it, so it is not narration.
+const ASKS_THE_PERSON = new Set(['AskUserQuestion', 'ExitPlanMode'])
+/** Where a text block sits in the flow, by its key, newest first. */
+const textAt = (list: readonly FlowStamp[], key: string) => list.findLastIndex(f => f.kind === 'text' && sameKey(f.key, key))
+/** Narration (phase 4): a text block that a tool call follows in its own turn, unless that call asks the person. */
+const isNarrationAt = (list: readonly FlowStamp[], at: number) => {
+  const f = list[at]
+  const next = f === undefined ? undefined : list.slice(at + 1).find(g => g.turn === f.turn && g.kind === 'tool')
+
+  return next !== undefined && !ASKS_THE_PERSON.has(next.tool ?? '')
+}
+/** Quiet, `claude` goes on the first text block of its turn that is not narration: the first one left on screen. */
+const isQuietOpenerAt = (list: readonly FlowStamp[], at: number) => {
+  const turn = list[at]?.turn
+
+  return list.findIndex((f, i) => f.turn === turn && f.kind === 'text' && !isNarrationAt(list, i)) === at
+}
 const isTurnOpener = (list: readonly FirstText[], text: string, turn: string | null | undefined) => {
   const k = firstKey(text)
 
@@ -1111,6 +1143,25 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
+    // Quiet (Cockpit docked): narration leaves the transcript; its sentence is the pane's [ NOW ] (probe 1).
+    // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
+    // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
+    // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
+    if (isQuiet()) {
+      const quietFlow = await read($, flow)
+      const at = textAt(quietFlow, firstKey(e.props.text.replace(/…$/, '')))
+      const running = await runningTurn($)
+      const block = quietFlow[at]
+      const nextTool = block === undefined ? undefined : quietFlow.slice(at + 1).find(f => f.turn === block.turn && f.kind === 'tool')
+      const isUndecided = running !== undefined && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
+
+      if ((at >= 0 && isNarrationAt(quietFlow, at)) || isUndecided) {
+        const { Box } = $.ui.resolve(e)
+
+        return <Box />
+      }
+    }
+
     const width: number = lay.width
 
     // A summary of text written between tool calls: dim, in the content column, no bullet,
@@ -1412,9 +1463,12 @@ export const register: Register = (on, options) => {
     // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
     // every tool call too). A reply that opens on a wide table gets the label on its own row.
     // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
-    const isOpener = e.props.isFirstOfReply && isTurnOpener(await read($, firstTexts), e.props.text, place?.turn)
-    // The capability line takes `claude`'s row; the reply follows a blank row below it.
-    const capsRow = isOpener ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
+    const isQuietLeft = isQuiet()
+    const isOpener = isQuietLeft
+      ? place !== undefined && isQuietOpenerAt(blocksSoFar, place.at)
+      : e.props.isFirstOfReply && isTurnOpener(await read($, firstTexts), e.props.text, place?.turn)
+    // The capability line takes `claude`'s row; the reply follows a blank row below it. Quiet, it is the pane's.
+    const capsRow = isOpener && !isQuietLeft ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
     const label = isOpener && capsRow === undefined ? 'claude' : ''
     const opensWide = segments[0]?.wide === true
     // A browser frame left open right above this block: its bottom edge first.
@@ -1734,6 +1788,11 @@ export const register: Register = (on, options) => {
       return next(e)
     }
 
+    // Quiet: the steps are the pane's; only a push or a pull request leaves a row here (E.5).
+    if (isQuiet()) {
+      return drawQuietGroup($, e, ruleWidth(lay) ?? width)
+    }
+
     const asking = await read($, asked)
     const rows =
       e.props.isCallsOnly === true
@@ -1990,6 +2049,16 @@ export const register: Register = (on, options) => {
     }
 
     const mine = claimClose(e.requestId, e.props.durationMs, await read($, closes))
+    const quietWidth = ruleWidth(layout(e.viewport?.columns))
+
+    // Quiet: the receipt (E.32) in place of the footer, on Cockpit's one clock.
+    if (isQuiet() && quietWidth !== undefined) {
+      const drawn = await drawReceipt($, e, mine?.turn, quietWidth)
+
+      if (drawn !== undefined) {
+        return drawn
+      }
+    }
     const tokens = mine?.tokens === null || mine?.tokens === undefined ? '' : fmtTokens(mine.tokens)
     const label = [took, tokens, mine?.tally ?? ''].filter(x => x.length > 0).join(G.sep)
     const ui = $.ui.resolve(e)
