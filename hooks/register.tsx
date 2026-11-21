@@ -5,6 +5,7 @@ import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStam
 import { VERB_W, activityHead, changeParts, diffRows, diffTop, foldOf, foldRow, layoutStep, mcpName, relPath, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
+import { registerCockpit, startCockpit } from './cockpit'
 import { C, G, Rule, clip, fmtClock, fmtDuration, fmtTokens, layout, pad, ruleWidth, vw } from './grid'
 import type { Lay, Ui } from './grid'
 import { splitBlocks } from './blocks'
@@ -999,6 +1000,8 @@ const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width:
 }
 
 export const register: Register = on => {
+  registerCockpit(on)
+
   // Mode labels at the right of the prompt footer: grid cells split by │.
   on('ui.render', { component: 'SessionMode' }, ($, e, next) => {
     if (e.surface !== 'terminal') {
@@ -1500,6 +1503,8 @@ export const register: Register = on => {
     } catch {
       // No history: live turns still mark their openers.
     }
+
+    await startCockpit($, e)
 
     return next(e)
   })
