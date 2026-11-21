@@ -1,11 +1,11 @@
 // Cockpit's head (spec E.38, H.1 to H.3, amendment 2): `[ NOW ]` while a turn runs, `[ LAST ]` when it has
-// ended, one blank row, then `[ STEPS ]`; and the left's one-row live area. Pure: hooks/cockpit.tsx draws it.
-import type { LogStep, StepLog } from '../types'
-import type { Part } from './shared/parts'
-import { vw } from './shared/text'
-import { fmtClock, formatSpan } from './shared/time'
-import { C } from './shared/tokens'
-import { cut, sectionLabel, stepRows } from './steplog'
+// ended, one blank row, then `[ STEPS ]`; and the left's one-row live area. Pure: pane.tsx and left.tsx draw it.
+import type { LogStep, StepLog } from '../../types'
+import type { Part } from '../shared/parts'
+import { vw } from '../shared/text'
+import { fmtClock, formatSpan } from '../shared/time'
+import { C } from '../shared/tokens'
+import { cut, sectionLabel, stepRows } from './steps/rows'
 
 const KIND_W = 9 // the kind word's 8 cells and a space
 const LEAD = 2 + KIND_W

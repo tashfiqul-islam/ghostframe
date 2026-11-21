@@ -1,7 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { endTurn, newLog, settleStep, startStep, stepRows } from '../hooks/steplog'
-import type { Outcome, StepLog } from '../hooks/steplog'
+import { endTurn, newLog, settleStep, startStep } from '../hooks/cockpit/steps/log'
+import { stepRows } from '../hooks/cockpit/steps/rows'
+import type { Outcome } from '../hooks/cockpit/steps/log'
+import type { StepLog } from '../types'
 import { formatSpan } from '../hooks/shared/time'
 
 const W = 72

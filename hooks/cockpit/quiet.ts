@@ -1,13 +1,13 @@
 // Cockpit's quiet left (spec E.1, E.5, E.32; amendment 3; correction G): while the pane is docked the transcript
 // keeps the conversation and three kinds of row only: `↗` when something left the machine, `✕ still failing`
-// for a failure nothing fixed, and the receipt. Pure: hooks/cockpit.tsx draws what these return.
-import type { Receipt } from '../types'
-import { isShipCommand, parseShip, shellText } from './shared/calls/ships'
-import type { Part } from './shared/parts'
-import { vw } from './shared/text'
-import { formatSpan } from './shared/time'
-import { C } from './shared/tokens'
-import { cut } from './steplog'
+// for a failure nothing fixed, and the receipt. Pure: hooks/cockpit/left.tsx draws what these return.
+import type { Receipt } from '../../types'
+import { isShipCommand, parseShip, shellText } from '../shared/calls/ships'
+import type { Part } from '../shared/parts'
+import { vw } from '../shared/text'
+import { formatSpan } from '../shared/time'
+import { C } from '../shared/tokens'
+import { cut } from './steps/rows'
 
 const spaces = (n: number) => ' '.repeat(Math.max(0, n))
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`

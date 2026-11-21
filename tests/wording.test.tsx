@@ -1,7 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
-import { newLog, settleStep, startStep, stepRows } from '../hooks/steplog'
-import type { Outcome } from '../hooks/steplog'
+import { newLog, settleStep, startStep } from '../hooks/cockpit/steps/log'
+import { stepRows } from '../hooks/cockpit/steps/rows'
+import type { Outcome } from '../hooks/cockpit/steps/log'
 
 /** The result column of one settled shell step, as `[ STEPS ]` draws it at 72 columns. */
 function shellResult(command: string, outcome: Outcome): string {

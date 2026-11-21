@@ -5,22 +5,9 @@ import type { FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStam
 import { VERB_W, activityHead, diffRows, diffTop, foldOf, foldRow, layoutStep, stepOf, stepParts } from './activity'
 import type { Step } from './activity'
 import { browserBottom, browserTarget, browserTool, browserTop, browserUrl, browserVerb, openRunBefore, urlBar } from './browser'
-import {
-  drawLive,
-  drawQuietGroup,
-  drawReceipt,
-  isQuiet,
-  logAsk,
-  logMode,
-  logSaid,
-  logStepEnd,
-  logStepStart,
-  logTurnEnd,
-  logTurnStart,
-  registerCockpit,
-  runningTurn,
-  startCockpit
-} from './cockpit'
+import { registerCockpit, startCockpit } from './cockpit/feature'
+import { drawLive, drawQuietGroup, drawReceipt, isQuiet } from './cockpit/left'
+import { logAsk, logMode, logSaid, logStepEnd, logStepStart, logTurnEnd, logTurnStart, runningTurn } from './cockpit/log'
 import { mcpName, runnerOf } from './shared/calls/describe'
 import { changeParts } from './shared/calls/results'
 import { isShipCommand, parseShip, shellText } from './shared/calls/ships'

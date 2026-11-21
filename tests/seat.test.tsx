@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { dockCap, paneColumns, terminalColumns } from '../hooks/seat'
+import { dockCap, paneColumns, terminalColumns } from '../hooks/cockpit/seat'
 
 // Cockpit asks for the widest of 72, 56 or 40 body columns that leaves the transcript 100 cells.
 // The dock's chrome is one divider column (correction A), and the engine's 45% cap includes it (correction B).
