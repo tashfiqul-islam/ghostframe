@@ -59,8 +59,9 @@ loop. Render sites are hooked by the folder that draws them.
 | `transcript/sites/reply/` |                                                                                                                                                        | `AssistantMessage`                                                                                 |
 | `transcript/sites/tools/` |                                                                                                                                                        | `ToolUse`, `ToolGroup`, `ToolResult`                                                               |
 
-While the cockpit is on and docked, `Spinner`, `ToolGroup`, `TurnDuration` and narration in `AssistantMessage` ask
-`cockpit/left` first: the quiet left. Docked, the engine's agent rows draw nothing: an agent's `UserMessage` (its
+While the cockpit is on and docked, `Spinner`, `ToolGroup` and `AssistantMessage` ask `cockpit/left` first: the quiet
+left. Narration draws nothing, and each turn's receipt ends its last answer block, keyed by the engine's turn id;
+`TurnDuration` draws nothing, since the turns an agent's reports start share one footer, or have none. Docked, the engine's agent rows draw nothing: an agent's `UserMessage` (its
 message or its finished notice), the `ToolUse` of an `Agent` call, and each `AgentRow`. A subagent's `tool.call`
 (the ledger's) feeds its `[ AGENTS ]` row.
 

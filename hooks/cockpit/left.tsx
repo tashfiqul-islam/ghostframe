@@ -1,5 +1,5 @@
 // Cockpit's part of the left while its pane is docked (spec E.1, E.5, E.32, E.33): the quiet transcript's `↗` rows
-// and receipt, and the one-row live area.
+// and receipts, and the one-row live area.
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { drawRows } from './draw'
@@ -44,34 +44,31 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
 }
 
 /**
- * Cockpit's part of `TurnDuration` while quiet: the receipt of the turn the footer stands for, with its
- * `still failing` rows, and one blank row above. Nothing for an interrupted turn (correction G).
+ * Cockpit's part of a turn's last answer block while quiet: the receipt of the engine turn that block ended, with
+ * its `still failing` rows, one blank row above (E.32). Every turn that answered gets exactly one, keyed by the
+ * engine's turn id, which a block knows from its first draw: the engine's footer can't carry it, since the turns
+ * an agent's reports start share one footer, or have none (phase 5 probe). Nothing for an interrupted turn
+ * (correction G), nor before the turn's receipt is kept; it then draws when it is.
  * @param $ the engine interface
- * @param e the render
- * @param turn the id of the turn the footer stands for, when known; unknown, the current turn's
+ * @param e the block's render
+ * @param turn the engine turn the block ended
  * @param width the transcript rule's width
- * @returns the tree; an empty one while the current turn's receipt is on its way (the engine may raise the
- *   footer before `turn.complete` keeps it, and the old footer must not flash); undefined for an earlier turn
- *   that has no receipt, which keeps the old footer
+ * @returns the tree, or undefined when there is none to draw
  */
-export async function drawReceipt(
+export async function drawTurnReceipt(
   $: EngineInterface,
-  e: RenderInput<'TurnDuration', 'terminal'>,
-  turn: string | undefined,
+  e: RenderInput<'AssistantMessage', 'terminal'>,
+  turn: string,
   width: number
 ): Promise<RenderElement | undefined> {
+  const receipt = (await readReceipts($)).findLast(r => r.turn === turn)
+  const rows = receipt === undefined ? [] : receiptRows(receipt, width)
+
+  if (rows.length === 0) return undefined
+
   const ui = $.ui.resolve(e)
-  const current = (await readLog($)).turn
-  const wanted = turn ?? current
-  const receipt = (await readReceipts($)).findLast(r => r.turn === wanted)
 
-  if (receipt === undefined) return wanted === current ? <ui.Box /> : undefined
-
-  const rows = receiptRows(receipt, width)
-
-  return rows.length === 0 ? (
-    <ui.Box />
-  ) : (
+  return (
     <ui.Box flexDirection="column" marginTop={1}>
       {drawRows(ui, rows)}
     </ui.Box>

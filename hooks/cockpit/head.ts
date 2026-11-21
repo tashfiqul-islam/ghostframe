@@ -6,6 +6,7 @@ import type { Part } from '../shared/parts'
 import { vw } from '../shared/text'
 import { fmtClock, formatSpan } from '../shared/time'
 import { C } from '../shared/tokens'
+import { waitingOn } from './agents/roster'
 import { agentRows } from './agents/rows'
 import type { AgentsLevel } from './agents/rows'
 import { cut, sectionLabel, stepRows } from './steps/rows'
@@ -91,8 +92,11 @@ function nowRows(log: StepLog, now: number, width: number, isPromptCovered: bool
 
 const STATE_COLOR = { done: C.ok, failed: C.err, interrupted: C.warn } as const
 
-/** `[ LAST ]`: the label with the turn and when it ended; the state word, the story, the time; what waits. */
-function lastRows(log: StepLog, width: number): Part[][] {
+/**
+ * `[ LAST ]`: the label with the turn and when it ended; the state word, the story, the time; what waits. While
+ * background agents still run, the turn is not done: `waiting · N agents`, in the agents' colour.
+ */
+function lastRows(log: StepLog, width: number, waiting: number): Part[][] {
   const last = log.last
 
   if (log.turnNo === 0 || last === null) {
@@ -102,13 +106,15 @@ function lastRows(log: StepLog, width: number): Part[][] {
   const when = last.endedAt === null ? '' : ` · ${fmtClock(last.endedAt)}`
   const time = formatSpan(last.durationMs)
   const room = width - 2 - CLOCK_GAP - CLOCK_W
-  const story = cut(`${last.state} · ${last.story}`, room).slice(last.state.length)
+  const isWaiting = waiting > 0 && last.state === 'done'
+  const state = isWaiting ? `waiting · ${plural(waiting, 'agent')}` : last.state
+  const story = cut(`${state} · ${last.story}`, room).slice(state.length)
 
   return [
     sectionLabel('LAST', [{ t: `turn ${log.turnNo}${when}`, color: C.muted }], width),
     [
-      { t: `  ${last.state}`, color: STATE_COLOR[last.state] },
-      { t: story + spaces(room - vw(last.state) - vw(story)), color: C.text },
+      { t: `  ${state}`, color: isWaiting ? C.agent : STATE_COLOR[last.state] },
+      { t: story + spaces(room - vw(state) - vw(story)), color: C.text },
       { t: spaces(CLOCK_GAP) + spaces(CLOCK_W - vw(time)) + time, color: C.muted }
     ],
     ...(last.wait.length > 0 ? [line(`  ${last.wait}`, width, C.muted)] : [])
@@ -129,7 +135,8 @@ function lastRows(log: StepLog, width: number): Part[][] {
  * @returns one Part list per row
  */
 export function paneRows(log: StepLog, now: number, width: number, rows: number, isPromptCovered = false, roster: readonly RosterAgent[] = []): Part[][] {
-  const head = log.isTurnRunning ? nowRows(log, now, width, isPromptCovered) : lastRows(log, width)
+  const waiting = waitingOn(roster)
+  const head = log.isTurnRunning ? nowRows(log, now, width, isPromptCovered) : lastRows(log, width, waiting)
   const own = log.steps.length > 0 || log.dropped > 0
   const shown = own ? log : log.prev === null ? undefined : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
   const count = shown === undefined ? 0 : shown.steps.length + shown.dropped
@@ -154,7 +161,7 @@ export function paneRows(log: StepLog, now: number, width: number, rows: number,
 
 /**
  * The left's live area while docked (E.33, H.1): one row, the spinner frame, `working` (or `writing` while the
- * answer streams), and the turn's elapsed time on the time edge.
+ * answer streams), and the engine turn's elapsed time on the time edge, the time its receipt will show.
  * @param log the turn's log
  * @param now the wall clock in ms
  * @param frame the spinner's frame count
@@ -163,7 +170,7 @@ export function paneRows(log: StepLog, now: number, width: number, rows: number,
  */
 export function liveRow(log: StepLog, now: number, frame: number, width: number): Part[] {
   const word = log.mode === 'responding' ? 'writing' : 'working'
-  const time = since(now, log.startedAt)
+  const time = since(now, log.segmentStart)
   const glyph = FRAMES[frame % FRAMES.length] ?? FRAMES[0] ?? ''
 
   return [

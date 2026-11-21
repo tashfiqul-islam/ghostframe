@@ -3,22 +3,22 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer, ToolCallInput } from 'claude-code'
 
-import { addAgent, agentStep, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents } from './agents/roster'
+import { addAgent, agentStep, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents, waitingOn } from './agents/roster'
 import type { AgentEnd, AgentStart } from './agents/roster'
-import { askStep, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
+import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { isOn } from './switch'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
-const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-3' })
+const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
 // The agents of the current (or last) turn, and background agents still running from earlier ones (E.40).
 const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-1' })
 // Counters the timers bump while a turn runs: each second (the pane's running clock) and each spinner frame.
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-2' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-3' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -63,23 +63,26 @@ function startTimers($: EngineInterface, isTurn: boolean): void {
 }
 
 /**
- * A main-loop turn starts: its log starts empty, on its own clock, and the timers start.
+ * A main-loop turn starts, and the timers with it. A turn the person typed for starts a new log on its own clock
+ * (its number the next typed prompt's) and a new roster; a turn no prompt was typed for (its agents' reports)
+ * carries on the typed turn before it, with its number, steps and roster.
  * @param $ the engine interface
  * @param turn the turn's id
- * @param at when its prompt was submitted (wall clock, ms); undefined (no prompt was typed), now
+ * @param at when its prompt was typed (wall clock, ms); undefined when none was
  */
 export async function logTurnStart($: EngineInterface, turn: string, at: number | undefined): Promise<void> {
   if (!isOn()) return
 
   const now = await $.clock.now()
-  const startedAt = at ?? now
-  await update($, stepLog, log => newTurn(log, turn, startedAt))
-  // A turn the person typed starts a new roster; one their agents' reports start (no prompt) keeps it, so the idle
-  // pane still shows the turn that launched them, and their reports, still arriving, settle it.
-  if (at !== undefined) {
+
+  if (at === undefined) {
+    await update($, stepLog, log => continueTurn(log, turn, now))
+  } else {
+    await update($, stepLog, log => newTurn(log, turn, at))
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
   }
+
   lastMode = undefined
   startTimers($, true)
 }
@@ -186,7 +189,8 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   const now = await $.clock.now()
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
-  const receipt = receiptOf(await read($, stepLog))
+  const waiting = waitingOn(await read($, roster))
+  const receipt = receiptOf(await read($, stepLog), waiting)
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
 
   if (anyRunning(await read($, roster))) startTimers($, false)

@@ -8,6 +8,7 @@ test('from tool.call to the pane: the main loop`s calls are the turn`s [ STEPS ]
   on('clock.now', () => ({ value: (now += 1_000) }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  on('prompt.submit', (_, e) => ({ text: e.text }))
   on('tool.call', () => ({ result: { file: { numLines: 9 } }, text: 'ok' }))
 
   await $.turn.start({ text: 'read two files', turnId: 't1' })
@@ -22,7 +23,8 @@ test('from tool.call to the pane: the main loop`s calls are the turn`s [ STEPS ]
   expect(await ui.find({ type: 'Text', text: /c\.ts/ })).toBeUndefined()
   await ui.unmount()
 
-  // A new turn starts an empty log: no section until its first step.
+  // A new typed turn starts an empty log: no section until its first step.
+  await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'next', turnId: 't2' })
   const fresh = await $.ui.mount(PANE)
   expect(await fresh.find({ type: 'Text', text: /\[ STEPS \]/ })).toBeUndefined()

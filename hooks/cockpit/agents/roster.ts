@@ -111,3 +111,6 @@ export function reconcile(roster: readonly RosterAgent[], listed: readonly { id:
 
 /** Whether any agent still runs. */
 export const anyRunning = (roster: readonly RosterAgent[]): boolean => roster.some(a => a.state === 'running')
+
+/** How many of the main loop's own background agents still run: what the main loop waits on (nested agents report to their parent). */
+export const waitingOn = (roster: readonly RosterAgent[]): number => roster.filter(a => a.state === 'running' && a.isBackground && a.parent === null).length

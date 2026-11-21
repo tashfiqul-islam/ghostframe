@@ -25,7 +25,12 @@ function edgeRow(parts: readonly Part[], clock: string, width: number): Part[] {
   return [...fitted, { t: spaces(width - w - vw(clock)) + clock, color: C.muted }]
 }
 
-const STATE = { done: { color: C.muted, bold: false }, failed: { color: C.err, bold: true }, interrupted: { color: C.warn, bold: false } } as const
+const STATE = {
+  done: { color: C.muted, bold: false },
+  failed: { color: C.err, bold: true },
+  interrupted: { color: C.warn, bold: false },
+  waiting: { color: C.agent, bold: false }
+} as const
 
 /**
  * The receipt (E.32, amendment 3: the state word, no turn number) and, above it, a `still failing` row for each
@@ -45,7 +50,8 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
         ? [`${plural(receipt.failures, 'failure')} → fixed`]
         : [plural(open, 'failure'), ...(receipt.fixed > 0 ? [`${receipt.fixed} fixed`] : [])]
   const meta = [
-    ...(receipt.steps > 0 ? [plural(receipt.steps, 'step')] : []),
+    // A turn with no steps of its own says so: it never borrows another turn's count.
+    receipt.steps > 0 ? plural(receipt.steps, 'step') : 'no steps',
     ...exceptions,
     ...(receipt.files > 0 ? [plural(receipt.files, 'file')] : []),
     // The turn made a commit: its short hash, the one thing a later turn may want to find again.
@@ -54,7 +60,9 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
   const time = formatSpan(receipt.durationMs)
   const tail = meta.length > 0 ? ` ${meta} · ` : ' '
   const state = STATE[receipt.state]
-  const lead = `─ ${receipt.state} `
+  // Background agents still running when the turn ended: `waiting · 3 agents` (E.32), as it was when drawn.
+  const word = receipt.state === 'waiting' ? `waiting · ${plural(receipt.agents, 'agent')}` : receipt.state
+  const lead = `─ ${word} `
   const fill = width - vw(lead) - vw(tail) - vw(time)
 
   // A result that only repeats the subject (`exit 3`) is said once.
@@ -74,7 +82,7 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
     ...still,
     [
       { t: '─ ', color: C.rule },
-      { t: receipt.state, color: state.color, ...(state.bold ? { bold: true } : {}) },
+      { t: word, color: state.color, ...(state.bold ? { bold: true } : {}) },
       { t: ` ${'─'.repeat(Math.max(1, fill))}`, color: C.rule },
       { t: tail, color: C.muted },
       { t: time, color: C.text }
