@@ -1,11 +1,16 @@
 import { expect, test } from 'claude-code/testing'
 
-import { stepOf } from '../hooks/activity'
-import { browserTarget, browserTool, browserVerb, openRunBefore, urlBar, browserTop, browserBottom } from '../hooks/browser'
-import { NO_CAPS, NO_TALLY, capsLine, hookOutcome, spinnerWord, tallyText } from '../hooks/live'
-import { parseShip, parseTests, runnerOf, shippedFrame, testsFrame } from '../hooks/outcome'
-import { footnoteLines, parseCited, sourcesFrame, sup } from '../hooks/research'
-import { partsWidth } from '../hooks/states'
+import { stepOf } from '../hooks/transcript/activity/steps'
+import { browserTarget, browserTool, browserVerb, openRunBefore, urlBar, browserTop, browserBottom } from '../hooks/transcript/browser'
+import { NO_CAPS, NO_TALLY, capsLine, hookOutcome, spinnerWord, tallyText } from '../hooks/transcript/live'
+import { shippedFrame, testsFrame } from '../hooks/transcript/outcome'
+import { footnoteLines } from '../hooks/transcript/research/footnotes'
+import { parseCited, sup } from '../hooks/transcript/research/cites'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
+import { runnerOf } from '../hooks/shared/calls/describe'
+import { parseShip } from '../hooks/shared/calls/ships'
+import { parseTests } from '../hooks/shared/calls/tests'
+import { partsWidth } from '../hooks/shared/parts'
 
 const VIEW = { columns: 120, rows: 40 }
 const W = 96 // the measure at 120 columns (min(96, 120 − 14))

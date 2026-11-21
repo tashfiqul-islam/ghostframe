@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { vw } from '../hooks/grid'
+import { vw } from '../hooks/shared/text'
 import { textAt } from './text'
 
 // One transcript holding every component, rendered at 140, 90 and 60 columns and written

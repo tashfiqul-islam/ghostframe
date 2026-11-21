@@ -1,7 +1,7 @@
-import { defineConfig } from 'oxlint'
+import { defineConfig, type OxlintConfig } from 'oxlint'
 
 // Run from the repository root: `oxlint -c tools/oxlint.config.ts` (the tools/ scripts do).
-export default defineConfig({
+const config: OxlintConfig = defineConfig({
   plugins: ['typescript', 'unicorn', 'oxc', 'import', 'promise', 'jsdoc'],
   categories: {
     correctness: 'error',
@@ -49,3 +49,5 @@ export default defineConfig({
   ],
   ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**']
 })
+
+export default config

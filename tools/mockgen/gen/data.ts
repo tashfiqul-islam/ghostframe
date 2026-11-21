@@ -90,7 +90,7 @@ export const turn7 = (T: Transcript, mode: Mode = 'dock'): Line[] =>
     mode === 'dock' ? T.receipt('done · turn 7', '20 steps · 1 failure → fixed · 3 files', '2m 44s') : T.receipt('done · turn 7', '3 files', '2m 44s')
   )
 export const idle7: Idle = { meta: 'turn 7 · 10:29', state: 'done', story: '1 failure → fixed · ± 7be09d2', time: '2m 44s' }
-export const M7idle = { idle: idle7, steps: steps7, files: files7, sources: sources7 } satisfies PaneModel
+export const M7idle: PaneModel = { idle: idle7, steps: steps7, files: files7, sources: sources7 } satisfies PaneModel
 
 // ------------------------------------------------------------ turn 8: push and open a PR (running)
 export const P8 = 'push it and open a PR'
@@ -98,7 +98,7 @@ export const steps8: readonly Step[] = [
   S('3s', 'shell', 'git push -u origin fix/ci-bun-pin', '1 commit', 'out'),
   S('14s', 'shell', 'gh pr create --fill', 'running', 'run')
 ]
-export const M8 = {
+export const M8: PaneModel = {
   now: { meta: 'turn 8 · step 2', say: 'Opening the pull request.', kind: 'shell', subj: 'gh pr create --fill', el: '11s' },
   steps: steps8
 } satisfies PaneModel

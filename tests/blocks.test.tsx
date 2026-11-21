@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { splitBlocks } from '../hooks/blocks'
-import type { Block } from '../hooks/blocks'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import type { Block } from '../hooks/transcript/blocks/split'
 
 const REPORT = `Prose cells in tables now wrap instead of being cut, and Phase 3 (the activity timeline and the diff card) is built. Validate passes (warnings only), tsc exits 0 even with unused-variable checks on, and all 32 tests pass. None of it has been checked on screen yet.
 

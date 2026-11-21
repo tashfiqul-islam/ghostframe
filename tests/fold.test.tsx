@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { foldOf, foldRow, foldSummary } from '../hooks/activity'
-import { partsWidth } from '../hooks/states'
+import { foldOf, foldRow, foldSummary } from '../hooks/transcript/activity/fold'
+import { partsWidth } from '../hooks/shared/parts'
 
 const VIEW = { columns: 120, rows: 40 }
 const never = () => false

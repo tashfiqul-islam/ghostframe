@@ -331,7 +331,7 @@ export const answer14 = (T: Transcript): Line[] =>
       [nth(cited, 3), nth(cited, 0), nth(cited, 1), nth(cited, 2), nth(cited, 4)].map((c, i): SourceRef => ['¹²³⁴⁵'.charAt(i), c[1], c[2], c[3]])
     )
   )
-export const M14 = {
+export const M14: { idle: Idle; steps: readonly Step[]; sources: SourceFull[] } = {
   idle: idle(14, '12:14', 'done', '1 fetch failed · not cited', '1m 31s'),
   steps: steps14,
   sources: [nth(sources8, 3), nth(sources8, 0), nth(sources8, 1), nth(sources8, 2), nth(sources8, 4), ...sources8.slice(5)].map((s, i): SourceFull =>

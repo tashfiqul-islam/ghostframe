@@ -222,7 +222,14 @@ mock('e-detail', 72, [
 ])
 
 // ---- E.45 pinning
-export const Mpin7 = { ...M8, pin: 7, steps: steps7, files: files7, sources: sources7, stepsMeta: '20 steps · {r|1 failed} · 2m 44s' } satisfies PaneModel
+export const Mpin7: PaneModel = {
+  ...M8,
+  pin: 7,
+  steps: steps7,
+  files: files7,
+  sources: sources7,
+  stepsMeta: '20 steps · {r|1 failed} · 2m 44s'
+} satisfies PaneModel
 mock('e-pin', 72, fitPane(72, 30, Mpin7), { hero: true })
 
 // ---- E.46 the inline inspector (pane seated above the prompt, 100 columns)

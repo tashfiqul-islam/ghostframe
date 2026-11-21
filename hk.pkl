@@ -21,6 +21,13 @@ local typecheck = new Step {
   check = "bun run --cwd tools typecheck"
 }
 
+// The hooks' module boundaries (tools/scripts/boundaries.ts): shared never imports a feature, features
+// never import each other except the cockpit's public surface, and nothing re-exports.
+local boundaries = new Step {
+  glob = List("hooks/**/*.ts", "hooks/**/*.tsx")
+  check = "bun run --cwd tools boundaries"
+}
+
 // The repo is TypeScript-only: a JavaScript file anywhere fails (mise.toml, lint-js).
 local nojs = new Step {
   glob = List("**/*.js", "**/*.mjs", "**/*.cjs", "**/*.jsx")
@@ -53,6 +60,7 @@ local linters = new Mapping<String, Step> {
   ["oxfmt"] = (oxfmt) { depends = "oxlint" }
   ["typecheck"] = typecheck
   ["no-js"] = nojs
+  ["boundaries"] = boundaries
   ["actionlint"] = actionlint
   ["zizmor"] = zizmor
   ["shellcheck"] = shellcheck

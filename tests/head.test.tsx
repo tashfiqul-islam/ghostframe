@@ -1,8 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { paneRows } from '../hooks/head'
-import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, settleStep, startStep } from '../hooks/steplog'
-import type { Outcome, StepLog } from '../hooks/steplog'
+import { paneRows } from '../hooks/cockpit/head'
+import { askStep, endTurn, newLog, newTurn, noteMode, noteSaid, settleStep, startStep } from '../hooks/cockpit/steps/log'
+import type { Outcome } from '../hooks/cockpit/steps/log'
+import type { StepLog } from '../types'
 
 const W = 72
 const T0 = new Date(2026, 10, 21, 10, 26, 45).getTime() // the prompt's submit time (local); the turn clock starts here

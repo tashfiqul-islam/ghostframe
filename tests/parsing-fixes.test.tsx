@@ -1,10 +1,16 @@
 import { expect, test } from 'claude-code/testing'
 
-import { activityHead, firstErrorLine, foldOutput, shipResult, stepOf } from '../hooks/activity'
-import { splitBlocks } from '../hooks/blocks'
-import { parseShip, parseTests, runnerOf } from '../hooks/outcome'
-import { parseCited, sourceLabel, sourcesFrame } from '../hooks/research'
-import { clean } from '../hooks/testsummary'
+import { activityHead } from '../hooks/transcript/activity/rule'
+import { foldOutput } from '../hooks/transcript/activity/row'
+import { shipResult, stepOf } from '../hooks/transcript/activity/steps'
+import { splitBlocks } from '../hooks/transcript/blocks/split'
+import { runnerOf } from '../hooks/shared/calls/describe'
+import { firstErrorLine } from '../hooks/shared/calls/results'
+import { parseShip } from '../hooks/shared/calls/ships'
+import { parseTests, clean } from '../hooks/shared/calls/tests'
+import { sourceLabel } from '../hooks/shared/url'
+import { parseCited } from '../hooks/transcript/research/cites'
+import { sourcesFrame } from '../hooks/transcript/research/sources'
 
 const OK = { isRunning: false, isErrored: false, isInterrupted: false }
 const ERR = { ...OK, isErrored: true }

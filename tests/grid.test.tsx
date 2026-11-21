@@ -1,6 +1,8 @@
 import { expect, test } from 'claude-code/testing'
 
-import { clip, clipMiddle, fmtDuration, fmtTokens, measure, pad, vw } from '../hooks/grid'
+import { measure } from '../hooks/shared/layout'
+import { clip, clipMiddle, pad, vw } from '../hooks/shared/text'
+import { fmtDuration, fmtTokens } from '../hooks/shared/time'
 
 test('visible width counts wide and zero-width cells', async () => {
   expect(vw('abc')).toBe(3)
