@@ -1,0 +1,111 @@
+// The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail.
+import type { On } from 'claude-code'
+
+import type { PromptStamp } from '../../../types'
+import { G, layout, ruleWidth } from '../../shared/layout'
+import { Rule } from '../../shared/rule'
+import { fmtClock } from '../../shared/time'
+import { C } from '../../shared/tokens'
+import { claim } from '../claim'
+import { cell } from '../draw/cell'
+import { readPrompts } from '../ledger/state'
+import { lastSubmittedAt } from '../ledger/turns'
+import { wrapPlain } from '../prose'
+
+// Which submit stamp each turn rule shows, by the row's request: the same prompt typed
+// twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
+// that just landed when it is free (the row the engine draws for it), else the oldest
+// stamp no other row holds (rows redrawn in transcript order after a reload), so an
+// earlier rule never takes a later submit's time. Written while drawing.
+// shortcut: an older row with the same text that first draws after a reload, between a
+// submit and its own row, takes that submit; the new row then shows the older time.
+const promptClaims = new Map<string, number>()
+const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
+  claim(
+    promptClaims,
+    row,
+    list.filter(p => p.text.trim() === text.trim()),
+    p => p.at,
+    lastSubmittedAt()
+  )
+
+function durationLabel(ms: number) {
+  const s = Math.max(0, Math.round(ms / 1000))
+
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+/**
+ * Adds the user prompt's drawing (`UserMessage`).
+ * @param on the `on` that `register` receives
+ */
+export function registerPrompt(on: On): void {
+  // User prompt: peach rail over the full height, text verbatim. Task notifications get the tree look.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    if (e.surface !== 'terminal' || e.props.isExpanded || e.props.text.length === 0) {
+      return next(e)
+    }
+
+    const { Box, Text } = $.ui.resolve(e)
+
+    if (e.props.origin.kind === 'task-notification') {
+      const launched = /launched|started/i.test(e.props.text)
+      const ms = e.props.task?.durationMs
+
+      return (
+        <Box flexWrap="nowrap">
+          <Box flexShrink={0}>
+            <Text color={launched ? C.accent : C.muted}>{'◇ '}</Text>
+          </Box>
+          <Box flexShrink={1} minWidth={0}>
+            <Text color={C.text} wrap="truncate-end">
+              {e.props.text.split('\n')[0] ?? ''}
+            </Text>
+          </Box>
+          {ms !== undefined && (
+            <Box flexShrink={0}>
+              <Text color={C.muted}>{` · ${durationLabel(ms)}`}</Text>
+            </Box>
+          )}
+        </Box>
+      )
+    }
+
+    const lay = layout(e.viewport?.columns)
+
+    if (e.props.origin.kind !== 'composer' || lay === undefined) {
+      return next(e)
+    }
+
+    const width = lay.width
+
+    // Turn open rule with the submit time (dropped when we never saw the submit),
+    // then `you` in the gutter and the message behind a ▎ rail on every row.
+    const stamp = claimPrompt(e.requestId, e.props.text, await readPrompts($))
+    const rows = wrapPlain(e.props.text, width - 2)
+    const ui = $.ui.resolve(e)
+
+    return (
+      <Box flexDirection="column">
+        {/* §0.2: one blank row between the last turn's footer rule and this one. */}
+        <Box marginTop={1}>{Rule(ui, stamp ? { text: fmtClock(stamp.at), color: C.muted } : undefined, undefined, ruleWidth(lay))}</Box>
+        {cell(
+          ui,
+          lay,
+          { text: 'you', color: C.text },
+          // One Text for the whole message: rows pre-wrapped to the measure, joined by \n.
+          <Text wrap="wrap">
+            {rows.flatMap((row, i) => [
+              ...(i > 0 ? ['\n'] : []),
+              <Text key={`${i}.rail`} color={C.accent}>
+                {G.rail}
+              </Text>,
+              <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
+            ])}
+          </Text>,
+          1
+        )}
+      </Box>
+    )
+  })
+}
