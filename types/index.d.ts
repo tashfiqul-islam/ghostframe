@@ -98,6 +98,24 @@ export type StepLog = {
   prev: PrevSteps | null
 }
 
+/** A failure nothing fixed by the end of its turn: its `still failing` row above the receipt (spec E.5). */
+export type OpenFailure = { kind: string; subject: string; result: string; clock: number }
+
+/**
+ * What a finished turn's receipt says (spec E.32, amendment 3), by the turn's id, so a receipt drawn again later
+ * still shows its own turn: the state, the counts, the failures left open, and the turn's time on Cockpit's clock.
+ */
+export type Receipt = {
+  turn: string | null
+  state: LastTurn['state']
+  steps: number
+  failures: number
+  fixed: number
+  files: number
+  open: OpenFailure[]
+  durationMs: number
+}
+
 declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
@@ -119,6 +137,7 @@ declare module 'claude-code' {
       second: Shaped<number>
       frame: Shaped<number>
       stepLog: Shaped<StepLog>
+      receipts: Shaped<Receipt[]>
     }
   }
 }

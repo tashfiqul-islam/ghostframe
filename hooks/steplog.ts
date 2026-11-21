@@ -1,6 +1,6 @@
 // Cockpit's step log: one turn's tool calls as `[ STEPS ]` rows (spec E.12, E.37, E.39, H.5; amendments 1
 // and 2). Pure: hooks/cockpit.tsx keeps the log in $.state and draws what `stepRows` returns.
-import type { LastTurn, StepLog, LogStep, StepMark } from '../types'
+import type { LastTurn, Receipt, StepLog, LogStep, StepMark } from '../types'
 import { DENIED, describe, firstErrorLine, mcpName, relPath, resultOf, TEST_CMD } from './activity'
 import { cellWidth, vw } from './grid'
 import { isShipCommand, parseShip, runnerOf, shellText } from './outcome'
@@ -445,13 +445,41 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
 /**
  * The turn ended after `durationMs`: a step still running was cut (an interrupted turn has no receipt; correction G),
  * its clock the turn's end, or where it started when the turn's start is unknown. The head turns to `[ LAST ]`.
+ * `endedAt` (Cockpit's clock) makes the turn's time `endedAt − startedAt`: the one value the head, the receipt and
+ * the live row all read. Without it, or without a known start, the engine's `engineMs` stands.
  */
-export function endTurn(log: StepLog, durationMs: number, isAborted = false): StepLog {
+export function endTurn(log: StepLog, engineMs: number, isAborted = false, endedAt?: number): StepLog {
+  const durationMs = endedAt !== undefined && log.startedAt !== null ? Math.max(0, endedAt - log.startedAt) : engineMs
   const turnEnd = log.startedAt === null ? undefined : durationMs
   const steps = log.steps.map(s => (s.isRunning ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
   const last: LastTurn = { ...verdict(steps, isAborted), durationMs, endedAt: log.startedAt === null ? null : log.startedAt + durationMs }
 
   return { ...log, steps, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
+}
+
+const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
+
+/** A finished turn's receipt (E.32): its state, steps, failures and how many were fixed, files changed, failures left open. */
+export function receiptOf(log: StepLog): Receipt {
+  const steps = log.steps
+  const failed = steps.flatMap((s, i) => (s.mark === '✕' ? [i] : []))
+  const open = failed.flatMap(i => {
+    const s = steps[i]
+
+    return s === undefined || !isOpen(steps, i) ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
+  })
+  const files = new Set(steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject))
+
+  return {
+    turn: log.turn,
+    state: log.last?.state ?? 'done',
+    steps: steps.length + log.dropped,
+    failures: failed.length,
+    fixed: failed.length - open.length,
+    files: files.size,
+    open,
+    durationMs: log.last?.durationMs ?? 0
+  }
 }
 
 /** A hard cut to `n` cells, ending in `…`; spec mocks cut mid-word (`bun te…`). */
