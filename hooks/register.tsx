@@ -999,8 +999,8 @@ const drawDiff = (ui: Ui, diff: NonNullable<ReturnType<typeof diffRows>>, width:
   )
 }
 
-export const register: Register = on => {
-  registerCockpit(on)
+export const register: Register = (on, options) => {
+  registerCockpit(on, options)
 
   // Mode labels at the right of the prompt footer: grid cells split by │.
   on('ui.render', { component: 'SessionMode' }, ($, e, next) => {
