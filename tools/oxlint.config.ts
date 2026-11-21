@@ -59,5 +59,5 @@ export default defineConfig({
       }
     }
   ],
-  ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**']
+  ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**', '**/mockgen/**']
 })
