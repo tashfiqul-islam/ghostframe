@@ -65,6 +65,10 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: mise run lint-js
 
+      - name: Check the hooks' module boundaries (shared, cockpit, transcript)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun run --cwd tools boundaries
+
       - name: Type-check the dev tools (tsrs, tools/tsconfig.json)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools typecheck:tools
