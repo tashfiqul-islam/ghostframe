@@ -131,13 +131,10 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
   const clock = clockOf(log, end.at)
 
   if (row.kind === 'agent') {
-    const failedNow = end.outcome.isError === true || end.outcome.deny !== undefined
-    const done = (row.done ?? 0) + (failedNow ? 0 : 1)
-    const failed = (row.failed ?? 0) + (failedNow ? 1 : 0)
-    const isRunning = done + failed < (row.calls?.length ?? 1)
-    const result = isRunning ? '' : [`${done} done`, ...(failed > 0 ? [`${failed} failed`] : [])].join(' · ')
+    const isFailed = end.outcome.isError === true || end.outcome.deny !== undefined
 
-    return { ...log, steps: log.steps.with(at, { ...row, done, failed, isRunning, result, clock: isRunning ? row.clock : clock }) }
+    // A background agent's call returns as it launches: its report ends it (`endLaunched`).
+    return !isFailed && isLaunchedOnly(end.outcome.result) ? log : endLaunched(log, end.id, isFailed, end.at)
   }
 
   const fixes = log.steps.some((s, i) => i < at && s.key === row.key && isOpen(log.steps, i))
@@ -146,6 +143,43 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
 
   // The step is answered; the model is called again: `[ NOW ]` says `waiting` from here.
   return { ...log, asking, mode: 'requesting', modeSince: end.at, steps: log.steps.with(at, { ...row, result, mark, isRunning: false, clock }) }
+}
+
+/** Whether an Agent call's record says it only launched its agent, which runs on in the background. */
+function isLaunchedOnly(result: unknown): boolean {
+  const status = typeof result === 'object' && result !== null && 'status' in result ? result.status : undefined
+
+  return status === 'async_launched' || status === 'remote_launched'
+}
+
+/**
+ * One agent of a launch ended (amendment 1): the launch counts it once, by its Agent call's id, whether its report
+ * or its call's return said so first; the row settles, `6 done · 1 failed`, when the last of its agents has ended.
+ * A launch of an earlier turn (its agents ran in the background) settles in that turn's steps.
+ */
+export function endLaunched(log: StepLog, call: string, isFailed: boolean, at: number): StepLog {
+  // `clockAt` undefined: an earlier turn's launch, whose start is no longer known, keeps its row's clock.
+  const settle = (steps: readonly LogStep[], clockAt: number | undefined): LogStep[] | undefined => {
+    const i = steps.findIndex(s => s.kind === 'agent' && s.calls?.includes(call) === true)
+    const row = steps[i]
+
+    if (row === undefined || row.ended?.includes(call) === true) return undefined
+
+    const ended = [...(row.ended ?? []), call]
+    const done = (row.done ?? 0) + (isFailed ? 0 : 1)
+    const failed = (row.failed ?? 0) + (isFailed ? 1 : 0)
+    const isRunning = ended.length < (row.calls?.length ?? 1)
+    const result = isRunning ? '' : [`${done} done`, ...(failed > 0 ? [`${failed} failed`] : [])].join(' · ')
+
+    return steps.with(i, { ...row, ended, done, failed, isRunning, result, mark: '', clock: isRunning || clockAt === undefined ? row.clock : clockAt })
+  }
+  const own = settle(log.steps, clockOf(log, at))
+
+  if (own !== undefined) return { ...log, steps: own }
+
+  const prev = log.prev === null ? undefined : settle(log.prev.steps, undefined)
+
+  return prev === undefined || log.prev === null ? log : { ...log, prev: { ...log.prev, steps: prev } }
 }
 
 /** `[ LAST ]`'s verdict: the state word, the story in a few words, and what waits. */
@@ -186,7 +220,9 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
 export function endTurn(log: StepLog, engineMs: number, isAborted = false, endedAt?: number): StepLog {
   const durationMs = endedAt !== undefined && log.startedAt !== null ? Math.max(0, endedAt - log.startedAt) : engineMs
   const turnEnd = log.startedAt === null ? undefined : durationMs
-  const steps = log.steps.map(s => (s.isRunning ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
+  // A launch still running when the turn ends ran its agents in the background: it settles when they report.
+  const isCut = (s: LogStep) => s.isRunning && (isAborted || s.kind !== 'agent')
+  const steps = log.steps.map(s => (isCut(s) ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
   const last: LastTurn = { ...verdict(steps, isAborted), durationMs, endedAt: log.startedAt === null ? null : log.startedAt + durationMs }
 
   return { ...log, steps, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }

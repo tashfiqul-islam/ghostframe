@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { ON, PANE } from '../../../support/cockpit'
 import { textAt } from '../../../support/text'
 import { VIEW } from '../../../support/view'
 import { engine, engineText } from '../../../support/engine'
@@ -338,4 +339,39 @@ test('a browser run is one frame across its rows; the next block and the close r
   expect(await close.find({ type: 'Text', text: /^2 actions$/ })).toBeDefined()
   expect(await close.find({ type: 'Text', text: /2 browser actions/ })).toBeDefined()
   await close.unmount()
+})
+
+// ─── Docked Cockpit: an agent launch is the pane's ──────────────────
+
+test('docked: an `Agent` call`s row draws nothing; undocked it is drawn as before', ON, async ($, on) => {
+  engine(on)
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  const row = {
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'ToolUse',
+    requestId: 'c1',
+    viewport: VIEW,
+    props: {
+      tool_use_id: 'c1',
+      tool: 'Agent',
+      input: { description: 'Read seat', prompt: 'go' },
+      isRunning: false,
+      isErrored: false,
+      isInterrupted: false,
+      isExpanded: false
+    }
+  } as never
+  const texts = async () => {
+    const ui = await $.ui.mount(row)
+    const t = (await ui.findAll({ type: 'Text' })).map(x => x.text).filter(x => x.trim().length > 0)
+    await ui.unmount()
+
+    return t
+  }
+
+  expect(await texts()).not.toEqual([])
+  const pane = await $.ui.mount(PANE)
+  expect(await texts()).toEqual([])
+  await pane.unmount()
 })
