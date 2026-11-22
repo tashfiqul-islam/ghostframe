@@ -249,7 +249,8 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
   const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
-  await update($, stepLog, clearAgentWork)
+  // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
+  await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
 
   if (anyRunning(await read($, roster))) startTimers($, false)
   else stopTimers()
@@ -328,6 +329,16 @@ export async function logAgentStart($: EngineInterface, start: Omit<AgentStart, 
 }
 
 /**
+ * Whether the roster lists an agent.
+ * @param $ the engine interface
+ * @param id the agent's id
+ * @returns whether it does
+ */
+async function isListed($: EngineInterface, id: string): Promise<boolean> {
+  return (await read($, roster)).some(a => a.id === id)
+}
+
+/**
  * An agent's own call started (`tool.call` with its `agentId`): its row says what it does now.
  * @param $ the engine interface
  * @param id the agent's id
@@ -335,14 +346,16 @@ export async function logAgentStart($: EngineInterface, start: Omit<AgentStart, 
  * @param cwd the session's folder, for relative paths
  */
 export async function logAgentStep($: EngineInterface, id: string, e: ToolCallInput, cwd: string | undefined): Promise<void> {
-  if (!isOn()) return
+  // Only an agent the roster lists: a workflow's agents and the engine's own forks (compaction, memory) carry ids no
+  // list names, and their work is not the turn's.
+  if (!isOn() || !(await isListed($, id))) return
 
   const at = await $.clock.now()
   lastCwd = cwd ?? lastCwd
   // A file's diff is the whole turn's change: an agent's call reads it first too (amendment 8).
   await snapshotBefore($, e.tool, e, cwd)
-  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id) : list))
-  await noteStart($, e.tool_use_id, e.tool, e, at)
+  await update($, roster, list => agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id))
+  await noteStart($, e.tool_use_id, e.tool, e, at, id)
 }
 
 /**
@@ -355,7 +368,7 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
  * @param cwd the session's folder, for paths from the project root
  */
 export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCallInput, outcome: Outcome | undefined, cwd?: string): Promise<void> {
-  if (!isOn()) return
+  if (!isOn() || !(await isListed($, id))) return
 
   const at = await $.clock.now()
   const ran = outcome ?? { isError: true as const, text: 'failed' }

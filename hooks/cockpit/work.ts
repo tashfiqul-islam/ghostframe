@@ -147,7 +147,7 @@ async function shellFiles(
   lastDiff = now?.files
 
   // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
-  // main loop's may take the other's mark (`◇`); the rows and counts are the same either way.
+  // main loop's may take the other's `◇` mark. The counts stay right: calls are noted one at a time (`noteWork`).
   return now !== undefined && before !== undefined
     ? files => filesFromDiff(files, before, now.files, now.root, cwd, isAgent)
     : files => filesFromCommand(files, command, cwd, isAgent)
@@ -181,6 +181,19 @@ export async function startWork($: EngineInterface, cwd?: string): Promise<void>
  * @param isAgent whether the call was an agent's own: its files and pages are marked `◇`, and its to-dos are its own
  */
 export async function noteWork($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent = false): Promise<void> {
+  // One call at a time: each reads the work tree's last diff and moves it on, and agents' calls end beside the main
+  // loop's. Two at once would both count the change between the last diff and the first of theirs.
+  const run = noting.then(async () => noteWorkNow($, tool, input, outcome, cwd, isAgent))
+  noting = run.catch(() => undefined) // a call that fails is the caller's to log; the next one still runs
+
+  return run
+}
+
+/** The calls being noted, in the order they ended. */
+let noting: Promise<void> = Promise.resolve()
+
+/** `noteWork`'s body, run one call at a time. */
+async function noteWorkNow($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent: boolean): Promise<void> {
   lastCwd = cwd ?? lastCwd
   const isOk = outcome.isError !== true && outcome.deny === undefined
   const isShell = tool === 'Bash' || tool === 'PowerShell'

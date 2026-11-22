@@ -63,12 +63,24 @@ export function withRecord(records: readonly TurnRecord[], record: TurnRecord): 
   return [...records.filter(r => r.turnNo !== record.turnNo), record].toSorted((a, b) => a.turnNo - b.turnNo)
 }
 
-/** Whether a record still holds bulky parts. */
-const isBulky = (r: TurnRecord): boolean => r.diffs.length > 0 || r.details.some(d => d.excerpt.length > 0 || d.patch.length > 0)
+const AGENT_STEPS_KEPT = 20 // an agent's newest steps a trimmed turn keeps; a long-lived agent is saved with every turn
 
-/** A record without its bulky parts: the details keep their command and timing, the diffs go. */
+/** Whether a record still holds bulky parts. */
+const isBulky = (r: TurnRecord): boolean =>
+  r.diffs.length > 0 || r.details.some(d => d.excerpt.length > 0 || d.patch.length > 0) || r.roster.some(a => (a.log?.length ?? 0) > AGENT_STEPS_KEPT)
+
+/**
+ * A record without its bulky parts: the details keep their command and timing, the diffs go, and each agent keeps its
+ * newest 20 steps, the rest counted in `logDropped`.
+ */
 export function trimmed(r: TurnRecord): TurnRecord {
-  return { ...r, details: r.details.map(d => ({ ...d, excerpt: [], patch: [] })), diffs: [], isTrimmed: true }
+  const roster = r.roster.map(a => {
+    const over = Math.max(0, (a.log?.length ?? 0) - AGENT_STEPS_KEPT)
+
+    return a.log === undefined || over === 0 ? a : { ...a, log: a.log.slice(over), logDropped: (a.logDropped ?? 0) + over }
+  })
+
+  return { ...r, roster, details: r.details.map(d => ({ ...d, excerpt: [], patch: [] })), diffs: [], isTrimmed: true }
 }
 
 /**

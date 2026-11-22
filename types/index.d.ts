@@ -229,6 +229,8 @@ export type StepDetail = {
   lines: number
   excerpt: string[]
   patch: string[]
+  /** The agent whose own call it is (phase 11); absent for the main loop's. */
+  agent?: string
 }
 
 /** A file's diff over a whole turn: its content at the turn's start against its end, or why there is none. */

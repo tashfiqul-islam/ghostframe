@@ -301,11 +301,17 @@ export function noteAgentWork(log: StepLog, tool: string, input: unknown, outcom
   return { ...log, agentWork }
 }
 
-/** A receipt was written: the agents' work it counted clears. */
-export const clearAgentWork = (log: StepLog): StepLog => {
+/** A receipt was written: the agents' work it counted clears; what came after it waits for the next receipt. */
+export function clearAgentWork(log: StepLog, counted: StepLog['agentWork']): StepLog {
+  const had = log.agentWork
+
+  if (had === undefined || counted === undefined) return log
+
+  const files = had.files.filter(f => !counted.files.includes(f))
+  const pages = had.pages.filter(p => !counted.pages.includes(p))
   const { agentWork: _, ...rest } = log
 
-  return rest
+  return files.length === 0 && pages.length === 0 ? rest : { ...rest, agentWork: { files, pages } }
 }
 
 /**

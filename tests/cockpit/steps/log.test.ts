@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { endLaunched, endTurn, newLog, newTurn, noteAgentWork, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import { clearAgentWork, endLaunched, endTurn, newLog, newTurn, noteAgentWork, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 const launch = (ids: readonly string[]): StepLog => {
@@ -118,4 +118,11 @@ test('a receipt counts the files and pages agents touched since the last receipt
 
   // A new typed turn carries what no receipt has counted yet.
   expect(receiptOf(newTurn(log, 't2', 9_000))).toMatchObject({ steps: 0, files: 2, sources: 1 })
+})
+
+test('a receipt clears only the agents` work it counted: what ended after it waits for the next one', () => {
+  const counted = { files: ['a.ts'], pages: ['example.com'] }
+  const log = { ...newLog(null, null), agentWork: { files: ['a.ts', 'b.ts'], pages: ['example.com'] } }
+  expect(clearAgentWork(log, counted).agentWork).toEqual({ files: ['b.ts'], pages: [] })
+  expect(clearAgentWork({ ...log, agentWork: counted }, counted).agentWork).toBeUndefined()
 })

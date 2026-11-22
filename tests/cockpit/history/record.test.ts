@@ -110,3 +110,28 @@ test('a turn keeps its agents` own steps (subjects cut at 200) and their details
   expect(trimmed(record).details[0]?.excerpt).toEqual([])
   expect(trimmed(record).roster[0]?.log).toHaveLength(1)
 })
+
+test('a trimmed turn keeps each agent`s newest 20 steps and counts the rest', () => {
+  const step = (i: number) => ({ id: `s${i}`, kind: 'read', subject: `f${i}`, key: 'k', result: '', mark: '' as const, isRunning: false, clock: i })
+  const agent = {
+    ...aTurn(1, 0).roster[0],
+    id: 'a1',
+    call: '',
+    parent: null,
+    name: 'x',
+    isBackground: true,
+    state: 'done' as const,
+    kind: 'done',
+    subject: '',
+    steps: 30,
+    startedAt: 0,
+    endedAt: 1,
+    subjectAt: 0,
+    pending: null,
+    log: Array.from({ length: 30 }, (_, i) => step(i)),
+    logDropped: 2
+  }
+  const cut = trimmed({ ...aTurn(1, 0), roster: [agent] }).roster[0]
+  expect(cut?.log?.map(s => s.id)).toEqual(Array.from({ length: 20 }, (_, i) => `s${i + 10}`))
+  expect(cut?.logDropped).toBe(12)
+})
