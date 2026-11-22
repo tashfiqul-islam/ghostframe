@@ -9,7 +9,7 @@ import { PILL, TINT, TOKEN, WORDMARK } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'
 import { screen, shown } from '../support/screens'
 import { screen01, screen03, screen04, screen13, screen16, screen22, screen30, screen31 } from '../support/v8left'
-import { pane01, pane03, pane04, pane13, pane16, pane22 } from '../support/v8pane'
+import { pane01, pane03, pane04, pane13, pane16, pane22, pane23, pane29 } from '../support/v8pane'
 
 const find = (rows: readonly (readonly Part[])[], t: string) => rows.flat().find(p => p.t === t)
 
@@ -155,4 +155,23 @@ test('screen 22, the pane: turn 7 as screen 01 shows it, beside the slash comman
   const { rows, want } = pane('22', pane22)
 
   expect(shown(rows)).toEqual(want)
+})
+
+test('screen 23, the pane: the Files tab, change bars, the selected file`s hunk in place, ◇ for an agent`s file', () => {
+  const { rows, want } = pane('23', pane23)
+
+  expect(shown(rows)).toEqual(want)
+  expect(find(rows, 'FILES 3')).toMatchObject({ color: TOKEN.textBright, bold: true })
+  expect(find(rows, '◇')?.color).toBe(TOKEN.agent)
+  expect(find(rows, '@@ 14,3 @@')?.color).toBe(TOKEN.machine)
+  expect(find(rows, 'runtime.ts')?.color).toBe(TOKEN.textBright)
+  expect(find(rows, 'hooks/')?.color).toBe(TOKEN.dim)
+})
+
+test('screen 29, the pane: every step, no folding, the failed step`s output in place', () => {
+  const { rows, want } = pane('29', pane29)
+
+  expect(shown(rows)).toEqual(want)
+  expect(find(rows, 'ALL STEPS · TURN 7')).toMatchObject({ color: TOKEN.muted, bold: true })
+  expect(find(rows, '2 of 14')?.color).toBe(TOKEN.err)
 })

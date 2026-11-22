@@ -254,7 +254,7 @@ export type Group = {
 }
 
 /** The selected row (6.2): `▐` in accent on `surface`, the whole width on `surface`. */
-function selected(row: readonly Part[]): Part[] {
+export function selected(row: readonly Part[]): Part[] {
   const rest = [sp(1), ...row.slice(1)]
 
   return [{ t: GLYPH.pillStart, color: TOKEN.accent, bg: TOKEN.surface }, ...rest.map(p => ({ ...p, bg: p.bg ?? TOKEN.surface }))]

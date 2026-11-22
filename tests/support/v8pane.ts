@@ -2,6 +2,8 @@
 // the spec's section 12. Pure, so a script can print them too.
 import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from '../../hooks/cockpit/v8/pane'
 import type { Bar, Group, Head, Tab, TabCounts } from '../../hooks/cockpit/v8/pane'
+import { agentsView, allStepsView, filesView, sourcesView, todoView } from '../../hooks/cockpit/v8/views'
+import type { StepRow } from '../../hooks/cockpit/v8/views'
 import { SPARK } from '../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'
@@ -242,3 +244,179 @@ export function pane16(rows: number): Part[][] {
 
 /** Screen 22's pane: turn 7 as screen 01 shows it. */
 export const pane22 = pane01
+
+const KEYS = {
+  files: [
+    ['enter', 'diff'],
+    ['c', 'copy path'],
+    ['1', 'timeline']
+  ],
+  steps: [
+    ['s', 'fit'],
+    ['enter', 'output'],
+    ['c', 'copy'],
+    ['p n', 'turns']
+  ],
+  sources: [
+    ['enter', 'copy url'],
+    ['u', 'hide urls'],
+    ['c', 'copy'],
+    ['1', 'timeline']
+  ],
+  todo: [
+    ['1', 'timeline'],
+    ['1–5', 'other tabs']
+  ],
+  agents: [
+    ['enter', 'open conversation'],
+    ['tab', 'move'],
+    ['1', 'timeline']
+  ]
+} as const satisfies Record<string, readonly (readonly [string, string])[]>
+
+/** Screen 23's pane: the Files tab, the selected file's first hunk open in place, agent edits marked. */
+export function pane23(rows: number): Part[][] {
+  return framed(
+    [
+      ...tabRows('files', COUNTS_7),
+      blank,
+      ...filesView(
+        [
+          {
+            path: '.github/workflows/ci.yml',
+            adds: 1,
+            dels: 1,
+            isAgent: false,
+            isSelected: true,
+            hunk: ['@@ -14,3 +14,3 @@', ' - uses: oven-sh/setup-bun@v2', '-  with: { bun-version: latest }', '+  with: { bun-version-file: mise.toml }']
+          },
+          { path: 'hooks/runtime.ts', adds: 12, dels: 0, isAgent: false },
+          { path: 'tests/width.test.tsx', adds: 1, dels: 0, isAgent: true }
+        ],
+        7,
+        P
+      )
+    ],
+    hintRow(KEYS.files, VERSION, P),
+    rows
+  )
+}
+
+const step = (glyph: StepRow['glyph'], kind: string, subject: string, result: string, ms: number, extra: Partial<StepRow> = {}): StepRow => ({
+  glyph,
+  kind,
+  subject,
+  result,
+  tone: glyph === 'failed' ? 'err' : 'dim',
+  ms,
+  ...extra
+})
+
+/** Screen 29's pane: every step of turn 7, the failed one`s output open in place. */
+export function pane29(rows: number): Part[][] {
+  const steps: StepRow[] = [
+    step('ok', 'read', 'tests/width.test.tsx', '96 lines', 400),
+    step('failed', 'test', 'bun test hooks/width', '2 of 14', 3_000, {
+      isSelected: true,
+      output: {
+        head: 'exit 1 · 3s',
+        lines: ['bun test v1.4.4', '× width > combining marks', '  expected: 1  received: 2', '  at tests/width.test.tsx:41:27', '12 pass · 2 fail · 14 total'],
+        trimmed: false
+      }
+    }),
+    step('ok', 'shell', 'bun --version', '1.4.4', 300),
+    step('ok', 'read', '.github/workflows/ci.yml', '48 lines', 200),
+    step('agent', 'agent', '3 launched', '2 · 1 failed', 70_000),
+    step('ok', 'fetch', 'bun.sh/blog/bun-v1.4.2', '200', 1_000),
+    step('ok', 'edit', '.github/workflows/ci.yml', '+1 −1', 200),
+    step('ok', 'edit', 'hooks/runtime.ts', '+12', 300),
+    step('ok', 'test', 'bun test hooks/width', '14 pass', 3_000),
+    step('shipped', 'shell', 'git push', 'a1f3c2e', 2_000)
+  ]
+
+  return framed([...tabRows('timeline', COUNTS_7), blank, ...allStepsView(7, 23, 1, steps, 13, P)], hintRow(KEYS.steps, VERSION, P), rows)
+}
+
+/** Screen 24's pane: the Sources tab with its URLs; this screen draws no wordmark. */
+export function pane24(rows: number): Part[][] {
+  const pages = [
+    { n: 1, host: 'bun.sh', title: 'Bun v1.4.2', status: '200', url: 'https://bun.sh/blog/bun-v1.4.2', isSelected: true },
+    { n: 2, host: 'github.com', title: 'oven-sh/setup-bun · README', status: '200', url: 'https://github.com/oven-sh/setup-bun' },
+    { n: undefined, host: 'docs.sigstore.dev', title: 'Cosign · keyless signing', status: '404', url: 'https://docs.sigstore.dev/cosign/keyless' }
+  ]
+
+  return framed(
+    [...tabRows('sources', { files: 0, sources: 3, todo: undefined, agents: 0 }), blank, ...sourcesView(pages, true, P)],
+    [{ t: '  ', color: TOKEN.dim }, ...keyPartsOf(KEYS.sources)],
+    rows
+  )
+}
+
+/** Screen 25's pane: the Todo tab. */
+export function pane25(rows: number): Part[][] {
+  return framed(
+    [
+      ...tabRows('todo', { files: 0, sources: 3, todo: { done: 2, total: 5 }, agents: 3 }),
+      blank,
+      ...todoView(
+        [
+          { text: 'Reproduce the width failure', state: 'done' },
+          { text: 'Compare Bun on CI and locally', state: 'done' },
+          { text: 'Find why CI runs Bun 1.4.1', state: 'current' },
+          { text: 'Pin Bun in CI', state: 'open' },
+          { text: 'Rerun the width tests on CI', state: 'open' }
+        ],
+        7,
+        P
+      )
+    ],
+    hintRow(KEYS.todo, VERSION, P),
+    rows
+  )
+}
+
+/** Screen 26's pane: the Agents tab. */
+export function pane26(rows: number): Part[][] {
+  return framed(
+    [
+      ...tabRows('agents', { files: 0, sources: 3, todo: { done: 2, total: 5 }, agents: 3 }),
+      blank,
+      ...agentsView(
+        [
+          {
+            name: 'Audit tests',
+            isFailed: false,
+            open: 0,
+            steps: 9,
+            ms: 70_000,
+            isSelected: true,
+            step: { glyph: 'current', kind: 'shell', subject: 'bun test hooks/width --rerun', state: 'running', tone: 'accent' }
+          },
+          {
+            name: 'Audit CI setup',
+            isFailed: false,
+            open: 0,
+            steps: 4,
+            ms: 58_000,
+            step: { glyph: 'current', kind: 'fetch', subject: 'docs.github.com/…/setup-bun', state: 'running', tone: 'accent' }
+          },
+          {
+            name: 'Audit dependencies',
+            isFailed: true,
+            open: 1,
+            steps: 6,
+            ms: 62_000,
+            step: { glyph: 'failed', kind: 'shell', subject: 'npm audit --omit dev', state: 'stopped', tone: 'err' }
+          }
+        ],
+        '10:25:20',
+        P
+      )
+    ],
+    hintRow(KEYS.agents, VERSION, P),
+    rows
+  )
+}
+
+const keyPartsOf = (keys: readonly (readonly [string, string])[]): Part[] =>
+  keys.flatMap(([k, a], i): Part[] => [...(i > 0 ? [{ t: '    ', color: TOKEN.dim }] : []), { t: k, color: TOKEN.accent }, { t: ` ${a}`, color: TOKEN.dim }])
