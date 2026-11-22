@@ -358,7 +358,7 @@ test('Enter on an agent opens its conversation; the pane lists its own steps as 
   ui = await $.ui.mount(viewing('ag-Edit note'))
   const rows = await texts(ui)
   expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 2 steps$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent in view · enter on its row, or esc at the prompt, for main/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent in view · enter on its row for main/))
   // On the agent's own clock: its read ends 3 s after its launch (7 s on the turn's), its edit 4 s after.
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}read {5}notes\.md +3 lines +3s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}edit {5}notes\.md +\+2 −1 +4s$/))

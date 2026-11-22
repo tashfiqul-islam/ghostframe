@@ -25,8 +25,11 @@ export type View =
   | { kind: 'diff'; path: string; patch: string[]; note?: string }
   | { kind: 'agent'; id: string; note: string }
 
-/** The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation (probe 1: Esc at the prompt goes back). */
-export const AGENT_NOTE = 'agent in view · enter on its row, or esc at the prompt, for main'
+/**
+ * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. Escape at the prompt is not
+ * offered: live, it stopped the viewed agent's running shell first, and went back to main only when nothing ran.
+ */
+export const AGENT_NOTE = 'agent in view · enter on its row for main'
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
