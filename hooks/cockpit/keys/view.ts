@@ -9,11 +9,11 @@ import type { EngineInterface } from 'claude-code'
 import type { LogStep } from '../../../types'
 import type { Section } from '../fit'
 import { readLog } from '../log'
-import { workDiff } from '../work'
+import { readWork, workDiff } from '../work'
 import { readDetails } from './details'
 
 /** What the pane shows: the fitted layout, every step, one step's detail, or a diff. */
-export type View = { kind: 'fit' } | { kind: 'all' } | { kind: 'step'; id: string } | { kind: 'diff'; path: string; patch: string[] }
+export type View = { kind: 'fit' } | { kind: 'all' } | { kind: 'step'; id: string } | { kind: 'diff'; path: string; patch: string[]; note?: string }
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
@@ -100,6 +100,22 @@ async function filePatch($: EngineInterface, path: string): Promise<string[]> {
   return patch.length > 0 ? patch : workDiff($, path)
 }
 
+/**
+ * What a FILES row counts that its patch does not hold: the lines a shell command changed, of which no patch is
+ * kept (`printf >> f`). Said under the diff, so the view never shows less than the row without saying so.
+ * @param patch the patch shown
+ * @param adds the row's added lines
+ * @param dels the row's removed lines
+ * @returns the note, or nothing when the patch holds them all
+ */
+function missing(patch: readonly string[], adds: number, dels: number): { note?: string } {
+  const plus = adds - patch.filter(l => l.startsWith('+')).length
+  const minus = dels - patch.filter(l => l.startsWith('-')).length
+  const parts = [...(plus > 0 ? [`+${plus}`] : []), ...(minus > 0 ? [`−${minus}`] : [])]
+
+  return parts.length === 0 ? {} : { note: `… ${parts.join(' ')} more from shell commands, in no kept patch` }
+}
+
 /** A step of the current log, or of the earlier turn it shows. */
 async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefined> {
   const log = await readLog($)
@@ -115,7 +131,9 @@ async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefin
 export async function openRow($: EngineInterface, id: string): Promise<void> {
   if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
-    view = { kind: 'diff', path, patch: await filePatch($, path) }
+    const patch = await filePatch($, path)
+    const row = (await readWork($)).files.find(f => f.path === path)
+    view = { kind: 'diff', path, patch, ...(row === undefined ? {} : missing(patch, row.adds, row.dels)) }
   } else if (id.startsWith('step:')) {
     const stepId = id.slice('step:'.length)
     const step = await stepOf($, stepId)

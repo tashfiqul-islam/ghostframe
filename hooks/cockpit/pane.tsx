@@ -184,7 +184,7 @@ export function registerPane(on: On): void {
     if (view.kind === 'all') {
       lines = allRows(shown, bodyColumns)
     } else if (view.kind === 'diff') {
-      lines = diffRows(view.path, view.patch, bodyColumns)
+      lines = diffRows(view.path, view.patch, bodyColumns, view.note)
     } else if (view.kind === 'step') {
       const at = shown.steps.findIndex(s => s.id === view.id)
       const step = shown.steps[at]

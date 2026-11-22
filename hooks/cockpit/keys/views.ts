@@ -107,9 +107,10 @@ const HUNK = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/
  * @param path the file
  * @param patch its unified rows
  * @param width the pane's body columns
+ * @param note what the patch leaves out, said under it
  * @returns the rows
  */
-export function diffRows(path: string, patch: readonly string[], width: number): Line[] {
+export function diffRows(path: string, patch: readonly string[], width: number, note?: string): Line[] {
   const { adds, dels, hunks } = counts(patch)
   const meta: Part[] = [
     { t: `+${adds}`, color: C.add },
@@ -138,7 +139,7 @@ export function diffRows(path: string, patch: readonly string[], width: number):
     return plain(row(l.startsWith('-') ? `−${l.slice(1)}` : l, width, color))
   })
 
-  return [label, ...rows]
+  return [label, ...rows, ...(note === undefined ? [] : [plain(row(note, width, C.dim))])]
 }
 
 /**

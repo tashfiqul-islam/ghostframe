@@ -245,3 +245,35 @@ test('`a` shows every agent (an eighth is no longer `… 1 more`); again to fit'
   expect(await agents()).toHaveLength(7)
   await ui.unmount()
 })
+
+test('a FILES row a shell also changed: its diff says what no kept patch holds, never less than the row without saying so', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  // Git, as the work tree reads at the turn's start, after the Edit, and after the shell's append.
+  const numstat = ['', '1\t1\tnotes.md\n', '2\t1\tnotes.md\n']
+  let diffs = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: numstat[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/notes.md', old_string: 'a', new_string: 'b', tool_use_id: 'e1' } as never)
+  await $.tool.call({ tool: 'PowerShell', command: 'Add-Content notes.md "four"', tool_use_id: 'p1' } as never)
+
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'file:notes.md' })
+  await ui.redraw()
+  const rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ DIFF · notes\.md \] ┄+ \+2 −1 · 1 hunk$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}… \+1 more from shell commands, in no kept patch/))
+  await ui.unmount()
+})
