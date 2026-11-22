@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { STORE_MAX, planBudget, trimmed } from '../../../hooks/cockpit/history/record'
+import { STORE_MAX, planBudget, recordOf, trimmed } from '../../../hooks/cockpit/history/record'
+import { newLog } from '../../../hooks/cockpit/steps/log'
 import type { Kept } from '../../../hooks/cockpit/history/record'
 import type { TurnRecord } from '../../../types'
 import { aTurn } from '../../support/history'
@@ -72,4 +73,40 @@ test('stamps with no history (a session Cockpit never kept) are a session of the
   const plan = planBudget(mine, [newer, older], sizeOf(mine) + 6_000)
 
   expect(plan.deleted).toEqual(['prompts:older'])
+})
+
+test('a turn keeps its agents` own steps (subjects cut at 200) and their details, which trim with the turn`s (B1, B5)', () => {
+  const base = aTurn(1, 0)
+  const step = { id: 'ag1', kind: 'shell', subject: 'x'.repeat(300), key: 'k', result: 'ok', mark: '' as const, isRunning: false, clock: 1_000 }
+  const agent = {
+    id: 'a1',
+    call: 'c1',
+    parent: null,
+    name: 'Edit note',
+    isBackground: true,
+    state: 'done' as const,
+    kind: 'done',
+    subject: '',
+    steps: 1,
+    startedAt: 0,
+    endedAt: 2_000,
+    subjectAt: 0,
+    pending: null,
+    log: [step]
+  }
+  const detail = { id: 'ag1', tool: 'Bash', command: 'x', startAt: 0, ms: 5, isFailed: false, lines: 1, excerpt: ['out'], patch: [] }
+  const log = { ...newLog('t1', 0), turnNo: 1, steps: base.steps }
+  const record = recordOf({
+    log,
+    work: { todo: [], isRevised: false, files: [], sources: [], cited: [] },
+    roster: [agent],
+    receipts: [],
+    details: [detail],
+    diffs: []
+  })
+
+  expect(record.roster[0]?.log?.[0]?.subject).toHaveLength(200)
+  expect(record.details.map(d => d.id)).toEqual(['ag1'])
+  expect(trimmed(record).details[0]?.excerpt).toEqual([])
+  expect(trimmed(record).roster[0]?.log).toHaveLength(1)
 })

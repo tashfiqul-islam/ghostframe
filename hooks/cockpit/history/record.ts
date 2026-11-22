@@ -9,6 +9,9 @@ const SUBJECT_MAX = 200 // a step's subject as history keeps it (E.45)
 export const STORE_MAX = 4_194_304
 const STORE_MARGIN = 65_536
 
+/** A step as history keeps it: its subject cut at 200 characters. */
+const short = (s: LogStep): LogStep => (s.subject.length > SUBJECT_MAX ? { ...s, subject: `${s.subject.slice(0, SUBJECT_MAX - 1)}…` } : s)
+
 /** What a turn's record is built from. */
 export type RecordParts = {
   log: StepLog
@@ -30,8 +33,10 @@ export type RecordParts = {
 export function recordOf(parts: RecordParts): TurnRecord {
   const { log, work } = parts
   const turns = [...new Set(parts.receipts.map(r => r.turn).filter((t): t is string => t !== null))]
-  const ids = new Set(log.steps.map(s => s.id))
-  const steps: LogStep[] = log.steps.map(s => (s.subject.length > SUBJECT_MAX ? { ...s, subject: `${s.subject.slice(0, SUBJECT_MAX - 1)}…` } : s))
+  // The agents' own steps are kept with the turn's roster, their details with the turn's (they trim together).
+  const roster = parts.roster.map(a => (a.log === undefined ? a : { ...a, log: a.log.map(short) }))
+  const ids = new Set([...log.steps, ...roster.flatMap(a => a.log ?? [])].map(s => s.id))
+  const steps: LogStep[] = log.steps.map(short)
 
   return {
     turnNo: log.turnNo,
@@ -44,7 +49,7 @@ export function recordOf(parts: RecordParts): TurnRecord {
     files: work.files,
     sources: work.sources,
     cited: work.cited,
-    roster: [...parts.roster],
+    roster,
     receipts: [...parts.receipts],
     details: parts.details.filter(d => ids.has(d.id)),
     diffs: [...parts.diffs],
