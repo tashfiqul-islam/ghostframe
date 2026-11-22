@@ -4,7 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
-import { logCited, logSaid, readLog } from '../../cockpit/log'
+import { logCited, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
 import { isOn } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
@@ -18,6 +18,7 @@ import {
   keepPrompts,
   notePending,
   readAwaitingFirst,
+  readPrompts,
   restorePrompts,
   updatePrompts,
   readTurn,
@@ -242,6 +243,12 @@ export function registerSession(on: On): void {
     }
 
     await startCockpit($, e)
+
+    try {
+      await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
+    } catch (error: unknown) {
+      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`)
+    }
 
     return next(e)
   })

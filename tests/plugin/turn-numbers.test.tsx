@@ -265,3 +265,74 @@ for (const [mode, columns] of [
     }
   })
 }
+
+// The store's budget (amendment 8): every key that is no history is fixed; this filler leaves the histories and
+// their stamps about 1,900 characters, room for two of these short turns (about 730 each) and not three.
+const SQUEEZE = 4_194_304 - 65_536 - 13 - 1_900
+
+test('a store so full this session`s oldest summaries go: the rules, the pane`s head and /steps still agree on n', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map<string, unknown>([
+    ['big', 'x'.repeat(SQUEEZE)],
+    // Another session: its history and its stamps go first, together.
+    ['history:old', { savedAt: 1, turns: [aTurn(1, 0)] }],
+    ['prompts:old', [{ text: 'old prompt', at: 0, row: 'o1', turnNo: 1 }]]
+  ])
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+
+  await typed($, clock, 1)
+  expect([store.has('history:old'), store.has('prompts:old')]).toEqual([false, false])
+  await typed($, clock, 2)
+  await typed($, clock, 3)
+
+  const turns = (store.get('history:s1') as { turns: { turnNo: number }[] }).turns.map(t => t.turnNo)
+  expect(turns).toEqual([2, 3])
+
+  const rules = await Promise.all([1, 2, 3].map(async n => /\[ (TURN \d+) \]/.exec((await rowsOf($, promptRow(`u${n}`, `prompt ${n}`)))[0] ?? '')?.[1]))
+  expect(rules).toEqual(['TURN 1', 'TURN 2', 'TURN 3'])
+
+  const pane = await $.ui.mount(PANE)
+  const head = (await pane.findAll({ type: 'Text' })).map(t => t.text)
+  await pane.unmount()
+  expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 3/))
+
+  const all = (n: string) => $.command.run(steps(n) as never) as Promise<{ text?: string }>
+  expect((await all('2 all')).text).toContain('echo 2')
+  expect((await all('1 all')).text).toMatch(/^no step log for turn 1 · kept: /)
+})
+
+test('resume after trimming: the next number is the kept turns` own, not their count; with no history left, the stamps`', ON, async ($, on) => {
+  const clock = { now: T0 + 3_600_000 }
+  const stamps = [1, 2, 3].map(n => ({ text: `prompt ${n}`, at: T0 + n * 60_000, row: `u${n}`, turnNo: n }))
+  const store: Store = new Map<string, unknown>([
+    ['prompts:s1', stamps],
+    // Turn 1's record was trimmed away: two kept turns, numbered 2 and 3.
+    ['history:s1', { savedAt: T0, turns: [aTurn(2, T0 + 120_000), aTurn(3, T0 + 180_000)] }]
+  ])
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+  // `/steps 2` pins turn 2 by its own number: its kept steps, under its own title.
+  await $.command.run(steps('2') as never)
+  const pinned = await $.ui.mount(PANE)
+  const rows = (await pinned.findAll({ type: 'Text' })).map(t => t.text)
+  await pinned.unmount()
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 2 · PINNED \] ┄+/))
+  expect(rows.join('\n')).toContain('module-0')
+
+  await typed($, clock, 4)
+  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 · RESUMED \] /)
+})
+
+test('resume with the stamps kept and the history gone: the next turn still takes the next number, never one again', ON, async ($, on) => {
+  const clock = { now: T0 + 3_600_000 }
+  const stamps = [1, 2, 3].map(n => ({ text: `prompt ${n}`, at: T0 + n * 60_000, row: `u${n}`, turnNo: n }))
+  engine(on, clock, new Map<string, unknown>([['prompts:s1', stamps]]))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+
+  await typed($, clock, 4)
+  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 · RESUMED \] /)
+})

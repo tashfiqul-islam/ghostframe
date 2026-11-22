@@ -17,7 +17,7 @@ import { claim } from '../claim'
 import { cell } from '../draw/cell'
 import { drawParts } from '../draw/parts'
 import { sessionCwd } from '../ledger/session'
-import { readPrompts, storedPrompts } from '../ledger/state'
+import { isSameText, readPrompts, storedPrompts } from '../ledger/state'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
 import { turnClock, turnRuleParts } from '../turn-rule'
@@ -37,7 +37,7 @@ const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
   claim(
     row === PLACEHOLDER ? new Map(promptClaims) : promptClaims,
     row,
-    list.filter(p => p.text.trim() === text.trim()),
+    list.filter(p => isSameText(p.text, text)),
     p => p.at,
     lastSubmittedAt()
   )
@@ -64,7 +64,7 @@ async function promptHead($: EngineInterface, ui: Ui, row: string, text: string,
   // A resumed transcript is drawn before the session starts (amendment 8): its stamps are still only in the store.
   const list = live.length > 0 || sessionCwd() !== undefined ? live : await storedPrompts($)
   // A prompt typed over a running turn is never claimed: the engine draws it under rows of its own while it waits.
-  const waiting = list.findLast(p => p.over !== undefined && p.row === undefined && p.text.trim() === text.trim())
+  const waiting = list.findLast(p => p.over !== undefined && p.row === undefined && isSameText(p.text, text))
   const typed = list.filter(p => p.over === undefined || p.row !== undefined)
   // The stand-in may show a stamp another row holds (it claims nothing); a real row claims only a stamp with no row.
   const stamp = list.find(p => p.row === row) ?? waiting ?? claimPrompt(row, text, row === PLACEHOLDER ? typed : typed.filter(p => p.row === undefined))

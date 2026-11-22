@@ -54,3 +54,22 @@ test('the store is shared: an older session`s bulky parts go before this one`s, 
   expect(tight.deleted).toEqual(['history:old'])
   expect(tight.own.turns).toHaveLength(2)
 })
+
+test('a session`s prompt stamps count with its history and go with it: both keys, together', () => {
+  const mine = kept('history:mine', 9, [trimmed(aTurn(1, 1_000_000))])
+  const old: Kept = { ...kept('history:old', 1, [trimmed(aTurn(1, 0))]), extra: 10_000, also: ['prompts:old'] }
+  // Room for both histories, not for the old session's stamps too.
+  const plan = planBudget(mine, [old], sizeOf(mine) + sizeOf(old) + 5_000)
+
+  expect(plan.deleted).toEqual(['history:old', 'prompts:old'])
+  expect(plan.own.turns).toHaveLength(1)
+})
+
+test('stamps with no history (a session Cockpit never kept) are a session of their own, the oldest evicted first', () => {
+  const mine = kept('history:mine', 9, [trimmed(aTurn(1, 1_000_000))])
+  const older: Kept = { ...kept('prompts:older', 1, []), extra: 4_000 }
+  const newer: Kept = { ...kept('prompts:newer', 5, []), extra: 4_000 }
+  const plan = planBudget(mine, [newer, older], sizeOf(mine) + 6_000)
+
+  expect(plan.deleted).toEqual(['prompts:older'])
+})

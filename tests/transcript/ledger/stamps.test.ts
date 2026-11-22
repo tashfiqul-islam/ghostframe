@@ -234,3 +234,16 @@ test('a rewind: when the previous prompt`s row is gone from the conversation, th
     [3, 'rewind']
   ])
 })
+
+test('a long prompt`s stamp keeps its first 200 characters: its row is still noted and its turn numbered', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const pasted = `fix this:\n${'a long pasted log line\n'.repeat(500)}`
+
+  await typed($, clock, pasted, 'e1', 'u1')
+
+  expect(kept(store).map(s => [s.text.length, s.row, s.turnNo])).toEqual([[200, 'u1', 1]])
+  expect(pasted.trim().startsWith(kept(store)[0]?.text ?? '?')).toBe(true)
+})

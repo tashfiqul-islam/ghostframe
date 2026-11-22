@@ -43,13 +43,24 @@ const isStamp = (p: unknown): p is PromptStamp =>
   typeof p === 'object' && p !== null && 'text' in p && typeof p.text === 'string' && 'at' in p && typeof p.at === 'number'
 const isStamps = (v: unknown): v is PromptStamp[] => Array.isArray(v) && v.every(isStamp)
 
+// A stamp keeps the first 200 characters of its prompt: enough to find its row, and a pasted log costs the store
+// nothing (amendment 12). Its row, once noted, finds it by id.
+const STAMP_TEXT_MAX = 200
+
 /**
- * Whether a stamp's text is a prompt's: both trimmed.
+ * The text a stamp keeps of a prompt: trimmed, its first 200 characters.
+ * @param text the prompt as typed
+ * @returns the stamp's text
+ */
+export const stampText = (text: string): string => text.trim().slice(0, STAMP_TEXT_MAX)
+
+/**
+ * Whether a stamp's text is a prompt's, as stamps keep them (`stampText`): a stamp kept whole before is the same.
  * @param a one text
  * @param b the other
  * @returns whether they are the same prompt's
  */
-export const isSameText = (a: string, b: string): boolean => a.trim() === b.trim()
+export const isSameText = (a: string, b: string): boolean => stampText(a) === stampText(b)
 
 /**
  * Keeps the prompts' stamps in the store, for a resume.

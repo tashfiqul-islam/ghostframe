@@ -289,6 +289,18 @@ export async function logSessionStart($: EngineInterface): Promise<void> {
 }
 
 /**
+ * Session start, after history: the highest turn number this session's prompts' stamps hold. A log that restored a
+ * lower one (its history trimmed or lost from the store) carries on from it, so no number is ever used twice.
+ * @param $ the engine interface
+ * @param turnNo the highest number a stamp holds
+ */
+export async function seedTurnNo($: EngineInterface, turnNo: number): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, log => (log.turnNo < turnNo && !log.isTurnRunning ? { ...log, turnNo } : log))
+}
+
+/**
  * An agent started (`agent.spawn`): its row appears in `[ AGENTS ]`.
  * @param $ the engine interface
  * @param start the agent, its launching call, its parent and its name

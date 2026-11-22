@@ -12,6 +12,7 @@ import type { PromptStamp } from '../../../types'
 import {
   isSameText,
   keepPrompts,
+  stampText,
   readPrompts,
   readTally,
   takePending,
@@ -150,7 +151,7 @@ export function registerTurns(on: On): void {
       const at = await $.clock.now()
       // No number yet: a number is claimed only by a turn that starts (amendment 12). Typed over a running turn, the
       // prompt keeps that turn's id and leaves the next turn's start alone.
-      const list = await updatePrompts($, l => [...l, { text: e.text, at, ...(e.turnId === undefined ? {} : { over: e.turnId }) }].slice(-100))
+      const list = await updatePrompts($, l => [...l, { text: stampText(e.text), at, ...(e.turnId === undefined ? {} : { over: e.turnId }) }].slice(-100))
 
       if (e.turnId === undefined) {
         lastSubmitted = at
