@@ -10,14 +10,14 @@ import { respond, rowOf } from '../../support/respond'
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true) {
+function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true, messages: unknown[] = []) {
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.focus', { plugin: '*' }, () => ({}))
   on('session.id', () => ({ value: session }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('session.messages', () => ({ value: [] }))
+  on('session.messages', () => ({ value: messages as never }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('store.keys', () => ({ value: [...store.keys()] }))
   on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
@@ -486,4 +486,48 @@ test('one `/steps` after a click on a receipt returns the pane to live at once, 
   expect(await run($, '')).toBe('live · the pane follows the current turn')
   expect(await pinnedNow()).toBe(false)
   await Promise.all([answer.unmount(), pane.unmount()])
+})
+
+test('resume: while the first new turn runs, every resumed answer still draws whole, its receipt under it', ON, async ($, on) => {
+  const clock = { now: T0 + 999_000 }
+  const receipt = (turnNo: number, answer: string) => ({
+    turn: `e${turnNo}`,
+    turnNo,
+    answer,
+    state: 'done' as const,
+    agents: 0,
+    steps: turnNo,
+    failures: 0,
+    fixed: 0,
+    files: 0,
+    commit: '',
+    open: [],
+    durationMs: 2_000
+  })
+  const turns = [
+    { ...aTurn(1, T0), receipts: [receipt(1, 'row1')] },
+    { ...aTurn(2, T0 + 100_000), receipts: [receipt(2, 'row2')] }
+  ]
+  // The session's stored messages, as `--continue` brings them back: live, with no uuids.
+  const said = [
+    { role: 'user', text: 'prompt 1', toolUses: [] },
+    { role: 'assistant', text: 'Turn 1 done.', toolUses: [] },
+    { role: 'user', text: 'prompt 2', toolUses: [] },
+    { role: 'assistant', text: 'Turn 2 done.', toolUses: [] }
+  ]
+  engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed', [], true, said)
+  // The engine draws the resumed transcript before the session starts (amendment 8).
+  const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(focused(false))).unmount()
+
+  // The first turn after the resume starts; the engine draws the resumed rows again meanwhile.
+  await $.prompt.submit({ text: 'prompt 3', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'prompt 3', turnId: 'e3' })
+  await first.redraw()
+
+  expect(await rowsOf(first)).toContainEqual(expect.stringContaining('Turn 1 done.'))
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
+  // Its final look: `claude` on the answer, never taken for the running turn's text.
+  expect(await rowsOf(first)).toContain('claude')
 })

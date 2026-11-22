@@ -4,7 +4,8 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
-import { logCited, logSaid } from '../../cockpit/log'
+import { logCited, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
+import { isOn } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
 import { readFlow, updateFlow } from '../../shared/flow'
@@ -14,8 +15,12 @@ import { citationsOf, turnCites } from '../citations'
 import { NO_CAPS, hasCaps, withMcp, withSkill } from '../live'
 import { firstKey } from './flow'
 import {
+  keepPrompts,
+  notePending,
   readAwaitingFirst,
+  readPrompts,
   restorePrompts,
+  updatePrompts,
   readTurn,
   updateAwaitingFirst,
   updateCaps,
@@ -38,6 +43,23 @@ let cwd: string | undefined
  */
 export function sessionCwd(): string | undefined {
   return cwd
+}
+
+// The rows the session held when it started (a resume, a reload): the engine draws them before `session.start`
+// (amendment 8), and no turn of this process wrote them. Live, `$.session.messages()` gives no uuids to read them by.
+const startRows = new Set<string>()
+
+/**
+ * Whether a row was already in the session when it started: a resumed or reloaded row, never a running turn's. A row
+ * first drawn before this copy of the module saw `session.start`, with no turn running, is one.
+ * @param row the row's id
+ * @param isTurnRunning whether a main-loop turn runs now
+ * @returns whether it is
+ */
+export function isStartRow(row: string, isTurnRunning: boolean): boolean {
+  if (cwd === undefined && !isTurnRunning) startRows.add(row)
+
+  return startRows.has(row)
 }
 
 type Content = ReadonlyArray<{ type: string; text?: unknown; id?: unknown; name?: unknown; input?: unknown }>
@@ -144,6 +166,52 @@ export function answerRowOf(turn: string): string {
 }
 
 /**
+ * A typed prompt was stored (amendment 12): its stamp keeps the row's id, which the engine draws the prompt under, live
+ * and after a resume, so its turn rule finds its own number and time by row, never by text.
+ * @param $ the engine interface
+ * @param content the stored row's blocks
+ * @param row the row's id
+ */
+async function notePromptRow($: EngineInterface, content: Content, row: string): Promise<void> {
+  const said = content.flatMap(b => (b.type === 'text' && typeof b.text === 'string' ? [b.text] : [])).join('\n')
+  let isNoted = false
+  const list = await updatePrompts($, l => {
+    const i = l.findLastIndex(p => p.row === undefined && p.text.trim().length > 0 && said.includes(p.text.trim()))
+
+    isNoted = i >= 0
+
+    return isNoted ? l.with(i, { ...l[i]!, row }) : l
+  })
+
+  if (isNoted) await keepPrompts($, list)
+  $.ui.log(`ghostframe: prompt row ${row} ${isNoted ? 'noted' : 'matched no stamp'}`, { to: 'debug' })
+}
+
+/**
+ * A prompt typed over the running turn was delivered into it (`door: 'delivery'`, live in 2.1.330): its stamp takes
+ * the delivery's row, the one the engine draws it under, and the turn clock it arrived at. A steer (E.20): it takes
+ * no number.
+ * @param $ the engine interface
+ * @param content the delivery's blocks, the prompt's text inside the engine's frame
+ * @param row the delivery's uuid
+ */
+async function noteSteer($: EngineInterface, content: Content, row: string): Promise<void> {
+  const said = content.flatMap(b => (b.type === 'text' && typeof b.text === 'string' ? [b.text] : [])).join('\n')
+  const now = await $.clock.now()
+  const startedAt = (await readLog($)).startedAt ?? now
+  let isNoted = false
+  const list = await updatePrompts($, l => {
+    const i = l.findLastIndex(p => p.over !== undefined && p.row === undefined && p.text.trim().length > 0 && said.includes(p.text.trim()))
+
+    isNoted = i >= 0
+
+    return isNoted ? l.with(i, { ...l[i]!, row, steerMs: Math.max(0, now - startedAt) }) : l
+  })
+
+  if (isNoted) await keepPrompts($, list)
+}
+
+/**
  * Adds the session's observe hooks: `session.start` (with Cockpit's part of it) and `session.append`.
  * @param on the `on` that `register` receives
  */
@@ -193,6 +261,12 @@ export function registerSession(on: On): void {
 
     await startCockpit($, e)
 
+    try {
+      await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
+    } catch (error: unknown) {
+      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`)
+    }
+
     return next(e)
   })
 
@@ -214,6 +288,14 @@ export function registerSession(on: On): void {
 
         await noteFlow($, e.message.content, e.uuid)
         await logSaid($, e.message.content)
+      }
+
+      if (e.agentId === undefined && e.door === 'prompt' && e.message.isMeta !== true && isOn()) {
+        await notePromptRow($, e.message.content, e.uuid)
+      }
+
+      if (e.agentId === undefined && e.door === 'delivery' && isOn()) {
+        await noteSteer($, e.message.content, e.uuid)
       }
 
       if (e.agentId === undefined && (e.door === 'prompt' || e.door === 'command')) {
@@ -242,4 +324,20 @@ export function registerSession(on: On): void {
 
     return next(e)
   }).catch((_$, e, next) => next(e))
+
+  // A compaction of the main conversation (not a `precompute`, which installs nothing, nor a skipped one): the next
+  // typed turn's rule says `AFTER COMPACT` (E.22, amendment 12).
+  on('session.compact', async ($, e, next) => {
+    const done = await next(e)
+
+    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done && typeof done.skip === 'string')) {
+      try {
+        await notePending($, 'compact')
+      } catch (error: unknown) {
+        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`)
+      }
+    }
+
+    return done
+  })
 }

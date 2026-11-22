@@ -9,6 +9,8 @@ import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
 
 const PREFIX = 'history:'
+// The prompts' stamps each session keeps (hooks/transcript/ledger/state.ts): weighed and evicted with its history.
+const STAMPS = 'prompts:'
 
 // The session's turns, oldest first. Change the tag when a record's fields change.
 const history = atom({ plugin: 'ghostframe', key: 'history' } as const, [] as TurnRecord[], { shape: 'history-1' })
@@ -16,10 +18,12 @@ const history = atom({ plugin: 'ghostframe', key: 'history' } as const, [] as Tu
 const pin = atom({ plugin: 'ghostframe', key: 'pin' } as const, null as number | null, { shape: 'pin-1' })
 
 // shortcut: the session's key and the other keys' sizes are read once, at session start; another session writing
-// meanwhile is seen only when a write is refused, which reads them all again.
+// meanwhile is seen only when a write is refused, which reads them all again. This session's own stamps are weighed
+// as they were then too: at most 100 stamps of 200 characters each (hooks/transcript/ledger/state.ts), about 30 kB.
 let key: string | undefined
 let others: Kept[] = []
-let fixedSize = 0 // the characters of every key that is no history
+let fixedSize = 0 // the characters of every key that is no history and no prompts' stamps
+let ownExtra = 0 // the characters of this session's stamps, as the store held them
 
 const isRecords = (v: unknown): v is TurnRecord[] => Array.isArray(v) && v.every(r => typeof r === 'object' && r !== null && 'turnNo' in r && 'steps' in r)
 const keptOf = (k: string, v: unknown): Kept | undefined => {
@@ -30,28 +34,48 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
 let storedNarration: Set<string> | undefined
-/** This session's kept receipts as the store had them when this copy of the module first asked. */
-let storedReceipts: Receipt[] | undefined
+/** This session's kept turns as the store had them when this copy of the module first asked. */
+let storedRecords: TurnRecord[] | undefined
 
 /**
- * This session's kept receipts from the store, read once per copy of the module: for rows drawn before the session's
+ * This session's kept turns from the store, read once per copy of the module: for rows drawn before the session's
  * start has brought them into the state (a resumed transcript is drawn first, amendment 8).
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+async function storedRecordList($: EngineInterface): Promise<TurnRecord[]> {
+  if (storedRecords === undefined) {
+    // A store that cannot be read costs the early draw only: the state's turns come with the session's start.
+    try {
+      const k = `${PREFIX}${await $.session.id()}`
+      storedRecords = keptOf(k, await $.store.get(k))?.turns ?? []
+    } catch (error: unknown) {
+      $.ui.log(`cockpit: kept turns not read before the session start: ${String(error)}`, { to: 'debug' })
+      storedRecords = []
+    }
+  }
+
+  return storedRecords
+}
+
+/**
+ * This session's kept receipts from the store, read once per copy of the module (see `storedRecordList`).
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
 export async function storedReceiptList($: EngineInterface): Promise<Receipt[]> {
-  if (storedReceipts === undefined) {
-    // A store that cannot be read costs the early draw its receipts only: the state's come with the session's start.
-    try {
-      const k = `${PREFIX}${await $.session.id()}`
-      storedReceipts = keptOf(k, await $.store.get(k))?.turns.flatMap(t => t.receipts) ?? []
-    } catch (error: unknown) {
-      $.ui.log(`cockpit: kept receipts not read before the session start: ${String(error)}`, { to: 'debug' })
-      storedReceipts = []
-    }
-  }
+  return (await storedRecordList($)).flatMap(t => t.receipts)
+}
 
-  return storedReceipts
+/**
+ * The session's kept turns: the state's, or, before the session's start has brought them there, the store's.
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
+  const held = await read($, history)
+
+  return held.length > 0 ? held : storedRecordList($)
 }
 
 /**
@@ -93,21 +117,48 @@ async function readStore($: EngineInterface): Promise<TurnRecord[]> {
   key = `${PREFIX}${await $.session.id()}`
   others = []
   fixedSize = 0
+  ownExtra = 0
   let own: TurnRecord[] = []
 
   const keys = await $.store.keys()
   const values = await Promise.all(keys.map(async k => ({ k, value: await $.store.get(k) })))
+  const histories = new Map<string, Kept>()
+  const stamps = new Map<string, { size: number; savedAt: number }>()
 
   for (const { k, value } of values) {
     const kept = k.startsWith(PREFIX) ? keptOf(k, value) : undefined
+    const size = k.length + JSON.stringify(value ?? null).length + 8
 
-    if (k === key) own = kept?.turns ?? []
-    else if (kept !== undefined) others.push(kept)
-    else fixedSize += k.length + JSON.stringify(value ?? null).length + 8
+    if (kept !== undefined) histories.set(k.slice(PREFIX.length), kept)
+    else if (k.startsWith(STAMPS) && Array.isArray(value)) stamps.set(k.slice(STAMPS.length), { size, savedAt: newestAt(value) })
+    else fixedSize += size
+  }
+
+  // Each session's stamps go with its history; stamps with none are a session of their own, with no turns.
+  for (const [id, s] of stamps) {
+    const kept = histories.get(id)
+
+    histories.set(
+      id,
+      kept === undefined ? { key: `${STAMPS}${id}`, savedAt: s.savedAt, turns: [], extra: s.size } : { ...kept, extra: s.size, also: [`${STAMPS}${id}`] }
+    )
+  }
+
+  for (const kept of histories.values()) {
+    if (kept.key === key || kept.key === `${STAMPS}${key.slice(PREFIX.length)}`) {
+      own = kept.turns
+      ownExtra = kept.extra ?? 0
+    } else {
+      others.push(kept)
+    }
   }
 
   return own
 }
+
+/** The newest stamp's time in a list of stamps, 0 for none. */
+const newestAt = (list: readonly unknown[]): number =>
+  Math.max(0, ...list.map(s => (typeof s === 'object' && s !== null && 'at' in s && typeof s.at === 'number' ? s.at : 0)))
 
 /**
  * Session start: the turns this session kept before (a resume) come back, unless the session's state already holds
@@ -135,11 +186,11 @@ export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
 async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<TurnRecord[]> {
   if (key === undefined) await readStore($)
 
-  const plan = planBudget({ key: key ?? `${PREFIX}?`, savedAt: Date.now(), turns: [...own] }, others, STORE_MAX - 65_536 - fixedSize)
+  const plan = planBudget({ key: key ?? `${PREFIX}?`, savedAt: Date.now(), turns: [...own], extra: ownExtra }, others, STORE_MAX - 65_536 - fixedSize)
 
   // Room first: the dropped and trimmed other sessions, then this session's.
   await Promise.all(plan.deleted.map(async gone => $.store.delete(gone)))
-  await Promise.all(plan.others.map(async k => $.store.set(k.key, { savedAt: k.savedAt, turns: k.turns })))
+  await Promise.all(plan.others.filter(k => k.key.startsWith(PREFIX)).map(async k => $.store.set(k.key, { savedAt: k.savedAt, turns: k.turns })))
 
   await $.store.set(plan.own.key, { savedAt: plan.own.savedAt, turns: plan.own.turns })
   others = others.filter(o => !plan.deleted.includes(o.key)).map(o => plan.others.find(k => k.key === o.key) ?? o)

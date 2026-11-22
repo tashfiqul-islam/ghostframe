@@ -66,10 +66,14 @@ export function trimmed(r: TurnRecord): TurnRecord {
   return { ...r, details: r.details.map(d => ({ ...d, excerpt: [], patch: [] })), diffs: [], isTrimmed: true }
 }
 
-/** One session's history as $.store holds it, under `history:<session id>`. */
-export type Kept = { key: string; savedAt: number; turns: TurnRecord[] }
+/**
+ * One session's history as $.store holds it, under `history:<session id>`; `extra`, the characters of the keys that
+ * go with it (its prompts' stamps, `also`), weighed with it and deleted with it. A session with stamps and no history
+ * (one Cockpit never kept) is one with no turns, under its stamps' key.
+ */
+export type Kept = { key: string; savedAt: number; turns: TurnRecord[]; extra?: number; also?: string[] }
 
-const sizeOf = (k: Kept): number => k.key.length + JSON.stringify({ savedAt: k.savedAt, turns: k.turns }).length + 8
+const sizeOf = (k: Kept): number => k.key.length + JSON.stringify({ savedAt: k.savedAt, turns: k.turns }).length + 8 + (k.extra ?? 0)
 
 /** What to write to and delete from the store so every session's history fits. */
 export type Plan = { own: Kept; others: Kept[]; deleted: string[] }
@@ -104,7 +108,7 @@ export function planBudget(own: Kept, others: readonly Kept[], budget: number = 
       const oldest = rest.toSorted((a, b) => a.savedAt - b.savedAt)[0]
       rest = rest.filter(k => k !== oldest)
 
-      if (oldest !== undefined) deleted.push(oldest.key)
+      if (oldest !== undefined) deleted.push(oldest.key, ...(oldest.also ?? []))
     } else if (mine.turns.length > 1) {
       mine = { ...mine, turns: mine.turns.slice(1) }
     } else {

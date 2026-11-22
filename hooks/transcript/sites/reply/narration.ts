@@ -5,6 +5,7 @@ import { isNarrationRow } from '../../../cockpit/left'
 import { runningTurn } from '../../../cockpit/log'
 import { ASKS_THE_PERSON, isNarrationAt, readFlow } from '../../../shared/flow'
 import { firstKey, textAt } from '../../ledger/flow'
+import { isStartRow } from '../../ledger/session'
 
 // Quiet (Cockpit docked): narration leaves the transcript; its sentence is the pane's [ NOW ] (probe 1).
 // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
@@ -25,7 +26,10 @@ export async function isHiddenNarration($: EngineInterface, text: string, row: s
   const running = await runningTurn($)
   const block = quietFlow[at]
   const nextTool = block === undefined ? undefined : quietFlow.slice(at + 1).find(f => f.turn === block.turn && f.kind === 'tool')
-  const isUndecided = running !== undefined && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
+  // A row the session held when it started (a resumed answer, drawn before the start) is never the running turn's:
+  // the flow, empty after a resume, does not hold it, yet it is decided (amendment 12).
+  const isStart = isStartRow(row, running !== undefined)
+  const isUndecided = running !== undefined && !isStart && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
 
   if (at >= 0) return isNarrationAt(quietFlow, at) || isUndecided
 

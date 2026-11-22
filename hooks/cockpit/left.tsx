@@ -3,14 +3,14 @@
 // capsule per stretch of work and a row per failure, and the whole live area (fallback/).
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import type { Receipt } from '../../types'
+import type { Receipt, RosterAgent } from '../../types'
 import { remember } from '../shared/held'
 import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
 import { liveRow } from './head'
-import { readFrame, readLog, readReceipts } from './log'
+import { readFrame, readLog, readReceipts, readRoster } from './log'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
 import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
@@ -18,7 +18,7 @@ import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, dr
 import { readFlow, isNarrationAt } from '../shared/flow'
 import { shellText } from '../shared/calls/ships'
 import { turnOfCall, turnView } from './fallback/facts'
-import { isKeptNarration, storedReceiptList } from './history/store'
+import { isKeptNarration, keptRecords, storedReceiptList } from './history/store'
 import { isOn } from './switch'
 import { diffFrame, noteUnfolded, outputFrame, sentenceRows, stepRow, unfolded } from './unfolded'
 
@@ -146,15 +146,16 @@ export function noteColumns(width: number | undefined): void {
 }
 
 /**
- * The receipts rows draw from: the state's, or, before the session's start has brought them there (a resumed
- * transcript is drawn first, amendment 8), the store's, so a resumed answer draws its receipt on its first draw.
+ * The receipts rows draw from: the state's, or, until the session's start has brought them there (a resumed
+ * transcript is drawn first, amendment 8, and again while the start restores history), the store's, so a resumed
+ * answer draws its receipt and its `claude` on its first draw.
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
 async function receiptsNow($: EngineInterface): Promise<Receipt[]> {
   const live = await readReceipts($)
 
-  return live.length > 0 || !beforeStart() ? live : storedReceiptList($)
+  return live.length > 0 ? live : storedReceiptList($)
 }
 
 /**
@@ -167,6 +168,16 @@ export function setDocked($: EngineInterface, value: boolean): void {
 
   $.ui.log(`cockpit: left ${value ? 'docked' : 'fallback'}`, { to: 'debug' })
   $.ui.invalidate('ui.render')
+}
+
+/**
+ * Every agent this session launched that Cockpit still knows of: the live roster's, then each kept turn's (the store's
+ * for rows drawn before the session starts, amendment 8), so a resumed agent's rows are known as its (amendment 9).
+ * @param $ the engine interface
+ * @returns the agents, the live roster's first
+ */
+export async function keptAgents($: EngineInterface): Promise<RosterAgent[]> {
+  return [...(await readRoster($)), ...(await keptRecords($)).flatMap(r => r.roster)]
 }
 
 /**

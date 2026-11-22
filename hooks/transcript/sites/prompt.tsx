@@ -1,19 +1,26 @@
-// The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail.
-import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
+// The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail. While Cockpit
+// is on, the rule is E.1's `─ [ TURN n ] ─── 09:23` (amendment 12), also above the engine's own row in ctrl+o.
+import type { EngineInterface, On, RenderElement, RenderPropsOf } from 'claude-code'
 
 import { readEnvOnce } from '../../cockpit/switch'
-import type { PromptStamp } from '../../../types'
-import { drawAgentNotice, isQuietRow } from '../../cockpit/left'
-import { readRoster } from '../../cockpit/log'
+import type { PromptStamp, RosterAgent } from '../../../types'
+import { drawAgentNotice, isQuietRow, keptAgents } from '../../cockpit/left'
+import { readLog } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
+import type { Lay } from '../../shared/layout'
 import { Rule } from '../../shared/rule'
-import { fmtClock } from '../../shared/time'
+import type { Ui } from '../../shared/rule'
+import { vw } from '../../shared/text'
+import { fmtClock, fmtDuration } from '../../shared/time'
 import { C } from '../../shared/tokens'
 import { claim } from '../claim'
 import { cell } from '../draw/cell'
-import { readPrompts } from '../ledger/state'
-import { lastSubmittedAt } from '../ledger/turns'
+import { drawParts } from '../draw/parts'
+import { sessionCwd } from '../ledger/session'
+import { isSameText, readPrompts, storedPrompts } from '../ledger/state'
+import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
+import { turnClock, turnRuleParts } from '../turn-rule'
 
 // Which submit stamp each turn rule shows, by the row's request: the same prompt typed
 // twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
@@ -30,10 +37,50 @@ const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
   claim(
     row === PLACEHOLDER ? new Map(promptClaims) : promptClaims,
     row,
-    list.filter(p => p.text.trim() === text.trim()),
+    list.filter(p => isSameText(p.text, text)),
     p => p.at,
     lastSubmittedAt()
   )
+
+/** What opens a typed prompt's row while Cockpit is on: the turn rule, or, for a steer, its time edge (E.20). */
+type Head = { rule: RenderElement } | { steer: string }
+
+/**
+ * What opens the prompt's row while Cockpit is on (E.1, E.20, amendment 12): the prompt's stamp, found by the row the
+ * engine draws it under (the same live and after a resume), else claimed as before. A prompt typed over a running
+ * turn and delivered into it is a steer: no rule, `steer` and the turn clock on its time edge; one still waiting has
+ * neither. Any other opens the turn rule: its number the one its turn took, else, while that turn is about to start
+ * or has just started, the step log's; its clock, with the day when the previous prompt's was another. At the
+ * receipt's width, so both end on one edge.
+ * @param $ the engine interface
+ * @param ui the site's elements
+ * @param row the row's request
+ * @param text the prompt's text
+ * @param lay the transcript's layout
+ * @returns the rule, or the steer's edge ('' while it waits)
+ */
+async function promptHead($: EngineInterface, ui: Ui, row: string, text: string, lay: Lay): Promise<Head> {
+  const live = await readPrompts($)
+  // A resumed transcript is drawn before the session starts (amendment 8): its stamps are still only in the store.
+  const list = live.length > 0 || sessionCwd() !== undefined ? live : await storedPrompts($)
+  // A prompt typed over a running turn is never claimed: the engine draws it under rows of its own while it waits.
+  const waiting = list.findLast(p => p.over !== undefined && p.row === undefined && isSameText(p.text, text))
+  const typed = list.filter(p => p.over === undefined || p.row !== undefined)
+  // The stand-in may show a stamp another row holds (it claims nothing); a real row claims only a stamp with no row.
+  const stamp = list.find(p => p.row === row) ?? waiting ?? claimPrompt(row, text, row === PLACEHOLDER ? typed : typed.filter(p => p.row === undefined))
+
+  if (stamp?.over !== undefined && stamp.turnNo === undefined && !isPendingStart(stamp)) {
+    return { steer: stamp.steerMs === undefined ? '' : `steer · ${fmtDuration(stamp.steerMs)}` }
+  }
+
+  const log = await readLog($)
+  const turnNo =
+    stamp === undefined ? undefined : (stamp.turnNo ?? (log.startedAt === stamp.at ? log.turnNo : isPendingStart(stamp) ? log.turnNo + 1 : undefined))
+  const prev = stamp === undefined ? undefined : list.slice(0, Math.max(0, list.indexOf(stamp))).findLast(p => p.over === undefined || p.turnNo !== undefined)
+  const clock = stamp === undefined ? '' : turnClock(stamp.at, prev?.at)
+
+  return { rule: drawParts(ui, turnRuleParts(turnNo, stamp?.after, clock, ruleWidth(lay) ?? lay.width), 'rule') }
+}
 
 function durationLabel(ms: number) {
   const s = Math.max(0, Math.round(ms / 1000))
@@ -43,9 +90,9 @@ function durationLabel(ms: number) {
 
 /**
  * Whether a row is one of this session's agents speaking: the notice that it finished (`task-notification`, its
- * task an agent) or its message to the main loop (`peer`, from an agent's name or type). Cockpit's roster says which
- * agents this session launched (the engine's list may have dropped one that finished), else the engine's own list;
- * a list it cannot give keeps the row.
+ * task an agent) or its message to the main loop (`peer`, from an agent's name or type). Cockpit's roster and every
+ * kept turn's say which agents this session launched (the engine's list may have dropped one that finished, and
+ * after a resume holds none), else the engine's own list; a list it cannot give keeps the row.
  * @param $ the engine interface
  * @param p the row's props
  * @returns whether the row is an agent's
@@ -58,7 +105,12 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 
   const task = p.origin.kind === 'task-notification' ? p.task : undefined
 
-  if ((await readRoster($)).some(a => a.id === id || (task?.toolUseId !== undefined && a.call === task.toolUseId))) return true
+  const isIt = (a: RosterAgent) =>
+    a.id === id ||
+    (task?.toolUseId !== undefined && a.call === task.toolUseId) ||
+    (from !== undefined && (a.name === from || a.called?.includes(from) === true))
+
+  if ((await keptAgents($)).some(isIt)) return true
 
   try {
     const agents = await $.agent.list()
@@ -81,8 +133,28 @@ export function registerPrompt(on: On): void {
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 
-    if (e.surface !== 'terminal' || e.props.isExpanded || e.props.text.length === 0) {
+    if (e.surface !== 'terminal' || e.props.text.length === 0) {
       return next(e)
+    }
+
+    // ctrl+o: the prompt row is the engine's (amendment 11); Cockpit's turn rule opens it, the same as folded.
+    if (e.props.isExpanded) {
+      const lay = layout(e.viewport?.columns)
+
+      if (e.props.origin.kind !== 'composer' || lay === undefined || !isQuietRow(e)) return next(e)
+
+      const ui = $.ui.resolve(e)
+      const head = await promptHead($, ui, e.requestId, e.props.text, lay)
+
+      // A steer opens no rule (E.20): the engine's row as it is.
+      if ('steer' in head) return next(e)
+
+      return (
+        <ui.Box flexDirection="column">
+          <ui.Box marginTop={1}>{head.rule}</ui.Box>
+          {await next(e)}
+        </ui.Box>
+      )
     }
 
     const { Box, Text } = $.ui.resolve(e)
@@ -126,16 +198,26 @@ export function registerPrompt(on: On): void {
 
     const width = lay.width
 
-    // Turn open rule with the submit time (dropped when we never saw the submit),
+    // Turn open rule with the submit time (dropped when we never saw the submit; v6's claimed by text),
     // then `you` in the gutter and the message behind a ▎ rail on every row.
-    const stamp = claimPrompt(e.requestId, e.props.text, await readPrompts($))
-    const rows = wrapPlain(e.props.text, width - 2)
     const ui = $.ui.resolve(e)
+    // Cockpit's left (docked or fallback): E.1's turn rule, or a steer's time edge (E.20); otherwise the v6 rule, as before.
+    const v6 = isQuietRow(e) ? undefined : claimPrompt(e.requestId, e.props.text, await readPrompts($))
+    const head = isQuietRow(e) ? await promptHead($, ui, e.requestId, e.props.text, lay) : undefined
+    const edge = head !== undefined && 'steer' in head ? head.steer : ''
+    const rule =
+      head === undefined
+        ? Rule(ui, v6 ? { text: fmtClock(v6.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
+        : 'rule' in head
+          ? head.rule
+          : undefined
+    // The edge ends the first row on the rule's time edge: the rows wrap short enough to leave it a cell of room.
+    const rows = wrapPlain(e.props.text, width - 2 - (edge.length > 0 ? vw(edge) + 1 : 0))
 
     return (
       <Box flexDirection="column">
         {/* §0.2: one blank row between the last turn's footer rule and this one. */}
-        <Box marginTop={1}>{Rule(ui, stamp ? { text: fmtClock(stamp.at), color: C.muted } : undefined, undefined, ruleWidth(lay))}</Box>
+        {rule !== undefined && <Box marginTop={1}>{rule}</Box>}
         {cell(
           ui,
           lay,
@@ -147,7 +229,14 @@ export function registerPrompt(on: On): void {
               <Text key={`${i}.rail`} color={C.accent}>
                 {G.rail}
               </Text>,
-              <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
+              <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>,
+              ...(i === 0 && edge.length > 0
+                ? [
+                    <Text key="edge" color={C.muted}>
+                      {`${' '.repeat(Math.max(1, width - 2 - vw(row) - vw(edge)))}${edge}`}
+                    </Text>
+                  ]
+                : [])
             ])}
           </Text>,
           1

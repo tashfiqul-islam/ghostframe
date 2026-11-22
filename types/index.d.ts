@@ -1,5 +1,13 @@
-/** When a typed prompt was submitted, so its turn rule can show the time. */
-export type PromptStamp = { text: string; at: number }
+/** What came right before a typed turn, named on its rule (amendment 12): a resume, a compaction, a rewind. */
+export type TurnAfter = 'resume' | 'compact' | 'rewind'
+
+/**
+ * A typed prompt: when it was submitted, so its turn rule can show the time. While Cockpit is on, also the row the
+ * engine draws it under (its `session.append` uuid), its turn number (the step log's, set only when its turn starts)
+ * and what came right before its turn. A prompt typed while a turn ran keeps that turn's id (`over`); delivered into
+ * it, it is a steer (E.20), `steerMs` the turn clock it arrived at, and takes no number.
+ */
+export type PromptStamp = { text: string; at: number; row?: string; turnNo?: number; after?: TurnAfter; over?: string; steerMs?: number }
 
 /** One finished main-loop turn, for its close rule: tokens, tally, and an open browser frame to close. */
 /** `turn`: the turn it closed, so each footer row claims exactly one close. */
@@ -157,6 +165,8 @@ export type RosterAgent = {
   call: string
   parent: string | null
   name: string
+  /** The other names a row may give it: its own name and its type (`Explore`), as a peer's message names its sender. */
+  called?: string[]
   isBackground: boolean
   state: 'running' | 'done' | 'failed'
   kind: string
@@ -245,6 +255,7 @@ declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
       prompts: Shaped<PromptStamp[]>
+      pendingAfter: Shaped<TurnAfter | null>
       closes: Shaped<TurnClose[]>
       steps: Shaped<StepStamp[]>
       turn: Shaped<string | null>
