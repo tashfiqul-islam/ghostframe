@@ -51,8 +51,12 @@ export function resultOf(tool: string, output: unknown): Tone[] | undefined {
 
   switch (tool) {
     case 'Read': {
-      const n = num(obj(o?.['file'])?.['numLines'])
-      return n === undefined ? undefined : [{ text: `${n} lines`, color: C.muted }]
+      // Counted from the content the read returned, so the same file reads the same: a trailing newline ends the
+      // last line and adds none (`hello\r\n` is 1 line, as `wc -l` says). With no content, the engine's count.
+      const file = obj(o?.['file'])
+      const content = s(file?.['content'])
+      const n = content === undefined ? num(file?.['numLines']) : content.length === 0 ? 0 : content.replace(/\r?\n$/, '').split('\n').length
+      return n === undefined ? undefined : [{ text: `${n} ${n === 1 ? 'line' : 'lines'}`, color: C.muted }]
     }
     case 'Edit':
     case 'MultiEdit':
