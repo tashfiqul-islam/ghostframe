@@ -32,17 +32,18 @@ export function turnClock(at: number, prevAt: number | undefined): string {
 /**
  * The rule's row, exactly `width` cells when the label fits: `─`, the label from column 2, the fill, then the clock
  * ending on the last cell. A clock that leaves no fill, or a row under 40 cells, goes; the label stays whole.
- * @param turnNo the turn's number
+ * @param turnNo the turn's number, undefined when Cockpit never numbered it
  * @param after what came right before it
  * @param clock the clock's text, '' for none
  * @param width the receipt's width
  * @returns the row's parts
  */
-export function turnRuleParts(turnNo: number, after: TurnAfter | undefined, clock: string, width: number): Part[] {
+export function turnRuleParts(turnNo: number | undefined, after: TurnAfter | undefined, clock: string, width: number): Part[] {
   const label: Part[] = [
     { t: '─ ', color: C.rule },
     { t: '[ ', color: C.dim },
-    { t: `TURN ${turnNo}`, color: C.textBright },
+    // A prompt typed while Cockpit was off has no number: no step log has its turn.
+    { t: turnNo === undefined ? 'TURN' : `TURN ${turnNo}`, color: C.textBright },
     ...(after === undefined ? [] : [{ t: ` · ${STATE[after]}`, color: C.muted }]),
     { t: ' ]', color: C.dim }
   ]

@@ -48,3 +48,7 @@ test('the clock: 24-hour time, with the day when it differs from the previous tu
   expect(turnClock(at, new Date(2026, 10, 18, 23, 58).getTime())).toBe('Thu 19 Nov · 09:02')
   expect(turnClock(new Date(2026, 0, 4, 14, 30).getTime(), new Date(2025, 11, 31, 8, 0).getTime())).toBe('Sun 4 Jan · 14:30')
 })
+
+test('a prompt Cockpit never numbered (typed while it was off) keeps the label, without a number', () => {
+  expect(joined(turnRuleParts(undefined, undefined, '10:26', 40))).toBe(`─ [ TURN ] ${'─'.repeat(23)} 10:26`)
+})

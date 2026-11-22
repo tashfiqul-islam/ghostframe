@@ -12,7 +12,6 @@ type Stamp = { text: string; at: number; row?: string; turnNo?: number; after?: 
 function engine(on: On, clock: { now: number }, store: Store, denied: Set<string> = new Set()) {
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.close', () => ({ value: undefined }))
   on('ui.panes', () => ({ value: [] }))
