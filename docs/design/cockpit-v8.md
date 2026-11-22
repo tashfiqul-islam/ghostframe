@@ -3449,3 +3449,11 @@ When the person refuses a permission, the step is **denied**: a row on the left 
 ### 13.9 One clock
 
 The receipt's label, the pane head's duration and range, the live line's elapsed time and `/steps` all read the turn's time from one source: the step log's turn start and end. The same turn never shows two durations.
+
+## 14. Build decisions (Phase 12)
+
+- **Two palettes.** `hooks/shared/look/palette.ts` holds every v8 hex; `hooks/shared/tokens.ts` keeps the transcript's Cockpit-off palette exactly as on main, since with Cockpit off every row must draw as before. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in v8's folders outside `shared/look/glyphs.ts`.
+- **Two more hexes than section 2.** The braille trace's low end `#2E3A39` (7.3, 7.12) and the wordmark's `#3A4846` / `#56706B` (8.12) live in the palette module beside the section 2 tables, so they are still in one place.
+- **Kind words outside 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep v7's words `ask`, `plan`, `skill` (each within 6 cells): 5.6's list has no word for them, and inventing one would be worse than keeping the known one.
+- **One short line is its own result.** 13.6 lists `bun --version` → `1.4.4`; generalised as "a command whose output is one line of at most 14 cells shows that line". Any other output with no rule in 13.6 reads `done` (exit 0) or `exit n`.
+- **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the v7 rule). The project root is checked first, so a project under the home folder never gets a `~`.

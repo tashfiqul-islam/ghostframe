@@ -12,6 +12,9 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `shared/`: colour tokens, the grid and layout math, text width and clipping, the rule, time formats, `Part` helpers,
   the LRU and turn caps, URL and path labels, and the flow (Claude's blocks and calls in stored order, with what
   narration is), which both features read.
+- `shared/look/`: Cockpit v8's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
+  draws with), the glyphs, the formats (clock, day, duration, counts, state words), the one path formatter and the
+  cuts from the middle, the `cd` prefix, kind words and short result words.
 - `shared/calls/`: what a tool call was and what it returned: its verb and target, result summaries, test-run
   counts, commits, pushes and pull requests.
 - `cockpit/`: the pane's seat and width rule, the off switch, the step log's atoms and timers, the turn's work
