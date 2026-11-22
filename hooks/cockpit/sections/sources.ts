@@ -157,7 +157,7 @@ const URL_INDENT = 4
 /** A page's whole URL under its row (`u`), in dim from column 4, cut into rows of the pane's width. */
 function urlRows(url: string, width: number): Line[] {
   const room = Math.max(1, width - URL_INDENT)
-  const chars = [...url]
+  const chars = Array.from(new Intl.Segmenter().segment(url), g => g.segment)
   const rows: Line[] = []
 
   for (let at = 0; at < chars.length; at += room) {
