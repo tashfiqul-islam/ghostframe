@@ -26,10 +26,11 @@ export type View =
   | { kind: 'agent'; id: string; note: string }
 
 /**
- * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. Escape at the prompt is not
- * offered: live, it stopped the viewed agent's running shell first, and went back to main only when nothing ran.
+ * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. `m` goes back from anywhere
+ * in the pane (Enter on the agent's row too). Escape at the prompt is not offered: live, it stopped the viewed agent's
+ * running shell first, and went back to main only when nothing ran.
  */
-export const AGENT_NOTE = 'agent in view · enter on its row for main'
+export const AGENT_NOTE = 'agent in view · m for main'
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
@@ -200,12 +201,27 @@ async function openAgent($: EngineInterface, agentId: string): Promise<void> {
     return
   }
 
-  const isBack = viewed === agentId
-  const { deny } = await $.ui.view(isBack ? {} : { agentId })
+  if (viewed === agentId) {
+    await backToMain($)
+
+    return
+  }
+
+  const { deny } = await $.ui.view({ agentId })
+
+  view = deny === undefined ? FIT : { kind: 'agent', id: agentId, note: `conversation not held · ${deny} · b: back` }
+}
+
+/**
+ * `m` (drawn only while an agent's conversation is in view): the main conversation again, from any row or view of the
+ * pane, answering the person's own key as `$.ui.view` asks. The agent runs on; only the view changes.
+ * @param $ the engine interface
+ */
+async function backToMain($: EngineInterface): Promise<void> {
+  const { deny } = await $.ui.view({})
 
   if (deny === undefined) view = FIT
-  else if (isBack) await say($, deny)
-  else view = { kind: 'agent', id: agentId, note: `conversation not held · ${deny} · b: back` }
+  else await say($, deny)
 }
 
 /**
@@ -217,9 +233,9 @@ export async function openRow($: EngineInterface, id: string): Promise<void> {
   if (id.startsWith('agent:')) {
     await openAgent($, id.slice('agent:'.length))
   } else if (id.startsWith('source:')) {
-    // No key can open a browser (phase 11, probe 3): the URL goes to the clipboard, and the note says so.
-    const { isCopied } = await $.ui.copy({ text: id.slice('source:'.length) })
-    await say($, isCopied ? 'url copied · no key opens a browser' : 'nothing to copy')
+    // No key can open a browser (phase 11, probe 3): Enter copies the URL as `c` does, the row it pressed under the ring.
+    ring = id
+    await copyNow($)
   } else if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
     view = { kind: 'diff', path, ...(await fileView($, path)) }
@@ -272,8 +288,13 @@ async function copyText($: EngineInterface): Promise<string | undefined> {
 async function copyNow($: EngineInterface): Promise<void> {
   const text = await copyText($)
   const isCopied = text !== undefined && (await $.ui.copy({ text })).isCopied
-  await say($, isCopied ? 'copied' : 'nothing to copy')
+  // A source's URL says that no key opens it (phase 11, probe 3), Enter's and `c`'s alike.
+  const isUrl = view.kind !== 'diff' && view.kind !== 'step' && ring?.startsWith('source:') === true
+  await say($, !isCopied ? 'nothing to copy' : isUrl ? URL_COPIED : 'copied')
 }
+
+/** What copying a source's URL says, from Enter or `c`. */
+export const URL_COPIED = 'url copied · no key opens a browser'
 
 /**
  * A brief dim note in the hint row (`copied`, `no earlier turn kept`), for two seconds.
@@ -364,6 +385,7 @@ export async function pressKey($: EngineInterface, key: string): Promise<void> {
     await setPin($, null, 0)
     view = FIT
   } else if (key === 's') view = view.kind === 'all' ? FIT : { kind: 'all' }
+  else if (key === 'm') await backToMain($)
   else if (key === 'b') view = FIT
   else if (key === 'c') await copyNow($)
   else if (section !== undefined) {

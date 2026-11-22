@@ -456,7 +456,8 @@ export function registerPane(on: On): void {
     const isPinned = pinned !== undefined
     const isInspector = placement === 'inline' && askedInline === 'steps'
     const fitTo =
-      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector) : 0)
+      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) -
+      (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector, e.props.view.agentId !== undefined) : 0)
     const shown =
       pinned !== undefined
         ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
@@ -495,6 +496,6 @@ export function registerPane(on: On): void {
       lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned, agentView)
     }
 
-    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector)
+    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector, viewed !== undefined)
   })
 }

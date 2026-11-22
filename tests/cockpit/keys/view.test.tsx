@@ -358,7 +358,7 @@ test('Enter on an agent opens its conversation; the pane lists its own steps as 
   ui = await $.ui.mount(viewing('ag-Edit note'))
   const rows = await texts(ui)
   expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 2 steps$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent in view · enter on its row for main/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent in view · m for main/))
   // On the agent's own clock: its read ends 3 s after its launch (7 s on the turn's), its edit 4 s after.
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}read {5}notes\.md +3 lines +3s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}edit {5}notes\.md +\+2 −1 +4s$/))
@@ -368,6 +368,46 @@ test('Enter on an agent opens its conversation; the pane lists its own steps as 
   await ui.press({ key: 'agent:ag-Edit note' })
   await ui.unmount()
   expect(views).toEqual([{ agentId: 'ag-Edit note' }, {}])
+})
+
+test('an agent in view: `m` goes back to main from any row or view, the hint row offers `m` and never Escape', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  const views: unknown[] = []
+  on('ui.view', (_, e) => {
+    views.push({ ...e })
+
+    return { value: {} }
+  })
+  await agentTurn($, clock)
+
+  const ui = await $.ui.mount(viewing('ag-Edit note'))
+  let hints = (await ui.findAll({ type: 'Button' })).flatMap(b => {
+    const hotkey = (b.props as { hotkey?: unknown }).hotkey
+
+    return typeof hotkey === 'string' ? [hotkey] : []
+  })
+  expect(hints).toContain('m')
+  expect((await texts(ui)).some(t => t.includes('esc: prompt'))).toBe(false)
+
+  // The ring on one of the agent's step rows; Enter opens that step, and `m` still goes back.
+  await ui.press({ key: 'step:ar1' })
+  await ui.redraw()
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/^┄ \[ STEP 1 · AGENT Edit note \]/))
+  await ui.press({ key: 'key-m' })
+  expect(views).toEqual([{}])
+  await ui.unmount()
+
+  // The main conversation in view: no `m`, and the hint row says Escape returns the keyboard.
+  const main = await $.ui.mount(viewing())
+  hints = (await main.findAll({ type: 'Button' })).flatMap(b => {
+    const hotkey = (b.props as { hotkey?: unknown }).hotkey
+
+    return typeof hotkey === 'string' ? [hotkey] : []
+  })
+  expect(hints).not.toContain('m')
+  expect((await texts(main)).some(t => t.includes('esc: prompt'))).toBe(true)
+  await main.unmount()
 })
 
 test('a view the engine refuses (no agent under that id): the pane still lists the agent`s kept steps and says why; `b` goes back', ON, async ($, on) => {
@@ -411,6 +451,15 @@ test('Enter on a source copies its URL and says no key opens a browser; `c` on i
     origin: { kind: 'person' }
   } as never)
   await ui.press({ key: 'key-c' })
+  await ui.redraw()
   expect(copies).toEqual(['https://bun.sh/docs/cli/publish', 'https://bun.sh/docs/cli/publish'])
+  expect((await texts(ui)).join(' ')).toContain('url copied · no key opens a browser')
+
+  // In the `u` view too: the row under its URL copies on Enter.
+  await ui.press({ key: 'key-u' })
+  await ui.redraw()
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/^ {4}https:\/\/bun\.sh\/docs\/cli\/publish/))
+  await ui.press({ key: 'source:https://bun.sh/docs/cli/publish' })
+  expect(copies).toEqual(['https://bun.sh/docs/cli/publish', 'https://bun.sh/docs/cli/publish', 'https://bun.sh/docs/cli/publish'])
   await ui.unmount()
 })
