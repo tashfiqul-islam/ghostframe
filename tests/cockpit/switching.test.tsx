@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'claude-code/testing'
 
+import { paneColumns } from '../../hooks/cockpit/seat'
 import { ON, PANE } from '../support/cockpit'
-import type { Engine } from '../support/engine'
+import type { Engine, On } from '../support/engine'
 import { MIXED, answerOf, fallbackEngine, groupOf, mixedTurn, must, rowsOf, site } from '../support/fallback'
 
 // Amendment 10 (owner, 2026-11-22): in fullscreen, when the pane leaves or comes back, the rows already on screen are
@@ -167,126 +168,131 @@ test('on the main screen a printed row stays as printed: the pane coming back do
   expect(await main(100)).toEqual(printed)
 })
 
-// The widths of a live drag in Windows Terminal (9d50468, the person's debug log): the engine draws at each width,
-// 25 to 50 ms apart, down from 200 past 144 and 110, then back up. Times in ms from the drag's start.
-const DOWN: [number, number][] = [
-  [0, 197],
-  [32, 190],
-  [78, 179],
-  [114, 169],
-  [128, 163],
-  [163, 154],
-  [194, 152],
-  [334, 146],
-  [724, 145],
-  [763, 135],
-  [800, 128],
-  [830, 120],
-  [860, 114],
-  [890, 109],
-  [920, 104],
-  [950, 100]
-]
-const UP: [number, number][] = [
-  [5_000, 104],
-  [5_030, 112],
-  [5_060, 124],
-  [5_090, 136],
-  [5_120, 148],
-  [5_150, 160],
-  [5_180, 172],
-  [5_210, 184],
-  [5_240, 199],
-  [5_689, 197],
-  [5_750, 194],
-  [5_865, 193]
-]
-
-test('a live drag`s widths: the pane is kept until the width holds; one close going down, one open coming back', ON, async ($, on) => {
-  const clock = mock.clock(on)
-  const opens: { columns: number; body: number; before: number | undefined }[] = []
-  const closes: number[] = []
-  // The engine's side: the pane's body is what the last open asked for; below 110 it reseats a docked pane inline.
-  let body: number | undefined = 72
+/**
+ * The engine's side of a drag in Windows Terminal: it draws at each width, 25 to 50 ms apart. An open is drawn at the
+ * next draw where the engine can place it (from 144 columns, or from 110 for one asked for); below 110 it reseats a
+ * docked pane inline. Each first draw of an open is kept, to catch a stale one (drawn at a width its body is not for).
+ */
+function dragEngine(on: On, clock: ReturnType<typeof mock.clock>) {
+  const log = { opens: [] as { columns: number; body: number }[], closes: [] as number[], inline: 0, placed: [] as { columns: number; body: number }[] }
+  let width = 200
+  let drawn: number | undefined
+  let pending: number | undefined
+  let isAsked = false
   on('ui.open', (_, e) => {
-    opens.push({ columns: lastWidth, body: e.columns ?? 0, before: body })
-    body = e.columns ?? 0
+    log.opens.push({ columns: width, body: e.columns ?? 0 })
+    pending = e.columns ?? 0
+    drawn = undefined
 
     return { value: { isPlaced: true } }
   })
   on('ui.close', () => {
-    closes.push(lastWidth)
-    body = undefined
+    log.closes.push(width)
+    drawn = undefined
+    pending = undefined
 
     return { value: undefined }
   })
-  let lastWidth = 200
+  on('ui.panes', () => ({
+    value: drawn === undefined && pending === undefined ? [] : [{ id: 'cockpit', title: 'cockpit', isShown: true, isFocused: false, isPlaced: true }]
+  }))
+  on('ui.log', () => ({ value: undefined }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('session.messages', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  const hint = (columns: number) => ({
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'PromptHint',
+    viewport: { columns, rows: 50, isFullscreen: true },
+    props: { hint: '' }
+  })
   const drawAt = async (columns: number) => {
-    lastWidth = columns
+    width = columns
+    if (pending !== undefined && columns >= (isAsked ? 110 : 144)) {
+      drawn = pending
+      pending = undefined
+      log.placed.push({ columns, body: drawn })
+    }
     const raised =
-      body === undefined
-        ? { plugin: 'ghostframe', surface: 'terminal', component: 'PromptHint', viewport: { columns, rows: 50, isFullscreen: true }, props: { hint: '' } }
+      drawn === undefined
+        ? hint(columns)
         : columns < 110
           ? { ...PANE, props: { ...PANE.props, placement: 'inline', bodyColumns: columns - 4 }, viewport: { columns, rows: 50, isFullscreen: true } }
-          : { ...PANE, props: { ...PANE.props, bodyColumns: body }, viewport: { columns: columns - body - 1, rows: 50, isFullscreen: true } }
-    await (await $.ui.mount(raised as never)).unmount()
+          : { ...PANE, props: { ...PANE.props, bodyColumns: drawn }, viewport: { columns: columns - drawn - 1, rows: 50, isFullscreen: true } }
+    if (drawn !== undefined && columns < 110) log.inline += 1
+    await (await $mount(raised)).unmount()
   }
-  const play = async (steps: readonly [number, number][]) => {
-    const base = clock.now()
-
-    for (const [at, columns] of steps) {
-      await clock.set(base + at - steps[0]![0])
-      await drawAt(columns)
+  let $mount: (raised: unknown) => Promise<{ unmount: () => Promise<void> }> = async () => ({ unmount: async () => undefined })
+  /** Draws from one width to another, `by` columns every `ms`, then holds `hold` ms. */
+  const drag = async (from: number, to: number, by: number, ms: number, hold = 0) => {
+    const step = from < to ? by : -by
+    for (let w = from; from < to ? w < to : w > to; w += step) {
+      await drawAt(w)
+      await clock.advance(ms)
     }
+    await drawAt(to)
+    await clock.advance(hold)
   }
 
-  // Docked at 200 with the body 200 asks for: no open at all.
-  await drawAt(200)
-  await clock.advance(1_000)
-  expect(opens).toEqual([])
+  return { log, drawAt, drag, ask: () => (isAsked = true), mountWith: (m: typeof $mount) => ($mount = m) }
+}
 
-  // Down: no open while the width moves (no 72 → 56 at 169, 163); the one pause past 300 ms (390 ms at 146) gives one
-  // open, to the body 146 asks for; one close, when the engine reseats the pane inline below 110.
-  await play(DOWN)
-  await clock.advance(1_000)
-  expect(opens).toEqual([{ columns: 146, body: 40, before: 72 }])
-  expect(closes).toEqual([109])
+test('four live drag cycles: an unasked pane leaves at its first draw below 144, never inline, never a stale open; one open at start', ON, async ($, on) => {
+  const clock = mock.clock(on)
+  const d = dragEngine(on, clock)
+  d.mountWith(raised => $.ui.mount(raised as never))
+  const firstBelow144 = (from: number, by: number) => from - Math.ceil((from - 143) / by) * by
 
-  // Back up: one open, once 199 has held, at the body 199 asks for; 197, 194 and 193 ask for the same, so nothing more.
-  await play(UP)
-  await clock.advance(1_000)
-  expect(opens).toEqual([
-    { columns: 146, body: 40, before: 72 },
-    { columns: 199, body: 72, before: undefined }
+  // Start: the hint draws before the session starts, which opens nothing; the start makes the one open.
+  await d.drawAt(200)
+  await clock.advance(300)
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: true })
+  await d.drawAt(200)
+  await clock.advance(300)
+  expect(d.log.opens).toEqual([{ columns: 200, body: 72 }])
+
+  // Cycle 1, 200 → 111 slowly: closed at the first draw below 144, at once.
+  await d.drag(200, 111, 3, 40, 300)
+  expect(d.log.closes).toEqual([firstBelow144(200, 3)])
+
+  // Cycle 2: back to 179 and held (one open), then 179 → 102 fast: closed at the first draw below 144.
+  await d.drag(111, 179, 4, 30, 300)
+  await d.drag(179, 102, 7, 25, 300)
+  expect(d.log.opens.slice(1)).toEqual([{ columns: 179, body: 72 }])
+  expect(d.log.closes.slice(1)).toEqual([firstBelow144(179, 7)])
+
+  // Cycle 3: up to 189 and held just past the wait (an open is made), narrowed before it is drawn (it is withdrawn),
+  // then up to 163: one open there, at its own body.
+  await d.drag(102, 189, 8, 30, 160)
+  await d.drag(189, 120, 10, 30, 100)
+  await d.drag(120, 163, 5, 30, 300)
+  expect(d.log.opens.slice(2)).toEqual([
+    { columns: 189, body: 72 },
+    { columns: 163, body: 56 }
   ])
-  expect(closes).toEqual([109])
-  // No open asked for the body the pane already had.
-  expect(opens.filter(o => o.body === o.before)).toEqual([])
+
+  // Cycle 4, 163 → 111: closed at the first draw below 144.
+  await d.drag(163, 111, 4, 30, 300)
+  expect(d.log.closes.at(-1)).toBe(firstBelow144(163, 4))
+
+  // Never an inline frame of a pane nobody asked for; every open first drawn at a width whose rule asks its body.
+  expect(d.log.inline).toBe(0)
+  expect(d.log.placed.filter(p => paneColumns(p.columns) !== p.body)).toEqual([])
 })
 
-test('narrowed below 144 and held there, a pane nobody asked for closes once, after the width holds', ON, async ($, on) => {
+test('an asked pane crossing below 110 closes at the engine`s first inline draw; that one inline frame is the engine`s', ON, async ($, on) => {
   const clock = mock.clock(on)
-  const closed: string[] = []
-  on('ui.open', () => ({ value: { isPlaced: true } }))
-  on('ui.close', (_, e) => {
-    closed.push(e.id)
-
-    return { value: undefined }
-  })
-  const paneAt = (columns: number) => ({
-    ...PANE,
-    props: { ...PANE.props, bodyColumns: 72 },
-    viewport: { columns: columns - 73, rows: 50, isFullscreen: true }
-  })
-
-  for (const columns of [150, 140, 135, 130]) {
-    await (await $.ui.mount(paneAt(columns))).unmount()
-    await clock.advance(40)
-  }
-  await clock.advance(259)
-  expect(closed).toEqual([])
-  await clock.advance(1)
-  expect(closed).toEqual(['cockpit'])
+  const d = dragEngine(on, clock)
+  d.mountWith(raised => $.ui.mount(raised as never))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: false })
+  d.ask()
+  await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 130 } })
+  await d.drawAt(130)
+  await d.drag(130, 100, 3, 30, 300)
+  // Asked, it stays docked from 110 up (amendment 5); the engine reseats it inline at 109 and it is closed there.
+  expect(d.log.closes).toEqual([109])
+  expect(d.log.inline).toBe(1)
 })
 
 test('a pane the person closed stays closed when the terminal widens; /cockpit brings it back', ON, async ($, on) => {

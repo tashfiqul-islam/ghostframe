@@ -8,7 +8,7 @@ import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-c
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
-import { logSeatError, registerPane, seatAtStart } from './pane'
+import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
 
@@ -37,6 +37,8 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
     void seat($).catch((error: unknown) => logSeatError($, error))
+  } else {
+    markStartSeated()
   }
 }
 
