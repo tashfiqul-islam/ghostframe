@@ -111,6 +111,20 @@ test('one turn drawn at 200, 120, 100, 150 and 200 columns: no step lost, the sa
   expect(new Set(seen.map(s => JSON.stringify(s))).size).toBe(1)
 })
 
+test('a turn run with no pane placed draws quiet once the pane docks: no pane is not another pane`s tab in front', ON, async ($, on) => {
+  $global = $
+  isPlaced = false
+  const clock = { now: T }
+  fallbackEngine(on, clock, true)
+  await mixedTurn($, clock, 5)
+  expect((await answer($, 5, 100))[0]).toMatch(/^│ worked · 5 steps/)
+
+  await dock($)
+  const docked = await answer($, 5, 127)
+  expect(docked.some(r => r.startsWith('│ worked'))).toBe(false)
+  expect(docked.at(-1)).toMatch(/^─ failed ─+ 5 steps · 1 failure/)
+})
+
 test('a row depends only on the mode and its data: drawn under a new request (a reload, a resume) it is the same', ON, async ($, on) => {
   $global = $
   isPlaced = false
@@ -202,6 +216,34 @@ test('the seat: an unasked pane leaves the dock below 144 columns and opens agai
   expect(closed).toEqual(['cockpit'])
 })
 
+test('docked at a steady width, the hint and the pane drawing over and over make one open, not one per draw', ON, async ($, on) => {
+  const clock = mock.clock(on)
+  const opened: number[] = []
+  on('ui.open', (_, e) => {
+    opened.push(e.columns ?? 0)
+
+    return { value: { isPlaced: true } }
+  })
+  // 200 columns with a 40-column body (left from 150): the transcript region, and the hint beside the pane, are 159.
+  const pane = { ...PANE, props: { ...PANE.props, bodyColumns: 40 }, viewport: { columns: 159, rows: 50, isFullscreen: true } }
+  const hint = {
+    plugin: 'ghostframe',
+    surface: 'terminal',
+    component: 'PromptHint',
+    viewport: { columns: 159, rows: 50, isFullscreen: true },
+    props: { hint: '' }
+  } as never
+
+  for (let i = 0; i < 6; i++) {
+    await (await $.ui.mount(pane)).unmount()
+    await (await $.ui.mount(hint)).unmount()
+    await clock.advance(200)
+  }
+
+  await clock.advance(1_000)
+  expect(opened).toEqual([72])
+})
+
 test('/cockpit at 120 columns is asked: the docked pane stays there, as amendment 5 allows down to 110', ON, async ($, on) => {
   const closed: string[] = []
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -217,26 +259,38 @@ test('/cockpit at 120 columns is asked: the docked pane stays there, as amendmen
   expect(closed).toEqual([])
 })
 
-test('/tui: leaving fullscreen is said once, and coming back once, with the pane`s width and the turns its log keeps', ON, async ($, on) => {
+test('/tui: the switch is kept as the command runs and said once by the next draw on the new screen', ON, async ($, on) => {
   const said: string[] = []
   on('ui.log', (_, e) => {
     said.push(e.text)
 
     return { value: undefined }
   })
-  const hint = (isFullscreen: boolean) =>
-    $.ui.mount({
-      plugin: 'ghostframe',
-      surface: 'terminal',
-      component: 'PromptHint',
-      viewport: { columns: 200, rows: 50, isFullscreen },
-      props: { hint: '' }
-    } as never)
+  mock.store(on)
+  on('session.id', () => ({ value: 'switch-test' }))
+  on('command.run', () => ({ text: 'Switched back to the classic renderer' }))
+  const tui = (args: string, isFullscreen: boolean) =>
+    $.command.run({ command: 'tui', args, origin: { kind: 'composer' }, presentation: { isFullscreen, columns: 200 } })
+  const hint = async (isFullscreen: boolean) =>
+    (
+      await $.ui.mount({
+        plugin: 'ghostframe',
+        surface: 'terminal',
+        component: 'PromptHint',
+        viewport: { columns: 200, rows: 50, isFullscreen },
+        props: { hint: '' }
+      } as never)
+    ).unmount()
 
-  for (const isFullscreen of [true, true, false, false, true]) await (await hint(isFullscreen)).unmount()
+  // Already on the main screen: no switch, nothing said.
+  await tui('classic', false)
+  await hint(false)
+  expect(said).toEqual([])
 
-  expect(said).toEqual([
-    'fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt',
-    'fullscreen on · cockpit docked at 72 columns · step logs for 0 turns'
-  ])
+  // Off fullscreen: the old screen's draw says nothing; the main screen's first draw says it, once.
+  await tui('classic', true)
+  await hint(true)
+  await hint(false)
+  await hint(false)
+  expect(said).toEqual(['fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt'])
 })

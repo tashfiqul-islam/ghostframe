@@ -7,16 +7,17 @@ import { drawPane, hintRows } from './keys/draw'
 import { allRows, detailRows, diffRows } from './keys/views'
 import { copiedNote, hasCopied, noteRing, readViewTick, viewNow, wholeNow } from './keys/view'
 import type { Line } from './line'
-import { columnsNow, noteScreen, sayScreen, screenToSay, setDocked, widthTick } from './left'
+import { columnsNow, noteColumns, setDocked, widthTick } from './left'
 import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
-import { OFF_NOTE, isOn } from './switch'
+import { OFF_NOTE, isOn, readEnvOnce } from './switch'
 import { readWork } from './work'
 import { PANE, STEPS, docked } from './mode'
-import { readHistory, readPin } from './history/store'
+import { readHistory, readPin, storedTurnCount } from './history/store'
 import { pinFromCommand } from './keys/view'
 import { INSPECTOR_ROWS, inspectorLines } from './fallback/inspector'
 import { copyFromCommand, stepsAllText } from './copy'
+import { keepSwitch, switchNotice } from './tui'
 
 export type On = Parameters<Register>[0]
 
@@ -211,13 +212,41 @@ export function registerPane(on: On): void {
     return next(e)
   }).catch((_$, e, next) => next(e)) // a ring that cannot be noted never stops the ring
 
-  // While the pane holds the keyboard, the prompt's hint line says so (E.18): keys typed now reach the pane. The hint
-  // is drawn on every screen, so it is also where a switch of screen by `/tui` is said, once (F.40, probe 19).
-  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    if (isOn() && e.surface === 'terminal') {
-      noteScreen(e.viewport?.isFullscreen, e.viewport?.columns)
+  // `/tui` switches the screen mid-session (probe 19: the engine remounts the transcript and loads the hooks module
+  // again; `$.state` is kept). A switch is said once, as a notice row the remount reprints (F.40): off, that the dock
+  // is gone and capsules take its place; on, that the pane is back, its width and how many turns its log keeps.
+  // The switch is kept before the command runs: the copy that runs it is replaced while it does, so nothing after
+  // `next` is sure to run, and its output text is the engine's. The copy that comes after says it, once.
+  on('command.run', { command: 'tui' }, async ($, e, next) => {
+    const asked = e.args.trim().toLowerCase()
+    const isWanted = asked === 'fullscreen' ? true : asked === 'classic' || asked === 'default' ? false : undefined
 
-      if (screenToSay() !== undefined) sayScreen($, paneColumns(e.viewport?.columns ?? 0), (await readHistory($)).length)
+    if (isOn() && isWanted !== undefined && isWanted !== e.presentation.isFullscreen) {
+      await keepSwitch($, { isFullscreen: isWanted, columns: e.presentation.columns })
+    }
+
+    return next(e)
+  })
+
+  // While the pane holds the keyboard, the prompt's hint line says so (E.18): keys typed now reach the pane. It is
+  // drawn on every screen, first after a reload too, so it also reads the on switch again then, and says a `/tui`
+  // switch the copy before this one kept.
+  on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
+    await readEnvOnce($)
+
+    const notice = isOn()
+      ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
+          $.ui.log(`cockpit: /tui note not read: ${String(error)}`)
+
+          return undefined
+        })
+      : undefined
+
+    if (notice !== undefined) $.ui.log(notice)
+
+    if (isOn() && e.surface === 'terminal') {
+      // Docked, the hint is measured beside the pane; the Pane render says the terminal's width then.
+      noteColumns(docked() ? undefined : e.viewport?.columns)
     }
 
     if (!isOn() || !isPaneFocused || e.surface !== 'terminal') {
@@ -240,7 +269,7 @@ export function registerPane(on: On): void {
     if (e.surface === 'terminal' && viewport !== undefined) {
       const columns = terminalColumns(placement, viewport.columns, bodyColumns)
       const isFullscreen = viewport.isFullscreen === true
-      noteScreen(viewport.isFullscreen, columns)
+      noteColumns(columns)
 
       if (placement === 'inline') {
         setDocked($, false)

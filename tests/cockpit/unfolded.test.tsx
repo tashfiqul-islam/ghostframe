@@ -151,7 +151,7 @@ test('/copy code n, link n, steps n, turn n and diff <path>: each copies through
   expect(copied.at(-1)).toMatch(/^│ Reading it\. +0\.0s\n│   read     a\.ts +1\.0s$/)
   expect(await copy('steps 4')).toBe('no step log 4 · kept: turn 1')
 
-  expect(await copy('diff nope.ts')).toMatch(/^no diff for nope\.ts · /)
+  expect(await copy('diff nope.ts')).toBe('no diff for nope.ts · no file diffs kept')
 
   // Plain `/copy`, and any form Cockpit does not add, are the engine's.
   const count = copied.length

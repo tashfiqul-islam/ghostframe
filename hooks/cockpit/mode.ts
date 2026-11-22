@@ -63,7 +63,10 @@ export async function noteShown($: EngineInterface): Promise<void> {
   try {
     const pane = (await $.ui.panes()).find(p => p.id === PANE)
 
-    isShownAtTurn = pane !== undefined && pane.isShown && pane.isPlaced
+    // Only Cockpit's placed pane with another tab in front is hidden. With no pane placed (the main screen, too narrow,
+    // closed) the left is in fallback, whatever this says, and a turn started then is not held to the full view when
+    // the pane comes back (live: `/tui classic`, a turn, `/tui fullscreen` drew both turns unquiet).
+    isShownAtTurn = pane?.isPlaced !== true || pane.isShown
   } catch (error: unknown) {
     $.ui.log(`cockpit: pane list unavailable: ${String(error)}`)
   }

@@ -11,6 +11,7 @@ import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { loadHistory, saveTurn, setPin } from './history/store'
+import { clearSwitch } from './tui'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { isOn } from './switch'
@@ -95,6 +96,8 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await startWork($, cwd)
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
+    // A `/tui` switch is old news too; a note that cannot be cleared costs a repeat of it after a reload, nothing more.
+    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`))
   }
 
   lastMode = undefined

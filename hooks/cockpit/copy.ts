@@ -177,7 +177,7 @@ async function diffOf($: EngineInterface, path: string): Promise<{ diff: FileDif
   const matches = (d: FileDiff) => d.path === path || d.path.endsWith(`/${path}`) || path.endsWith(`/${d.path}`)
   const diff = records.flatMap(r => r.diffs).find(matches)
 
-  return { diff, known: [...new Set(records[0]?.diffs.map(d => d.path) ?? [])] }
+  return { diff, known: [...new Set(records.flatMap(r => r.diffs.filter(d => d.patch.length > 0).map(d => d.path)))] }
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
@@ -235,7 +235,7 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
 
     if (diff === undefined || diff.patch.length === 0) {
       const list =
-        known.length === 0 ? 'no file diffs kept' : `the last turn changed ${known.slice(0, 5).join(', ')}${known.length > 5 ? ` +${known.length - 5}` : ''}`
+        known.length === 0 ? 'no file diffs kept' : `diffs kept for ${known.slice(0, 5).join(', ')}${known.length > 5 ? ` +${known.length - 5}` : ''}`
 
       return `no diff for ${arg.length > 0 ? arg : 'a path'}${diff?.note === undefined ? '' : ` · ${diff.note}`} · ${list}`
     }

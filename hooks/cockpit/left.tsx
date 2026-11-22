@@ -58,7 +58,7 @@ function rowMode(site: RowSite): LeftMode {
   const row = site.requestId
 
   // Docked, a row's width is the region beside the pane, not the terminal's.
-  noteScreen(site.viewport?.isFullscreen, docked() ? undefined : site.viewport?.columns)
+  noteColumns(docked() ? undefined : site.viewport?.columns)
 
   // The ctrl+o view is the full record (E.4): quiet, its steps and sentences drawn as text rows, the same at any width.
   if (isOn() && unfolded()) return 'docked'
@@ -70,7 +70,9 @@ function rowMode(site: RowSite): LeftMode {
   if (site.viewport?.isFullscreen !== false) {
     const now = modeNow()
 
-    if (now === 'fallback' || (resumedRows.has(row) && !seated())) return now
+    // Off (a copy of the module that has not read its switch yet, after a reload), nothing is kept: the row draws again
+    // in Cockpit's mode once it is on.
+    if (now === 'fallback' || !isOn() || (resumedRows.has(row) && !seated())) return now
     if (had !== undefined && had !== 'fallback') return had
 
     remember(rowModes, row, now, ROWS_MAX)
@@ -78,6 +80,7 @@ function rowMode(site: RowSite): LeftMode {
     return now
   }
 
+  if (!isOn()) return modeNow()
   if (had !== undefined) return had
 
   const now = modeNow()
@@ -108,8 +111,6 @@ export const isQuietRow = (row: RowSite): boolean => rowMode(row) !== 'full'
  */
 export const isFallbackRow = (row: RowSite): boolean => rowMode(row) === 'fallback'
 
-/** What the last row drawn said of the screen: fullscreen, the main screen, or not yet known. */
-let screen: boolean | undefined
 /** The terminal's columns as last drawn, so a re-open can wait for the width to hold (pane.tsx). */
 let columns: number | undefined
 /** How many times the width has changed: a wait for it to hold starts again when this moves. */
@@ -121,46 +122,16 @@ export const columnsNow = (): number | undefined => columns
 /** A count that moves each time the terminal's width changes. */
 export const widthTick = (): number => widthChanges
 
-/** A switch of screen to announce once (F.40), set by a row's draw and said at the next pane or spinner draw. */
-let toSay: boolean | undefined
-
 /**
- * Notes the screen a row is drawn on. `/tui` switches it mid-session (probe 19: the engine remounts the transcript in
- * the same session, `$.state` and the plugin kept); the switch is said once, by `sayScreen`.
- * @param isFullscreen the row's `viewport.isFullscreen`
+ * Notes the terminal's width as a draw knows it.
  * @param width the terminal's columns, when the draw knows them
  */
-export function noteScreen(isFullscreen: boolean | undefined, width?: number): void {
-  if (width !== undefined && width !== columns) {
-    columns = width
-    widthChanges += 1
-  }
-  if (isFullscreen === undefined || isFullscreen === screen) return
-  if (screen !== undefined) toSay = isFullscreen
+export function noteColumns(width: number | undefined): void {
+  if (width === undefined || width === columns) return
 
-  screen = isFullscreen
+  columns = width
+  widthChanges += 1
 }
-
-/**
- * Says a switch of screen once, as a notice row (F.40): off, that the dock is gone and capsules take its place; on,
- * that the pane is back, and how many turns its log keeps.
- * @param $ the engine interface
- * @param paneColumns the width the pane docks at
- * @param kept how many turns history keeps
- */
-export function sayScreen($: EngineInterface, paneColumns: number, kept: number): void {
-  if (toSay === undefined || !isOn()) return
-
-  $.ui.log(
-    toSay
-      ? `fullscreen on · cockpit docked at ${paneColumns} columns · step logs for ${kept} ${kept === 1 ? 'turn' : 'turns'}`
-      : 'fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt'
-  )
-  toSay = undefined
-}
-
-/** Whether a switch of screen waits to be said. */
-export const screenToSay = (): boolean | undefined => toSay
 
 /**
  * Sets whether the pane is docked. Rows already drawn keep their mode; the live rows follow at once.

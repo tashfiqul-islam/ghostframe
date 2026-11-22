@@ -29,6 +29,18 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
 }
 
 /**
+ * How many turns the store keeps for this session, read from the store alone: the copy of the module loaded after a
+ * `/tui` switch reads the state as it was before the switch's last writes (probe 19), the store as it is.
+ * @param $ the engine interface
+ * @returns the count
+ */
+export async function storedTurnCount($: EngineInterface): Promise<number> {
+  const k = `${PREFIX}${await $.session.id()}`
+
+  return keptOf(k, await $.store.get(k))?.turns.length ?? 0
+}
+
+/**
  * Reads the store: this session's kept turns, and the other sessions' sizes for the budget.
  * @param $ the engine interface
  * @returns this session's kept turns, oldest first
