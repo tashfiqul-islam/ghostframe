@@ -92,7 +92,7 @@ export function receiptRow(c: TurnCounts, width: number): Part[] {
     glyph,
     { t: word, color, bold: true },
     c.levels,
-    waiting > 0 ? [...fields, [`${waiting} agents running`, 0]] : fields,
+    waiting > 0 ? [...fields, [`${count(waiting, 'agent')} running`, 0]] : fields,
     width
   )
 }
@@ -192,7 +192,6 @@ export function slashOutputRow(ok: boolean, text: string): Part[] {
 export type StepLine = { kind: string; subject: string; result: string; tone: 'dim' | 'ok' | 'err' | 'bright' | 'accent'; ms: number | undefined }
 
 const KIND_CELLS = 8
-const RESULT_END = 78
 const TIME_CELLS = 8
 
 const TONE: Record<StepLine['tone'], string> = { dim: TOKEN.machineDim, ok: TOKEN.ok, err: TOKEN.err, bright: TOKEN.textBright, accent: TOKEN.accent }
@@ -209,12 +208,14 @@ export function subjectParts(kind: string, subject: string, cells: number): Part
 }
 
 /**
- * A step row with no spine (screens 22, 30): the kind (8 cells, muted), the subject, the result right-aligned at the
- * text column's 78th cell, then the step's own time in 8 cells.
+ * A step row with no spine (screens 22, 30): the kind (8 cells, muted), the subject, the result right-aligned 8 cells
+ * before the text column's end (its 78th cell at 86), then the step's own time in those 8 cells.
  * @param s the step
+ * @param width the text column's cells
  * @returns the row
  */
-export function stepLineRow(s: StepLine): Part[] {
+export function stepLineRow(s: StepLine, width = 86): Part[] {
+  const RESULT_END = width - TIME_CELLS
   const room = RESULT_END - KIND_CELLS - vw(s.result) - 2
   const subject = subjectParts(s.kind, s.subject, room)
   const used = KIND_CELLS + subject.reduce((n, p) => n + vw(p.t), 0)
@@ -245,7 +246,7 @@ export function stepsAllRows(clock: string, turnNo: number, total: number, shown
     slashRow(clock, `/steps ${turnNo} all`),
     spineRow(NO_LABEL, SPINE, []),
     spineRow(NO_LABEL, SPINE, [{ t: `STEPS · TURN ${turnNo} · ${count(total, 'step')}`, color: TOKEN.muted, bold: true }]),
-    ...shown.map(stepLineRow),
+    ...shown.map(s => stepLineRow(s)),
     ...(more > 0 ? [spineRow(NO_LABEL, SPINE, [dim(`… ${more} more · /steps ${turnNo} all is in your scrollback`)])] : [])
   ]
 }

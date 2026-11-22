@@ -3,8 +3,8 @@
 import type { On } from 'claude-code'
 
 import { readEnvOnce } from '../../../cockpit/switch'
-import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
-import { layout, ruleWidth } from '../../../shared/layout'
+import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow, leftCells } from '../../../cockpit/left'
+import { layout } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
 import { blocksOf, citationsFor, turnCites } from '../../citations'
@@ -14,7 +14,14 @@ import { drawParts, drawRows } from '../../draw/parts'
 import { browserOpenAbove, firstKey, flowPlace, inTurn, isQuietOpenerAt, isTurnOpener, isWebTool, sameKey } from '../../ledger/flow'
 import { readFlow } from '../../../shared/flow'
 import { isStartRow } from '../../ledger/session'
-import { openerCaps, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
+import { openerCaps, openerThought, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
+import { spineOnly } from '../../../shared/look/spine'
+import type { Part } from '../../../shared/parts'
+import { answerRows, footnoteRows } from '../../v8/markdown'
+import { thoughtRow } from '../../v8/turn'
+
+/** A thought shorter than this draws no thought row (7.3): it would only say `<1s`. */
+const THOUGHT_SHOWN_MS = 1_000
 import { sourcesFrame } from '../../research/sources'
 import { drawBlock } from './blocks'
 import type { Reply } from './blocks'
@@ -46,7 +53,7 @@ export function registerReply(on: On): void {
     // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
     // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
     // ctrl+o (E.4): a sentence Claude said while working is a `│` row, the steps it announced under it.
-    const sentence = await drawUnfoldedSentence($, e, firstKey(e.props.text), ruleWidth(lay) ?? lay.width)
+    const sentence = await drawUnfoldedSentence($, e, firstKey(e.props.text), leftCells(e))
 
     if (sentence !== undefined) return sentence
 
@@ -156,13 +163,43 @@ export function registerReply(on: On): void {
     const gap = replyGap(message, prev, place?.turn)
     // Fallback: a block that stays opens with the capsule of the work before it (E.3), decided before its receipt.
     const opening = isQuietLeft
-      ? await drawAnswerCapsule($, e, place === undefined ? undefined : blocksSoFar[place.at]?.key, place?.turn, ruleWidth(lay) ?? width)
+      ? await drawAnswerCapsule($, e, place === undefined ? undefined : blocksSoFar[place.at]?.key, place?.turn, leftCells(e))
       : undefined
     const capsule = opening?.capsule
     // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
     const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
     // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
-    const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, ruleWidth(lay) ?? width) : undefined
+    const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, leftCells(e)) : undefined
+
+    // Cockpit's left (7.3, 7.4, 7.12, 7.13): the thought row on the turn's opener, a blank row after event rows, the
+    // answer's markdown on the spine with its footnote refs, the footnote lines, then the receipt; in fallback the
+    // worked node above it.
+    if (isQuietLeft) {
+      const cells = leftCells(e)
+      const thought = isOpener ? await openerThought($, o => inTurn(o.turn, place?.turn)) : 0
+      const byUrl = new Map(mine.map(c => [c.url, c.n]))
+      const marked = e.props.text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (all, linked: string, url: string) => {
+        const n = byUrl.get(url)
+
+        return n === undefined ? all : `${linked} [${n}]`
+      })
+      const rows: Part[][] = [
+        ...(thought >= THOUGHT_SHOWN_MS ? [thoughtRow(thought), spineOnly()] : []),
+        ...(prev?.kind === 'tool' && prev.turn === place?.turn && thought < THOUGHT_SHOWN_MS ? [spineOnly()] : []),
+        ...answerRows(marked, { width: cells, hasLead: isOpener }),
+        ...(mine.length > 0 ? [spineOnly(), ...footnoteRows(mine, cells)] : []),
+        ...(receipt === undefined ? [spineOnly()] : [])
+      ]
+
+      return (
+        <Box flexDirection="column">
+          {capsule !== undefined && capsule}
+          {capsule !== undefined && drawRows(ui, [spineOnly()], 'gap')}
+          {drawRows(ui, rows, 'answer')}
+          {receipt}
+        </Box>
+      )
+    }
 
     return (
       <Box flexDirection="column">

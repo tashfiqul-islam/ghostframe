@@ -4,7 +4,7 @@ import type { On } from 'claude-code'
 
 import { readEnvOnce } from '../../cockpit/switch'
 import type { TurnClose } from '../../../types'
-import { drawLive, drawQuietFooter, isQuietRow, noteView } from '../../cockpit/left'
+import { drawCommandOutput, drawLive, drawNotice, drawQuietFooter, isQuietRow, noteView } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
@@ -142,7 +142,12 @@ export function registerChrome(on: On): void {
     return next({ ...e, props: { ...e.props, word, suffix: '' } })
   })
   // Slash-command output: muted, behind a small › (errors keep the engine's red).
-  on('ui.render', { component: 'CommandOutput' }, ($, e, next) => {
+  on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    // Cockpit's left: the command as a `/` node with its clock and one quiet row (7.15).
+    const v8 = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
+
+    if (v8 !== undefined) return v8
+
     if (e.surface !== 'terminal' || e.props.isErrored || e.props.text.trim().length === 0) {
       return next(e)
     }
@@ -169,10 +174,15 @@ export function registerChrome(on: On): void {
 
   // Info notice under the logo: one line in the content column, `› text · /command`,
   // muted text and dim marks, clipped at the measure (§0.2). No measure → the old row.
-  on('ui.render', { component: 'InfoNotice' }, ($, e, next) => {
+  on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
     if (e.surface !== 'terminal') {
       return next(e)
     }
+
+    // Cockpit's left: a grey one-line notice on the spine (7.10).
+    const v8 = await drawNotice($, e)
+
+    if (v8 !== undefined) return v8
 
     const ui = $.ui.resolve(e)
     const { Box, Text } = ui

@@ -19,6 +19,8 @@ export type TurnView = {
   receipts: readonly Receipt[]
   flow: readonly FlowStamp[]
   plan: Plan
+  /** The typed turn's start (wall clock), null when unknown. */
+  startedAt: number | null
   /** A step's start on the turn clock (ms), when its detail is kept. */
   startOf: (id: string) => number | undefined
 }
@@ -55,7 +57,7 @@ export async function turnView($: EngineInterface, turn: string): Promise<TurnVi
   }
   const silentTurns = new Set(mine.flatMap(r => (r.answer === '' && r.turn !== null && r.state !== 'interrupted' ? [r.turn] : [])))
 
-  return { turnNo, steps, details, receipts: mine, flow, startOf, plan: planTurn(flow, { turns, steps, startOf, silentTurns }) }
+  return { turnNo, steps, details, receipts: mine, flow, startedAt, startOf, plan: planTurn(flow, { turns, steps, startOf, silentTurns }) }
 }
 
 /**

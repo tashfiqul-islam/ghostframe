@@ -5,24 +5,27 @@
 // drawn again after a resize, a resume or a reload draws the same.
 import type { EngineInterface, RenderElement } from 'claude-code'
 
+import type { Part } from '../../shared/parts'
 import type { Ui } from '../../shared/rule'
 import { readFlow } from '../../shared/flow'
 import { drawRows } from '../draw'
 import { keptRecords } from '../history/store'
 import { readFrame, readLog, readRoster } from '../log'
-import { shipRows } from '../quiet'
 import type { GroupCall } from '../quiet'
+import { liveArea } from '../v8/live'
+import { workedCounts } from '../v8/receipt'
+import { workedRow } from '../v8/left'
+import { shipEventRows } from '../v8/ships'
 import { readWork } from '../work'
-import { capsuleRow } from './capsule'
+import type { Capsule } from './capsule'
 import { failureOf, failureRows } from './events'
 import type { Failure } from './events'
 import { turnOfCall, turnView } from './facts'
 import type { TurnView } from './facts'
-import { liveRows } from './live'
 import { callAnchor, footerAnchor, isAfterEventAt, textAnchor } from './plan'
 
-/** The engine's mark at the end of the live band (`[-]`, types) and a cell of gap before it. */
-const BAND_MARK = 6
+/** A capsule as v8's worked node (7.13). */
+const capsuleRow = (c: Capsule, width: number): Part[] => workedRow(workedCounts(c), width)
 
 /**
  * A call's failure row, from its settled step and its kept output: the same at every draw, and never taken back by a
@@ -69,7 +72,9 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
   const rows = calls.flatMap(c => {
     const failure = c.tool_use_id === undefined ? undefined : failureFor(view, c.tool_use_id)
 
-    return [...shipRows([c], clockOf, width), ...(failure === undefined ? [] : failureRows(failure, width))]
+    const ms = c.tool_use_id === undefined ? undefined : (view.details.find(d => d.id === c.tool_use_id)?.ms ?? undefined)
+
+    return [...shipEventRows([c], clockOf, width), ...(failure === undefined ? [] : failureRows(failure, width, ms))]
   })
   const all = [...(capsule === undefined ? [] : [capsuleRow(capsule, width)]), ...rows]
 
@@ -123,7 +128,7 @@ export async function drawBlockCapsule(
  * @param width the transcript rule's width
  * @returns the capsule's parts, or undefined
  */
-export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<ReturnType<typeof capsuleRow> | undefined> {
+export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<Part[] | undefined> {
   const capsule = (await turnView($, turn))?.plan.capsules.get(footerAnchor(turn))
 
   return capsule === undefined ? undefined : capsuleRow(capsule, width)
@@ -181,7 +186,7 @@ export async function drawAgentFailure(
  */
 export async function drawFallbackLive($: EngineInterface, ui: Pick<Ui, 'Box' | 'Text'>, columns: number): Promise<RenderElement> {
   const now = await $.clock.now()
-  const rows = liveRows(await readLog($), await readRoster($), (await readWork($)).todo, now, await readFrame($), columns - BAND_MARK)
+  const rows = liveArea(await readLog($), await readRoster($), (await readWork($)).todo, now, await readFrame($), columns, true)
 
   return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
 }

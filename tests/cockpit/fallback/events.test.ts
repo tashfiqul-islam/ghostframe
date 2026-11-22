@@ -13,24 +13,22 @@ const settled = (tool: string, input: Record<string, unknown>, said: string) => 
   return must(settleStep(log, { id: 'x', tool, input, outcome: failed(said), at: T0 + 41_000 }).steps[0])
 }
 
-test('a failed test draws `✕ failed · test · <subject> · <result>` on the turn clock, its decisive lines under it', () => {
+test('a failed test draws the v8 `×` node, its kind, subject and result, and its first decisive line under it (13.1)', () => {
   const step = settled('Bash', { command: 'bun test width' }, 'Exit code 1\n 12 pass\n 2 fail\n')
   const excerpt = ['bun test v1.4.4', '', 'expect(width("e\\u0301")).toBe(1) · received 2', '      at tests/width.test.tsx:41:27', 'Exit code 1']
   const failure = failureOf(step, excerpt)
-  const rows = text(failureRows(must(failure), 79))
+  const rows = text(failureRows(must(failure), 78))
 
-  expect(rows[0]).toMatch(/^✕ failed · test · bun test width · 2 of 14 fail +41s$/)
-  expect(vw(rows[0] ?? '')).toBe(79)
-  expect(rows.slice(1)).toEqual(['    expect(width("e\\u0301")).toBe(1) · received 2', '    at tests/width.test.tsx:41:27'])
+  expect(rows).toEqual(['             ×  test bun test width   2 of 14 fail', '             │  └ expect(width("e\\u0301")).toBe(1) · received 2'])
 })
 
-test('at a narrow width the failure row still draws whole: the subject is cut, the state word and the clock stay', () => {
+test('at a narrow width the failure row still draws whole: the title is cut, the result stays', () => {
   const step = settled('Bash', { command: 'bun test tests/a-very-long-path/that-goes-on/width.test.tsx --bail' }, 'Exit code 1\n 0 pass\n 1 fail\n')
-  const rows = text(failureRows(must(failureOf(step, ['error: expected 1, received 2'])), 58))
+  const rows = text(failureRows(must(failureOf(step, ['error: expected 1, received 2'])), 40))
 
-  expect(rows[0]).toMatch(/^✕ failed · test · bun test tests\/a-very-long-pat.*… +41s$/)
-  expect(vw(rows[0] ?? '')).toBe(58)
-  expect(rows[1]).toBe('    error: expected 1, received 2')
+  expect(rows[0]).toMatch(/^ {13}×  test bun test tests\/a-ver.*…   1 of 1 fail$/)
+  expect(vw(rows[0] ?? '')).toBe(16 + 40)
+  expect(rows[1]).toBe('             │  └ error: expected 1, received 2')
 })
 
 test('a fetch or search that fails draws no row (amendment 6); a step that passed or still runs draws none', () => {

@@ -18,8 +18,9 @@ test('from tool.call to the pane: the main loop`s calls are the turn`s [ STEPS ]
   await $.tool.call({ tool: 'Read', file_path: 'c.ts', tool_use_id: 'r3', agentId: 'x' } as never)
 
   const ui = await $.ui.mount(PANE)
-  expect((await ui.find({ type: 'Text', text: /\[ STEPS \]/ }))?.text).toMatch(/2 steps$/)
-  expect((await ui.find({ type: 'Text', text: /a\.ts/ }))?.text).toMatch(/^ {2}read {5}a\.ts +9 lines +\d+s$/)
+  // The head card counts the main loop's steps; the timeline has a group for them (8.2, 8.3).
+  expect((await ui.find({ type: 'Text', text: /^ {2}2 steps/ }))?.text).toBeDefined()
+  expect((await ui.find({ type: 'Text', text: /read a\.ts/ }))?.text).toMatch(/^ {2}✓ read a\.ts +[━╸╺ ┊]+ +9 lines $/)
   expect(await ui.find({ type: 'Text', text: /c\.ts/ })).toBeUndefined()
   await ui.unmount()
 
@@ -27,6 +28,7 @@ test('from tool.call to the pane: the main loop`s calls are the turn`s [ STEPS ]
   await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'next', turnId: 't2' })
   const fresh = await $.ui.mount(PANE)
-  expect(await fresh.find({ type: 'Text', text: /\[ STEPS \]/ })).toBeUndefined()
+  expect(await fresh.find({ type: 'Text', text: /read a\.ts/ })).toBeUndefined()
+  expect(await fresh.find({ type: 'Text', text: /Steps, files, sources and agents appear here as Claude works\./ })).toBeDefined()
   await fresh.unmount()
 })

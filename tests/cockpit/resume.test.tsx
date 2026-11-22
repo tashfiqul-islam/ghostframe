@@ -98,7 +98,7 @@ for (const mode of ['docked', 'fallback'] as const) {
     expect(await rowsOf($, said)).toEqual([])
     const drawn = await rowsOf($, answer)
     expect(drawn.some(r => r.includes(ANSWER))).toBe(true)
-    expect(drawn.at(-1)).toMatch(/^─ done ─+ 20 steps · 3 files · 1m 01s$/)
+    expect(drawn.at(-1)).toMatch(/^ +1m 01s ✓  DONE   [⣀-⣿]+   20 steps · 3 files$/)
   })
 }
 
@@ -136,7 +136,7 @@ test('Cockpit on by GHOSTFRAME_COCKPIT alone: a resumed row drawn before the ses
   expect(await rowsOf($, wide('row-said', SAID))).toEqual([])
   const answer = await rowsOf($, wide('row-answer', ANSWER))
   expect(answer.some(r => r.startsWith('│ worked'))).toBe(false)
-  expect(answer.at(-1)).toMatch(/^─ done ─+ 20 steps · 3 files · 1m 01s$/)
+  expect(answer.at(-1)).toMatch(/^ +1m 01s ✓  DONE   [⣀-⣿]+   20 steps · 3 files$/)
 })
 
 test(
@@ -175,15 +175,24 @@ test(
     await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
 
     const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
-    let rows = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(rows).toContainEqual(expect.stringMatching(/^◇ notes\.md +\+1 +−1$/))
-    expect(rows).toContainEqual(expect.stringMatching(/^◇ · example\.com +Example +200$/))
+    const rowsNow = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd())
 
+    // The Files tab marks the agent's file `◇` (8.5); the Sources tab lists the page it read (8.7).
+    await ui.press({ key: 'key-2' })
+    await ui.redraw()
+    expect(await rowsNow()).toContainEqual(expect.stringMatching(/^ {2}◇ notes\.md +\+1 +−1  ■+$/))
+    await ui.press({ key: 'key-3' })
+    await ui.redraw()
+    expect(await rowsNow()).toContainEqual(expect.stringMatching(/^ {2}· example\.com {3}Example +200$/))
+
+    // Enter on the agent (the Agents tab): the engine holds it no more, and the pane still shows its kept steps.
+    await ui.press({ key: 'key-5' })
+    await ui.redraw()
     await ui.press({ key: 'agent:a1' })
     await ui.redraw()
-    rows = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-    expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 1 step$/))
-    expect(rows).toContainEqual(expect.stringMatching(/^ {2}edit {5}notes\.md +\+1 −1 +3s$/))
+    const rows = await rowsNow()
+    expect(rows).toContainEqual(expect.stringMatching(/^ {2}▐ ◇ AGENT ▌  Edit note /))
+    expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ edit notes\.md +[━╸╺ ]+ +\+1 −1$/))
     await ui.unmount()
   }
 )

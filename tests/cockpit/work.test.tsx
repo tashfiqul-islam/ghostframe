@@ -43,9 +43,18 @@ function engine(on: On, clock: { now: number }) {
 
 const call = ($: Engine, tool: string, id: string, input: Record<string, unknown>) => $.tool.call({ tool, ...input, tool_use_id: id } as never)
 
+/** Every tab's rows (8.1): the pane focused, each tab shown in turn by its key, then the timeline again. */
 async function paneText($: Engine): Promise<string[]> {
-  const ui = await $.ui.mount(PANE)
-  const rows = (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0 && !t.includes('\n'))
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  const rows: string[] = []
+
+  for (const key of ['key-1', 'key-2', 'key-3', 'key-4', 'key-5']) {
+    await ui.press({ key })
+    await ui.redraw()
+    rows.push(...(await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd()).filter(t => t.trim().length > 0 && !t.includes('\n')))
+  }
+
+  await ui.press({ key: 'key-1' })
   await ui.unmount()
 
   return [...new Set(rows)]
@@ -71,13 +80,13 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
 
   // While the turn runs: pages in fetch order, unmarked.
   let rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ TODO \] ┄+ 1 of 2 done$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}\[x\] Audit the workflow/))
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ FILES \] ┄+ 2 changed · \+4 −1$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}\.github\/workflows\/ci\.yml +\+2 {4}−1$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}docs\/RELEASE\.md +new {4}\+2 {6}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ SOURCES \] ┄+ 3 read · 0 cited$/))
-  expect(rows.filter(r => /^ {2}[·¹²³] /.test(r)).map(r => r.slice(2, 4))).toEqual(['· ', '· ', '· '])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 of 2 done +turn \d+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓  Audit the workflow/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 files changed +\+4  −1$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}\.github\/workflows\/ci\.yml +\+2 {3}−1  ■+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}docs\/RELEASE\.md +\+2 {7}■+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 pages read {3}0 cited +1 failed$/))
+  expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(2, 4))).toEqual(['· ', '· ', '· '])
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}· docs\.sigstore\.dev .* 404$/))
 
   // The answer cites two; the turn ends: those come first, marked as the answer marks them.
@@ -85,8 +94,8 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   clock.now += 1_000
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/ 3 read · 2 cited$/))
-  expect(rows.filter(r => /^ {2}[·¹²³] /.test(r)).map(r => r.slice(0, 20))).toEqual(['  ¹ docs.github.com ', '  ² bun.sh  bun publ', '  · docs.sigstore.de'])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 pages read {3}2 cited/))
+  expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(0, 20))).toEqual(['  ¹ docs.github.com ', '  ² bun.sh   bun pub', '  · docs.sigstore.de'])
 
   // The left numbers the same pages the same way: the prose marks and its Sources frame.
   const left = await $.ui.mount({
@@ -98,16 +107,16 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   })
   const drawn = (await left.findAll({ type: 'Text' })).map(t => t.text)
   await left.unmount()
-  expect(drawn).toContainEqual(expect.stringMatching(/Workflow syntax¹ and publish with bun publish²/))
-  expect(drawn).toContainEqual(expect.stringMatching(/^┆ 1 {2}Workflow syntax {2}docs\.github\.com/))
-  expect(drawn).toContainEqual(expect.stringMatching(/^┆ 2 {2}bun publish {6}bun\.sh/))
+  // The prose's refs (7.4) and its footnote lines number the pages as the pane does.
+  expect(drawn).toContainEqual(expect.stringMatching(/Workflow syntax \[1\] and publish with bun publish \[2\]\./))
+  expect(drawn).toContainEqual(expect.stringMatching(/^ {13}│  \[1\] docs\.github\.com\/en\/actions\/workflow-syntax {3}\[2\] bun\.sh\/docs\/cli\/publish *$/))
 
   // The next typed turn: files and pages start over; the list, not all done, stays.
   await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'next', turnId: 't2' })
   rows = await paneText($)
-  expect(rows.some(r => /FILES|SOURCES/.test(r))).toBe(false)
-  expect(rows).toContainEqual(expect.stringMatching(/\[ TODO \] ┄+ 1 of 2 done$/))
+  expect(rows).toContainEqual(expect.stringMatching(/FILES 0 {3}SOURCES 0 {3}TODO 1\/2/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 of 2 done +turn \d+$/))
 })
 
 test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `printf >> notes3.txt` is a row', ON, async ($, on) => {
@@ -138,10 +147,10 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
 
   const rows = await paneText($)
   // README.md was changed before the turn: no row. The turn's own: notes3.txt (new), then src/app.ts.
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ FILES \] ┄+ 2 changed · \+3 −1$/))
-  expect([...new Set(rows.filter(r => /^ {2}\S+\.(txt|ts|md) /.test(r)).map(r => r.trim().split(/\s+/)[0]))]).toEqual(['notes3.txt', 'src/app.ts'])
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}notes3\.txt +new {4}\+1 {6}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}src\/app\.ts +\+2 {4}−1$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 files changed +\+3  −1$/))
+  expect([...new Set(rows.filter(r => /^ {4}\S+\.(txt|ts|md) /.test(r)).map(r => r.trim().split(/\s+/)[0]))]).toEqual(['notes3.txt', 'src/app.ts'])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes3\.txt +\+1 {7}■+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}src\/app\.ts +\+2 {3}−1  ■+$/))
 })
 
 test('an append to a file the turn created counts too: its lines are read again at each shell step', ON, async ($, on) => {
@@ -166,7 +175,7 @@ test('an append to a file the turn created counts too: its lines are read again 
   await call($, 'Bash', 'b1', { command: `printf 'one\ntwo\n' >> "$PWD/notes5.txt"` })
   await call($, 'Bash', 'b2', { command: `printf 'three\n' >> "$PWD/notes5.txt"` })
 
-  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}notes5\.txt +new {4}\+3 {6}$/))
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {4}notes5\.txt +\+3 {7}■+$/))
 })
 
 test('a repo with no commits yet: Git has seen nothing, so every file it lists is new, and no notice is printed', ON, async ($, on) => {
@@ -199,7 +208,7 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
   await call($, 'Bash', 'b1', { command: `printf 'one\n' > new.txt` })
 
   const rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}new\.txt +new {4}\+1 {6}$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+1 {7}■+$/))
   expect(rows.some(r => /a\.txt|notes\.txt/.test(r))).toBe(false)
   expect(said.filter(t => /git|unreadable/.test(t))).toEqual([])
 })
@@ -233,18 +242,22 @@ test('an agent`s edit and fetch reach FILES and SOURCES marked ◇, never the ma
   content = 'new line\nkept too\n'
 
   const rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ notes\.md +\+4 {4}−2$/))
-  expect(rows.some(r => /^ {2}notes\.md /.test(r))).toBe(false)
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ · docs\.sigstore\.dev .* 404$/))
-  // The main loop's steps: the launch and its own edit; the agent's fetch failed in its own log, not here.
-  expect(rows.filter(r => /^[ ▸✕] (agent|edit|fetch) /.test(r)).map(r => r.slice(2, 8))).toEqual(['agent ', 'edit  '])
-  expect(rows.some(r => /still failing|failed/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ notes\.md +\+4 {3}−2  ■+$/))
+  expect(rows.some(r => /^ {4}notes\.md /.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}· docs\.sigstore\.dev .* 404$/))
+  // The main loop's head counts its own two steps, the launch and its edit; the agent's fetch failed in its own log.
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 steps/))
+  expect(rows.some(r => /still failing/.test(r))).toBe(false)
 
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
   await ui.press({ key: 'file:notes.md' })
   await ui.redraw()
-  const diff = (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => /^ {2}[−+ ]/.test(t) && !t.includes('\n'))
-  expect([...new Set(diff.map(r => r.trimEnd()))]).toEqual(['  −old line', '  −kept', '  +new line', '  +kept too'])
+  const diff = (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd()).filter(t => /^ {2}[ \d]{6} [−+ ] /.test(t))
+  expect([...new Set(diff)]).toEqual(['   1     − old line', '   2     − kept', '       1 + new line', '       2 + kept too'])
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
   await ui.unmount()
 })
 
@@ -258,7 +271,8 @@ test('an agent the roster does not list (a workflow`s, the engine`s memory fork)
   await call($, 'WebFetch', 'x2', { agentId: 'fork-1', url: URLS[0], prompt: 'x' })
 
   const rows = await paneText($)
-  expect(rows.some(r => /FILES|SOURCES|x\.md/.test(r))).toBe(false)
+  expect(rows.some(r => /x\.md/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/FILES 0 {3}SOURCES 0/))
 })
 
 test('two agents` shells ending together count each change once, and a file two calls name is read once', ON, async ($, on) => {
@@ -278,8 +292,9 @@ test('two agents` shells ending together count each change once, and a file two 
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
-  on('fs.read', () => {
-    reads += 1
+  on('fs.read', (_, e) => {
+    // The plugin's own manifest (the wordmark's version, 8.12) is not one of the turn's files.
+    if (!String((e as { path?: unknown }).path).endsWith('plugin.json')) reads += 1
 
     return { value: 'x\n' }
   })
@@ -306,7 +321,7 @@ test('two agents` shells ending together count each change once, and a file two 
     call($, 'Bash', 'b2', { agentId: 'ag-Two', command: 'echo b >> log.txt' })
   ])
 
-  expect(await paneText($)).toContainEqual(expect.stringMatching(/^◇ log\.txt +\+2 {6}$/))
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}◇ log\.txt +\+2 {7}■+$/))
   // Both commands name log.txt as a write target: its turn-start content is read once.
   expect(reads).toBe(1)
 })

@@ -16,15 +16,16 @@ const count = (rows: readonly string[], word: string): number | undefined => {
 
 /** The counts the left and the pane show for a turn, wherever each is drawn, and the turn's time. */
 function countsOf(rows: readonly string[]): Counts {
-  const receipt = rows.find(r => r.startsWith('─ '))
+  const receipt = rows.find(r => /✓  DONE|×  FAILED/.test(r))
 
   return {
     steps: count(rows, 'step'),
     agents: count(rows, 'agent'),
     files: count(rows, 'file'),
     sources: count(rows, 'source'),
-    failures: count(rows, 'failure'),
-    time: /(\S+)$/.exec(receipt ?? '')?.[1]
+    failures: count(rows, 'still failing'),
+    // The receipt's label is the turn's time (7.12).
+    time: /^ *(\S+(?: \S+s)?) [✓×]/.exec(receipt ?? '')?.[1]
   }
 }
 
@@ -54,14 +55,14 @@ test('the same turn at 200 columns docked and at 100 columns in fallback shows t
   const left = countsOf(docked)
   expect(left).toEqual({ steps: 5, agents: 1, files: 1, sources: 1, failures: 1, time: '17s' })
   expect(countsOf(fallback)).toEqual(left)
-  // Docked, the pane's [ STEPS ] said the same step count; in fallback the failure drew its own row at once.
-  expect(paneRows.some(r => /\[ STEPS \].* 5 steps · 1 failed$/.test(r))).toBe(true)
-  expect(failure[0]).toMatch(/^✕ failed · shell · ls \/nope · exit 2 +7s$/)
-  expect(failure[1]).toBe("    ls: cannot access '/nope': No such file or directory")
-  // Fallback: the capsule opens the answer, and the receipt leaves the steps to it.
-  expect(fallback[0]).toMatch(/^│ worked · 5 steps · 2 shell · 1 edit · 1 fetch · 1 agent · 1 failure +16s$/)
-  expect(fallback.at(-1)).toMatch(/^─ failed ─+ 1 failure · 1 agent · 1 file · 1 source · 17s$/)
-  expect(docked.at(-1)).toMatch(/^─ failed ─+ 5 steps · 1 failure · 1 agent · 1 file · 1 source · 17s$/)
+  // Docked, the pane's head counted the same steps; in fallback the failure drew its own row at once.
+  expect(paneRows.some(r => /^ {2}5 steps {4}1 still failing/.test(r))).toBe(true)
+  expect(failure[0]).toBe('             ×  shell ls /nope   exit 2   1s')
+  expect(failure[1]).toBe("             │  └ ls: cannot access '/nope': No such file or directory")
+  // Fallback: the worked node opens the answer; both receipts say the same.
+  expect(fallback[0]).toMatch(/^ {9}16s ◇  worked   [⣀-⣿]+   5 steps · 1 agent$/)
+  expect(fallback.at(-1)).toMatch(/^ +17s ×  FAILED   [⣀-⣿]+   5 steps · 1 still failing · 1 file · 1 source · 1 agent$/)
+  expect(docked.at(-1)).toMatch(/^ +17s ×  FAILED   [⣀-⣿]+   5 steps · 1 still failing · 1 file · 1 source · 1 agent$/)
 })
 
 test('off, the same turn draws as it does on main: narration, the engine`s rows and the old footer, no capsule', async ($, on) => {

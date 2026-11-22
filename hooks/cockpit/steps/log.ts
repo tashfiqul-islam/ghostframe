@@ -2,6 +2,7 @@
 // and 2). Pure: hooks/cockpit/log.ts keeps the log in $.state and draws what `stepRows` returns.
 import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
 import { DENIED } from '../../shared/calls/describe'
+import { levelsOf } from '../../shared/look/trace'
 import { exitOf } from '../../shared/look/words'
 import { canFail, failureKey, fixes, keyOf, keyText, negativeAnswer } from './failures'
 import { UNLISTED, command, kindOf, rec, subjectOf } from './kinds'
@@ -101,6 +102,12 @@ export function askStep(log: StepLog, id: string): StepLog {
  * Whether a step failed in a way the turn is answerable for (13.1): a test, shell, edit, write or agent step that
  * errored. A failed fetch or search is a source problem (amendment 6), and a blocked or denied step is no failure.
  */
+/** A step whose settled mark says it failed (its exit, its answer), whatever the turn makes of it. */
+export const isFailedMark = (s: LogStep): boolean => s.mark === '✕'
+
+/** A step that committed or published. */
+export const isShipMark = (s: LogStep): boolean => s.mark === '↗' || s.mark === '±'
+
 export const isTurnFailure = (s: LogStep): boolean => s.mark === '✕' && canFail(s.kind) && s.state === undefined
 
 /** Whether a step succeeded, so it can fix a failure: settled, not failed, not blocked, denied or cut. */
@@ -397,6 +404,18 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
   const files = new Set([...steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject), ...(log.agentWork?.files ?? [])])
   const pages = new Set([...steps.filter(s => s.kind === 'fetch').map(s => pageOf(s.subject)), ...(log.agentWork?.pages ?? [])])
   const launched = steps.filter(s => s.kind === 'agent').reduce((n, s) => n + (s.calls?.length ?? 1), 0)
+  const kinds: Record<string, number> = {}
+
+  for (const s of steps) kinds[s.kind] = (kinds[s.kind] ?? 0) + 1
+
+  // The trace (7.12): the steps bucketed over the engine turn's own time, one cell per bucket, 3 to 12 cells.
+  const from0 = log.segmentStart === null || log.startedAt === null ? 0 : log.segmentStart - log.startedAt
+  const levels = levelsOf(
+    steps.map(s => s.clock - from0),
+    log.segmentMs,
+    Math.max(3, Math.min(12, steps.length))
+  )
+  const pr = steps.findLast(s => s.mark === '↗' && /^PR #\d+$/.test(s.result))?.result
   const isCut = log.last?.state === 'interrupted'
   const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'
 
@@ -414,6 +433,9 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
     launched,
     sources: pages.size,
     commit: steps.findLast(s => s.mark === '±')?.result ?? '',
+    levels,
+    kinds,
+    shipped: steps.findLast(s => s.mark === '±')?.result ?? pr ?? '',
     open,
     // One clock (13.9): the same time the pane head shows for this turn.
     durationMs: log.segmentMs

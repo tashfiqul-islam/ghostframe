@@ -40,7 +40,7 @@ export async function clearSwitch($: EngineInterface): Promise<void> {
 
 /**
  * The notice of a kept switch, once per copy of the module and only on the screen it switched to: off, that the dock
- * is gone and capsules take its place; on, that the pane is back, its width and how many turns its log keeps.
+ * is gone and worked nodes take its place; on, that the pane is back, its width and how many turns its log keeps.
  * @param $ the engine interface
  * @param isFullscreen the screen this draw is on
  * @param keptTurns how many turns the log keeps, read only when there is a switch to say
@@ -57,7 +57,7 @@ export async function switchNotice($: EngineInterface, isFullscreen: boolean | u
 
   isSaid = true
 
-  if (!sw.isFullscreen) return 'fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt'
+  if (!sw.isFullscreen) return 'fullscreen off · no dock on the main screen · worked nodes from here · /steps opens the log above the prompt'
 
   const kept = await keptTurns()
 

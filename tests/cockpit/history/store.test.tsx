@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 import { text } from '../../support/docked'
@@ -96,16 +97,15 @@ test('/steps n pins a past turn: STEPS, FILES and SOURCES show it, the head stay
 
   expect(await run($, 1)).toBe('pinned turn 1 · l in the pane or /steps for live')
   let rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \] ┄+ 1 step · \d+s$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}pinned · l or \/steps for live/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}read {5}one\.ts/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 1 /))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ read one\.ts /))
   expect(rows.some(r => /three-a\.ts/.test(r))).toBe(false)
   // The head is the present: the last turn, 3.
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 3/))
+  expect(rows).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 3 /))
 
   expect(await run($, '')).toBe('live · the pane follows the current turn')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS \] ┄+ 3 steps$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 steps/))
 })
 
 test('/steps out of range, not a number, or the live turn: said plainly, nothing pinned', ON, async ($, on) => {
@@ -128,29 +128,29 @@ test('p and n in the focused pane: back to turn 1 and no further; forward past t
   const label = async () => {
     await ui.redraw()
 
-    return (await ui.findAll({ type: 'Text' })).map(t => t.text).find(t => t.startsWith('┄ [ STEPS')) ?? ''
+    return (await ui.findAll({ type: 'Text' })).map(t => t.text).find(t => /^ {2}PINNED  TURN/.test(t)) ?? 'live'
   }
 
   await ui.press({ key: 'key-p' })
-  expect(await label()).toMatch(/\[ STEPS · TURN 2 · PINNED \]/)
+  expect(await label()).toMatch(/^ {2}PINNED  TURN 2 /)
   await ui.press({ key: 'key-p' })
-  expect(await label()).toMatch(/\[ STEPS · TURN 1 · PINNED \]/)
+  expect(await label()).toMatch(/^ {2}PINNED  TURN 1 /)
   // At the first turn, p stays and says so.
   await ui.press({ key: 'key-p' })
-  expect(await label()).toMatch(/\[ STEPS · TURN 1 · PINNED \]/)
+  expect(await label()).toMatch(/^ {2}PINNED  TURN 1 /)
   expect((await ui.findAll({ type: 'Text' })).some(t => t.text.includes('no earlier turn kept'))).toBe(true)
   // l is offered while pinned, and releases.
   expect((await ui.findAll({ type: 'Button' })).some(b => (b.props as { hotkey?: string }).hotkey === 'l')).toBe(true)
 
   await ui.press({ key: 'key-n' })
-  expect(await label()).toMatch(/\[ STEPS · TURN 2 · PINNED \]/)
+  expect(await label()).toMatch(/^ {2}PINNED  TURN 2 /)
   // Forward past the newest kept turn but the live one: the live turn itself, which is releasing.
   await ui.press({ key: 'key-n' })
-  expect(await label()).toMatch(/^┄ \[ STEPS \] ┄/)
+  expect(await label()).toBe('live')
 
   await ui.press({ key: 'key-p' })
   await ui.press({ key: 'key-l' })
-  expect(await label()).toMatch(/^┄ \[ STEPS \] ┄/)
+  expect(await label()).toBe('live')
   await ui.unmount()
 })
 
@@ -181,7 +181,7 @@ test('a typed prompt releases the pin; a click on a receipt pins its turn', ON, 
   await answer.press({ key: 'receipt:e2' })
   await answer.unmount()
   await docked.redraw()
-  expect((await docked.findAll({ type: 'Text' })).map(t => t.text)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 2 · PINNED \]/))
+  expect((await docked.findAll({ type: 'Text' })).map(t => t.text)).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 2 /))
   await docked.unmount()
 })
 
@@ -209,19 +209,19 @@ test('resume: a fresh session finds its turns in the store; [ LAST ] is the last
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
 
   let rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 2 · \d\d:\d\d$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}done · 20 steps +1m 30s$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS \] ┄+ 20 steps$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}▐ ✓ DONE ▌  TURN 2 +\d\d:\d\d:\d\d → \d\d:\d\d:\d\d *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}20 steps .* 1m 30s *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}20 steps/))
 
   expect(await run($, 1)).toBe('pinned turn 1 · l in the pane or /steps for live')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \] ┄+ 20 steps · 1m 30s$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ FILES · TURN 1 \] ┄+ 3 changed/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 1 /))
+  expect(rows).toContainEqual(expect.stringMatching(/FILES 3 /))
 
   // The next typed turn is turn 3, and releases the pin.
   await turn($, clock, 3, ['after.ts'])
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 3/))
+  expect(rows).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 3 /))
   expect(rows.some(r => /PINNED/.test(r))).toBe(false)
 })
 
@@ -236,7 +236,7 @@ test('compaction changes nothing: the pane reads the same after it, and /steps s
   await $.session.compact({ trigger: 'manual', messages: summary } as never)
   expect(await paneText($)).toEqual(before)
   expect(await run($, 1)).toBe('pinned turn 1 · l in the pane or /steps for live')
-  expect(await paneText($)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 1 /))
 })
 
 /** An answer row as the engine draws it, under its message's id, and its rows' text. */
@@ -244,6 +244,11 @@ const answerRow = (text: string, id = rowOf(text).requestId ?? 'unknown') =>
   ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', requestId: id, viewport: VIEW, props: { text, isFirstOfReply: true } }) as never
 const rowsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
   (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0)
+
+/** Whether an answer row draws as its turn's opener (7.4): its lead sentence bright, as the v8 left marks an answer. */
+async function leads(ui: { findAll: (q: { type: string }) => Promise<{ text: string; props: Record<string, unknown> }[]> }): Promise<boolean> {
+  return (await ui.findAll({ type: 'Text' })).some(t => t.props['color'] === TOKEN.textBright && /done\./.test(t.text))
+}
 
 test('each kept receipt names its turn`s last answer row, by the id it is drawn under, the same after a resume', ON, async ($, on) => {
   const clock = { now: T0 }
@@ -284,25 +289,25 @@ test('resume: the answers drawn again from history get their receipts back, by r
   // the answer ends with its receipt on its first draw (amendment 10), and placing the pane draws it again.
   const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
   const second = await $.ui.mount(answerRow('Turn 2 done.', 'row2'))
-  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   2 steps$/))
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount(focused(false))
   await first.redraw()
   await second.redraw()
 
   // Drawn again in the pane's mode: each answer carries `claude` and ends with its own turn's receipt, as it did live.
-  expect(await rowsOf(first)).toContain('claude')
-  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
-  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
+  expect(await leads(first)).toBe(true)
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   1 step$/))
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   2 steps$/))
   // An answer no kept receipt ends on gets none.
   const other = await $.ui.mount(answerRow('Something else.', 'row9'))
-  expect((await rowsOf(other)).some(t => t.startsWith('─ done'))).toBe(false)
-  expect(await rowsOf(other)).not.toContain('claude')
+  expect((await rowsOf(other)).some(t => /✓  DONE/.test(t))).toBe(false)
+  expect(await leads(other)).toBe(false)
 
   // And a resumed receipt pins its turn, like a live one (turn 2, the last, is the live turn).
   await first.press({ key: 'receipt:e1' })
   await pane.redraw()
-  expect(await rowsOf(pane)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
+  expect(await rowsOf(pane)).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 1 /))
   await Promise.all([first.unmount(), second.unmount(), other.unmount(), pane.unmount()])
 })
 
@@ -336,8 +341,8 @@ test('resume in fallback: no capsule was drawn for the turns brought back, so ea
   await second.redraw()
 
   // E.47: no turn is left without its numbers. The steps are in the receipt, since no capsule said them.
-  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
-  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   1 step$/))
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   2 steps$/))
   expect((await rowsOf(first)).some(t => t.startsWith('│ worked'))).toBe(false)
   await Promise.all([first.unmount(), second.unmount()])
 })
@@ -385,10 +390,10 @@ test('a click on any Cockpit row sends nothing: receipts, step rows and key hint
     const ui = await $.ui.mount(focused(true))
     const drawn = async () => (await ui.findAll({ type: 'Button' })).map(b => (b.props as { key?: string }).key)
 
-    while ((await drawn()).includes('key-b')) {
-      await ui.press({ key: 'key-b' })
-      await ui.redraw()
-    }
+    // Back to the timeline first: `b` closes a drawer or a view, `1` the tab.
+    await ui.press({ key: 'key-b' })
+    await ui.press({ key: 'key-1' })
+    await ui.redraw()
 
     if ((await drawn()).includes(key)) {
       await ui.press({ key })
@@ -412,15 +417,15 @@ test('two answers with the same text keep their own receipts live, whatever orde
   const pane = await $.ui.mount(focused(false))
   const receiptOf = async (id: string) => {
     const ui = await $.ui.mount(answerRow('Same as before.', id))
-    const row = (await rowsOf(ui)).find(t => t.startsWith('─ done'))
+    const row = (await rowsOf(ui)).find(t => /✓  DONE/.test(t))
     await ui.unmount()
 
     return row
   }
 
   // Live: turn 2's answer drawn first, then turn 1's; each keeps its own turn's receipt.
-  expect(await receiptOf('m2')).toMatch(/ 2 steps · \d+s$/)
-  expect(await receiptOf('m1')).toMatch(/ 1 step · \d+s$/)
+  expect(await receiptOf('m2')).toMatch(/✓  DONE   [⣀-⣿]+   2 steps$/)
+  expect(await receiptOf('m1')).toMatch(/✓  DONE   [⣀-⣿]+   1 step$/)
   await pane.unmount()
   const kept = store.get('history:same') as { turns: { receipts: { answer: string; steps: number }[] }[] }
   expect(kept.turns.flatMap(t => t.receipts).map(r => [r.answer, r.steps])).toEqual([
@@ -459,8 +464,8 @@ test('resume: two answers with the same text get their own receipts back, in eit
   await second.redraw()
   await first.redraw()
 
-  expect((await rowsOf(first)).find(t => t.startsWith('─ done'))).toMatch(/ 1 step · 2s$/)
-  expect((await rowsOf(second)).find(t => t.startsWith('─ done'))).toMatch(/ 2 steps · 2s$/)
+  expect((await rowsOf(first)).find(t => /✓  DONE/.test(t))).toMatch(/^ +2s ✓  DONE   [⣀-⣿]+   1 step$/)
+  expect((await rowsOf(second)).find(t => /✓  DONE/.test(t))).toMatch(/^ +2s ✓  DONE   [⣀-⣿]+   2 steps$/)
   await Promise.all([first.unmount(), second.unmount(), pane.unmount()])
 })
 
@@ -527,7 +532,7 @@ test('resume: while the first new turn runs, every resumed answer still draws wh
   await first.redraw()
 
   expect(await rowsOf(first)).toContainEqual(expect.stringContaining('Turn 1 done.'))
-  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   1 step$/))
   // Its final look: `claude` on the answer, never taken for the running turn's text.
-  expect(await rowsOf(first)).toContain('claude')
+  expect(await leads(first)).toBe(true)
 })

@@ -1,11 +1,11 @@
 // Code cards on the left (spec 7.5): a `codeHead` strip with the language, the path, the diff's counts and the copy
 // key, over a `code` body with line-number gutters. A diff has two gutters (old, new), its added and removed rows
 // tinted the card's full width, the words that changed highlighted. Pure.
-import type { Part } from '../../shared/parts'
-import { bottomEdge, cardRow, topEdge } from '../../shared/look/card'
-import { GLYPH } from '../../shared/look/glyphs'
-import { TINT, TOKEN } from '../../shared/look/palette'
-import { cutPath, splitPath } from '../../shared/look/paths'
+import type { Part } from '../parts'
+import { bottomEdge, cardRow, topEdge } from './card'
+import { GLYPH } from './glyphs'
+import { TINT, TOKEN } from './palette'
+import { cutPath, splitPath } from './paths'
 
 const HUNK = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/
 

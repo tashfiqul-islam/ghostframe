@@ -85,21 +85,21 @@ test('docked: the rules, the pane`s head and /steps agree on n across a session 
   await typed($, clock, 3)
 
   const rules = await Promise.all([1, 2, 3].map(async n => (await rowsOf($, promptRow(`u${n}`, `prompt ${n}`)))[0] ?? ''))
-  expect(rules.map(r => /\[ (TURN \d+) \]/.exec(r)?.[1])).toEqual(['TURN 1', 'TURN 2', 'TURN 3'])
+  expect(rules.map(r => /◆  (TURN \d+)\b/.exec(r)?.[1])).toEqual(['TURN 1', 'TURN 2', 'TURN 3'])
 
   // The agent's report draws no turn rule.
   const report = await rowsOf($, site('UserMessage', 'rp', 127, { text: '<agent-message from="Explore">', origin: { kind: 'peer' }, isExpanded: false }))
   expect(report.some(r => r.includes('TURN'))).toBe(false)
 
-  // The rule and the receipt end on one edge: the same width.
+  // The header's rule ends on the text column's last cell (6.1); the receipt closes the turn.
   const receipt = (await rowsOf($, site('AssistantMessage', rowOf('answer 3').requestId ?? 'a3', 127, { text: 'answer 3', isFirstOfReply: true }))).at(-1) ?? ''
-  expect(receipt).toMatch(/^─ done ─+/)
-  expect(rules[2]?.length).toBe(receipt.length)
+  expect(receipt).toMatch(/✓  DONE/)
+  expect(rules[2]?.length).toBe(16 + 86)
 
   const pane = await $.ui.mount(PANE)
   const head = (await pane.findAll({ type: 'Text' })).map(t => t.text)
   await pane.unmount()
-  expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 3/))
+  expect(head).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 3 /))
 
   // `/steps 2 all` prints turn 2's rows, `/copy steps 2` copies them, and `/steps 2` pins turn 2 in the pane.
   const all = ((await $.command.run(steps('2 all') as never)) as { text?: string }).text ?? ''
@@ -114,7 +114,7 @@ test('docked: the rules, the pane`s head and /steps agree on n across a session 
   const pinned = await $.ui.mount(PANE)
   const rows = (await pinned.findAll({ type: 'Text' })).map(t => t.text)
   await pinned.unmount()
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 2 · PINNED \] ┄+/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 2 /))
 })
 
 test('resume: each redrawn rule keeps its number and time from the store, drawn before the session starts; the next is RESUMED', ON, async ($, on) => {
@@ -133,18 +133,18 @@ test('resume: each redrawn rule keeps its number and time from the store, drawn 
   engine(on, clock, store)
 
   // The engine draws the resumed transcript first (amendment 8): nothing in the state yet.
-  expect((await rowsOf($, promptRow('u2', 'prompt 2')))[0]).toMatch(/^─ \[ TURN 2 \] ─+ 10:31$/)
-  expect((await rowsOf($, promptRow('u1', 'prompt 1')))[0]).toMatch(/^─ \[ TURN 1 \] ─+ 10:26$/)
+  expect((await rowsOf($, promptRow('u2', 'prompt 2')))[0]).toMatch(/^ {4}10:31:45 ◆  TURN 2  ─+$/)
+  expect((await rowsOf($, promptRow('u1', 'prompt 1')))[0]).toMatch(/^ {4}10:26:45 ◆  TURN 1  ─+$/)
 
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   await (await $.ui.mount(PANE)).unmount()
-  expect((await rowsOf($, promptRow('u1', 'prompt 1')))[0]).toMatch(/^─ \[ TURN 1 \] ─+ 10:26$/)
+  expect((await rowsOf($, promptRow('u1', 'prompt 1')))[0]).toMatch(/^ {4}10:26:45 ◆  TURN 1  ─+$/)
 
   await typed($, clock, 3)
   // A day later than the turn before it: the clock names the day.
-  expect((await rowsOf($, promptRow('u3', 'prompt 3')))[0]).toMatch(/^─ \[ TURN 3 · RESUMED \] ─+ Sun 22 Nov · 11:26$/)
+  expect((await rowsOf($, promptRow('u3', 'prompt 3')))[0]).toMatch(/^ {4}11:26:45 ◆  TURN 3 · RESUMED · Sun  ─+$/)
   await typed($, clock, 4)
-  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 \] ─+ 11:27$/)
+  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^ {4}11:27:\d\d ◆  TURN 4  ─+$/)
 })
 
 test('mid-turn prompts: one folded in claims no number, one queued into a turn of its own takes the next; none twice, none skipped', ON, async ($, on) => {
@@ -181,7 +181,7 @@ test('mid-turn prompts: one folded in claims no number, one queued into a turn o
   await $.turn.complete({ answer: 'answer 4', durationMs: 1_000, isAborted: false, turnId: 'e4', reason: 'answer' })
   await typed($, clock, 5)
 
-  const label = async (row: string, said: string) => /\[ (TURN \d+)/.exec((await rowsOf($, promptRow(row, said))).join('\n'))?.[1]
+  const label = async (row: string, said: string) => /◆  (TURN \d+)\b/.exec((await rowsOf($, promptRow(row, said))).join('\n'))?.[1]
   expect(
     await Promise.all([
       label('u1', 'prompt 1'),
@@ -192,12 +192,12 @@ test('mid-turn prompts: one folded in claims no number, one queued into a turn o
       label('u5', 'prompt 5')
     ])
   ).toEqual(['TURN 1', 'TURN 2', undefined, 'TURN 3', 'TURN 4', 'TURN 5'])
-  expect((await rowsOf($, promptRow('d1', 'and this'))).join('\n')).toMatch(/steer · 4s/)
+  expect((await rowsOf($, promptRow('d1', 'and this'))).join('\n')).toMatch(/↳ and this +added/)
 
   const pane = await $.ui.mount(PANE)
   const head = (await pane.findAll({ type: 'Text' })).map(t => t.text)
   await pane.unmount()
-  expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 5/))
+  expect(head).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 5 /))
 })
 
 // After a resume the engine's list of agents is empty and the live roster holds the last turn's agents at most:
@@ -261,7 +261,7 @@ for (const [mode, columns] of [
 
       // A failed agent keeps its `✕` row in fallback only; before the pane is placed, every row is a fallback row.
       if (mode === 'docked' && phase === 'after the start') expect(failed, phase).toEqual([])
-      else expect(failed.join('\n'), phase).toMatch(/^✕ failed · agent · Count lines ag2 · file not found +9s$/)
+      else expect(failed.join('\n'), phase).toMatch(/^ {13}×  agent Count lines ag2   file not found$/)
     }
   })
 }
@@ -290,13 +290,13 @@ test('a store so full this session`s oldest summaries go: the rules, the pane`s 
   const turns = (store.get('history:s1') as { turns: { turnNo: number }[] }).turns.map(t => t.turnNo)
   expect(turns).toEqual([2, 3])
 
-  const rules = await Promise.all([1, 2, 3].map(async n => /\[ (TURN \d+) \]/.exec((await rowsOf($, promptRow(`u${n}`, `prompt ${n}`)))[0] ?? '')?.[1]))
+  const rules = await Promise.all([1, 2, 3].map(async n => /◆  (TURN \d+)\b/.exec((await rowsOf($, promptRow(`u${n}`, `prompt ${n}`)))[0] ?? '')?.[1]))
   expect(rules).toEqual(['TURN 1', 'TURN 2', 'TURN 3'])
 
   const pane = await $.ui.mount(PANE)
   const head = (await pane.findAll({ type: 'Text' })).map(t => t.text)
   await pane.unmount()
-  expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 3/))
+  expect(head).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 3 /))
 
   const all = (n: string) => $.command.run(steps(n) as never) as Promise<{ text?: string }>
   expect((await all('2 all')).text).toContain('echo 2')
@@ -319,11 +319,11 @@ test('resume after trimming: the next number is the kept turns` own, not their c
   const pinned = await $.ui.mount(PANE)
   const rows = (await pinned.findAll({ type: 'Text' })).map(t => t.text)
   await pinned.unmount()
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 2 · PINNED \] ┄+/))
-  expect(rows.join('\n')).toContain('module-0')
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}PINNED  TURN 2 /))
+  expect(rows.join('\n')).toContain('✓ edit hooks/cockpit/some/')
 
   await typed($, clock, 4)
-  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 · RESUMED \] /)
+  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^ {4}\d\d:\d\d:\d\d ◆  TURN 4 · RESUMED /)
 })
 
 test('resume with the stamps kept and the history gone: the next turn still takes the next number, never one again', ON, async ($, on) => {
@@ -334,7 +334,7 @@ test('resume with the stamps kept and the history gone: the next turn still take
   await (await $.ui.mount(PANE)).unmount()
 
   await typed($, clock, 4)
-  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 · RESUMED \] /)
+  expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^ {4}\d\d:\d\d:\d\d ◆  TURN 4 · RESUMED /)
 })
 
 test('resume: `/steps n all` prints a kept turn`s steps, though the flow that drew them live is gone', ON, async ($, on) => {
@@ -348,8 +348,9 @@ test('resume: `/steps n all` prints a kept turn`s steps, though the flow that dr
   await (await $.ui.mount(PANE)).unmount()
 
   const all = ((await $.command.run(steps('1 all') as never)) as { text?: string }).text ?? ''
-  expect(all).toContain('module-0')
-  expect(all).toContain('module-19')
+  expect(all).toContain('edit    hooks/cockpit/some/long/path/m')
+  // Every kept step, the twentieth too.
+  expect(all.split('\n').filter(l => /^ {16}(edit|shell) /.test(l))).toHaveLength(20)
 })
 
 test('`/steps n all` for a kept turn with no steps says so; `no step log` is only for a turn that is not kept', ON, async ($, on) => {

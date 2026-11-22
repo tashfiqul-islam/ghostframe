@@ -1,12 +1,13 @@
 // The Cockpit pane (spec C.1, E.37; corrections A, B and K): its seat at the width rule, `/cockpit`, and its drawing.
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
-import { paneLines } from './fit'
 import { readDetails } from './keys/details'
-import { drawPane, hintRows } from './keys/draw'
-import { allRows, detailRows, diffRows } from './keys/views'
-import { AGENT_NOTE, copiedNote, hasCopied, noteRing, noteViewed, readViewTick, viewNow, wholeNow } from './keys/view'
-import type { Line } from './line'
+import { copiedNote, hasCopied, noteRing, noteViewed, readViewTick, tabNow, urlsShown, viewNow } from './keys/view'
+import { assemblePane } from './v8/assemble'
+import { drawPaneV8 } from './v8/draw'
+import { INSPECTOR_KEYS, inspectorRows } from './v8/views'
+import { pluginVersion } from './version'
+import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
 import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
@@ -15,7 +16,7 @@ import { readWork } from './work'
 import { PANE, STEPS, docked } from './mode'
 import { readHistory, readPin, storedTurnCount } from './history/store'
 import { pinFromCommand } from './keys/view'
-import { INSPECTOR_ROWS, inspectorLines } from './fallback/inspector'
+import { INSPECTOR_ROWS } from './fallback/inspector'
 import { copyFromCommand, stepsAllText } from './copy'
 import { keepSwitch, switchNotice } from './tui'
 
@@ -283,7 +284,7 @@ export function registerPane(on: On): void {
 
       setDocked($, false)
 
-      return { text: 'pane closed' }
+      return { text: 'Pane closed' }
     }
 
     const { columns, isFullscreen } = e.presentation
@@ -293,7 +294,7 @@ export function registerPane(on: On): void {
     leftAt = undefined
     const opened = await openAt($, columns)
 
-    return { text: opened.isPlaced ? `pane open · ${paneColumns(columns)} columns` : `pane not placed · ${opened.reason}` }
+    return { text: opened.isPlaced ? `Pane docked at ${paneColumns(columns)} columns` : `Pane not placed · ${opened.reason}` }
   })
 
   // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
@@ -436,9 +437,9 @@ export function registerPane(on: On): void {
       $.ui.invalidate('ui.render')
     }
 
-    // Every section, fitted to the body so the engine never scrolls it (E.37); or, in the focused pane, a view (E.44)
-    // as tall as it needs, which the engine scrolls. Reading `second` redraws this each second while a turn or a
-    // background agent runs; reading the view's counter, when a key changes the view.
+    // The v8 pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
+    // C). Reading `second` redraws this each second while a turn or a background agent runs; reading the view's
+    // counter, when a key changes the view.
     await readSecond($)
     await readViewTick($)
     const view = viewNow(e.props.isFocused)
@@ -447,55 +448,73 @@ export function registerPane(on: On): void {
     const work = await readWork($)
     const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
     const isCovered = e.props.isPromptCovered === true
-    const now = isTicking || hasCopied() ? await $.clock.now() : 0
+    const now = isTicking || hasCopied() ? await $.clock.now() : (log.last?.endedAt ?? 0)
 
     if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
 
     const pinNo = await readPin($)
     const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
-    const isPinned = pinned !== undefined
     const isInspector = placement === 'inline' && askedInline === 'steps'
-    const fitTo =
-      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) -
-      (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector, e.props.view.agentId !== undefined) : 0)
-    const shown =
-      pinned !== undefined
-        ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
-        : log.steps.length > 0 || log.prev === null
-          ? log
-          : { ...log, steps: log.prev.steps, dropped: log.prev.dropped, turnNo: log.prev.turnNo }
-    // The agent whose steps [ STEPS ] lists (A1): the one the engine has in view, else one it would not show.
-    const viewed = e.props.view.agentId
-    noteViewed(viewed)
-    const agentId = viewed ?? (view.kind === 'agent' ? view.id : undefined)
-    const agent = agentId === undefined ? undefined : roster.find(a => a.id === agentId)
-    const agentView = agent === undefined ? undefined : { agent, note: viewed === undefined && view.kind === 'agent' ? view.note : AGENT_NOTE }
-    let lines: Line[]
+    const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
+    const viewedId = e.props.view.agentId
+    noteViewed(viewedId)
+    const details = [...(await readDetails($)), ...(pinned?.details ?? [])]
 
-    if (view.kind === 'all') {
-      lines = allRows(shown, bodyColumns)
-    } else if (view.kind === 'diff') {
-      lines = diffRows(view.path, view.patch, bodyColumns, view.note)
-    } else if (view.kind === 'step') {
-      const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
-      const at = shown.steps.findIndex(s => s.id === view.id)
-      const step = shown.steps[at]
-      // A step of an agent's own log is numbered in it, and named by the agent.
-      const owner = step === undefined ? roster.find(a => a.log?.some(s => s.id === view.id) === true) : undefined
-      const ownAt = owner?.log?.findIndex(s => s.id === view.id) ?? -1
-      const ownStep = owner?.log?.[ownAt]
-      lines =
-        step !== undefined
-          ? detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
-          : owner !== undefined && ownStep !== undefined
-            ? detailRows(ownStep, detail, (owner.logDropped ?? 0) + ownAt + 1, shown.turnNo, bodyColumns, `AGENT ${owner.name}`)
-            : []
-    } else if (isInspector) {
-      lines = inspectorLines(log, bodyColumns, fitTo, pinned)
-    } else {
-      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned, agentView)
+    if (isInspector) {
+      const steps = pinned?.steps ?? log.steps
+      const rows = steps.map(s => ({
+        glyph: s.isRunning ? ('current' as const) : s.mark === '✕' ? ('failed' as const) : ('ok' as const),
+        kind: s.kind,
+        subject: s.subject,
+        result: s.isRunning ? 'running' : s.result,
+        tone: s.isRunning ? ('accent' as const) : s.mark === '✕' ? ('err' as const) : ('dim' as const),
+        ms: details.find(d => d.id === s.id)?.ms ?? undefined
+      }))
+      const failed = steps.filter(s => s.mark === '✕').length
+
+      // Every step (`s`): the card grows and the engine scrolls it; `b` and `s` go back.
+      const isAll = view.kind === 'all'
+      const keys: [string, string][] = isAll
+        ? [
+            ['s', 'fit'],
+            ['c', 'copy'],
+            ['b', 'back'],
+            ['esc', 'close']
+          ]
+        : INSPECTOR_KEYS.map(([k, a]): [string, string] => [k, a])
+      const card = inspectorRows(
+        pinned?.turnNo ?? log.turnNo,
+        steps.length,
+        failed,
+        rows,
+        isAll ? rows.length + 6 : Math.min(INSPECTOR_ROWS, fitTo),
+        bodyColumns,
+        keys
+      )
+
+      return drawPaneV8($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
     }
 
-    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector, viewed !== undefined)
+    const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
+    const pane = assemblePane({
+      width: bodyColumns,
+      rows: fitTo,
+      now,
+      isFocused: e.props.isFocused,
+      isCovered,
+      log,
+      roster,
+      work,
+      details,
+      flow: await readFlow($),
+      pinned,
+      view,
+      tab: tabNow(),
+      isUrlsShown: urlsShown(),
+      viewed,
+      version: pluginVersion(),
+      note: copiedNote(now)
+    })
+    return drawPaneV8($, e, pane.lines)
   })
 }

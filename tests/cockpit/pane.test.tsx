@@ -106,11 +106,11 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   const presentation = { isFullscreen: true, columns: 120 }
   const first = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(opened).toEqual([{ id: 'cockpit', columns: 40 }])
-  expect(first.text).toMatch(/open/)
+  expect(first.text).toBe('Pane docked at 40 columns')
 
   const second = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(closed).toEqual(['cockpit'])
-  expect(second.text).toMatch(/closed/)
+  expect(second.text).toBe('Pane closed')
 })
 
 // Correction C: a permission dialog or question card grows the pane. Every row stays where it was; the new rows stay blank.
@@ -150,7 +150,10 @@ test('a dialog opening mid-turn moves nothing: the rows stay put while bodyRows 
   const open = await drawAt(31, true)
   const after = await drawAt(24, false)
 
-  expect(before.filter(t => /^┄ \[ (NOW|STEPS|TODO) \]/.test(t))).toHaveLength(3)
+  // The head card, the ruler and the to-do count are all there before the dialog opens.
+  expect(before.some(t => /● LIVE/.test(t))).toBe(true)
+  expect(before.some(t => /┬────┬/.test(t))).toBe(true)
+  expect(before.some(t => /TODO \d+\/\d+/.test(t))).toBe(true)
   expect(open).toEqual(before)
   expect(after).toEqual(before)
 })

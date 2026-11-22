@@ -153,6 +153,14 @@ export type Receipt = {
   fixed: number
   /** Steps a system refused (spec 13.7); absent in a receipt kept before phase 12. */
   blocked?: number
+  /** The turn's activity as the receipt's braille trace draws it (spec 7.12), levels 0 to 6; absent before phase 12. */
+  levels?: number[]
+  /** The turn's steps by kind word (spec 7.12, 7.13); absent before phase 12. */
+  kinds?: Record<string, number>
+  /** What left the machine, as the receipt ends (`a1f3c2e`, `PR #23`); absent before phase 12. */
+  shipped?: string
+  /** How many of its sources the answer cited (spec 7.12); absent before phase 12. */
+  cited?: number
   files: number
   /** The agents the turn's launches started, and the pages it fetched (E.32); absent in a receipt kept before phase 9. */
   launched?: number

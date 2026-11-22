@@ -2,8 +2,8 @@
 import type { On } from 'claude-code'
 
 import { readEnvOnce } from '../../../cockpit/switch'
-import { drawQuietGroup, isQuietRow, noteView } from '../../../cockpit/left'
-import { layout, ruleWidth } from '../../../shared/layout'
+import { drawQuietGroup, isQuietRow, leftCells, noteView } from '../../../cockpit/left'
+import { layout } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { activityHead } from '../../activity/rule'
 import { stepOf } from '../../activity/steps'
@@ -38,7 +38,7 @@ export function registerToolGroup(on: On): void {
 
     // Quiet: the steps are the pane's; only a push or a pull request leaves a row here (E.5).
     if (isQuietRow(e)) {
-      return drawQuietGroup($, e, ruleWidth(lay) ?? width)
+      return drawQuietGroup($, e, leftCells(e))
     }
 
     const asking = await readAsked($)

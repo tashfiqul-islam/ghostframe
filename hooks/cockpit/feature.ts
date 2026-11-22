@@ -4,6 +4,7 @@
 // the quiet left: docked, the transcript keeps the conversation, `↗` rows and the receipt (quiet.ts, left.tsx).
 // Phase 5, agents: `[ AGENTS ]` from `agent.spawn` and `agent.report` (agents/), one `[ STEPS ]` row per launch.
 // Spec: docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H; cockpit-v7-amendments.md.
+import { readVersion } from './version'
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
@@ -28,6 +29,9 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
     name: STEPS,
     description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live; /steps <n> all prints its steps'
   })
+
+  // The wordmark's version (8.12), read once; a manifest that cannot be read keeps `dev`.
+  if (isOn()) await readVersion($)
 
   try {
     await logSessionStart($)

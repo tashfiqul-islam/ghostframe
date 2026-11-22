@@ -10,6 +10,8 @@ import { drawerRows, fit, keyParts, paneCard, pill, selected, spread } from './p
 import type { Tone } from './pane'
 
 const dim = (t: string): Part => ({ t, color: TOKEN.dim })
+/** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
+const kindCell = (kind: string) => (kind.length >= 6 ? `${kind} ` : kind.padEnd(6))
 const sp = (n: number): Part => ({ t: ' '.repeat(Math.max(0, n)), color: TOKEN.dim })
 const TONE: Record<Tone, string> = { dim: TOKEN.machineDim, ok: TOKEN.ok, err: TOKEN.err, bright: TOKEN.textBright, accent: TOKEN.accent, warn: TOKEN.warn }
 
@@ -342,7 +344,7 @@ export function agentsView(agents: readonly AgentRow[], launchedAt: string, widt
                     ? { t: GLYPH.fail, color: TOKEN.err }
                     : { t: GLYPH.ok, color: TOKEN.ok },
                 sp(1),
-                { t: s.kind.padEnd(6), color: TOKEN.muted },
+                { t: kindCell(s.kind), color: TOKEN.muted },
                 { t: s.subject, color: TOKEN.text }
               ],
               [{ t: s.state, color: TONE[s.tone] }, sp(width - 71)],
@@ -472,7 +474,8 @@ export function allStepsView(turnNo: number, total: number, failed: number, step
 // ─── 9.4 Pins, and an interrupted turn ───────────────────────────────────────
 
 /**
- * The head while a past turn is pinned (8.2, 9.4, screen 09): the live turn on one line on top, then `PINNED  TURN n`
+ * The head while a past turn is pinned (8.2, 9.4, screen 09): the live turn on one line on top (its state's pill: LIVE while it
+ * runs, else how it ended), then `PINNED  TURN n`
  * with its range and summary.
  * @param live the live turn's number, what it does and its time
  * @param pinned the pinned turn's number, range and summary
@@ -480,15 +483,17 @@ export function allStepsView(turnNo: number, total: number, failed: number, step
  * @returns the rows, edges included
  */
 export function pinnedHead(
-  live: { turnNo: number; said: string; time: string },
+  live: { turnNo: number; said: string; time: string; state?: 'live' | 'done' | 'failed' },
   pinned: { turnNo: number; range: string; summary: string },
   width: number
 ): Part[][] {
+  const state = live.state ?? 'live'
+
   return paneCard(
     [
       spread(
-        [...pill('live'), sp(2), { t: 'TURN', color: TOKEN.muted }, { t: ` ${live.turnNo}`, color: TOKEN.textBright, bold: true }, sp(3), dim(live.said)],
-        [{ t: live.time, color: TOKEN.accent }],
+        [...pill(state), sp(2), { t: 'TURN', color: TOKEN.muted }, { t: ` ${live.turnNo}`, color: TOKEN.textBright, bold: true }, sp(3), dim(live.said)],
+        [{ t: live.time, color: state === 'live' ? TOKEN.accent : TOKEN.machineDim }],
         width - 3
       ),
       [],
@@ -533,6 +538,15 @@ export function interruptedRow(turnNo: number, said: string, clock: string, widt
 
 // ─── 8.13 The inline inspector ───────────────────────────────────────────────
 
+/** The inline inspector's keys (8.13). */
+export const INSPECTOR_KEYS: readonly (readonly [string, string])[] = [
+  ['s', 'all'],
+  ['c', 'copy'],
+  ['p', 'previous'],
+  ['n', 'next'],
+  ['esc', 'close']
+]
+
 /**
  * The inline inspector (8.13): one card above the prompt, `STEPS · TURN n` with its counts, the step rows, the keys.
  * Never taller than the left can spare: the last rows are kept, with the head and the keys.
@@ -542,9 +556,18 @@ export function interruptedRow(turnNo: number, said: string, clock: string, widt
  * @param steps the rows
  * @param rows the rows the card may take
  * @param width the terminal's columns
+ * @param keys the keys the card offers, as (key, action)
  * @returns the rows
  */
-export function inspectorRows(turnNo: number, total: number, failed: number, steps: readonly StepRow[], rows: number, width: number): Part[][] {
+export function inspectorRows(
+  turnNo: number,
+  total: number,
+  failed: number,
+  steps: readonly StepRow[],
+  rows: number,
+  width: number,
+  keys: readonly (readonly [string, string])[] = INSPECTOR_KEYS
+): Part[][] {
   const inner = width - 4
   const room = Math.max(0, rows - 6)
   const shown = steps.slice(Math.max(0, steps.length - room))
@@ -573,18 +596,7 @@ export function inspectorRows(turnNo: number, total: number, failed: number, ste
     on([]),
     ...shown.map(stepLine),
     on([]),
-    on(
-      keyParts(
-        [
-          ['s', 'all'],
-          ['c', 'copy'],
-          ['p', 'previous'],
-          ['n', 'next'],
-          ['esc', 'close']
-        ],
-        3
-      )
-    ),
+    on(keyParts(keys, 3)),
     [sp(2), { t: GLYPH.edgeBottom.repeat(inner), color: TOKEN.paneCard }]
   ]
 }

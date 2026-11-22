@@ -5,7 +5,15 @@ import { NARRATION, engine, CALLS, fixedTurn, message, ANSWER, text } from '../s
 import { respond } from '../support/respond'
 import type { Call } from '../support/docked'
 
-// Phase 4, the quiet left: while Cockpit is on and its pane docked, the transcript shows the conversation only.
+// Phase 4, the quiet left: while Cockpit is on and its pane docked, the transcript shows the conversation only, in the v8
+// look (7.10, 7.12): `↗` rows, the failure card, the receipt.
+
+/** A drawn tree's rows: each row is one Text whose parts are Texts inside it; trailing blanks dropped, blank rows kept out. */
+async function rowsIn(ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }): Promise<string[]> {
+  const texts = (await ui.findAll({ type: 'Text' })).map(x => x.text)
+
+  return texts.filter((x, i) => x.trim().length > 0 && !texts.slice(0, i).some(o => o !== x && o.includes(x))).map(x => x.trimEnd())
+}
 const receipt = (durationMs: number) =>
   ({ plugin: 'ghostframe', surface: 'terminal', component: 'TurnDuration', viewport: VIEW, props: { word: 'Baked', durationMs } }) as const
 const group = (calls: unknown[]) =>
@@ -39,7 +47,7 @@ test('docked: a tool group draws nothing: no activity header, no summary', ON, a
   await pane.unmount()
 })
 
-test('docked: a push and a pull request each leave one `↗` row; a commit leaves none (E.5)', ON, async ($, on) => {
+test('docked: a commit, a push and a pull request each leave one `↗` row (7.10, E.5)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, [], clock)
   const pane = await $.ui.mount(PANE)
@@ -51,10 +59,8 @@ test('docked: a push and a pull request each leave one `↗` row; a commit leave
       groupCall('g1', 'gh pr create --fill', { stdout: 'https://github.com/o/r/pull/12\n', stderr: '' })
     ])
   )
-  const rows = (await ui.findAll({ type: 'Text', text: /\S/ })).map(t => t.text)
-  expect(rows.filter(r => /^↗ \S/.test(r))).toEqual(['↗ pushed fix/ci', '↗ PR #12 opened'])
-  expect(rows).toContain('https://github.com/o/r/pull/12')
-  expect(rows.some(r => /7be09d2|±/.test(r))).toBe(false)
+  const rows = await rowsIn(ui)
+  expect(rows).toEqual(['             ↗  committed   7be09d2 ci: pin Bun', '             ↗  pushed   fix/ci · origin', '             ↗  opened   PR #12'])
   await ui.unmount()
   await pane.unmount()
 })
@@ -71,17 +77,14 @@ test('docked: the receipt replaces the footer: `done`, the counts, and the one c
   await footer.unmount()
 
   const ui = await $.ui.mount(message(ANSWER))
-  // Each row is one Text with its parts as Texts inside it: a row is a Text that starts one.
-  const rows = (await ui.findAll({ type: 'Text', text: /^─ \w/ })).map(t => t.text)
+  const rows = (await rowsIn(ui)).filter(r => /DONE/.test(r))
   expect(rows).toHaveLength(1)
-  expect(rows[0]).toMatch(/^─ done ─+ 3 steps · 1 failure → fixed · 1 file · 2m 44s$/)
-  expect(rows[0]?.length).toBe(108)
-  expect(await ui.find({ type: 'Text', text: /^─ .*(tokens|turn \d)/ })).toBeUndefined()
+  expect(rows[0]).toMatch(/^ {6}2m 44s ✓  DONE   [⣀-⣿]+   3 steps · 1 fixed · 1 file$/)
+  expect(rows.some(r => /tokens|TURN/.test(r))).toBe(false)
   await ui.unmount()
 
-  // The pane's head reads the same duration.
-  const head = await pane.find({ type: 'Text', text: /^ {2}done/ })
-  expect(head?.text).toMatch(/ 2m 44s$/)
+  // The pane's head card reads the same duration on its stats row (13.9).
+  expect((await rowsIn(pane)).find(r => /^ {2}3 steps/.test(r))).toMatch(/ 2m 44s$/)
   await pane.unmount()
 })
 
@@ -94,17 +97,17 @@ test('docked: an answer drawn before its turn`s receipt is kept gets the receipt
   await $.session.append(respond([text('All done.')], 'r1'))
 
   const ui = await $.ui.mount(message('All done.'))
-  expect(await ui.find({ type: 'Text', text: /^─ / })).toBeUndefined()
+  expect((await rowsIn(ui)).some(r => /DONE/.test(r))).toBe(false)
 
   clock.now = T0 + 9_000
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
   await ui.redraw()
-  expect((await ui.find({ type: 'Text', text: /^─ done/ }))?.text).toMatch(/ 9s$/)
+  expect((await rowsIn(ui)).find(r => /DONE/.test(r))).toMatch(/^ {10}9s ✓  DONE   [⣀-⣿]+   no steps$/)
   await ui.unmount()
   await pane.unmount()
 })
 
-test('docked: a failure nothing fixed gets a `still failing` row above the receipt, at the failure`s clock', ON, async ($, on) => {
+test('docked: a failure nothing fixed gets the failure card above the FAILED receipt (7.8)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, [CALLS[0] as Call], clock)
   const pane = await $.ui.mount(PANE)
@@ -116,10 +119,11 @@ test('docked: a failure nothing fixed gets a `still failing` row above the recei
   await $.turn.complete({ answer: 'x', durationMs: 47_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
   const ui = await $.ui.mount(message('Still failing.'))
-  const rows = (await ui.findAll({ type: 'Text', text: /^(✕|─) \w/ })).map(t => t.text)
-  expect(rows).toHaveLength(2)
-  expect(rows[0]).toMatch(/^✕ still failing · test · bun test width · 2 of 14 fail +41s$/)
-  expect(rows[1]).toMatch(/^─ failed ─+ 1 step · 1 failure · 48s$/)
+  const rows = (await rowsIn(ui)).filter(r => /×/.test(r))
+  expect(rows).toHaveLength(3)
+  expect(rows[0]).toBe('             │    × 1 still failing')
+  expect(rows[1]).toMatch(/^ {13}│ {4}× test bun test width +2 of 14 fail$/)
+  expect(rows[2]).toMatch(/^ {9}48s ×  FAILED   [⣀-⣿]+   1 step · 1 still failing$/)
   await ui.unmount()
   await pane.unmount()
 })
@@ -137,13 +141,13 @@ test('docked: a still-failing result that only repeats its subject is said once:
   await $.turn.complete({ answer: 'x', durationMs: 3_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
   const ui = await $.ui.mount(message('It exits 3.'))
-  const still = (await ui.findAll({ type: 'Text', text: /^✕ still failing/ })).map(t => t.text)
-  expect(still).toEqual([expect.stringMatching(/^✕ still failing · shell · exit 3 +1s$/)])
+  const card = (await rowsIn(ui)).filter(r => /│ {4}×/.test(r))
+  expect(card).toEqual(['             │    × 1 still failing', '             │    × shell exit 3'])
   await ui.unmount()
   await pane.unmount()
 })
 
-test('docked: a turn that committed names its commit in the receipt, `± <sha>`, before the time', ON, async ($, on) => {
+test('docked: a turn that committed names its commit at the receipt`s end, `↗ <sha>` (7.12)', ON, async ($, on) => {
   const clock = { now: T0 }
   const commit: Call = {
     id: 'c1',
@@ -164,7 +168,7 @@ test('docked: a turn that committed names its commit in the receipt, `± <sha>`,
   await $.turn.complete({ answer: 'x', durationMs: 160_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
   const ui = await $.ui.mount(message('Committed.'))
-  expect((await ui.find({ type: 'Text', text: /^─ done/ }))?.text).toMatch(/ 4 steps · 1 failure → fixed · 1 file · ± 7be09d2 · 2m 44s$/)
+  expect((await rowsIn(ui)).find(r => /DONE/.test(r))).toMatch(/^ {6}2m 44s ✓  DONE   [⣀-⣿]+   4 steps · 1 fixed · 1 file · ↗ 7be09d2$/)
   await ui.unmount()
   await pane.unmount()
 })

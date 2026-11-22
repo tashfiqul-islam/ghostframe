@@ -3,7 +3,8 @@ import { expect, test } from 'claude-code/testing'
 import { ON, PANE, T0 } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 
-// Phase 5, agents: `[ AGENTS ]` from agent.spawn, a subagent's tool.call and agent.report; one `[ STEPS ]` row per launch.
+// Phase 5, agents, in the v8 pane (8.3, 8.9): agent.spawn, a subagent's tool.call and agent.report drive the roster; on the
+// timeline a launch is one group with its agents as `├ ◇ name` bars under it, each with its running or last sub-step.
 const ASYNC = { result: { status: 'async_launched', agentId: 'x', description: 'x' }, text: 'launched' }
 
 function engine(on: On, clock: { now: number }, listed: { id: string; taskStatus: string }[] = []) {
@@ -40,7 +41,7 @@ async function paneText($: Engine): Promise<string[]> {
   const rows = (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0 && !t.includes('\n'))
   await ui.unmount()
 
-  return [...new Set(rows)]
+  return [...new Set(rows.map(r => r.trimEnd()))]
 }
 
 async function launchThree($: Engine, clock: { now: number }) {
@@ -66,37 +67,42 @@ test('three agents in parallel: one launch row, three roster rows that change in
   await launchThree($, clock)
 
   let rows = await paneText($)
-  expect(rows.filter(r => r.startsWith('▸ agent '))).toEqual([expect.stringMatching(/^▸ agent {4}3 launched +running/)])
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 3 running$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read seat {14}read {4}hooks\/cockpit\/seat\.ts +1 · {6}2s$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read switch {12}start {3}reading its brief +2s$/))
+  // One launch group, live, its three agents as bars under it (amendment 1 for the step list; 8.3 for the timeline).
+  expect(rows.filter(r => / agent 3 launched /.test(r))).toEqual([expect.stringMatching(/^ {2}● agent 3 launched +[━╸╺ ┊]+ +running$/)])
+  expect(rows).toContainEqual(expect.stringMatching(/AGENTS 3$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ ◇ Read seat +[━╸╺ ┊]+ +2s$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ▸ read {2}hooks\/cockpit\/seat\.ts +running$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ▸ start reading its brief +running$/))
 
   // The turn ends with its agents still running in the background: the launch and the roster stay live.
   clock.now += 1_000
   await $.turn.complete({ answer: 'waiting', durationMs: 3_000, isAborted: false, turnId: 't1', reason: 'answer' })
   clock.now += 7_000
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^▸ agent {4}3 launched +running/))
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read seat .* 1 · {5}10s$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● agent 3 launched .* running$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ ◇ Read seat +[━╸╺ ┊]+ +10s$/))
 
   // Their reports start a turn of their own (no prompt): the roster stays; the launch settles when the last reports.
   await $.turn.start({ text: '', turnId: 't2' })
   await report($, 'ag-Read seat', 'completed', '43 lines')
   await report($, 'ag-Read switch', 'failed', 'context limit')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^▸ agent {4}3 launched +running/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● agent 3 launched .* running$/))
 
   await report($, 'ag-Read draw', 'completed', '25 lines')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent {4}3 launched +2 done · 1 failed/))
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 1 failed · 2 done$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read seat {14}done {3}43 lines/))
-  expect(rows).toContainEqual(expect.stringMatching(/^✕ Read switch {12}failed context limit/))
+  // The launch settles: `◇` with its agents' count; each agent's last step under it, the failed one `×` and `stopped`.
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched +[━╸╺ ┊]+ +3 agents$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ✓ \S+ +43 lines +done$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ × Read switch +[━╸╺ ┊]+ +\d+s$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ × \S+ +context limit +stopped$/))
 
   // The next turn the person types starts a new roster: the finished agents fold away.
   await $.prompt.submit({ text: 'thanks', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'thanks', turnId: 't3' })
-  expect((await paneText($)).some(r => /AGENTS/.test(r))).toBe(false)
+  rows = await paneText($)
+  expect(rows.some(r => /◇ Read/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/AGENTS 0$/))
 })
 
 test('a nested agent rides under its parent; the parent, woken for its child`s report, keeps its row and its launch', ON, async ($, on) => {
@@ -111,17 +117,18 @@ test('a nested agent rides under its parent; the parent, woken for its child`s r
   await spawn($, 'k1', 'Nest child', 'ag-Nest parent')
 
   let rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Nest parent {12}agent {3}Nest child/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ Nest child {11}start/))
-  expect(rows).toContainEqual(expect.stringMatching(/ 1 running · 1 nested$/))
+  // The timeline lists the main loop's agents; a nested one is its parent's current step (8.3).
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}└ ◇ Nest parent +[━╸╺ ┊]+ +\d+s$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}▸ agent Nest child +running$/))
+  expect(rows.some(r => /◇ Nest child/.test(r))).toBe(false)
 
   await report($, 'ag-Nest child', 'completed', '42')
   // The engine wakes the parent to read it: a spawn with the parent's id and no call.
   await spawn($, '', 'Nest parent')
   await report($, 'ag-Nest parent', 'completed', '42 lines')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent {4}1 launched +1 done/))
-  expect(rows.filter(r => /^ *◇ Nest/.test(r)).map(r => r.slice(0, 16))).toEqual(['◇ Nest parent   ', '  ◇ Nest child  '])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched +[━╸╺ ┊]+ +1 agent$/))
+  expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
 })
 
 test('a report that never came: the engine`s list settles the agent at the next turn the person types', ON, async ($, on) => {
@@ -132,7 +139,9 @@ test('a report that never came: the engine`s list settles the agent at the next 
   // The list says the other two are gone as well, so the next turn starts with no roster at all.
   await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'next', turnId: 't2' })
-  expect((await paneText($)).some(r => /AGENTS/.test(r))).toBe(false)
+  const rows = await paneText($)
+  expect(rows.some(r => /◇ Read/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/AGENTS 0$/))
 })
 
 test('off: agents spawn and report exactly as they would, and no pane rows are drawn', async ($, on) => {

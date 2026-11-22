@@ -230,6 +230,16 @@ export async function updateAsked($: EngineInterface, change: (list: string[]) =
   return update($, asked, change)
 }
 
+/**
+ * How long Claude thought before a turn's opener (7.3), from the opener's capability stamp; 0 when it did not.
+ * @param $ the engine interface
+ * @param match which opener
+ * @returns the thinking time in ms
+ */
+export async function openerThought($: EngineInterface, match: (o: OpenerCaps) => boolean): Promise<number> {
+  return (await read($, openers)).toReversed().find(match)?.caps.thoughtMs ?? 0
+}
+
 // The capability line a turn's opener carries (by its text key or its first call's id).
 export async function openerCaps($: EngineInterface, match: (o: OpenerCaps) => boolean, width: number): Promise<Part[] | undefined> {
   const found = (await read($, openers)).toReversed().find(match)

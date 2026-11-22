@@ -6,7 +6,7 @@ import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
 import { vw } from '../../shared/text'
-import { codeCard, diffCard, isUnifiedDiff } from './code'
+import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
 import { noteCard, tableCard } from './tables'
 

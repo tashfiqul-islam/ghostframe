@@ -16,8 +16,8 @@ const AFTER: Record<TurnAfter, string> = { resume: 'RESUMED', compact: 'AFTER CO
 
 /** A turn header's facts (7.1). */
 export type Header = {
-  /** The prompt's submit time, wall clock. */
-  at: number
+  /** The prompt's submit time, wall clock; undefined when the submit was never seen (no label then). */
+  at: number | undefined
   /** The turn's number, undefined for a prompt Cockpit never numbered (typed while it was off). */
   turnNo: number | undefined
   after?: TurnAfter | undefined
@@ -41,11 +41,11 @@ export function turnHeader(h: Header, width: number): Part[] {
   ]
   const used = label.reduce((n, p) => n + vw(p.t), 0)
 
-  return spineRow({ t: clockTime(h.at), color: TOKEN.machine }, { t: GLYPH.turn, color: h.isLive ? TOKEN.accent : TOKEN.spine }, [
-    ...label,
-    { t: '  ', color: TOKEN.hairline },
-    { t: GLYPH.rule.repeat(Math.max(1, width - used - 2)), color: TOKEN.hairline }
-  ])
+  return spineRow(
+    h.at === undefined ? NO_LABEL : { t: clockTime(h.at), color: TOKEN.machine },
+    { t: GLYPH.turn, color: h.isLive ? TOKEN.accent : TOKEN.spine },
+    [...label, { t: '  ', color: TOKEN.hairline }, { t: GLYPH.rule.repeat(Math.max(1, width - used - 2)), color: TOKEN.hairline }]
+  )
 }
 
 /**

@@ -5,7 +5,7 @@ import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, slashRow,
 import type { StepLine, TurnCounts } from '../../hooks/cockpit/v8/left'
 import { NO_SPINE, spineOnly } from '../../hooks/shared/look/spine'
 import type { Part } from '../../hooks/shared/parts'
-import { diffCard } from '../../hooks/transcript/v8/code'
+import { diffCard } from '../../hooks/shared/look/code'
 import { answerRows, footnoteRows } from '../../hooks/transcript/v8/markdown'
 import { messageCard, thoughtRow, turnHeader } from '../../hooks/transcript/v8/turn'
 
@@ -198,7 +198,7 @@ export function screen22(): Part[][] {
 
 /** Screen 30: ctrl+o, the full record of turn 7 at 200 columns. */
 export function screen30(): Part[][] {
-  const step = (k: string) => stepsOf(k).map(stepLineRow)
+  const step = (k: string) => stepsOf(k).map(s => stepLineRow(s))
 
   return [
     ...turn7Head(W),

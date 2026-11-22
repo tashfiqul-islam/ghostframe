@@ -4,14 +4,18 @@
 // changes. Wrong n or path: one notice saying what exists.
 import type { EngineInterface } from 'claude-code'
 
-import type { FileDiff } from '../../types'
+import type { FileDiff, LogStep } from '../../types'
 import { readFlow, isNarrationAt } from '../shared/flow'
-import { layout, ruleWidth } from '../shared/layout'
+import { diffCard } from '../shared/look/code'
+import { clockTime } from '../shared/look/format'
+import { rowText, textCells } from '../shared/look/spine'
 import type { Part } from '../shared/parts'
 import { readHistory } from './history/store'
 import { turnView } from './fallback/facts'
 import { readLog, readReceipts } from './log'
-import { diffFrame, outputFrame, rowText, sentenceRows, stepRow } from './unfolded'
+import { sentenceRows } from './v8/events'
+import { stepLineRow } from './v8/left'
+import type { StepLine } from './v8/left'
 
 /** A message of the session, as `$.session.messages` gives it with `last`: its role, text and id. */
 type Message = { role: 'user' | 'assistant'; text: string; uuid?: string | undefined; toolResults?: readonly unknown[] | undefined }
@@ -66,19 +70,12 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
   const seen = new Set<string>()
   const stepRows = (step: (typeof view.steps)[number]): Part[][] => {
     const detail = view.details.find(d => d.id === step.id)
-    const left = detail === undefined ? 0 : detail.lines - detail.excerpt.length
-    const below =
-      detail === undefined
-        ? []
-        : detail.patch.length > 0
-          ? diffFrame(step.subject, detail.patch, width)
-          : step.kind === 'shell' || step.kind === 'test'
-            ? outputFrame(detail.excerpt.join('\n'), width, left > 0 ? `… ${left} more ${left === 1 ? 'line' : 'lines'} not kept` : undefined)
-            : []
 
-    return [stepRow(step, detail?.ms, width), ...below]
+    return [
+      stepLineRow(stepLineOf(step, detail?.ms ?? undefined), width),
+      ...(detail !== undefined && detail.patch.length > 0 ? diffCard(detail.patch, step.subject, width) : [])
+    ]
   }
-
   if (!flow.some(f => f.turn !== null && mine.has(f.turn))) return view.steps.flatMap(stepRows)
 
   return flow.flatMap((f, i): Part[][] => {
@@ -90,7 +87,9 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
       const text = said.findLast(m => m.role === 'assistant' && firstKey(m.text).includes(f.key.slice(0, 60)))?.text ?? f.key
       const next = flow.slice(i + 1).find(g => g.turn === f.turn && g.kind === 'tool')
 
-      return sentenceRows(text.trim(), next === undefined ? undefined : view.startOf(next.key), width)
+      const at = next === undefined ? undefined : view.startOf(next.key)
+
+      return sentenceRows(at === undefined || view.startedAt === null ? '' : clockTime(view.startedAt + at), text.trim(), width)
     }
 
     const step = view.steps.find(s => s.id === f.key || s.calls?.includes(f.key) === true)
@@ -103,8 +102,8 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
   })
 }
 
-/** The frame a command's output is printed in: the transcript's rule width for the terminal it ran in. */
-export const frameWidth = (columns: number): number => ruleWidth(layout(columns)) ?? layout(columns)?.width ?? Math.max(40, columns - 2)
+/** The text column a command's output is printed in (6.1), for the terminal it ran in. */
+export const frameWidth = (columns: number): number => textCells(columns, false)
 
 /**
  * `/steps n all` (E.4): the turn's ctrl+o rows, as the command's output.
@@ -117,7 +116,7 @@ export async function stepsAllText($: EngineInterface, turnNo: number, columns: 
   const rows = await turnRows($, turnNo, frameWidth(columns))
   const known = await knownTurns($)
 
-  if (rows.length > 0) return rows.map(rowText).join('\n')
+  if (rows.length > 0) return rows.map(r => rowText(r).trimEnd()).join('\n')
 
   // A kept turn with nothing to print had no steps; only a turn Cockpit does not keep has no step log.
   return known.includes(turnNo) ? `turn ${turnNo} had no steps` : `no step log for turn ${turnNo} · kept: ${span(known)}`
@@ -136,6 +135,11 @@ export function codeBlocks(text: string): string[] {
   }
 
   return out
+}
+
+/** Each fenced code block's language word, in order, '' for a fence that names none (7.15: · yaml). */
+function fenceWords(text: string): string[] {
+  return Array.from(text.matchAll(/^[ \t]*(?:`{3,}|~{3,})([^\s`]*)[^\n]*\n[\s\S]*?\n[ \t]*(?:`{3,}|~{3,})[ \t]*$/gm), m => (m[1] ?? '').toLowerCase())
 }
 
 /** The links of a Markdown text, whole, in the order they first appear: `[text](url)` and bare URLs. */
@@ -208,19 +212,25 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
   const copy = async (text: string, said: string) => {
     const done = await $.ui.copy({ text })
 
-    return done.isCopied ? `copied · ${said}` : `not copied · ${done.reason}`
+    return done.isCopied ? `Copied ${said}` : `Not copied · ${done.reason}`
   }
 
   if (form === 'code' || form === 'link') {
     const answer = await lastAnswer($)
     const all = answer === undefined ? [] : form === 'code' ? codeBlocks(answer) : linksOf(answer)
     const what = form === 'code' ? 'code block' : 'link'
-    const has = all.length === 0 ? `the last answer has no ${what}s` : `the last answer has ${plural(all.length, what)}, 1 to ${all.length}`
+    // A wrong number always says what exists (7.15).
+    const has = all.length === 0 ? `the last answer has no ${what}s` : `the last answer has ${all.length}`
     const hit = isN ? all[n - 1] : undefined
 
-    if (hit === undefined) return `no ${what} ${arg.length > 0 ? arg : 'given'} · ${has}`
+    if (hit === undefined) return `There is no ${what} ${arg.length > 0 ? arg : 'given'} · ${has}`
 
-    return copy(hit, form === 'code' ? `code block ${n} · ${plural(hit.split('\n').length, 'line')}` : `link ${n} · ${hit}`)
+    const lang = form === 'code' ? (fenceWords(answer ?? '')[n - 1] ?? '') : ''
+
+    return copy(
+      hit,
+      form === 'code' ? [`code block ${n}`, plural(hit.split('\n').length, 'line'), ...(lang.length > 0 ? [lang] : [])].join(' · ') : `link ${n} · ${hit}`
+    )
   }
 
   if (form === 'steps' || form === 'turn') {
@@ -231,7 +241,9 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
     if (form === 'steps') {
       const rows = await turnRows($, n, frameWidth(columns))
 
-      return rows.length > 0 ? copy(rows.map(rowText).join('\n'), `the steps of turn ${n} · ${plural(rows.length, 'row')}`) : `turn ${n} had no steps`
+      return rows.length > 0
+        ? copy(rows.map(r => rowText(r).trimEnd()).join('\n'), `the steps of turn ${n} · ${plural(rows.length, 'row')}`)
+        : `turn ${n} had no steps`
     }
 
     const text = await turnText($, n)
@@ -256,4 +268,31 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
   }
 
   return undefined
+}
+
+/** A step as the left prints it (screens 22, 30): its kind, subject, result and tone, its own time. */
+export function stepLineOf(step: LogStep, ms: number | undefined): StepLine {
+  const tone: StepLine['tone'] = step.mark === '✕' ? 'err' : step.mark === '±' || step.mark === '↗' ? 'bright' : /\bpass\b/.test(step.result) ? 'ok' : 'dim'
+
+  return { kind: step.kind, subject: step.subject, result: step.result, tone, ms }
+}
+
+/** The most step rows `/steps n all` prints before it says how many more there are (7.15). */
+const STEPS_SHOWN = 20
+
+/**
+ * `/steps n all` (7.15, screen 22): its turn's step rows, at most 20, and how many it had.
+ * @param $ the engine interface
+ * @param turnNo the typed turn
+ * @returns the rows and the total, or undefined when Cockpit keeps nothing of the turn
+ */
+export async function stepsAllLines($: EngineInterface, turnNo: number): Promise<{ shown: StepLine[]; total: number } | undefined> {
+  const first = (await turnsOf($, turnNo))[0]
+  const view = first === undefined ? undefined : await turnView($, first)
+
+  if (view === undefined) return undefined
+
+  const lines = view.steps.map(s => stepLineOf(s, view.details.find(d => d.id === s.id)?.ms ?? undefined))
+
+  return { shown: lines.slice(0, STEPS_SHOWN), total: lines.length }
 }

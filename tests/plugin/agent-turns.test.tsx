@@ -55,7 +55,7 @@ async function rowsOf($: Engine, site: Parameters<Engine['ui']['mount']>[0]): Pr
 
   return [...new Set(rows)]
 }
-const receiptsUnder = async ($: Engine, answer: string) => (await rowsOf($, ANSWER(answer))).filter(r => /^─ \w/.test(r))
+const receiptsUnder = async ($: Engine, answer: string) => (await rowsOf($, ANSWER(answer))).filter(r => /✓  DONE|×  FAILED|!  WAITING/.test(r))
 type Mounted = { redraw: () => Promise<unknown>; findAll: (q: { type: string }) => Promise<{ text: string }[]> }
 /** The docked pane's rows now. */
 async function paneOf(docked: Mounted): Promise<string[]> {
@@ -161,9 +161,9 @@ test('2. a drawn receipt never changes: each is its own turn`s, and a turn with 
   await run($, clock, 3)
 
   const first = await receiptsUnder($, 'All three done: 43, 42, 25.')
-  expect(first).toEqual([expect.stringMatching(/^─ done ─+ no steps · 2s$/)])
+  expect(first).toEqual([expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   no steps$/)])
   const launch = await receiptsUnder($, 'Three agents launched.')
-  expect(launch).toEqual([expect.stringMatching(/^─ waiting · 3 agents ─+ 1 step · 3s$/)])
+  expect(launch).toEqual([expect.stringMatching(/^ +3s !  WAITING   [⣀-⣿]+   1 step · 3 agents running$/)])
 
   // Later turns start and end: what was drawn stays as drawn.
   await typed($, 'nest')
@@ -180,7 +180,8 @@ test('3. the roster stays through the report turns, frozen once all are done, un
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
-  const agents = async () => (await paneOf(docked)).filter(r => /^ *[◇✕] /.test(r))
+  // The launch group's agents on the timeline (8.3).
+  const agents = async () => (await paneOf(docked)).filter(r => /^ {2}[├└] [◇×] /.test(r))
 
   await run($, clock, 1)
   await noticed($, 'ag-Read draw')
@@ -197,7 +198,7 @@ test('3. the roster stays through the report turns, frozen once all are done, un
   await report($, 'ag-Read switch', '42 lines')
   await $.turn.complete({ answer: 'x', durationMs: 2_000, isAborted: false, turnId: 'r2', reason: 'answer' })
   const frozen = await agents()
-  expect(frozen.map(r => r.slice(0, 29).trim())).toEqual(['◇ Read seat              done', '◇ Read switch            done', '◇ Read draw              done'])
+  expect(frozen.map(r => /[├└] [◇×] (.+?) {2,}/.exec(r)?.[1])).toEqual(['Read seat', 'Read switch', 'Read draw'])
   clock.now += 60_000
   expect(await agents()).toEqual(frozen)
 
@@ -207,15 +208,15 @@ test('3. the roster stays through the report turns, frozen once all are done, un
   await docked.unmount()
 })
 
-test('4. while a background agent runs, [ LAST ] and the receipt say `waiting · N agents`, not `done`', ON, async ($, on) => {
+test('4. while a background agent runs, the head and the receipt say it waits on them, not that it is done', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
-  const last = async () => (await paneOf(docked)).find(r => /^ {2}\w/.test(r) && !/^ {2}agent /.test(r))
+  const waiting = async () => (await paneOf(docked)).find(r => /^ {2}Waiting on /.test(r))?.trimEnd()
 
   await run($, clock, 1)
-  expect(await last()).toMatch(/^ {2}waiting · 3 agents · /)
-  expect(await receiptsUnder($, 'Three agents launched.')).toEqual([expect.stringMatching(/^─ waiting · 3 agents ─/)])
+  expect(await waiting()).toBe('  Waiting on 3 agents')
+  expect(await receiptsUnder($, 'Three agents launched.')).toEqual([expect.stringMatching(/!  WAITING .* · 3 agents running$/)])
 
   await (async () => {
     clock.now += 4_000
@@ -226,12 +227,12 @@ test('4. while a background agent runs, [ LAST ] and the receipt say `waiting ·
     clock.now += 1_000
     await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r1', reason: 'answer' })
   })()
-  expect(await last()).toMatch(/^ {2}waiting · 2 agents · /)
-  expect(await receiptsUnder($, 'One back.')).toEqual([expect.stringMatching(/^─ waiting · 2 agents ─+ no steps · 1s$/)])
+  expect(await waiting()).toBe('  Waiting on 2 agents')
+  expect(await receiptsUnder($, 'One back.')).toEqual([expect.stringMatching(/^ +1s !  WAITING   [⣀-⣿]+   no steps · 2 agents running$/)])
 
   await report($, 'ag-Read seat', '43 lines')
   await report($, 'ag-Read switch', '42 lines')
-  expect(await last()).toMatch(/^ {2}done · /)
+  expect(await waiting()).toBeUndefined()
   await docked.unmount()
 })
 
@@ -239,25 +240,25 @@ test('5. turns are numbered by typed prompts: a report turn is part of the typed
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
-  const label = async () => (await paneOf(docked)).find(r => /^┄ \[ (NOW|LAST) \]/.test(r))
+  const label = async () => (await paneOf(docked)).find(r => /^ {2}▐ . \w+ ▌  TURN \d+/.test(r))
 
   await run($, clock, 3)
-  expect(await label()).toMatch(/ turn 1 · \d\d:\d\d$/)
-  // The launch and its settled count stay in the typed turn's own [ STEPS ], not `STEPS · TURN n`.
-  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS \] ┄+ 1 step$/))
-  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}agent {4}3 launched +3 done/))
+  expect(await label()).toMatch(/▐ ✓ DONE ▌  TURN 1 +\d\d:\d\d:\d\d → \d\d:\d\d:\d\d/)
+  // The launch and its settled count stay in the typed turn's own head and timeline.
+  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}1 step /))
+  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched .* 3 agents *$/))
 
   await (async () => {
     await typed($, 'nest')
     await $.turn.start({ text: 'nest', turnId: 't2' })
-    expect(await label()).toMatch(/ turn 2$/)
+    expect(await label()).toMatch(/▐ ● LIVE ▌  TURN 2 .*→ now/)
     await $.turn.complete({ answer: 'x', durationMs: 2_000, isAborted: false, turnId: 't2', reason: 'answer' })
     await delivered($, 'x')
     await $.turn.start({ text: '<agent-message>', turnId: 'r3' })
-    expect(await label()).toMatch(/ turn 2$/)
+    expect(await label()).toMatch(/▐ ● LIVE ▌  TURN 2 .*→ now/)
     await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r3', reason: 'answer' })
   })()
-  expect(await label()).toMatch(/ turn 2 · \d\d:\d\d$/)
+  expect(await label()).toMatch(/▐ ✓ DONE ▌  TURN 2 +\d\d:\d\d:\d\d → \d\d:\d\d:\d\d/)
   await docked.unmount()
 })
 
@@ -268,10 +269,11 @@ test('the nested agent of the sequence: inset under its parent, its launch settl
   await run($, clock, 4)
 
   const rows = await paneOf(docked)
-  expect(rows.filter(r => /^ *◇ Nest/.test(r)).map(r => r.slice(0, 16))).toEqual(['◇ Nest parent   ', '  ◇ Nest child  '])
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent {4}1 launched +1 done/))
-  expect(await receiptsUnder($, 'It is 42.')).toEqual([expect.stringMatching(/^─ done ─+ no steps · 1s$/)])
-  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^─ waiting · 1 agent ─+ 1 step · 2s$/)])
+  // The timeline lists the main loop's agent; its child is the parent's own (8.3).
+  expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
+  expect(await receiptsUnder($, 'It is 42.')).toEqual([expect.stringMatching(/^ +1s ✓  DONE   [⣀-⣿]+   no steps$/)])
+  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^ +2s !  WAITING   [⣀-⣿]+   1 step · 1 agent running$/)])
   await docked.unmount()
 })
 
@@ -307,18 +309,16 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
 
   const rows = await paneOf(docked)
   // The head.
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}done · /))
-  expect(rows.some(r => /waiting/.test(r))).toBe(false)
-  // The roster: its label's totals match its rows.
-  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 2 done · 1 nested$/))
-  expect(rows.filter(r => /^ *◇ Nest/.test(r))).toEqual([
-    expect.stringMatching(/^◇ Nest parent {12}done {3}42 lines/),
-    expect.stringMatching(/^ {2}◇ Nest child {11}done {3}42/)
-  ])
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent {4}1 launched +1 done/))
+  expect(rows).toContainEqual(expect.stringMatching(/▐ ✓ DONE ▌  TURN 1 /))
+  expect(rows.some(r => /Waiting on/.test(r))).toBe(false)
+  // The agents: the tab counts the main loop's one; its row says it is done, with its report's head.
+  expect(rows).toContainEqual(expect.stringMatching(/AGENTS 1$/))
+  expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}✓ \S+ +42 lines +done *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
   // The receipts: waiting while the parent ran, done once it had reported.
-  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^─ waiting · 1 agent ─/)])
-  expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^─ done ─+ no steps · 1s$/)])
+  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/!  WAITING .* · 1 agent running$/)])
+  expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^ +1s ✓  DONE   [⣀-⣿]+   no steps$/)])
 
   // The next typed turn is done too: nothing is left running.
   await typed($, 'thanks')
@@ -326,6 +326,6 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
   await $.session.append(respond([text('You are welcome.')], 'm3'))
   clock.now += 1_000
   await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 't2', reason: 'answer' })
-  expect(await receiptsUnder($, 'You are welcome.')).toEqual([expect.stringMatching(/^─ done ─/)])
+  expect(await receiptsUnder($, 'You are welcome.')).toEqual([expect.stringMatching(/✓  DONE/)])
   await docked.unmount()
 })

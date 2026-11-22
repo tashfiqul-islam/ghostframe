@@ -9,6 +9,8 @@ import { sparkline } from '../../shared/look/trace'
 import { vw } from '../../shared/text'
 
 const dim = (t: string): Part => ({ t, color: TOKEN.dim })
+/** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
+const kindCell = (kind: string) => (kind.length >= 6 ? `${kind} ` : kind.padEnd(6))
 const sp = (n: number): Part => ({ t: ' '.repeat(Math.max(0, n)), color: TOKEN.dim })
 const widthOf = (parts: readonly Part[]) => parts.reduce((n, p) => n + vw(p.t), 0)
 
@@ -278,7 +280,7 @@ const SUB_GLYPH: Record<SubStep['glyph'], Part> = {
 function subRow(s: SubStep, guide: string, width: number): Part[] {
   const { result: resultCells } = columns(width)
   const room = width - 1 - 12 - resultCells
-  const head: Part[] = [sp(2), { t: guide, color: TOKEN.spine }, SUB_GLYPH[s.glyph], sp(1), { t: s.kind.padEnd(6), color: TOKEN.muted }]
+  const head: Part[] = [sp(2), { t: guide, color: TOKEN.spine }, SUB_GLYPH[s.glyph], sp(1), { t: kindCell(s.kind), color: TOKEN.muted }]
   const subject = { t: s.kind === 'fetch' ? s.subject : cutCommand(s.subject, room), color: TOKEN.text }
 
   return spread([...head, subject], [{ t: s.result, color: TONE[s.tone] }, sp(width - 51 - resultCells)], width)

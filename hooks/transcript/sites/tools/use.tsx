@@ -3,8 +3,8 @@
 import type { On } from 'claude-code'
 
 import { readEnvOnce } from '../../../cockpit/switch'
-import { drawQuietCall, drawUnfoldedCall, isQuietRow, noteView } from '../../../cockpit/left'
-import { layout, ruleWidth } from '../../../shared/layout'
+import { drawQuietCall, drawUnfoldedCall, isQuietRow, leftCells, noteView } from '../../../cockpit/left'
+import { layout } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { stepParts } from '../../activity/row'
 import { activityHead } from '../../activity/rule'
@@ -39,7 +39,7 @@ export function registerToolUse(on: On): void {
     // ctrl+o (E.4): every call is a step row under its sentence, with its diff or output in a frame.
     if (e.surface === 'terminal') noteView($, e.props.isExpanded)
     if (e.surface === 'terminal' && e.props.isExpanded === true && lay !== undefined && width !== undefined) {
-      const unfolded = await drawUnfoldedCall($, e, ruleWidth(lay) ?? width)
+      const unfolded = await drawUnfoldedCall($, e, leftCells(e))
 
       if (unfolded !== undefined) return unfolded
     }
@@ -53,7 +53,7 @@ export function registerToolUse(on: On): void {
     // Quiet: every step is the pane's, a fetch or an agent launch as much as a folded group; only a push or a pull
     // request leaves a row here (E.5).
     if (isQuietRow(e)) {
-      return drawQuietCall($, e, ruleWidth(lay) ?? width)
+      return drawQuietCall($, e, leftCells(e))
     }
 
     const isAsking = (await readAsked($)).includes(p.tool_use_id)
