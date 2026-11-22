@@ -60,6 +60,17 @@ From the phase 7 probe (see the feasibility report). E.44's own keys hold: a sin
 - ctrl+x tab focuses the pane and ctrl+x x closes it.
 - Replaces: E.44's "Escape, or `s` again, returns to the fitted layout" (Escape also returns the keyboard), and E.44's step detail `r` key, which is not built: `c` copies a detail's command.
 
+### 8. History keeps every turn to a budget, its bulky parts first to go
+
+Owner, 2026-11-22 (phase 8). Replaces E.45's "the last 50 turns are also written to the plugin's store" and "Output and diffs are not kept".
+
+- Every typed turn is kept, in the session's state and in `$.store` under `history:<session id>`: its steps (subjects cut at 200 characters), files, pages, agents and receipts (the summary rows), and its bulky parts, the steps' output excerpts and patches and each file's diff over the turn.
+- The store holds 4 MiB of JSON in all, every session's history together (probe 24). Over the budget, the oldest turn that still has bulky parts loses them first, whichever session it belongs to; with none left, the oldest other session goes; only then this session's oldest summaries. A detail or diff that was trimmed says so.
+- A 30-turn session of 20 steps a turn, with excerpts, patches and diffs, is about 1.5 MB, of which about 0.3 MB are summaries.
+- A file's diff in `[ FILES ]` is its content at the turn's start (read just before the first call that could change it) against its content now, so a shell's changes are in it. A file no call named before it changed falls back to Git when Git saw it clean at the turn's start; otherwise the view says why it has no fuller diff.
+- After a compaction nothing on screen changes: E.45's `· before the compaction` in `[ LAST ]` is not drawn.
+- A pin is released by a typed prompt, `/steps` alone, `l`, or pinning the live turn; `p` at the oldest kept turn stays and says `no earlier turn kept`.
+
 ## Corrections from the probes (facts, 2026-11-21)
 
 Observed in a real fullscreen session at 200 × 50, Claude Code 2.1.329. Each replaces a statement in the spec. Evidence is in [cockpit-v7-feasibility.md](cockpit-v7-feasibility.md).

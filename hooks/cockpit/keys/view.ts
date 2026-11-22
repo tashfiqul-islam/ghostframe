@@ -6,10 +6,12 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { LogStep } from '../../../types'
+import type { LogStep, StepDetail, TurnRecord } from '../../../types'
 import type { Section } from '../fit'
 import { readLog } from '../log'
-import { readWork, workDiff } from '../work'
+import { fileDiff } from '../history/snapshots'
+import { readHistory, readPin, setPin } from '../history/store'
+import { cwdNow, readWork } from '../work'
 import { readDetails } from './details'
 
 /** What the pane shows: the fitted layout, every step, one step's detail, or a diff. */
@@ -85,42 +87,77 @@ async function redraw($: EngineInterface): Promise<void> {
   await update($, tick, n => n + 1)
 }
 
-/**
- * The patch of a file the turn changed: its edits' and writes' patches, in order; else Git's diff of it.
- * @param $ the engine interface
- * @param path the file, from the session's folder
- * @returns its unified rows
- */
-async function filePatch($: EngineInterface, path: string): Promise<string[]> {
+/** The turn pinned in place of the live one, as history keeps it. */
+async function pinnedRecord($: EngineInterface): Promise<TurnRecord | undefined> {
+  const pin = await readPin($)
+
+  return pin === null ? undefined : (await readHistory($)).find(r => r.turnNo === pin)
+}
+
+/** The Edit and Write patches the turn kept for a file, in order. */
+async function editPatches($: EngineInterface, path: string): Promise<string[]> {
   const kept = (await readDetails($)).filter(
     d => EDIT_TOOLS.has(d.tool) && (d.command.replaceAll('\\', '/') === path || d.command.replaceAll('\\', '/').endsWith(`/${path}`))
   )
-  const patch = kept.flatMap(d => d.patch)
 
-  return patch.length > 0 ? patch : workDiff($, path)
+  return kept.flatMap(d => d.patch)
 }
 
 /**
- * What a FILES row counts that its patch does not hold: the lines a shell command changed, of which no patch is
- * kept (`printf >> f`). Said under the diff, so the view never shows less than the row without saying so.
+ * What a FILES row counts that a patch does not hold, said under it with why there is no fuller diff.
  * @param patch the patch shown
- * @param adds the row's added lines
- * @param dels the row's removed lines
- * @returns the note, or nothing when the patch holds them all
+ * @param row the row's counts
+ * @param why why there is no snapshot
+ * @returns the note
  */
-function missing(patch: readonly string[], adds: number, dels: number): { note?: string } {
-  const plus = adds - patch.filter(l => l.startsWith('+')).length
-  const minus = dels - patch.filter(l => l.startsWith('-')).length
+function missing(patch: readonly string[], row: { adds: number; dels: number } | undefined, why: string): string {
+  const plus = (row?.adds ?? 0) - patch.filter(l => l.startsWith('+')).length
+  const minus = (row?.dels ?? 0) - patch.filter(l => l.startsWith('-')).length
   const parts = [...(plus > 0 ? [`+${plus}`] : []), ...(minus > 0 ? [`−${minus}`] : [])]
 
-  return parts.length === 0 ? {} : { note: `… ${parts.join(' ')} more from shell commands, in no kept patch` }
+  return parts.length === 0 ? why : `… ${parts.join(' ')} more from shell commands · ${why}`
 }
 
-/** A step of the current log, or of the earlier turn it shows. */
+/**
+ * A file's diff over its turn (E.42, phase 8): for a pinned turn, the one its history kept; live, its content at the
+ * turn's start against now (a shell's changes included); with no snapshot, the Edit and Write patches the turn kept,
+ * and why there is no more.
+ * @param $ the engine interface
+ * @param path the file, as the pane names it
+ * @returns its rows, and what they leave out
+ */
+async function fileView($: EngineInterface, path: string): Promise<{ patch: string[]; note?: string }> {
+  const pinned = await pinnedRecord($)
+
+  if (pinned !== undefined) {
+    const kept = pinned.diffs.find(d => d.path === path)
+
+    if (kept !== undefined) return kept.note === undefined ? { patch: kept.patch } : { patch: kept.patch, note: kept.note }
+
+    return { patch: [], note: pinned.isTrimmed ? 'diff no longer kept · trimmed to keep history under the store budget' : 'no diff kept for this file' }
+  }
+
+  const diff = await fileDiff($, path, cwdNow())
+
+  if (diff.patch.length > 0 || diff.note === undefined) return { patch: diff.patch }
+
+  const patch = await editPatches($, path)
+  const row = (await readWork($)).files.find(f => f.path === path)
+
+  return { patch, note: missing(patch, row, diff.note) }
+}
+
+/** A step of the current log, of the earlier turn it shows, or of the pinned turn. */
 async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefined> {
   const log = await readLog($)
+  const pinned = await pinnedRecord($)
 
-  return [...log.steps, ...(log.prev?.steps ?? [])].find(s => s.id === id)
+  return [...log.steps, ...(log.prev?.steps ?? []), ...(pinned?.steps ?? [])].find(s => s.id === id)
+}
+
+/** A step's detail, from the session's or, for a pinned turn, from its history. */
+async function detailOf($: EngineInterface, id: string): Promise<StepDetail | undefined> {
+  return (await readDetails($)).find(d => d.id === id) ?? (await pinnedRecord($))?.details.find(d => d.id === id)
 }
 
 /**
@@ -131,13 +168,11 @@ async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefin
 export async function openRow($: EngineInterface, id: string): Promise<void> {
   if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
-    const patch = await filePatch($, path)
-    const row = (await readWork($)).files.find(f => f.path === path)
-    view = { kind: 'diff', path, patch, ...(row === undefined ? {} : missing(patch, row.adds, row.dels)) }
+    view = { kind: 'diff', path, ...(await fileView($, path)) }
   } else if (id.startsWith('step:')) {
     const stepId = id.slice('step:'.length)
     const step = await stepOf($, stepId)
-    const detail = (await readDetails($)).find(d => d.id === stepId)
+    const detail = await detailOf($, stepId)
 
     view =
       step !== undefined && EDIT_KINDS.has(step.kind) && (detail?.patch.length ?? 0) > 0
@@ -157,18 +192,17 @@ export async function openRow($: EngineInterface, id: string): Promise<void> {
 async function copyText($: EngineInterface): Promise<string | undefined> {
   if (view.kind === 'diff') return view.patch.length > 0 ? view.patch.join('\n') : undefined
 
-  const details = await readDetails($)
   const at = view.kind === 'step' ? `step:${view.id}` : ring
 
   if (at?.startsWith('file:') === true) {
-    const patch = await filePatch($, at.slice('file:'.length))
+    const { patch } = await fileView($, at.slice('file:'.length))
 
     return patch.length > 0 ? patch.join('\n') : undefined
   }
 
   if (at?.startsWith('step:') !== true) return undefined
 
-  const detail = details.find(d => d.id === at.slice('step:'.length))
+  const detail = await detailOf($, at.slice('step:'.length))
 
   if (detail === undefined) return undefined
 
@@ -182,22 +216,98 @@ async function copyText($: EngineInterface): Promise<string | undefined> {
 async function copyNow($: EngineInterface): Promise<void> {
   const text = await copyText($)
   const isCopied = text !== undefined && (await $.ui.copy({ text })).isCopied
-  copied = { note: isCopied ? 'copied' : 'nothing to copy', at: await $.clock.now() }
+  await say($, isCopied ? 'copied' : 'nothing to copy')
+}
+
+/**
+ * A brief dim note in the hint row (`copied`, `no earlier turn kept`), for two seconds.
+ * @param $ the engine interface
+ * @param note the note
+ */
+async function say($: EngineInterface, note: string): Promise<void> {
+  copied = { note, at: await $.clock.now() }
   $.clock.after(COPIED_MS, () => void redraw($))
+}
+
+/**
+ * `/steps <n>` (E.45): pins turn n, when history keeps it; `/steps` alone, or the live turn's own number, releases the
+ * pin. A turn history does not keep is said, with where to look instead.
+ * @param $ the engine interface
+ * @param args what followed the command
+ * @returns what the command answers
+ */
+export async function pinFromCommand($: EngineInterface, args: string): Promise<string> {
+  const live = (await readLog($)).turnNo
+  const word = args.trim()
+
+  if (word.length === 0) {
+    await setPin($, null, live)
+    await redraw($)
+
+    return 'live · the pane follows the current turn'
+  }
+
+  const n = Number(word)
+
+  if (!Number.isInteger(n) || n < 1) return `/steps takes a turn number, 1 to ${live}`
+  if (n === live) {
+    await setPin($, null, live)
+    await redraw($)
+
+    return `turn ${n} is the live turn · the pane follows it`
+  }
+
+  if (!(await readHistory($)).some(r => r.turnNo === n)) return `no step log for turn ${n} · ctrl+o shows what the session still has`
+
+  await setPin($, n, live)
+  view = FIT
+  await redraw($)
+
+  return `pinned turn ${n} · l in the pane or /steps for live`
+}
+
+/**
+ * `p` and `n` (E.45): pins the kept turn before, or after, the one shown; past the newest kept turn, back to live
+ * (pinning the live turn is releasing). `p` with no earlier turn kept says so.
+ * @param $ the engine interface
+ * @param step -1 for `p`, 1 for `n`
+ */
+async function stepPin($: EngineInterface, step: -1 | 1): Promise<void> {
+  const live = (await readLog($)).turnNo
+  const pin = await readPin($)
+  const at = pin ?? live
+  const kept = (await readHistory($)).map(r => r.turnNo)
+  const target = step < 0 ? kept.findLast(n => n < at) : kept.find(n => n > at)
+
+  if (step < 0 && target === undefined) {
+    await say($, 'no earlier turn kept')
+
+    return
+  }
+
+  if (step > 0 && pin === null) return
+
+  await setPin($, target ?? null, live)
+  view = FIT
 }
 
 const SECTION_KEYS: Readonly<Record<string, Section>> = { a: 'agents', t: 'todo', f: 'files', u: 'sources' }
 
 /**
  * A key of the focused pane, pressed: `s` the full step view (again to fit), `a` `t` `f` `u` a section shown whole
- * (again to fit), `c` copy, `b` back to the fitted layout.
+ * (again to fit), `c` copy, `b` back to the fitted layout, `p` `n` a kept turn before or after (E.45), `l` live.
  * @param $ the engine interface
  * @param key the hotkey
  */
 export async function pressKey($: EngineInterface, key: string): Promise<void> {
   const section = SECTION_KEYS[key]
 
-  if (key === 's') view = view.kind === 'all' ? FIT : { kind: 'all' }
+  if (key === 'p') await stepPin($, -1)
+  else if (key === 'n') await stepPin($, 1)
+  else if (key === 'l') {
+    await setPin($, null, 0)
+    view = FIT
+  } else if (key === 's') view = view.kind === 'all' ? FIT : { kind: 'all' }
   else if (key === 'b') view = FIT
   else if (key === 'c') await copyNow($)
   else if (section !== undefined) {

@@ -120,7 +120,10 @@ export function diffRows(path: string, patch: readonly string[], width: number, 
   ]
   const label = plain(sectionLabel(`DIFF · ${cut(path, Math.max(8, width - 32))}`, meta, width, C.textBright))
 
-  if (patch.length === 0) return [label, plain(row('no diff kept for this file', width, C.dim))]
+  // A note (why there is no fuller diff) wraps: it is the one thing in the view that explains the rest.
+  const said = (t: string) => wrap(t, width - 2).map(r => plain(row(r, width, C.dim)))
+
+  if (patch.length === 0) return [label, ...said(note ?? 'no diff kept for this file')]
 
   let hunk = 0
   const rows = patch.map(l => {
@@ -139,7 +142,7 @@ export function diffRows(path: string, patch: readonly string[], width: number, 
     return plain(row(l.startsWith('-') ? `−${l.slice(1)}` : l, width, color))
   })
 
-  return [label, ...rows, ...(note === undefined ? [] : [plain(row(note, width, C.dim))])]
+  return [label, ...rows, ...(note === undefined ? [] : said(note))]
 }
 
 /**

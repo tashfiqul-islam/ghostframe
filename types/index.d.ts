@@ -120,6 +120,7 @@ export type OpenFailure = { kind: string; subject: string; result: string; clock
  */
 export type Receipt = {
   turn: string | null
+  turnNo: number
   state: LastTurn['state'] | 'waiting'
   agents: number
   steps: number
@@ -195,6 +196,34 @@ export type StepDetail = {
   patch: string[]
 }
 
+/** A file's diff over a whole turn: its content at the turn's start against its end, or why there is none. */
+export type FileDiff = { path: string; patch: string[]; note?: string }
+
+/**
+ * One typed turn as history keeps it (spec E.45), in $.state for the session and in $.store across a resume: its
+ * number, the engine turns it spanned, its time and verdict, its steps (subjects cut at 200 characters), files,
+ * pages, agents and receipts (the summary rows, never trimmed while any bulky part is left), and its bulky parts,
+ * the steps' details (output excerpts, patches) and the files' diffs, trimmed first, oldest turn first, to keep the
+ * store under its budget (`isTrimmed` says they went).
+ */
+export type TurnRecord = {
+  turnNo: number
+  turns: string[]
+  startedAt: number | null
+  durationMs: number
+  last: LastTurn | null
+  steps: LogStep[]
+  dropped: number
+  files: FileChange[]
+  sources: SourcePage[]
+  cited: { url: string; title: string }[]
+  roster: RosterAgent[]
+  receipts: Receipt[]
+  details: StepDetail[]
+  diffs: FileDiff[]
+  isTrimmed: boolean
+}
+
 declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
@@ -221,6 +250,8 @@ declare module 'claude-code' {
       work: Shaped<TurnWork>
       details: Shaped<StepDetail[]>
       viewTick: Shaped<number>
+      history: Shaped<TurnRecord[]>
+      pin: Shaped<number | null>
     }
   }
 }

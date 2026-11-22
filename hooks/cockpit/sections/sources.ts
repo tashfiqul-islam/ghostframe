@@ -131,6 +131,7 @@ function pageRow(page: SourcePage, mark: number, title: string, width: number): 
  * @param width the pane's body columns
  * @param cap the rows (3, or 4 in a tall pane)
  * @param isLabel only the label fits
+ * @param title the label (`SOURCES · TURN n` for a pinned turn)
  * @returns one Part list per row; none when the turn read no page
  */
 export function sourceRows(
@@ -139,7 +140,8 @@ export function sourceRows(
   isRunning: boolean,
   width: number,
   cap: number,
-  isLabel = false
+  isLabel = false,
+  title = 'SOURCES'
 ): Part[][] {
   const rows = ordered(pages, cited, isRunning)
 
@@ -147,7 +149,7 @@ export function sourceRows(
 
   // Marks come with the answer, once the turn ends: until then nothing is counted as cited.
   const citedCount = rows.filter(r => r.mark > 0).length
-  const label = sectionLabel('SOURCES', [{ t: `${rows.length} read · ${citedCount} cited`, color: C.muted }], width)
+  const label = sectionLabel(title, [{ t: `${rows.length} read · ${citedCount} cited`, color: C.muted }], width)
 
   if (isLabel) return [label]
 

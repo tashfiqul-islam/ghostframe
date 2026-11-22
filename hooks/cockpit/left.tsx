@@ -3,7 +3,8 @@
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { remember } from '../shared/held'
-import { drawRows } from './draw'
+import { drawRow, drawRows } from './draw'
+import { pinFromCommand } from './keys/view'
 import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
 import { docked, setDockedFlag, shownAtTurn } from './mode'
@@ -113,11 +114,19 @@ export async function drawTurnReceipt(
   if (rows.length === 0) return undefined
 
   const ui = $.ui.resolve(e)
+  const { Box, Button } = ui
+  const turnNo = receipt?.turnNo ?? 0
+  const above = rows.slice(0, -1)
+  const own = rows.at(-1) ?? []
 
+  // A click on the receipt pins its turn in the pane (E.45; probe 25: a Button there is pressed by a click).
   return (
-    <ui.Box flexDirection="column" marginTop={1}>
-      {drawRows(ui, rows)}
-    </ui.Box>
+    <Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, above)}
+      <Button key={`receipt:${turn}`} plain onPress={() => void pinFromCommand($, String(turnNo))}>
+        {drawRow(ui, own, 'receipt')}
+      </Button>
+    </Box>
   )
 }
 

@@ -6,6 +6,9 @@ import type { EngineInterface } from 'claude-code'
 /** Cockpit's pane id: its `$.ui.open` id and its `Pane` render's `requestId`. */
 export const PANE = 'cockpit'
 
+/** The command that pins a past turn (E.45): `/steps <n>`, `/steps` for live. */
+export const STEPS = 'steps'
+
 /** The pane is docked now (its last `Pane` render's placement). */
 let isDocked = false
 

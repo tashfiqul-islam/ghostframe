@@ -301,6 +301,7 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
 
   return {
     turn: log.turn,
+    turnNo: log.turnNo,
     state,
     agents: state === 'waiting' ? agents : 0,
     steps: Math.max(0, all.length + log.dropped - log.segmentFrom),

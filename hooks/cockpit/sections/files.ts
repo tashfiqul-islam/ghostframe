@@ -108,7 +108,7 @@ export function filesFromCommand(files: readonly FileChange[], command: string, 
 }
 
 /** The paths a shell command deletes: the arguments of each deleting segment, less its flags. */
-function deleted(command: string): string[] {
+export function deleted(command: string): string[] {
   return command.split(/&&|\|\||;|\n/).flatMap(part => {
     const m = DELETE.exec(part)
 
@@ -190,14 +190,15 @@ export function fileRows(files: readonly FileChange[], width: number, cap: numbe
  * @param width the pane's body columns
  * @param cap the rows; `Infinity` for every file (`f`)
  * @param isLabel only the label fits
+ * @param title the label (`FILES · TURN n` for a pinned turn)
  * @returns the rows
  */
-export function fileLines(files: readonly FileChange[], width: number, cap: number, isLabel = false): Line[] {
+export function fileLines(files: readonly FileChange[], width: number, cap: number, isLabel = false, title = 'FILES'): Line[] {
   if (files.length === 0) return []
 
   const total = sum(files)
   const label = sectionLabel(
-    'FILES',
+    title,
     [
       { t: `${files.length} changed`, color: C.muted },
       // A side with no lines is left out: a turn that only deleted says `1 changed`.

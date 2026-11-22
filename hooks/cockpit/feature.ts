@@ -6,8 +6,8 @@
 // Spec: docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H; cockpit-v7-amendments.md.
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 
-import { logAgentEnd, logAgentStart } from './log'
-import { PANE } from './mode'
+import { logAgentEnd, logAgentStart, logSessionStart } from './log'
+import { PANE, STEPS } from './mode'
 import { FIRST_COLUMNS, logSeatError, registerPane } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
@@ -23,6 +23,13 @@ type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 export async function startCockpit($: EngineInterface, e: SessionStart): Promise<void> {
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
   setEnvOn(await isEnvSet($))
+  await $.command.register({ name: STEPS, description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live' })
+
+  try {
+    await logSessionStart($)
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: history not restored: ${String(error)}`)
+  }
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
     void $.ui.open({ id: PANE, columns: FIRST_COLUMNS }).catch((error: unknown) => logSeatError($, error))

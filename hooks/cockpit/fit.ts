@@ -2,7 +2,7 @@
 // `[ SOURCES ]`, one blank row between every section. The lower sections are measured first and `[ STEPS ]` takes
 // what is left, so nothing above moves while a turn runs; short of room, the lower sections fold, down E.37's
 // ladder. Pure: pane.tsx draws what `paneRows` returns.
-import type { RosterAgent, StepLog, TurnWork } from '../../types'
+import type { RosterAgent, StepLog, TurnRecord, TurnWork } from '../../types'
 import type { Part } from '../shared/parts'
 import { C } from '../shared/tokens'
 import { waitingOn } from './agents/roster'
@@ -13,7 +13,8 @@ import { fileLines } from './sections/files'
 import { sourceRows } from './sections/sources'
 import { todoRows } from './sections/todo'
 import type { TodoLevel } from './sections/todo'
-import { stepLines } from './steps/rows'
+import { formatSpan } from '../shared/time'
+import { sectionLabel, stepLines } from './steps/rows'
 import { partsOf, plain } from './line'
 import type { Line } from './line'
 
@@ -80,6 +81,7 @@ export function paneRows(log: StepLog, now: number, width: number, rows: number,
  * @param isPromptCovered a dialog covers the prompt
  * @param data the roster and the turn's work
  * @param whole the sections shown whole
+ * @param pinned the turn pinned in place of the live one
  * @returns the rows
  */
 export function paneLines(
@@ -89,15 +91,30 @@ export function paneLines(
   rows: number,
   isPromptCovered = false,
   data: PaneData = NO_DATA,
-  whole: ReadonlySet<Section> = new Set()
+  whole: ReadonlySet<Section> = new Set(),
+  pinned?: TurnRecord
 ): Line[] {
   const { roster, work } = data
   const head = headRows(log, now, width, isPromptCovered, waitingOn(roster)).map(plain)
   const own = log.steps.length > 0 || log.dropped > 0
-  const shown = own ? log : log.prev === null ? undefined : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
+  // Pinned (E.45): [ STEPS ], [ FILES ] and [ SOURCES ] show that turn; the head, [ AGENTS ] and [ TODO ] stay live.
+  const shown =
+    pinned !== undefined
+      ? { ...log, steps: pinned.steps, dropped: pinned.dropped }
+      : own
+        ? log
+        : log.prev === null
+          ? undefined
+          : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
+  const pinTag = pinned === undefined ? '' : ` · TURN ${pinned.turnNo}`
+  const files = pinned?.files ?? work.files
+  const sources =
+    pinned === undefined
+      ? { pages: work.sources, cited: work.cited, isRunning: log.isTurnRunning }
+      : { pages: pinned.sources, cited: pinned.cited, isRunning: false }
   const count = shown === undefined ? 0 : shown.steps.length + shown.dropped
   const want = rows < 24 ? STEP_ROWS_MIN : STEP_ROWS_WANT
-  const stepsNeed = shown === undefined ? 0 : 1 + 1 + Math.max(STEP_ROWS_MIN, Math.min(want, count + (count > want ? 1 : 0)))
+  const stepsNeed = (shown === undefined ? 0 : 1 + 1 + Math.max(STEP_ROWS_MIN, Math.min(want, count + (count > want ? 1 : 0)))) + (pinned === undefined ? 0 : 1)
   const isTall = rows >= TALL
   const blank = plain([{ t: ' '.repeat(width), color: C.muted }])
   const levels: Levels = { agents: 'full', todo: 'full', files: 'full', sources: 'full' }
@@ -106,10 +123,18 @@ export function paneLines(
     const sections: Line[][] = [
       levels.agents === 'none' ? [] : agentRows(roster, now, width, levels.agents, cap('agents', AGENTS_CAP)).map(plain),
       levels.todo === 'none' ? [] : todoRows({ items: work.todo, isRevised: work.isRevised }, width, cap('todo', isTall ? 5 : 3), levels.todo).map(plain),
-      levels.files === 'none' ? [] : fileLines(work.files, width, cap('files', isTall ? 6 : 4), levels.files === 'label'),
+      levels.files === 'none' ? [] : fileLines(files, width, cap('files', isTall ? 6 : 4), levels.files === 'label', `FILES${pinTag}`),
       levels.sources === 'none'
         ? []
-        : sourceRows(work.sources, work.cited, log.isTurnRunning, width, cap('sources', isTall ? 4 : 3), levels.sources === 'label').map(plain)
+        : sourceRows(
+            sources.pages,
+            sources.cited,
+            sources.isRunning,
+            width,
+            cap('sources', isTall ? 4 : 3),
+            levels.sources === 'label',
+            `SOURCES${pinTag}`
+          ).map(plain)
     ]
 
     return sections.flatMap(section => (section.length > 0 ? [blank, ...section] : []))
@@ -124,11 +149,20 @@ export function paneLines(
     lower = lowerRows()
   }
 
-  const left = rows - head.length - lower.length - 1
-  const title = own ? 'STEPS' : `STEPS · TURN ${log.prev?.turnNo ?? 0}`
+  const left = rows - head.length - lower.length - 1 - (pinned === undefined ? 0 : 1)
+  const title = pinned !== undefined ? `STEPS${pinTag} · PINNED` : own ? 'STEPS' : `STEPS · TURN ${log.prev?.turnNo ?? 0}`
+  const style = pinned === undefined ? {} : { color: C.textBright, extra: formatSpan(pinned.durationMs) }
   // Too short for three step rows: no steps, unless a section shown whole already scrolls the pane.
   const room = left >= 1 + STEP_ROWS_MIN ? left : whole.size > 0 ? 1 + STEP_ROWS_MIN : 0
-  const steps = shown === undefined || room === 0 ? [] : stepLines(shown, width, room, title)
+  const listed = shown === undefined || room === 0 ? [] : stepLines(shown, width, room, title, style)
+  // A pinned turn says so under its label, and how to go back; one with no steps still shows its label.
+  const note = plain([{ t: '  pinned · l or /steps for live'.padEnd(width), color: C.dim }])
+  const steps =
+    pinned === undefined
+      ? listed
+      : listed.length > 0
+        ? [listed[0] ?? note, note, ...listed.slice(1)]
+        : [plain(sectionLabel(title, [{ t: `0 steps · ${formatSpan(pinned.durationMs)}`, color: C.muted }], width, C.textBright)), note]
   const fitted = [...head, ...(steps.length > 0 ? [blank, ...steps] : []), ...lower]
 
   // A section shown whole may make the pane taller than its body: the engine scrolls it.
