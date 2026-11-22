@@ -146,15 +146,16 @@ export function noteColumns(width: number | undefined): void {
 }
 
 /**
- * The receipts rows draw from: the state's, or, before the session's start has brought them there (a resumed
- * transcript is drawn first, amendment 8), the store's, so a resumed answer draws its receipt on its first draw.
+ * The receipts rows draw from: the state's, or, until the session's start has brought them there (a resumed
+ * transcript is drawn first, amendment 8, and again while the start restores history), the store's, so a resumed
+ * answer draws its receipt and its `claude` on its first draw.
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
 async function receiptsNow($: EngineInterface): Promise<Receipt[]> {
   const live = await readReceipts($)
 
-  return live.length > 0 || !beforeStart() ? live : storedReceiptList($)
+  return live.length > 0 ? live : storedReceiptList($)
 }
 
 /**

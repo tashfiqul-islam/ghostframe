@@ -508,22 +508,26 @@ test('resume: while the first new turn runs, every resumed answer still draws wh
     { ...aTurn(1, T0), receipts: [receipt(1, 'row1')] },
     { ...aTurn(2, T0 + 100_000), receipts: [receipt(2, 'row2')] }
   ]
-  // The session's stored messages: what `--continue` brings back.
+  // The session's stored messages, as `--continue` brings them back: live, with no uuids.
   const said = [
-    { role: 'user', text: 'prompt 1', toolUses: [], uuid: 'u1' },
-    { role: 'assistant', text: 'Turn 1 done.', toolUses: [], uuid: 'row1' },
-    { role: 'user', text: 'prompt 2', toolUses: [], uuid: 'u2' },
-    { role: 'assistant', text: 'Turn 2 done.', toolUses: [], uuid: 'row2' }
+    { role: 'user', text: 'prompt 1', toolUses: [] },
+    { role: 'assistant', text: 'Turn 1 done.', toolUses: [] },
+    { role: 'user', text: 'prompt 2', toolUses: [] },
+    { role: 'assistant', text: 'Turn 2 done.', toolUses: [] }
   ]
   engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed', [], true, said)
+  // The engine draws the resumed transcript before the session starts (amendment 8).
+  const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   await (await $.ui.mount(focused(false))).unmount()
 
   // The first turn after the resume starts; the engine draws the resumed rows again meanwhile.
   await $.prompt.submit({ text: 'prompt 3', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'prompt 3', turnId: 'e3' })
-  const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
+  await first.redraw()
 
   expect(await rowsOf(first)).toContainEqual(expect.stringContaining('Turn 1 done.'))
   expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
+  // Its final look: `claude` on the answer, never taken for the running turn's text.
+  expect(await rowsOf(first)).toContain('claude')
 })

@@ -26,9 +26,10 @@ export async function isHiddenNarration($: EngineInterface, text: string, row: s
   const running = await runningTurn($)
   const block = quietFlow[at]
   const nextTool = block === undefined ? undefined : quietFlow.slice(at + 1).find(f => f.turn === block.turn && f.kind === 'tool')
-  // A row the session held when it started (a resumed answer) is never the running turn's: the flow, empty after a
-  // resume, does not hold it, yet it is decided (amendment 12).
-  const isUndecided = running !== undefined && !isStartRow(row) && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
+  // A row the session held when it started (a resumed answer, drawn before the start) is never the running turn's:
+  // the flow, empty after a resume, does not hold it, yet it is decided (amendment 12).
+  const isStart = isStartRow(row, running !== undefined)
+  const isUndecided = running !== undefined && !isStart && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
 
   if (at >= 0) return isNarrationAt(quietFlow, at) || isUndecided
 

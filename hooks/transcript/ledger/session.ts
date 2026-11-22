@@ -45,15 +45,20 @@ export function sessionCwd(): string | undefined {
   return cwd
 }
 
-// The rows the session held when it started (a resume, a reload): no turn of this process wrote them.
-let startRows = new Set<string>()
+// The rows the session held when it started (a resume, a reload): the engine draws them before `session.start`
+// (amendment 8), and no turn of this process wrote them. Live, `$.session.messages()` gives no uuids to read them by.
+const startRows = new Set<string>()
 
 /**
- * Whether a row was already in the session when it started: a resumed or reloaded row, never a running turn's.
+ * Whether a row was already in the session when it started: a resumed or reloaded row, never a running turn's. A row
+ * first drawn before this copy of the module saw `session.start`, with no turn running, is one.
  * @param row the row's id
- * @returns whether it was
+ * @param isTurnRunning whether a main-loop turn runs now
+ * @returns whether it is
  */
-export function isStartRow(row: string): boolean {
+export function isStartRow(row: string, isTurnRunning: boolean): boolean {
+  if (cwd === undefined && !isTurnRunning) startRows.add(row)
+
   return startRows.has(row)
 }
 
@@ -220,7 +225,6 @@ export function registerSession(on: On): void {
       const found = await $.session.messages()
 
       if (Array.isArray(found)) {
-        startRows = new Set(found.flatMap(m => (m.uuid === undefined ? [] : [m.uuid])))
         const keys: string[] = []
         let waiting = false
 

@@ -13,6 +13,7 @@ import { closeRow } from '../../draw/grid'
 import { drawParts, drawRows } from '../../draw/parts'
 import { browserOpenAbove, firstKey, flowPlace, inTurn, isQuietOpenerAt, isTurnOpener, isWebTool, sameKey } from '../../ledger/flow'
 import { readFlow } from '../../../shared/flow'
+import { isStartRow } from '../../ledger/session'
 import { openerCaps, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
 import { sourcesFrame } from '../../research/sources'
 import { drawBlock } from './blocks'
@@ -80,10 +81,12 @@ export function registerReply(on: On): void {
     const blocksSoFar = await readFlow($)
     const turnNow = await readTurn($)
     // Its own key first: a later block that only starts like this one is another block.
-    // A prefix (text still streaming) is looked for in the running turn only.
+    // A prefix (text still streaming) is looked for in the running turn only. A row the session held when it started
+    // (a resumed answer) is never the running turn's, so it is never placed at that turn's end.
+    const isLiveBlock = live && !isStartRow(e.requestId, live)
     const place =
       flowPlace(blocksSoFar, f => f.kind === 'text' && f.key === key, false, turnNow) ??
-      flowPlace(blocksSoFar, f => f.kind === 'text' && (!live || f.turn === turnNow) && sameKey(f.key, key), live, turnNow)
+      flowPlace(blocksSoFar, f => f.kind === 'text' && (!isLiveBlock || f.turn === turnNow) && sameKey(f.key, key), isLiveBlock, turnNow)
     // This draw's message, across remounts (see `messageOf`).
     const message = messageOf(e.requestId, key, place?.turn ?? null)
 
