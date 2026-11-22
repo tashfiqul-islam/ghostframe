@@ -336,3 +336,18 @@ test('resume with the stamps kept and the history gone: the next turn still take
   await typed($, clock, 4)
   expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 · RESUMED \] /)
 })
+
+test('resume: `/steps n all` prints a kept turn`s steps, though the flow that drew them live is gone', ON, async ($, on) => {
+  const clock = { now: T0 + 3_600_000 }
+  const store: Store = new Map<string, unknown>([
+    ['prompts:s1', [{ text: 'prompt 1', at: T0, row: 'u1', turnNo: 1 }]],
+    ['history:s1', { savedAt: T0, turns: [{ ...aTurn(1, T0), turns: ['e1'] }] }]
+  ])
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+
+  const all = ((await $.command.run(steps('1 all') as never)) as { text?: string }).text ?? ''
+  expect(all).toContain('module-0')
+  expect(all).toContain('module-19')
+})

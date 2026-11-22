@@ -46,7 +46,8 @@ const span = (ns: readonly number[]) => (ns.length === 0 ? 'none' : ns.length ==
 
 /**
  * The ctrl+o rows of one typed turn (E.4): each sentence Claude said while working, each step under it with its diff
- * or output in a frame. An output here is the excerpt history kept, with what it left out said under it.
+ * or output in a frame. An output here is the excerpt history kept, with what it left out said under it. A turn from
+ * before a resume has no flow left to place them by: its kept steps, in order, without the sentences.
  * @param $ the engine interface
  * @param turnNo the typed turn
  * @param width the frame
@@ -63,6 +64,22 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
   const said = await messages($)
   const mine = new Set(turns)
   const seen = new Set<string>()
+  const stepRows = (step: (typeof view.steps)[number]): Part[][] => {
+    const detail = view.details.find(d => d.id === step.id)
+    const left = detail === undefined ? 0 : detail.lines - detail.excerpt.length
+    const below =
+      detail === undefined
+        ? []
+        : detail.patch.length > 0
+          ? diffFrame(step.subject, detail.patch, width)
+          : step.kind === 'shell' || step.kind === 'test'
+            ? outputFrame(detail.excerpt.join('\n'), width, left > 0 ? `… ${left} more ${left === 1 ? 'line' : 'lines'} not kept` : undefined)
+            : []
+
+    return [stepRow(step, detail?.ms, width), ...below]
+  }
+
+  if (!flow.some(f => f.turn !== null && mine.has(f.turn))) return view.steps.flatMap(stepRows)
 
   return flow.flatMap((f, i): Part[][] => {
     if (f.turn === null || !mine.has(f.turn)) return []
@@ -81,18 +98,8 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
     if (step === undefined || seen.has(step.id)) return []
 
     seen.add(step.id)
-    const detail = view.details.find(d => d.id === step.id)
-    const left = detail === undefined ? 0 : detail.lines - detail.excerpt.length
-    const below =
-      detail === undefined
-        ? []
-        : detail.patch.length > 0
-          ? diffFrame(step.subject, detail.patch, width)
-          : step.kind === 'shell' || step.kind === 'test'
-            ? outputFrame(detail.excerpt.join('\n'), width, left > 0 ? `… ${left} more ${left === 1 ? 'line' : 'lines'} not kept` : undefined)
-            : []
 
-    return [stepRow(step, detail?.ms, width), ...below]
+    return stepRows(step)
   })
 }
 
