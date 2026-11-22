@@ -17,6 +17,8 @@ export type RecordParts = {
   receipts: readonly Receipt[]
   details: readonly StepDetail[]
   diffs: readonly FileDiff[]
+  /** The row ids of the turn's narration. */
+  narration?: readonly string[]
 }
 
 /**
@@ -46,7 +48,8 @@ export function recordOf(parts: RecordParts): TurnRecord {
     receipts: [...parts.receipts],
     details: parts.details.filter(d => ids.has(d.id)),
     diffs: [...parts.diffs],
-    isTrimmed: false
+    isTrimmed: false,
+    narration: [...(parts.narration ?? [])]
   }
 }
 

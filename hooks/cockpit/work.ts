@@ -21,7 +21,8 @@ const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 // tree against HEAD (`git diff --numstat HEAD`, and `git ls-files --others` for new files, their lines counted once) at
 // the typed turn's start and after each call that can change files, a shell step's rows being what moved between the
 // two. The engine's `$.vcs.diff` answers `unknown` unless another plugin implements it, so Git is run directly.
-// Outside a Git work tree (or before its first commit), the files a shell command names as write targets.
+// Before its first commit Git has seen nothing: every file it lists, staged or not, is new. Outside a Git work tree,
+// the files a shell command names as write targets.
 // shortcut: the work tree and the last diff live in the module; a reload forgets them, and the next shell step then
 // starts from a fresh diff, listing nothing it changed before. Move them to $.state if that matters.
 /** The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). */
@@ -105,8 +106,13 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
     if (copy === null) return undefined
 
     const root = copy.root
-    const tracked = await $.process.run(['git', 'diff', '--numstat', '--no-renames', 'HEAD', '--'], { cwd: root })
-    const others = await $.process.run(['git', 'ls-files', '--others', '--exclude-standard', '-z'], { cwd: root })
+    // No commit yet (asked again until there is one): nothing to diff against, so no tracked rows, and the index's
+    // files count as new beside the untracked ones.
+    const hasHead = (await $.process.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root })).exitCode === 0
+    const tracked = hasHead
+      ? await $.process.run(['git', 'diff', '--numstat', '--no-renames', 'HEAD', '--'], { cwd: root })
+      : { exitCode: 0, stdout: '', stderr: '' }
+    const others = await $.process.run(['git', 'ls-files', ...(hasHead ? [] : ['--cached']), '--others', '--exclude-standard', '-z'], { cwd: root })
 
     if (tracked.exitCode !== 0 || others.exitCode !== 0) throw new Error((tracked.stderr || others.stderr).trim())
 

@@ -8,7 +8,7 @@ import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-c
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
-import { FIRST_COLUMNS, logSeatError, registerPane } from './pane'
+import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
 
@@ -24,7 +24,10 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
   markStarted()
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
   setEnvOn(await isEnvSet($))
-  await $.command.register({ name: STEPS, description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live' })
+  await $.command.register({
+    name: STEPS,
+    description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live; /steps <n> all prints its steps'
+  })
 
   try {
     await logSessionStart($)
@@ -34,6 +37,8 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
     void seat($).catch((error: unknown) => logSeatError($, error))
+  } else {
+    markStartSeated()
   }
 }
 
@@ -42,7 +47,7 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
  * @param $ the engine interface
  */
 async function seat($: EngineInterface): Promise<void> {
-  const { isPlaced } = await $.ui.open({ id: PANE, columns: FIRST_COLUMNS })
+  const isPlaced = await seatAtStart($)
 
   if (!isPlaced) return
 

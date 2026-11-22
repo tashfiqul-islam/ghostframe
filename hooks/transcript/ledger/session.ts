@@ -7,6 +7,7 @@ import { startCockpit } from '../../cockpit/feature'
 import { logCited, logSaid } from '../../cockpit/log'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
+import { readFlow, updateFlow } from '../../shared/flow'
 import { capTurns } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
@@ -15,13 +16,11 @@ import { firstKey } from './flow'
 import {
   readAwaitingFirst,
   restorePrompts,
-  readFlow,
   readTurn,
   updateAwaitingFirst,
   updateCaps,
   updateFirstTexts,
   updateFirstTools,
-  updateFlow,
   updateOpeners,
   updateTally
 } from './state'
@@ -44,7 +43,7 @@ export function sessionCwd(): string | undefined {
 type Content = ReadonlyArray<{ type: string; text?: unknown; id?: unknown; name?: unknown; input?: unknown }>
 
 // Each stored assistant block, in order, under the current turn; cited links count as sources.
-async function noteFlow($: EngineInterface, content: Content) {
+async function noteFlow($: EngineInterface, content: Content, row: string | undefined) {
   const turn = await readTurn($)
   const items: FlowStamp[] = []
   const links: string[] = []
@@ -54,7 +53,7 @@ async function noteFlow($: EngineInterface, content: Content) {
     if (b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0) {
       const { own } = citationsOf(splitBlocks(b.text), earlier)
 
-      items.push({ turn, kind: 'text', key: firstKey(b.text), ...(own.length > 0 ? { cites: own } : {}) })
+      items.push({ turn, kind: 'text', key: firstKey(b.text), ...(row === undefined ? {} : { row }), ...(own.length > 0 ? { cites: own } : {}) })
       earlier.push(...own.filter(c => !earlier.some(x => x.url === c.url)))
       links.push(...own.map(c => c.url))
     } else if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
@@ -213,7 +212,7 @@ export function registerSession(on: On): void {
           lastAnswer = { turn: await readTurn($), row: e.uuid }
         }
 
-        await noteFlow($, e.message.content)
+        await noteFlow($, e.message.content, e.uuid)
         await logSaid($, e.message.content)
       }
 

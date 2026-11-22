@@ -2,7 +2,8 @@
 // the fold row, or the engine's row in the grid.
 import type { On } from 'claude-code'
 
-import { drawQuietCall, isQuietRow } from '../../../cockpit/left'
+import { readEnvOnce } from '../../../cockpit/switch'
+import { drawQuietCall, drawUnfoldedCall, isQuietRow, noteView } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { stepParts } from '../../activity/row'
@@ -15,7 +16,8 @@ import { drawStep, stepTime } from '../../draw/step'
 import { frameRow } from '../../frame'
 import { afterNarration, browserOpenAbove, flowPlace, isBrowserTool } from '../../ledger/flow'
 import { sessionCwd } from '../../ledger/session'
-import { openerCaps, readAsked, readFirstTools, readFlow, readSteps, readStreaming, readTurn } from '../../ledger/state'
+import { readFlow } from '../../../shared/flow'
+import { openerCaps, readAsked, readFirstTools, readSteps, readStreaming, readTurn } from '../../ledger/state'
 import { quietEvent } from './quiet'
 
 /**
@@ -26,10 +28,21 @@ export function registerToolUse(on: On): void {
   // A standalone call's row. ctrl+o (expanded) stays the engine's; a tool we can't read is
   // the engine's row, in the gutter grid.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
     // Only the paths that hand the row to the engine pay for the quieted output.
     const quiet = () => quietEvent(e)
+
+    // ctrl+o (E.4): every call is a step row under its sentence, with its diff or output in a frame.
+    if (e.surface === 'terminal') noteView($, e.props.isExpanded)
+    if (e.surface === 'terminal' && e.props.isExpanded === true && lay !== undefined && width !== undefined) {
+      const unfolded = await drawUnfoldedCall($, e, ruleWidth(lay) ?? width)
+
+      if (unfolded !== undefined) return unfolded
+    }
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(quiet())
@@ -39,7 +52,7 @@ export function registerToolUse(on: On): void {
 
     // Quiet: every step is the pane's, a fetch or an agent launch as much as a folded group; only a push or a pull
     // request leaves a row here (E.5).
-    if (isQuietRow(e.requestId)) {
+    if (isQuietRow(e)) {
       return drawQuietCall($, e, ruleWidth(lay) ?? width)
     }
 

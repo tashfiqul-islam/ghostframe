@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { CapsStamp, FirstText, FlowStamp, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnClose } from '../../../types'
+import type { CapsStamp, FirstText, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnClose } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -16,8 +16,6 @@ const caps = atom({ plugin: 'ghostframe', key: 'caps' } as const, NO_CAPS, { sha
 const openers = atom({ plugin: 'ghostframe', key: 'openers' } as const, [] as OpenerCaps[], { shape: 'openers-2' })
 // What the whole turn used, for the close rule's tally.
 const tally = atom({ plugin: 'ghostframe', key: 'tally' } as const, NO_TALLY, { shape: 'tally-1' })
-// Assistant blocks in stored order, so a block knows what sits right above it.
-const flow = atom({ plugin: 'ghostframe', key: 'flow' } as const, [] as FlowStamp[], { shape: 'flow-1' })
 // Read off shell calls as they end: test counts and what was shipped, by call id.
 const testRuns = atom({ plugin: 'ghostframe', key: 'testRuns' } as const, [] as TestRunStamp[], { shape: 'testRuns-1' })
 const ships = atom({ plugin: 'ghostframe', key: 'ships' } as const, [] as ShipStamp[], { shape: 'ships-1' })
@@ -92,14 +90,6 @@ export async function readTally($: EngineInterface): Promise<TallyStamp> {
 
 export async function updateTally($: EngineInterface, change: (t: TallyStamp) => TallyStamp): Promise<TallyStamp> {
   return update($, tally, change)
-}
-
-export async function readFlow($: EngineInterface): Promise<FlowStamp[]> {
-  return read($, flow)
-}
-
-export async function updateFlow($: EngineInterface, change: (list: FlowStamp[]) => FlowStamp[]): Promise<FlowStamp[]> {
-  return update($, flow, change)
 }
 
 export async function readTestRuns($: EngineInterface): Promise<TestRunStamp[]> {

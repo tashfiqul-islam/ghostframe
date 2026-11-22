@@ -2,8 +2,9 @@
 // output and the info notice under the logo.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../cockpit/switch'
 import type { TurnClose } from '../../../types'
-import { drawLive, drawQuietFooter, isQuietRow } from '../../cockpit/left'
+import { drawLive, drawQuietFooter, isQuietRow, noteView } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
@@ -72,17 +73,20 @@ export function registerChrome(on: On): void {
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
+    if (e.surface === 'terminal') noteView($, e.props.isExpanded)
+
     if (e.surface !== 'terminal' || e.props.isExpanded) {
       return next(e)
     }
 
     // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
-    // reports start share one footer, or get none, so a footer can't say which turn it closes. In fallback, a turn
-    // that wrote no text has its capsule and receipt here (E.3 case 3).
-    if (isQuietRow(e.requestId)) {
-      const lay = layout(e.viewport?.columns)
-
-      return drawQuietFooter($, e, ruleWidth(lay) ?? lay?.width ?? 0)
+    // reports start share one footer, or get none, so a footer can't say which turn it closes. A turn that wrote no
+    // text has its receipt (in fallback with its capsule) under its last call's row instead (E.3 case 3).
+    if (isQuietRow(e)) {
+      return drawQuietFooter($, e)
     }
 
     if (e.props.waitingFor) {
@@ -119,6 +123,9 @@ export function registerChrome(on: On): void {
   // The spinner (§5.11): props only. The verb says what the turn does; the engine keeps
   // its own time, tokens and `esc` hint. A state's own message stands.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     // Docked Cockpit: the live area is one `working` row (E.33).
     const live = e.surface === 'terminal' ? await drawLive($, e) : undefined
 

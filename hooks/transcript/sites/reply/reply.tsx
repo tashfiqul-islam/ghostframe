@@ -2,7 +2,8 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { drawAnswerCapsule, drawAnswerReceipt, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
+import { readEnvOnce } from '../../../cockpit/switch'
+import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -11,7 +12,8 @@ import { cell, claude } from '../../draw/cell'
 import { closeRow } from '../../draw/grid'
 import { drawParts, drawRows } from '../../draw/parts'
 import { browserOpenAbove, firstKey, flowPlace, inTurn, isQuietOpenerAt, isTurnOpener, isWebTool, sameKey } from '../../ledger/flow'
-import { openerCaps, readFirstTexts, readFlow, readStreaming, readTurn } from '../../ledger/state'
+import { readFlow } from '../../../shared/flow'
+import { openerCaps, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
 import { sourcesFrame } from '../../research/sources'
 import { drawBlock } from './blocks'
 import type { Reply } from './blocks'
@@ -29,6 +31,9 @@ export function registerReply(on: On): void {
   // one measure. Plain paragraphs and headings are laid out here (exact widths, code
   // chips); anything else goes through the engine's Markdown, links and all.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     const lay = layout(e.viewport?.columns)
 
     if (e.surface !== 'terminal' || e.props.text.trim().length === 0 || lay === undefined) {
@@ -39,7 +44,12 @@ export function registerReply(on: On): void {
     // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
     // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
     // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
-    if (isQuietRow(e.requestId) && (await isHiddenNarration($, e.props.text))) {
+    // ctrl+o (E.4): a sentence Claude said while working is a `│` row, the steps it announced under it.
+    const sentence = await drawUnfoldedSentence($, e, firstKey(e.props.text), ruleWidth(lay) ?? lay.width)
+
+    if (sentence !== undefined) return sentence
+
+    if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId))) {
       const { Box } = $.ui.resolve(e)
 
       return <Box />
@@ -124,7 +134,7 @@ export function registerReply(on: On): void {
     // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
     // every tool call too). A reply that opens on a wide table gets the label on its own row.
     // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
-    const isQuietLeft = isQuietRow(e.requestId)
+    const isQuietLeft = isQuietRow(e)
     const isOpener = isQuietLeft
       ? place === undefined
         ? await endsKeptTurn($, e.requestId)
@@ -142,7 +152,9 @@ export function registerReply(on: On): void {
     const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
     const gap = replyGap(message, prev, place?.turn)
     // Fallback: a block that stays opens with the capsule of the work before it (E.3), decided before its receipt.
-    const opening = isQuietLeft ? await drawAnswerCapsule($, e, place?.turn, ruleWidth(lay) ?? width) : undefined
+    const opening = isQuietLeft
+      ? await drawAnswerCapsule($, e, place === undefined ? undefined : blocksSoFar[place.at]?.key, place?.turn, ruleWidth(lay) ?? width)
+      : undefined
     const capsule = opening?.capsule
     // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
     const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')

@@ -11,6 +11,8 @@ import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { loadHistory, saveTurn, setPin } from './history/store'
+import { clearSwitch } from './tui'
+import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { isOn } from './switch'
@@ -95,6 +97,8 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await startWork($, cwd)
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
+    // A `/tui` switch is old news too; a note that cannot be cleared costs a repeat of it after a reload, nothing more.
+    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`))
   }
 
   lastMode = undefined
@@ -226,7 +230,10 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
-  const receipt = { ...receiptOf(await read($, stepLog), waiting), answer }
+  const ended = await read($, stepLog)
+  // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
+  const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
+  const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
 
   if (anyRunning(await read($, roster))) startTimers($, false)
@@ -249,7 +256,13 @@ async function keepTurn($: EngineInterface): Promise<void> {
     const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
 
     const mine = (await read($, receipts)).filter(r => r.turnNo === log.turnNo)
-    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs })
+    // The turn's narration, by row id, so a resumed transcript (no flow) leaves it hidden as the live one did.
+    const turns = new Set([...mine.flatMap(r => (r.turn === null ? [] : [r.turn])), ...(log.turn === null ? [] : [log.turn])])
+    const flow = await readFlow($)
+    const narration = flow.flatMap((f, i) =>
+      f.kind === 'text' && f.row !== undefined && f.turn !== null && turns.has(f.turn) && isNarrationAt(flow, i) ? [f.row] : []
+    )
+    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
   } catch (error: unknown) {
     $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`)
   }

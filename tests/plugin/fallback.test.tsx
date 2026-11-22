@@ -37,6 +37,7 @@ test('the same turn at 200 columns docked and at 100 columns in fallback shows t
   fallbackEngine(on, clock, true)
 
   // Turn 1, docked at 200 columns: the transcript region is 127 wide beside a 72-column pane.
+  await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
   const pane = await $.ui.mount(PANE)
   await mixedTurn($, clock, 1)
   const docked = await answerRows($, 1, 127)

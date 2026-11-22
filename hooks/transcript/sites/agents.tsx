@@ -3,6 +3,7 @@
 // roster is. Hidden rows stay in the engine's full list.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../cockpit/switch'
 import { isFallback, isQuiet } from '../../cockpit/left'
 import { runningTurn } from '../../cockpit/log'
 
@@ -12,6 +13,9 @@ import { runningTurn } from '../../cockpit/log'
  */
 export function registerAgentRows(on: On): void {
   on('ui.render', { component: 'AgentRow' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     if (e.surface !== 'terminal' || !(isQuiet() || (isFallback() && (await runningTurn($)) !== undefined))) {
       return next(e)
     }

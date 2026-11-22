@@ -1,6 +1,7 @@
 // Under a standalone row (`ToolResult`): outcome cards, a new file's diff card, the plan line, the task list.
 import type { On } from 'claude-code'
 
+import { isUnfoldedResult } from '../../../cockpit/left'
 import { mcpName } from '../../../shared/calls/describe'
 import { isObject } from '../../../shared/calls/fields'
 import { remember } from '../../../shared/held'
@@ -89,6 +90,11 @@ export function registerToolResult(on: On): void {
     const { tool, output, isErrored } = e.props
     // Only the paths that hand the result to the engine pay for the quieted output.
     const quiet = () => quietEvent(e)
+
+    // ctrl+o (E.4): a step's output is in the frame under its row; its result row draws nothing.
+    if (e.surface === 'terminal' && e.props.isExpanded === true && (await isUnfoldedResult($, e.props.tool_use_id))) {
+      return $.ui.resolve(e).Box({})
+    }
 
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(quiet())

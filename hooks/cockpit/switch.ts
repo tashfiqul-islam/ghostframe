@@ -25,6 +25,26 @@ export function setOptionOn(value: boolean): void {
  */
 export function setEnvOn(value: boolean): void {
   isEnvOn = value
+  isEnvRead = true
+}
+
+/** Whether this copy of the module has read GHOSTFRAME_COCKPIT yet. */
+let isEnvRead = false
+
+/**
+ * Reads GHOSTFRAME_COCKPIT once per copy of the module. `session.start` reads it, but `/tui` loads the hooks module
+ * again with no `session.start` (probe 19), so the first draw after a reload reads it, and redraws when it turns
+ * Cockpit on: the rows already drawn off then draw again.
+ * @param $ the engine interface
+ */
+export async function readEnvOnce($: EngineInterface): Promise<void> {
+  if (isEnvRead) return
+
+  isEnvRead = true
+  const was = isOn()
+  setEnvOn(await isEnvSet($))
+
+  if (isOn() !== was) $.ui.invalidate('ui.render')
 }
 
 /**
