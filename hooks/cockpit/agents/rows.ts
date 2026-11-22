@@ -55,7 +55,7 @@ function tree(roster: readonly RosterAgent[]): { agent: RosterAgent; depth: numb
     .map(agent => ({ agent, depth: depth.get(agent.id) ?? 1, deeper: deeper.get(agent.id) ?? 0 }))
 }
 
-/** One agent's row, exactly `width` cells: `◇ name  kind  subject … steps · time`. */
+/** One agent's row, exactly `width` cells: `◇ name  kind  subject … steps · time` (`time` alone at 0 steps). */
 function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, width: number): Part[] {
   const isWide = width >= 56
   const nameW = (width >= 72 ? 22 : isWide ? 18 : 16) - (depth > 1 ? 2 : 0)
@@ -72,7 +72,8 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
       ? [{ t: 'done   ', color: C.dim }, ...(isWide ? [{ t: subject, color: C.dim }] : [])]
       : [{ t: step.kind.padEnd(7).slice(0, 7), color: C.muted }, ...(isWide ? [{ t: ` ${subject}`, color: C.text }] : [])]
   const time = formatSpan(Math.max(0, (a.endedAt ?? now) - a.startedAt))
-  const right = `${String(a.steps).padStart(3)} · ${time.padStart(7)}`
+  // No steps yet: the count and its separator go, and the time keeps its column (amendment 9).
+  const right = `${a.steps > 0 ? `${String(a.steps).padStart(3)} · ` : ' '.repeat(6)}${time.padStart(7)}`
   const left: Part[] = [
     ...(depth > 1 ? [{ t: '  ', color: C.muted }] : []),
     glyph,

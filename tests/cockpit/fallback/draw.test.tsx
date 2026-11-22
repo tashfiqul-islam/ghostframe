@@ -143,8 +143,20 @@ test('the inspector offers the keys that work on one section: s, c, p, n (E.46);
     props: { ...PANE.props, placement: 'inline', bodyColumns: 100, isFocused: true, scroll: { offset: 0, bodyRows: 12 } },
     viewport: view(100)
   })
-  const keys = (await inline.findAll({ type: 'Button' })).map(b => b.props['hotkey']).filter(k => k !== undefined)
-  expect(keys).toEqual(['s', 'c', 'p', 'n'])
+  const keysNow = async () => (await inline.findAll({ type: 'Button' })).map(b => b.props['hotkey']).filter(k => k !== undefined)
+  expect(await keysNow()).toEqual(['s', 'c', 'p', 'n'])
+
+  // `s` opens every step: the hint row offers what works there, `b: back` with it, first so it is on screen.
+  await inline.press({ key: 'key-s' })
+  await inline.redraw()
+  expect(await keysNow()).toEqual(['s', 'c', 'b'])
+  const labels = (await inline.findAll({ type: 'Button' })).filter(b => b.props['hotkey'] !== undefined).map(b => b.text)
+  expect(labels).toEqual(['fit', 'copy', 'back'])
+
+  // `b` goes back to the fitted section, and its keys come back.
+  await inline.press({ key: 'key-b' })
+  await inline.redraw()
+  expect(await keysNow()).toEqual(['s', 'c', 'p', 'n'])
   await inline.unmount()
 })
 

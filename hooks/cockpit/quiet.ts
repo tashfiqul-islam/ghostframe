@@ -38,7 +38,7 @@ const STATE = {
 /**
  * The receipt (E.32, amendment 3: the state word, no turn number) and, above it, a `still failing` row for each
  * failure nothing fixed (E.5), each at the clock of its failure. An interrupted turn has none (correction G).
- * In fallback (E.32) the capsule already said the steps, so the receipt does not unless the turn drew more than one
+ * In fallback (E.32) the capsule already said the steps, so the receipt does not when the turn drew exactly one
  * capsule; and each failure drew its row when it happened, so no `still failing` row repeats it. Narrow, fields
  * drop in E.32's order (the commit first, then sources, files, agents, steps); the exceptions, the state word and
  * the time always stay.
@@ -60,7 +60,9 @@ export function receiptRows(receipt: Receipt, width: number, fallback?: { capsul
   // A turn still waiting on its agents names them in its state word: said once.
   const launched = receipt.state === 'waiting' ? 0 : (receipt.launched ?? 0)
   const pages = receipt.sources ?? 0
-  const isStepsSaid = fallback !== undefined && fallback.capsules <= 1
+  // Exactly one capsule said them; none drawn (a resumed transcript, a reload, a turn of no steps) or several, it says
+  // them itself: no turn is left without its numbers (E.47).
+  const isStepsSaid = fallback !== undefined && fallback.capsules === 1
   // Each field with the rank it drops at when the row is too narrow: higher goes first; 0 never goes.
   const fields: [string, number][] = [
     // A turn with no steps of its own says so: it never borrows another turn's count.

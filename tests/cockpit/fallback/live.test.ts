@@ -34,6 +34,23 @@ test('no step running: the moment in words; the first request says `waiting  for
   expect(text(liveRows(noteMode(log, 'responding', T0), [], [], T0 + 9_000, 0, W))[0]).toMatch(/^⠋ writing {2}the answer +9s$/)
 })
 
+test('an agent with no steps yet: its row drops the count and its separator, and the time keeps its column', () => {
+  const log = startStep(newTurn(newLog(null, null), 't1', T0), { id: 'l', tool: 'Agent', input: { description: 'x' }, at: T0 })
+  let roster = addAgent([], { id: 'a', call: 'l', parent: null, name: 'Count files in cwd', isBackground: false, at: T0 })
+  roster = addAgent(roster, { id: 'b', call: 'l', parent: null, name: 'Read the notes', isBackground: false, at: T0 })
+  roster = agentStep(roster, 'b', 'Read', { file_path: 'notes.txt' }, undefined, T0 + 500)
+
+  const rows = text(liveRows(log, roster, [], T0 + 1_000, 0, W))
+  const fresh = rows.find(r => r.startsWith('◇ Count files'))
+  const going = rows.find(r => r.startsWith('◇ Read the notes'))
+  expect(fresh).toMatch(/^◇ Count files in cwd {5}start {3}reading its brief +1s$/)
+  expect(fresh).not.toMatch(/\b0 ·/)
+  expect(going).toMatch(/ 1 · {6}1s$/)
+  // Both times end in the same column.
+  expect(vw(fresh ?? '')).toBe(W)
+  expect(vw(going ?? '')).toBe(W)
+})
+
 test('the roster and the to-do in progress follow the now-row (E.13, E.14), at most 9 rows, finished agents first to go', () => {
   const log = startStep(newTurn(newLog(null, null), 't1', T0), { id: 'l', tool: 'Agent', input: { description: 'x' }, at: T0 })
   let roster: RosterAgent[] = []

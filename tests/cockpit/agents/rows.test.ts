@@ -24,9 +24,9 @@ test('three agents in parallel: one row each in launch order, with kind, subject
   let roster = launched(['Read seat', 'Read switch', 'Read draw'])
   expect(text(roster, T + 2_000)).toEqual([
     expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 3 running$/),
-    expect.stringMatching(/^◇ Read seat {14}start {3}reading its brief +0 · {6}2s$/),
-    expect.stringMatching(/^◇ Read switch {12}start {3}reading its brief +0 · {6}2s$/),
-    expect.stringMatching(/^◇ Read draw {14}start {3}reading its brief +0 · {6}2s$/)
+    expect.stringMatching(/^◇ Read seat {14}start {3}reading its brief +2s$/),
+    expect.stringMatching(/^◇ Read switch {12}start {3}reading its brief +2s$/),
+    expect.stringMatching(/^◇ Read draw {14}start {3}reading its brief +2s$/)
   ])
 
   roster = agentStep(roster, 'a2', 'Read', { file_path: '/r/hooks/cockpit/switch.ts' }, '/r', T + 1_000)
@@ -57,7 +57,7 @@ test('a failed agent is marked ✕ with `failed` bold and its reason; the label 
   let roster = launched(['Audit tests', 'Audit publish-readiness'])
   roster = endAgent(roster, { id: 'a2', status: 'failed', text: 'context limit', at: T + 40_000 })
   const rows = agentRows(roster, T + 50_000, 72)
-  expect(line(rows[2] ?? [])).toMatch(/^✕ Audit publish-readine… failed context limit +0 · {5}40s$/)
+  expect(line(rows[2] ?? [])).toMatch(/^✕ Audit publish-readine… failed context limit +40s$/)
   expect(rows[2]?.[0]).toEqual({ t: '✕', color: C.err })
   expect(rows[2]?.find(p => p.t === 'failed ')).toEqual({ t: 'failed ', color: C.err, bold: true })
   expect(line(rows[0] ?? [])).toMatch(/ 1 failed · 1 running$/)
