@@ -102,8 +102,11 @@ async function streamTurn($: Engine, on: On, text: string, columns: number, web:
   return final
 }
 
+// Each draws a whole turn at every streamed length: about 4.5 s at 140 columns, at the kit's 5 s default.
+const STREAM = { timeoutMs: 15_000 }
+
 for (const columns of [140, 90, 60]) {
-  test(`streamed then completed, ${columns} columns, no tools: rows already drawn never change; final = last streamed`, async ($, on) => {
+  test(`streamed then completed, ${columns} columns, no tools: rows already drawn never change; final = last streamed`, STREAM, async ($, on) => {
     const rows = await streamTurn($, on, TURN, columns, false)
 
     // No web tools: footnote lines, never a frame (§0.2).
@@ -111,7 +114,7 @@ for (const columns of [140, 90, 60]) {
     expect(rows.some(l => /^\s*┄┄┄┄ ¹/.test(l))).toBe(true)
   })
 
-  test(`streamed then completed, ${columns} columns, after a web search: the frame from the first draw on`, async ($, on) => {
+  test(`streamed then completed, ${columns} columns, after a web search: the frame from the first draw on`, STREAM, async ($, on) => {
     const rows = await streamTurn($, on, TURN, columns, true)
 
     expect(rows.some(l => l.includes('[ SOURCES ]'))).toBe(true)

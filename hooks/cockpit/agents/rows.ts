@@ -12,7 +12,8 @@ import { cut, sectionLabel } from '../steps/rows'
 /** How much of `[ AGENTS ]` the pane has room for (E.37's ladder): every row, the agents not done, or the label. */
 export type AgentsLevel = 'full' | 'running' | 'label'
 
-const CAP = 7 // top-level rows; a nested agent rides with its parent and does not count (E.40)
+/** Top-level rows shown; a nested agent rides with its parent and does not count (E.40). `a` shows all (E.44). */
+export const AGENTS_CAP = 7
 
 const spaces = (n: number) => ' '.repeat(Math.max(0, n))
 
@@ -106,9 +107,10 @@ function labelMeta(drawn: ReturnType<typeof tree>, roster: readonly RosterAgent[
  * @param now the wall clock in ms, for a running agent's time
  * @param width the pane's body columns
  * @param level how much fits
+ * @param cap the top-level rows shown; `Infinity` for all (`a`)
  * @returns one Part list per row; none for an empty roster
  */
-export function agentRows(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full'): Part[][] {
+export function agentRows(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full', cap: number = AGENTS_CAP): Part[][] {
   if (roster.length === 0) return []
 
   const drawn = tree(roster)
@@ -118,12 +120,12 @@ export function agentRows(roster: readonly RosterAgent[], now: number, width: nu
 
   const shown = level === 'running' ? drawn.filter(d => d.agent.state !== 'done') : drawn
   const tops = shown.filter(d => d.depth === 1)
-  const lastTop = tops[Math.min(tops.length, CAP) - 1]
+  const lastTop = tops[Math.min(tops.length, cap) - 1]
   let end = lastTop === undefined ? 0 : shown.indexOf(lastTop) + 1
 
   while (shown[end] !== undefined && (shown[end]?.depth ?? 1) > 1) end += 1
 
-  const more = tops.length - CAP
+  const more = tops.length - cap
   const moreRow = (n: number): Part[] => {
     const t = `  … ${n} more`
 

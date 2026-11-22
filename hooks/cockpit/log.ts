@@ -8,6 +8,7 @@ import type { AgentEnd, AgentStart } from './agents/roster'
 import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
+import { noteEnd, noteStart } from './keys/details'
 import { noteShown } from './mode'
 import { isOn } from './switch'
 import { noteCited, noteWork, startWork } from './work'
@@ -140,6 +141,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
   if (!isOn()) return
 
   await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
+  await noteStart($, e.tool_use_id, e.tool, e, at)
 }
 
 /**
@@ -156,6 +158,7 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   const ran = outcome ?? { isError: true as const, text: 'failed' }
   await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
   await noteWork($, e.tool, e, ran, cwd)
+  await noteEnd($, e.tool_use_id, e, ran, at)
   lastMode = 'requesting'
 }
 

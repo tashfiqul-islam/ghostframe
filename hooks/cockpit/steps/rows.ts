@@ -7,6 +7,8 @@ import { C } from '../../shared/tokens'
 import { KIND_W } from './kinds'
 import { isOpen } from './log'
 import { plural } from './results'
+import { partsOf, plain } from '../line'
+import type { Line } from '../line'
 
 const LEAD = 2 + KIND_W // spine, gutter, kind: the subject starts here
 const CLOCK_W = 7 // `59m 59s`
@@ -114,14 +116,29 @@ const OPEN_MAX = 3
  * @returns one Part list per row, none when the turn has no steps
  */
 export function stepRows(log: StepLog, width: number, rows: number, title = 'STEPS'): Part[][] {
+  return partsOf(stepLines(log, width, rows, title))
+}
+
+/** A step's row, as the pane draws it: openable, under the step's id. */
+export const stepLine = (s: LogStep, width: number): Line => ({ parts: stepRow(s, width), id: `step:${s.id}` })
+
+/**
+ * `[ STEPS ]` as `stepRows` fits it, each step's row under its id so the pane can open it.
+ * @param log the turn's log
+ * @param width the pane's body columns
+ * @param rows the rows it may take; `Infinity` for every step (the full view, `s`)
+ * @param title the label
+ * @returns the rows
+ */
+export function stepLines(log: StepLog, width: number, rows: number, title = 'STEPS'): Line[] {
   const steps = log.steps
 
   if (steps.length === 0 || rows < 1) return []
 
-  const label = labelRow(log, width, title)
+  const label = plain(labelRow(log, width, title))
   const room = rows - 1
 
-  if (steps.length <= room && log.dropped === 0) return [label, ...steps.map(s => stepRow(s, width))]
+  if (steps.length <= room && log.dropped === 0) return [label, ...steps.map(s => stepLine(s, width))]
   if (room < 1) return [label]
 
   const open = steps.flatMap((_, i) => (isOpen(steps, i) ? [i] : []))
@@ -137,16 +154,16 @@ export function stepRows(log: StepLog, width: number, rows: number, title = 'STE
   }
 
   const first = steps.length - tail
-  const pinRows: Part[][] =
+  const pinRows: Line[] =
     pinned.length <= OPEN_MAX
       ? pinned.flatMap(i => {
           const s = steps[i]
 
-          return s === undefined ? [] : [stepRow(s, width)]
+          return s === undefined ? [] : [stepLine(s, width)]
         })
-      : [[{ t: cut(`✕ ${pinned.length} open · s shows all`, width).padEnd(width), color: C.err }]]
+      : [plain([{ t: cut(`✕ ${pinned.length} open · s shows all`, width).padEnd(width), color: C.err }])]
   const shownPinned = new Set(pinned.length <= OPEN_MAX ? pinned : [])
   const hidden = steps.filter((_, i) => i < first && !shownPinned.has(i))
 
-  return [label, earlierRow(hidden, log.dropped, width), ...pinRows, ...steps.slice(first).map(s => stepRow(s, width))]
+  return [label, plain(earlierRow(hidden, log.dropped, width)), ...pinRows, ...steps.slice(first).map(s => stepLine(s, width))]
 }
