@@ -57,13 +57,14 @@ function wrap(text: string, room: number): string[] {
  * @param stepNo its number in the turn, from 1
  * @param turnNo the turn's number
  * @param width the pane's body columns
+ * @param owner whose step it is in the label, `TURN n` by default (`AGENT name` for an agent's own)
  * @returns the rows
  */
-export function detailRows(step: LogStep, detail: StepDetail | undefined, stepNo: number, turnNo: number, width: number): Line[] {
+export function detailRows(step: LogStep, detail: StepDetail | undefined, stepNo: number, turnNo: number, width: number, owner = `TURN ${turnNo}`): Line[] {
   const meta: Part[] = [
     { t: [step.isRunning ? 'running' : step.result, formatSpan(step.clock)].filter(t => t.length > 0).join(' · '), color: step.mark === '✕' ? C.err : C.muted }
   ]
-  const label = plain(sectionLabel(`STEP ${stepNo} · TURN ${turnNo}`, meta, width, C.textBright))
+  const label = plain(sectionLabel(`STEP ${stepNo} · ${owner}`, meta, width, C.textBright))
 
   if (detail === undefined)
     return [label, plain(row(`${step.kind} ${step.subject}`, width, C.text)), plain(row('this step`s detail is no longer kept', width, C.dim))]

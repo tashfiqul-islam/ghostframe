@@ -20,11 +20,14 @@ const DIFF_MAX = 400 // diff rows kept
 let snapshots = new Map<string, string | null>()
 /** The files too large to snapshot. */
 let tooLarge = new Set<string>()
+/** The reads under way, by path. */
+let reading = new Map<string, Promise<void>>()
 
 /** A typed turn starts: no file has been read for it yet. */
 export function resetSnapshots(): void {
   snapshots = new Map()
   tooLarge = new Set()
+  reading = new Map()
 }
 
 /** Where a path the pane shows is on disk. */
@@ -60,20 +63,30 @@ function targets(tool: string, input: unknown, cwd: string): string[] {
 export async function snapshotBefore($: EngineInterface, tool: string, input: unknown, cwd: string | undefined): Promise<void> {
   if (cwd === undefined) return
 
-  const fresh = [...new Set(targets(tool, input, cwd))].filter(path => !snapshots.has(path) && !tooLarge.has(path) && !path.startsWith('~'))
+  const named = [...new Set(targets(tool, input, cwd))].filter(path => !path.startsWith('~'))
+  const fresh = named.filter(path => !snapshots.has(path) && !tooLarge.has(path) && !reading.has(path))
 
-  await Promise.all(
-    fresh.map(async path => {
-      try {
-        const text = await $.fs.read(onDisk(path, cwd))
+  // Each path is claimed before its read: a call of an agent beside the main loop's waits for the first read rather
+  // than reading the file again, maybe after the other call changed it.
+  for (const path of fresh) {
+    reading.set(
+      path,
+      (async () => {
+        try {
+          const text = await $.fs.read(onDisk(path, cwd))
 
-        if (text.length > SNAPSHOT_MAX) tooLarge.add(path)
-        else snapshots.set(path, text)
-      } catch {
-        snapshots.set(path, null) // not there yet: the turn creates it
-      }
-    })
-  )
+          if (text.length > SNAPSHOT_MAX) tooLarge.add(path)
+          else snapshots.set(path, text)
+        } catch {
+          snapshots.set(path, null) // not there yet: the turn creates it
+        } finally {
+          reading.delete(path)
+        }
+      })()
+    )
+  }
+
+  await Promise.all(named.map(async path => reading.get(path)))
 }
 
 /**

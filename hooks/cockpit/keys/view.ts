@@ -8,14 +8,29 @@ import type { EngineInterface } from 'claude-code'
 
 import type { LogStep, StepDetail, TurnRecord } from '../../../types'
 import type { Section } from '../fit'
-import { readLog } from '../log'
+import { readLog, readRoster } from '../log'
 import { fileDiff } from '../history/snapshots'
 import { readHistory, readPin, setPin } from '../history/store'
 import { cwdNow, readWork } from '../work'
 import { readDetails } from './details'
 
-/** What the pane shows: the fitted layout, every step, one step's detail, or a diff. */
-export type View = { kind: 'fit' } | { kind: 'all' } | { kind: 'step'; id: string } | { kind: 'diff'; path: string; patch: string[]; note?: string }
+/**
+ * What the pane shows: the fitted layout, every step, one step's detail, a diff, or the fitted layout listing an
+ * agent's own steps where the engine would not put its conversation in view (`note` says why).
+ */
+export type View =
+  | { kind: 'fit' }
+  | { kind: 'all' }
+  | { kind: 'step'; id: string }
+  | { kind: 'diff'; path: string; patch: string[]; note?: string }
+  | { kind: 'agent'; id: string; note: string }
+
+/**
+ * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. `m` goes back from anywhere
+ * in the pane (Enter on the agent's row too). Escape at the prompt is not offered: live, it stopped the viewed agent's
+ * running shell first, and went back to main only when nothing ran.
+ */
+export const AGENT_NOTE = 'agent in view · m for main'
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
@@ -32,6 +47,16 @@ const whole = new Set<Section>()
 let ring: string | undefined
 /** What the last `c` said, and when. */
 let copied: { note: string; at: number } | undefined
+/** The agent whose conversation the engine shows now (the Pane's `view` prop at its last draw), undefined for main. */
+let viewed: string | undefined
+
+/**
+ * The Pane drew: which agent's conversation the engine has in view, so Enter on that agent's row goes back.
+ * @param agentId the `view` prop's agent, undefined for the main conversation
+ */
+export function noteViewed(agentId: string | undefined): void {
+  viewed = agentId
+}
 
 /**
  * The view to draw. The pane that lost the keyboard (Escape, a click on the prompt) goes back to the fitted layout,
@@ -147,12 +172,13 @@ async function fileView($: EngineInterface, path: string): Promise<{ patch: stri
   return { patch, note: missing(patch, row, diff.note) }
 }
 
-/** A step of the current log, of the earlier turn it shows, or of the pinned turn. */
+/** A step of the current log, of the earlier turn it shows, of the pinned turn, or of an agent's own log. */
 async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefined> {
   const log = await readLog($)
   const pinned = await pinnedRecord($)
+  const agents = (await readRoster($)).flatMap(a => a.log ?? [])
 
-  return [...log.steps, ...(log.prev?.steps ?? []), ...(pinned?.steps ?? [])].find(s => s.id === id)
+  return [...log.steps, ...(log.prev?.steps ?? []), ...(pinned?.steps ?? []), ...agents].find(s => s.id === id)
 }
 
 /** A step's detail, from the session's or, for a pinned turn, from its history. */
@@ -161,12 +187,56 @@ async function detailOf($: EngineInterface, id: string): Promise<StepDetail | un
 }
 
 /**
- * Enter on a row: a step opens its detail, an edit step or a FILES row its diff.
+ * Enter on an agent's row (A1): the engine puts its conversation in view (`$.ui.view`, only as the answer to the
+ * person's own press), and the pane lists its steps; on the agent in view, back to the main conversation. Where the
+ * engine refuses (an agent it no longer holds: finished a while ago, or before a resume), the pane still lists the
+ * agent's kept steps and says why; Enter again or `b` goes back.
  * @param $ the engine interface
- * @param id the row's id (`step:<call id>`, `file:<path>`)
+ * @param agentId the agent's id
+ */
+async function openAgent($: EngineInterface, agentId: string): Promise<void> {
+  if (view.kind === 'agent' && view.id === agentId) {
+    view = FIT
+
+    return
+  }
+
+  if (viewed === agentId) {
+    await backToMain($)
+
+    return
+  }
+
+  const { deny } = await $.ui.view({ agentId })
+
+  view = deny === undefined ? FIT : { kind: 'agent', id: agentId, note: `conversation not held · ${deny} · b: back` }
+}
+
+/**
+ * `m` (drawn only while an agent's conversation is in view): the main conversation again, from any row or view of the
+ * pane, answering the person's own key as `$.ui.view` asks. The agent runs on; only the view changes.
+ * @param $ the engine interface
+ */
+async function backToMain($: EngineInterface): Promise<void> {
+  const { deny } = await $.ui.view({})
+
+  if (deny === undefined) view = FIT
+  else await say($, deny)
+}
+
+/**
+ * Enter on a row: a step opens its detail, an edit step or a FILES row its diff, an agent its conversation.
+ * @param $ the engine interface
+ * @param id the row's id (`step:<call id>`, `file:<path>`, `agent:<id>`)
  */
 export async function openRow($: EngineInterface, id: string): Promise<void> {
-  if (id.startsWith('file:')) {
+  if (id.startsWith('agent:')) {
+    await openAgent($, id.slice('agent:'.length))
+  } else if (id.startsWith('source:')) {
+    // No key can open a browser (phase 11, probe 3): Enter copies the URL as `c` does, the row it pressed under the ring.
+    ring = id
+    await copyNow($)
+  } else if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
     view = { kind: 'diff', path, ...(await fileView($, path)) }
   } else if (id.startsWith('step:')) {
@@ -194,6 +264,8 @@ async function copyText($: EngineInterface): Promise<string | undefined> {
 
   const at = view.kind === 'step' ? `step:${view.id}` : ring
 
+  if (at?.startsWith('source:') === true) return at.slice('source:'.length)
+
   if (at?.startsWith('file:') === true) {
     const { patch } = await fileView($, at.slice('file:'.length))
 
@@ -216,8 +288,13 @@ async function copyText($: EngineInterface): Promise<string | undefined> {
 async function copyNow($: EngineInterface): Promise<void> {
   const text = await copyText($)
   const isCopied = text !== undefined && (await $.ui.copy({ text })).isCopied
-  await say($, isCopied ? 'copied' : 'nothing to copy')
+  // A source's URL says that no key opens it (phase 11, probe 3), Enter's and `c`'s alike.
+  const isUrl = view.kind !== 'diff' && view.kind !== 'step' && ring?.startsWith('source:') === true
+  await say($, !isCopied ? 'nothing to copy' : isUrl ? URL_COPIED : 'copied')
 }
+
+/** What copying a source's URL says, from Enter or `c`. */
+export const URL_COPIED = 'url copied · no key opens a browser'
 
 /**
  * A brief dim note in the hint row (`copied`, `no earlier turn kept`), for two seconds.
@@ -308,6 +385,7 @@ export async function pressKey($: EngineInterface, key: string): Promise<void> {
     await setPin($, null, 0)
     view = FIT
   } else if (key === 's') view = view.kind === 'all' ? FIT : { kind: 'all' }
+  else if (key === 'm') await backToMain($)
   else if (key === 'b') view = FIT
   else if (key === 'c') await copyNow($)
   else if (section !== undefined) {

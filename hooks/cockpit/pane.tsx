@@ -5,7 +5,7 @@ import { paneLines } from './fit'
 import { readDetails } from './keys/details'
 import { drawPane, hintRows } from './keys/draw'
 import { allRows, detailRows, diffRows } from './keys/views'
-import { copiedNote, hasCopied, noteRing, readViewTick, viewNow, wholeNow } from './keys/view'
+import { AGENT_NOTE, copiedNote, hasCopied, noteRing, noteViewed, readViewTick, viewNow, wholeNow } from './keys/view'
 import type { Line } from './line'
 import { noteColumns, setDocked, widthTick } from './left'
 import { readLog, readRoster, readSecond } from './log'
@@ -456,13 +456,20 @@ export function registerPane(on: On): void {
     const isPinned = pinned !== undefined
     const isInspector = placement === 'inline' && askedInline === 'steps'
     const fitTo =
-      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector) : 0)
+      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) -
+      (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector, e.props.view.agentId !== undefined) : 0)
     const shown =
       pinned !== undefined
         ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
         : log.steps.length > 0 || log.prev === null
           ? log
           : { ...log, steps: log.prev.steps, dropped: log.prev.dropped, turnNo: log.prev.turnNo }
+    // The agent whose steps [ STEPS ] lists (A1): the one the engine has in view, else one it would not show.
+    const viewed = e.props.view.agentId
+    noteViewed(viewed)
+    const agentId = viewed ?? (view.kind === 'agent' ? view.id : undefined)
+    const agent = agentId === undefined ? undefined : roster.find(a => a.id === agentId)
+    const agentView = agent === undefined ? undefined : { agent, note: viewed === undefined && view.kind === 'agent' ? view.note : AGENT_NOTE }
     let lines: Line[]
 
     if (view.kind === 'all') {
@@ -470,16 +477,25 @@ export function registerPane(on: On): void {
     } else if (view.kind === 'diff') {
       lines = diffRows(view.path, view.patch, bodyColumns, view.note)
     } else if (view.kind === 'step') {
+      const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
       const at = shown.steps.findIndex(s => s.id === view.id)
       const step = shown.steps[at]
-      const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
-      lines = step === undefined ? [] : detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
+      // A step of an agent's own log is numbered in it, and named by the agent.
+      const owner = step === undefined ? roster.find(a => a.log?.some(s => s.id === view.id) === true) : undefined
+      const ownAt = owner?.log?.findIndex(s => s.id === view.id) ?? -1
+      const ownStep = owner?.log?.[ownAt]
+      lines =
+        step !== undefined
+          ? detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
+          : owner !== undefined && ownStep !== undefined
+            ? detailRows(ownStep, detail, (owner.logDropped ?? 0) + ownAt + 1, shown.turnNo, bodyColumns, `AGENT ${owner.name}`)
+            : []
     } else if (isInspector) {
       lines = inspectorLines(log, bodyColumns, fitTo, pinned)
     } else {
-      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned)
+      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned, agentView)
     }
 
-    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector)
+    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector, viewed !== undefined)
   })
 }

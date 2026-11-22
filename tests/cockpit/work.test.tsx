@@ -203,3 +203,110 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
   expect(rows.some(r => /a\.txt|notes\.txt/.test(r))).toBe(false)
   expect(said.filter(t => /git|unreadable/.test(t))).toEqual([])
 })
+
+test('an agent`s edit and fetch reach FILES and SOURCES marked ◇, never the main loop`s steps; its diff starts before its call', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
+  let content = 'old line\nkept\n'
+  on('fs.read', () => ({ value: content }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Agent', 'c1', { description: 'Edit note', prompt: 'go', run_in_background: true })
+  await $.agent.spawn({
+    tool_use_id: 'c1',
+    prompt: 'go',
+    description: 'Edit note',
+    subagentType: 'general-purpose',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'haiku',
+    background: true,
+    fork: false
+  } as never)
+
+  const agent = { agentId: 'ag-Edit note' }
+  await call($, 'Edit', 'a1', { ...agent, file_path: '/repo/notes.md', old_string: 'old line', new_string: 'new line' })
+  content = 'new line\nkept\n'
+  await call($, 'WebFetch', 'a2', { ...agent, url: URLS[2], prompt: 'x' })
+  await call($, 'Edit', 'e1', { file_path: '/repo/notes.md', old_string: 'kept', new_string: 'kept too' })
+  content = 'new line\nkept too\n'
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^◇ notes\.md +\+4 {4}−2$/))
+  expect(rows.some(r => /^ {2}notes\.md /.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^◇ · docs\.sigstore\.dev .* 404$/))
+  // The main loop's steps: the launch and its own edit; the agent's fetch failed in its own log, not here.
+  expect(rows.filter(r => /^[ ▸✕] (agent|edit|fetch) /.test(r)).map(r => r.slice(2, 8))).toEqual(['agent ', 'edit  '])
+  expect(rows.some(r => /still failing|failed/.test(r))).toBe(false)
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'file:notes.md' })
+  await ui.redraw()
+  const diff = (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => /^ {2}[−+ ]/.test(t) && !t.includes('\n'))
+  expect([...new Set(diff.map(r => r.trimEnd()))]).toEqual(['  −old line', '  −kept', '  +new line', '  +kept too'])
+  await ui.unmount()
+})
+
+test('an agent the roster does not list (a workflow`s, the engine`s memory fork) adds no file and no page', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Write', 'x1', { agentId: 'fork-1', file_path: '/repo/memory/x.md', content: 'x\ny\n' })
+  await call($, 'WebFetch', 'x2', { agentId: 'fork-1', url: URLS[0], prompt: 'x' })
+
+  const rows = await paneText($)
+  expect(rows.some(r => /FILES|SOURCES|x\.md/.test(r))).toBe(false)
+})
+
+test('two agents` shells ending together count each change once, and a file two calls name is read once', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
+  // The work tree's diff: clean at the turn's start, then one line, then two, as the shells append.
+  const tracked = ['', '1\t0\tlog.txt\n', '2\t0\tlog.txt\n']
+  let diffs = 0
+  let reads = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: tracked[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  on('fs.read', () => {
+    reads += 1
+
+    return { value: 'x\n' }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'logs', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'logs', turnId: 't1' })
+
+  for (const name of ['One', 'Two']) {
+    await call($, 'Agent', `c${name}`, { description: name, prompt: 'go', run_in_background: true })
+    await $.agent.spawn({
+      tool_use_id: `c${name}`,
+      prompt: 'go',
+      description: name,
+      subagentType: 'general-purpose',
+      provider: { plugin: 'engine', tier: 'core' },
+      parentModel: 'haiku',
+      background: true,
+      fork: false
+    } as never)
+  }
+
+  await Promise.all([
+    call($, 'Bash', 'b1', { agentId: 'ag-One', command: 'echo a >> log.txt' }),
+    call($, 'Bash', 'b2', { agentId: 'ag-Two', command: 'echo b >> log.txt' })
+  ])
+
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^◇ log\.txt +\+2 {6}$/))
+  // Both commands name log.txt as a write target: its turn-start content is read once.
+  expect(reads).toBe(1)
+})

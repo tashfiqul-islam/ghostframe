@@ -138,3 +138,52 @@ test('Cockpit on by GHOSTFRAME_COCKPIT alone: a resumed row drawn before the ses
   expect(answer.some(r => r.startsWith('│ worked'))).toBe(false)
   expect(answer.at(-1)).toMatch(/^─ done ─+ 20 steps · 3 files · 1m 01s$/)
 })
+
+test(
+  'after a resume an agent`s kept steps, files and pages come back: ◇ rows, and Enter lists its steps the engine no longer holds (B5)',
+  ON,
+  async ($, on) => {
+    const clock = { now: T0 + 999_000 }
+    const store: Store = new Map()
+    engine(on, clock, store, 'resumed', true)
+    on('ui.view', () => ({ value: { deny: 'no agent under that id' } }))
+    const step = { id: 'ag1', kind: 'edit', subject: 'notes.md', key: 'edit:notes.md', result: '+1 −1', mark: '' as const, isRunning: false, clock: 3_000 }
+    const record = {
+      ...aTurn(1, T0),
+      files: [{ path: 'notes.md', tag: '' as const, adds: 1, dels: 1, isAgent: true as const }],
+      sources: [{ url: 'https://example.com/a', title: 'Example', status: '200', isAgent: true as const }],
+      roster: [
+        {
+          id: 'a1',
+          call: 'c1',
+          parent: null,
+          name: 'Edit note',
+          isBackground: true,
+          state: 'done' as const,
+          kind: 'done',
+          subject: 'done',
+          steps: 1,
+          startedAt: T0,
+          endedAt: T0 + 4_000,
+          subjectAt: T0,
+          pending: null,
+          log: [step]
+        }
+      ]
+    }
+    store.set('history:resumed', { savedAt: T0, turns: [record] })
+    await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+
+    const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+    let rows = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    expect(rows).toContainEqual(expect.stringMatching(/^◇ notes\.md +\+1 +−1$/))
+    expect(rows).toContainEqual(expect.stringMatching(/^◇ · example\.com +Example +200$/))
+
+    await ui.press({ key: 'agent:a1' })
+    await ui.redraw()
+    rows = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+    expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 1 step$/))
+    expect(rows).toContainEqual(expect.stringMatching(/^ {2}edit {5}notes\.md +\+1 −1 +3s$/))
+    await ui.unmount()
+  }
+)

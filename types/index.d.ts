@@ -117,6 +117,11 @@ export type StepLog = {
   asking: string[]
   last: LastTurn | null
   prev: PrevSteps | null
+  /**
+   * The files agents changed and the pages they read since the last receipt (phase 11, B3), as their steps' subjects:
+   * the next receipt counts them beside the main loop's own, then they clear. Absent before phase 11.
+   */
+  agentWork?: { files: string[]; pages: string[] }
 }
 
 /** A failure nothing fixed by the end of its turn: its `still failing` row above the receipt (spec E.5). */
@@ -176,16 +181,24 @@ export type RosterAgent = {
   endedAt: number | null
   subjectAt: number
   pending: { kind: string; subject: string } | null
+  /**
+   * The agent's own steps (phase 11, B1): its calls as `[ STEPS ]` rows on its own clock (ms since `startedAt`), and
+   * how many of its oldest went past the cap. Absent in an entry kept before phase 11, or for an agent with no call yet.
+   */
+  log?: LogStep[]
+  logDropped?: number
 }
 
 /** One to-do item (spec E.41): its id (the task's, or its place in a TodoWrite list), its text and its state. */
 export type TodoItem = { id: string; text: string; state: 'pending' | 'in_progress' | 'completed' }
 
 /** One file the turn changed (spec E.42): its path from the project root, `new` or `del` (or ''), and its +/− lines. */
-export type FileChange = { path: string; tag: '' | 'new' | 'del'; adds: number; dels: number }
+/** `isAgent`: an agent changed it (phase 11), set once and never taken back. */
+export type FileChange = { path: string; tag: '' | 'new' | 'del'; adds: number; dels: number; isAgent?: true }
 
 /** One page the turn read (spec E.43): its URL, a title (the answer's link text, a search result's, or ''), and its HTTP status ('' unknown). */
-export type SourcePage = { url: string; title: string; status: string }
+/** `isAgent`: an agent read it (phase 11), set once and never taken back. */
+export type SourcePage = { url: string; title: string; status: string; isAgent?: true }
 
 /**
  * What a typed turn worked on, for `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: the session's to-do list (kept across
@@ -216,6 +229,8 @@ export type StepDetail = {
   lines: number
   excerpt: string[]
   patch: string[]
+  /** The agent whose own call it is (phase 11); absent for the main loop's. */
+  agent?: string
 }
 
 /** A file's diff over a whole turn: its content at the turn's start against its end, or why there is none. */

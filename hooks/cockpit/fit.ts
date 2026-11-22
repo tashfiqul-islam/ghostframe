@@ -6,15 +6,15 @@ import type { RosterAgent, StepLog, TurnRecord, TurnWork } from '../../types'
 import type { Part } from '../shared/parts'
 import { C } from '../shared/tokens'
 import { waitingOn } from './agents/roster'
-import { AGENTS_CAP, agentRows } from './agents/rows'
+import { AGENTS_CAP, agentLines } from './agents/rows'
 import type { AgentsLevel } from './agents/rows'
 import { headRows } from './head'
 import { fileLines } from './sections/files'
-import { sourceRows } from './sections/sources'
+import { sourceLines } from './sections/sources'
 import { todoRows } from './sections/todo'
 import type { TodoLevel } from './sections/todo'
 import { formatSpan } from '../shared/time'
-import { sectionLabel, stepLines } from './steps/rows'
+import { cut, sectionLabel, stepLines } from './steps/rows'
 import { partsOf, plain } from './line'
 import type { Line } from './line'
 
@@ -82,6 +82,7 @@ export function paneRows(log: StepLog, now: number, width: number, rows: number,
  * @param data the roster and the turn's work
  * @param whole the sections shown whole
  * @param pinned the turn pinned in place of the live one
+ * @param agentView an agent whose own steps `[ STEPS ]` lists instead (A1), with the note under its label
  * @returns the rows
  */
 export function paneLines(
@@ -92,20 +93,26 @@ export function paneLines(
   isPromptCovered = false,
   data: PaneData = NO_DATA,
   whole: ReadonlySet<Section> = new Set(),
-  pinned?: TurnRecord
+  pinned?: TurnRecord,
+  agentView?: { agent: RosterAgent; note: string }
 ): Line[] {
   const { roster, work } = data
   const head = headRows(log, now, width, isPromptCovered, waitingOn(roster)).map(plain)
   const own = log.steps.length > 0 || log.dropped > 0
-  // Pinned (E.45): [ STEPS ], [ FILES ] and [ SOURCES ] show that turn; the head, [ AGENTS ] and [ TODO ] stay live.
+  // An agent's conversation in view: [ STEPS ] lists its own steps (A1). Pinned (E.45): [ STEPS ], [ FILES ] and
+  // [ SOURCES ] show that turn; the head, [ AGENTS ] and [ TODO ] stay live.
   const shown =
-    pinned !== undefined
-      ? { ...log, steps: pinned.steps, dropped: pinned.dropped }
-      : own
-        ? log
-        : log.prev === null
-          ? undefined
-          : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
+    agentView !== undefined
+      ? { ...log, steps: agentView.agent.log ?? [], dropped: agentView.agent.logDropped ?? 0 }
+      : pinned !== undefined
+        ? { ...log, steps: pinned.steps, dropped: pinned.dropped }
+        : own
+          ? log
+          : log.prev === null
+            ? undefined
+            : { ...log, steps: log.prev.steps, dropped: log.prev.dropped }
+  // A label that names what it shows instead of the live turn's steps gets a note under it, saying how to go back.
+  const noted = agentView !== undefined || pinned !== undefined
   const pinTag = pinned === undefined ? '' : ` · TURN ${pinned.turnNo}`
   const files = pinned?.files ?? work.files
   const sources =
@@ -114,27 +121,28 @@ export function paneLines(
       : { pages: pinned.sources, cited: pinned.cited, isRunning: false }
   const count = shown === undefined ? 0 : shown.steps.length + shown.dropped
   const want = rows < 24 ? STEP_ROWS_MIN : STEP_ROWS_WANT
-  const stepsNeed = (shown === undefined ? 0 : 1 + 1 + Math.max(STEP_ROWS_MIN, Math.min(want, count + (count > want ? 1 : 0)))) + (pinned === undefined ? 0 : 1)
+  const stepsNeed = (shown === undefined ? 0 : 1 + 1 + Math.max(STEP_ROWS_MIN, Math.min(want, count + (count > want ? 1 : 0)))) + (noted ? 1 : 0)
   const isTall = rows >= TALL
   const blank = plain([{ t: ' '.repeat(width), color: C.muted }])
   const levels: Levels = { agents: 'full', todo: 'full', files: 'full', sources: 'full' }
   const cap = (section: Section, n: number) => (whole.has(section) ? Infinity : n)
   const lowerRows = (): Line[] => {
     const sections: Line[][] = [
-      levels.agents === 'none' ? [] : agentRows(roster, now, width, levels.agents, cap('agents', AGENTS_CAP)).map(plain),
+      levels.agents === 'none' ? [] : agentLines(roster, now, width, levels.agents, cap('agents', AGENTS_CAP)),
       levels.todo === 'none' ? [] : todoRows({ items: work.todo, isRevised: work.isRevised }, width, cap('todo', isTall ? 5 : 3), levels.todo).map(plain),
       levels.files === 'none' ? [] : fileLines(files, width, cap('files', isTall ? 6 : 4), levels.files === 'label', `FILES${pinTag}`),
       levels.sources === 'none'
         ? []
-        : sourceRows(
+        : sourceLines(
             sources.pages,
             sources.cited,
             sources.isRunning,
             width,
             cap('sources', isTall ? 4 : 3),
             levels.sources === 'label',
-            `SOURCES${pinTag}`
-          ).map(plain)
+            `SOURCES${pinTag}`,
+            whole.has('sources')
+          )
     ]
 
     return sections.flatMap(section => (section.length > 0 ? [blank, ...section] : []))
@@ -149,20 +157,28 @@ export function paneLines(
     lower = lowerRows()
   }
 
-  const left = rows - head.length - lower.length - 1 - (pinned === undefined ? 0 : 1)
-  const title = pinned !== undefined ? `STEPS${pinTag} · PINNED` : own ? 'STEPS' : `STEPS · TURN ${log.prev?.turnNo ?? 0}`
-  const style = pinned === undefined ? {} : { color: C.textBright, extra: formatSpan(pinned.durationMs) }
+  const left = rows - head.length - lower.length - 1 - (noted ? 1 : 0)
+  const title =
+    agentView !== undefined
+      ? `STEPS · AGENT ${agentView.agent.name}`
+      : pinned !== undefined
+        ? `STEPS${pinTag} · PINNED`
+        : own
+          ? 'STEPS'
+          : `STEPS · TURN ${log.prev?.turnNo ?? 0}`
+  const style = agentView !== undefined ? { color: C.textBright } : pinned === undefined ? {} : { color: C.textBright, extra: formatSpan(pinned.durationMs) }
   // Too short for three step rows: no steps, unless a section shown whole already scrolls the pane.
   const room = left >= 1 + STEP_ROWS_MIN ? left : whole.size > 0 ? 1 + STEP_ROWS_MIN : 0
   const listed = shown === undefined || room === 0 ? [] : stepLines(shown, width, room, title, style)
-  // A pinned turn says so under its label, and how to go back; one with no steps still shows its label.
-  const note = plain([{ t: '  pinned · l or /steps for live'.padEnd(width), color: C.dim }])
-  const steps =
-    pinned === undefined
-      ? listed
-      : listed.length > 0
-        ? [listed[0] ?? note, note, ...listed.slice(1)]
-        : [plain(sectionLabel(title, [{ t: `0 steps · ${formatSpan(pinned.durationMs)}`, color: C.muted }], width, C.textBright)), note]
+  // A pinned turn or an agent says so under its label, and how to go back; one with no steps still shows its label.
+  const said = agentView?.note ?? 'pinned · l or /steps for live'
+  const note = plain([{ t: cut(`  ${said}`, width).padEnd(width), color: C.dim }])
+  const empty = agentView !== undefined ? '0 steps' : `0 steps · ${formatSpan(pinned?.durationMs ?? 0)}`
+  const steps = !noted
+    ? listed
+    : listed.length > 0
+      ? [listed[0] ?? note, note, ...listed.slice(1)]
+      : [plain(sectionLabel(title, [{ t: empty, color: C.muted }], width, C.textBright)), note]
   const fitted = [...head, ...(steps.length > 0 ? [blank, ...steps] : []), ...lower]
 
   // A section shown whole may make the pane taller than its body: the engine scrolls it.

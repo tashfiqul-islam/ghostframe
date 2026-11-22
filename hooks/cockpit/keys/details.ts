@@ -79,11 +79,34 @@ export function patchOf(tool: string, input: unknown, result: unknown): string[]
  * @param tool the call's tool
  * @param input the call's input
  * @param at the wall clock in ms
+ * @param agent the agent whose own call it is; absent for the main loop's
  */
-export async function noteStart($: EngineInterface, id: string, tool: string, input: unknown, at: number): Promise<void> {
-  const entry: StepDetail = { id, tool, command: commandOf(tool, input), startAt: at, ms: null, isFailed: false, lines: 0, excerpt: [], patch: [] }
+export async function noteStart($: EngineInterface, id: string, tool: string, input: unknown, at: number, agent?: string): Promise<void> {
+  const entry: StepDetail = {
+    id,
+    tool,
+    command: commandOf(tool, input),
+    startAt: at,
+    ms: null,
+    isFailed: false,
+    lines: 0,
+    excerpt: [],
+    patch: [],
+    ...(agent === undefined ? {} : { agent })
+  }
 
-  await update($, details, list => [...list.filter(d => d.id !== id), entry].slice(-DETAILS_MAX))
+  await update($, details, list => capped([...list.filter(d => d.id !== id), entry]))
+}
+
+/** Whether a detail is an agent's own call's. */
+const isAgent = (d: StepDetail) => d.agent !== undefined
+
+/** The newest 300 of the main loop's details and the newest 300 of agents', so agents never push the main loop's out. */
+export function capped(list: readonly StepDetail[]): StepDetail[] {
+  const keepMain = new Set(list.filter(d => !isAgent(d)).slice(-DETAILS_MAX))
+  const keepAgents = new Set(list.filter(isAgent).slice(-DETAILS_MAX))
+
+  return list.filter(d => keepMain.has(d) || keepAgents.has(d))
 }
 
 /**

@@ -44,8 +44,11 @@ function add(files: readonly FileChange[], change: FileChange): FileChange[] {
 
   const tag = change.tag === 'del' ? 'del' : had.tag === 'del' ? '' : had.tag
 
-  return files.with(at, { ...had, tag, adds: had.adds + change.adds, dels: had.dels + change.dels })
+  return files.with(at, { ...had, tag, adds: had.adds + change.adds, dels: had.dels + change.dels, ...by(had.isAgent === true || change.isAgent === true) })
 }
+
+/** The mark of a change an agent made (phase 11): `◇` at column 0, once set never taken back. */
+const by = (isAgent: boolean) => (isAgent ? { isAgent: true as const } : {})
 
 // What a shell command writes: `> f`, `>> f` (not `2>&1` or `/dev/null`), `tee [-a] f`, `touch f`, and PowerShell's
 // `Out-File`, `Set-Content` and `Add-Content`.
@@ -72,6 +75,7 @@ export type Counted = { path: string; added: number; removed: number; isUntracke
  * @param after the diff after it
  * @param root the working copy's root, absolute
  * @param cwd the session's folder
+ * @param isAgent whether an agent's step changed them
  * @returns the list after it
  */
 export function filesFromDiff(
@@ -79,7 +83,8 @@ export function filesFromDiff(
   before: readonly Counted[],
   after: readonly Counted[],
   root: string,
-  cwd: string | undefined
+  cwd: string | undefined,
+  isAgent = false
 ): FileChange[] {
   return after.reduce(
     (list, now) => {
@@ -90,7 +95,7 @@ export function filesFromDiff(
 
       if (was !== undefined && adds === 0 && dels === 0) return list
 
-      return add(list, { path: shownPath(`${root.replace(/[\\/]+$/, '')}/${now.path}`, cwd), tag: isNew ? 'new' : '', adds, dels })
+      return add(list, { path: shownPath(`${root.replace(/[\\/]+$/, '')}/${now.path}`, cwd), tag: isNew ? 'new' : '', adds, dels, ...by(isAgent) })
     },
     [...files]
   )
@@ -101,10 +106,11 @@ export function filesFromDiff(
  * @param files the list before the step
  * @param command the shell command
  * @param cwd the session's folder
+ * @param isAgent whether an agent's step wrote them
  * @returns the list after it
  */
-export function filesFromCommand(files: readonly FileChange[], command: string, cwd: string | undefined): FileChange[] {
-  return writeTargets(command).reduce((list, path) => add(list, { path: shownPath(path, cwd), tag: '', adds: 0, dels: 0 }), [...files])
+export function filesFromCommand(files: readonly FileChange[], command: string, cwd: string | undefined, isAgent = false): FileChange[] {
+  return writeTargets(command).reduce((list, path) => add(list, { path: shownPath(path, cwd), tag: '', adds: 0, dels: 0, ...by(isAgent) }), [...files])
 }
 
 /** The paths a shell command deletes: the arguments of each deleting segment, less its flags. */
@@ -124,9 +130,10 @@ export function deleted(command: string): string[] {
  * @param input the call's input
  * @param result the call's record
  * @param cwd the session's folder, for paths from the project root
+ * @param isAgent whether the call was an agent's own
  * @returns the list after it
  */
-export function noteFiles(files: readonly FileChange[], tool: string, input: unknown, result: unknown, cwd?: string): FileChange[] {
+export function noteFiles(files: readonly FileChange[], tool: string, input: unknown, result: unknown, cwd?: string, isAgent = false): FileChange[] {
   const i = obj(input) ?? {}
   const o = obj(result)
 
@@ -141,11 +148,14 @@ export function noteFiles(files: readonly FileChange[], tool: string, input: unk
     const adds = counts !== undefined && (counts.adds > 0 || counts.dels > 0) ? counts.adds : isCreate ? lineCount(content) : 0
     const dels = counts?.dels ?? 0
 
-    return add(files, { path: shownPath(path, cwd), tag: isCreate ? 'new' : '', adds, dels })
+    return add(files, { path: shownPath(path, cwd), tag: isCreate ? 'new' : '', adds, dels, ...by(isAgent) })
   }
 
   if (tool === 'Bash' || tool === 'PowerShell') {
-    return deleted(s(i['command']) ?? '').reduce((list, path) => add(list, { path: shownPath(path, cwd), tag: 'del', adds: 0, dels: 0 }), [...files])
+    return deleted(s(i['command']) ?? '').reduce(
+      (list, path) => add(list, { path: shownPath(path, cwd), tag: 'del', adds: 0, dels: 0, ...by(isAgent) }),
+      [...files]
+    )
   }
 
   return [...files]
@@ -162,7 +172,8 @@ function fileRow(f: FileChange, width: number): Part[] {
   const minus = f.dels > 0 ? `−${f.dels}` : ''
 
   return [
-    { t: `  ${path}${spaces(room - vw(path) + 1)}`, color: C.text },
+    { t: f.isAgent === true ? '◇ ' : '  ', color: C.dim },
+    { t: `${path}${spaces(room - vw(path) + 1)}`, color: C.text },
     { t: f.tag.padStart(7), color: C.muted },
     { t: ` ${plus.padStart(5)}`, color: C.add },
     { t: ` ${minus.padStart(5)}`, color: C.del }

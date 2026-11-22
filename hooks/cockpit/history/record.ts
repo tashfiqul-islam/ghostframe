@@ -9,6 +9,9 @@ const SUBJECT_MAX = 200 // a step's subject as history keeps it (E.45)
 export const STORE_MAX = 4_194_304
 const STORE_MARGIN = 65_536
 
+/** A step as history keeps it: its subject cut at 200 characters. */
+const short = (s: LogStep): LogStep => (s.subject.length > SUBJECT_MAX ? { ...s, subject: `${s.subject.slice(0, SUBJECT_MAX - 1)}…` } : s)
+
 /** What a turn's record is built from. */
 export type RecordParts = {
   log: StepLog
@@ -30,8 +33,10 @@ export type RecordParts = {
 export function recordOf(parts: RecordParts): TurnRecord {
   const { log, work } = parts
   const turns = [...new Set(parts.receipts.map(r => r.turn).filter((t): t is string => t !== null))]
-  const ids = new Set(log.steps.map(s => s.id))
-  const steps: LogStep[] = log.steps.map(s => (s.subject.length > SUBJECT_MAX ? { ...s, subject: `${s.subject.slice(0, SUBJECT_MAX - 1)}…` } : s))
+  // The agents' own steps are kept with the turn's roster, their details with the turn's (they trim together).
+  const roster = parts.roster.map(a => (a.log === undefined ? a : { ...a, log: a.log.map(short) }))
+  const ids = new Set([...log.steps, ...roster.flatMap(a => a.log ?? [])].map(s => s.id))
+  const steps: LogStep[] = log.steps.map(short)
 
   return {
     turnNo: log.turnNo,
@@ -44,7 +49,7 @@ export function recordOf(parts: RecordParts): TurnRecord {
     files: work.files,
     sources: work.sources,
     cited: work.cited,
-    roster: [...parts.roster],
+    roster,
     receipts: [...parts.receipts],
     details: parts.details.filter(d => ids.has(d.id)),
     diffs: [...parts.diffs],
@@ -58,12 +63,24 @@ export function withRecord(records: readonly TurnRecord[], record: TurnRecord): 
   return [...records.filter(r => r.turnNo !== record.turnNo), record].toSorted((a, b) => a.turnNo - b.turnNo)
 }
 
-/** Whether a record still holds bulky parts. */
-const isBulky = (r: TurnRecord): boolean => r.diffs.length > 0 || r.details.some(d => d.excerpt.length > 0 || d.patch.length > 0)
+const AGENT_STEPS_KEPT = 20 // an agent's newest steps a trimmed turn keeps; a long-lived agent is saved with every turn
 
-/** A record without its bulky parts: the details keep their command and timing, the diffs go. */
+/** Whether a record still holds bulky parts. */
+const isBulky = (r: TurnRecord): boolean =>
+  r.diffs.length > 0 || r.details.some(d => d.excerpt.length > 0 || d.patch.length > 0) || r.roster.some(a => (a.log?.length ?? 0) > AGENT_STEPS_KEPT)
+
+/**
+ * A record without its bulky parts: the details keep their command and timing, the diffs go, and each agent keeps its
+ * newest 20 steps, the rest counted in `logDropped`.
+ */
 export function trimmed(r: TurnRecord): TurnRecord {
-  return { ...r, details: r.details.map(d => ({ ...d, excerpt: [], patch: [] })), diffs: [], isTrimmed: true }
+  const roster = r.roster.map(a => {
+    const over = Math.max(0, (a.log?.length ?? 0) - AGENT_STEPS_KEPT)
+
+    return a.log === undefined || over === 0 ? a : { ...a, log: a.log.slice(over), logDropped: (a.logDropped ?? 0) + over }
+  })
+
+  return { ...r, roster, details: r.details.map(d => ({ ...d, excerpt: [], patch: [] })), diffs: [], isTrimmed: true }
 }
 
 /**

@@ -1,12 +1,15 @@
 // Cockpit's `[ AGENTS ]` rows (spec E.40, E.37): one row per agent in launch order, nested agents inset under
 // their parent, and the label's counts. Pure: hooks/cockpit/head.ts fits them into the pane.
 import type { RosterAgent } from '../../../types'
-import { fitParts } from '../../shared/parts'
+import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
 import { vw } from '../../shared/text'
 import { formatSpan } from '../../shared/time'
 import { C } from '../../shared/tokens'
 import { shownStep } from './roster'
+import { partsOf, plain } from '../line'
+import type { Line } from '../line'
+import { isOpen } from '../steps/log'
 import { cut, sectionLabel } from '../steps/rows'
 
 /** How much of `[ AGENTS ]` the pane has room for (E.37's ladder): every row, the agents not done, or the label. */
@@ -74,6 +77,10 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
   const time = formatSpan(Math.max(0, (a.endedAt ?? now) - a.startedAt))
   // No steps yet: the count and its separator go, and the time keeps its column (amendment 9).
   const right = `${a.steps > 0 ? `${String(a.steps).padStart(3)} · ` : ' '.repeat(6)}${time.padStart(7)}`
+  // Its own edits and commands that failed and stay unfixed (B4; amendment 6: a fetch or search is no failure).
+  const log = a.log ?? []
+  const open = log.filter((_, i) => isOpen(log, i)).length
+  const fail: Part[] = open > 0 ? [{ t: ` ✕${open}`, color: C.err }] : []
   const left: Part[] = [
     ...(depth > 1 ? [{ t: '  ', color: C.muted }] : []),
     glyph,
@@ -83,7 +90,7 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
     ...mid
   ]
 
-  return [...fitParts(left, Math.max(0, width - vw(right) - 1)), { t: ` ${right}`, color: C.dim }]
+  return [...fitParts(left, Math.max(0, width - vw(right) - 1 - partsWidth(fail))), ...fail, { t: ` ${right}`, color: C.dim }]
 }
 
 /** `1 failed · 5 running · 1 done · 1 nested`: failed first, so the narrowest label keeps it (E.40 *Label rule*). */
@@ -112,10 +119,23 @@ function labelMeta(drawn: ReturnType<typeof tree>, roster: readonly RosterAgent[
  * @returns one Part list per row; none for an empty roster
  */
 export function agentRows(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full', cap: number = AGENTS_CAP): Part[][] {
+  return partsOf(agentLines(roster, now, width, level, cap))
+}
+
+/**
+ * `[ AGENTS ]` as `agentRows` draws it, each agent's row under its id (`agent:<id>`) so Enter opens its conversation.
+ * @param roster the agents, in launch order
+ * @param now the wall clock in ms
+ * @param width the pane's body columns
+ * @param level how much fits
+ * @param cap the top-level rows shown
+ * @returns the rows
+ */
+export function agentLines(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full', cap: number = AGENTS_CAP): Line[] {
   if (roster.length === 0) return []
 
   const drawn = tree(roster)
-  const label = sectionLabel('AGENTS', labelMeta(drawn, roster), width)
+  const label = plain(sectionLabel('AGENTS', labelMeta(drawn, roster), width))
 
   if (level === 'label') return [label]
 
@@ -127,11 +147,15 @@ export function agentRows(roster: readonly RosterAgent[], now: number, width: nu
   while (shown[end] !== undefined && (shown[end]?.depth ?? 1) > 1) end += 1
 
   const more = tops.length - cap
-  const moreRow = (n: number): Part[] => {
+  const moreRow = (n: number): Line => {
     const t = `  … ${n} more`
 
-    return [{ t: t + spaces(width - vw(t)), color: C.dim }]
+    return plain([{ t: t + spaces(width - vw(t)), color: C.dim }])
   }
 
-  return [label, ...shown.slice(0, end).map(d => agentRow(d.agent, d.depth, d.deeper, now, width)), ...(more > 0 ? [moreRow(more)] : [])]
+  return [
+    label,
+    ...shown.slice(0, end).map(d => ({ parts: agentRow(d.agent, d.depth, d.deeper, now, width), id: `agent:${d.agent.id}` })),
+    ...(more > 0 ? [moreRow(more)] : [])
+  ]
 }
