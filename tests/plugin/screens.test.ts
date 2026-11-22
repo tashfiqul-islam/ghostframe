@@ -5,10 +5,11 @@
 import { expect, test } from 'claude-code/testing'
 
 import { GLYPH } from '../../hooks/shared/look/glyphs'
-import { TINT, TOKEN } from '../../hooks/shared/look/palette'
+import { PILL, TINT, TOKEN, WORDMARK } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'
 import { screen, shown } from '../support/screens'
 import { screen01, screen03, screen04, screen13, screen16, screen22, screen30, screen31 } from '../support/v8left'
+import { pane01, pane03, pane04, pane13, pane16, pane22 } from '../support/v8pane'
 
 const find = (rows: readonly (readonly Part[])[], t: string) => rows.flat().find(p => p.t === t)
 
@@ -96,4 +97,62 @@ test('screen 31, 100 columns, no pane: the worked node, the failure node, the li
   expect(shown(live)).toEqual(screen('31').slice(32))
   expect(find(live, '1m 51s')?.color).toBe(TOKEN.accent)
   expect(find(turn8, GLYPH.fail)?.color).toBe(TOKEN.err)
+})
+
+const pane = (n: string, build: (rows: number) => Part[][]) => {
+  const want = screen(n, 1)
+
+  return { rows: build(want.length), want }
+}
+
+test('screen 01, the pane: tabs, the DONE head card, the ruler, turn 7`s groups as bars, the wordmark', () => {
+  const { rows, want } = pane('01', pane01)
+
+  expect(shown(rows)).toEqual(want)
+  expect(find(rows, 'TIMELINE')).toMatchObject({ color: TOKEN.textBright, bold: true })
+  expect(find(rows, ' ✓ DONE ')).toMatchObject({ color: TOKEN.ok, bold: true, bg: PILL.done })
+  expect(find(rows, '┬────┬────┬────┬───┬')?.color).toBe(TOKEN.hairline)
+  expect(rows[12]?.find(p => p.t === '━')?.color).toBe(TOKEN.err)
+  expect(rows[14]?.find(p => p.t === '━')?.color).toBe(TOKEN.barDone)
+  expect(find(rows, 'ghostframe')?.color).toBe(WORDMARK.name)
+})
+
+test('screen 03, the pane: FAILED, the selected failed group`s drawer in place; the hint row as every other screen', () => {
+  const { rows, want } = pane('03', pane03)
+  const got = shown(rows)
+
+  expect(got.slice(0, -1)).toEqual(want.slice(0, -1))
+  // The canvas draws this one hint row with the wordmark a cell left of every other screen`s (section 14).
+  expect(got.at(-1)).toBe('  tab move    enter open    1–5 tabs    ? keys        ghostframe v0.1.0')
+  expect(rows[14]?.[0]).toMatchObject({ t: '▐', color: TOKEN.accent, bg: TOKEN.surface })
+  expect(find(rows, 'tab')?.color).toBe(TOKEN.accent)
+})
+
+test('screen 04, the pane: NEEDS YOU, the waiting step selected with its one-line drawer, no now-line', () => {
+  const { rows, want } = pane('04', pane04)
+
+  expect(shown(rows)).toEqual(want)
+  expect(find(rows, ' ! NEEDS YOU ')).toMatchObject({ color: TOKEN.warn, bg: PILL.needsYou })
+  expect(find(rows, '41s')?.color).toBe(TOKEN.warn)
+})
+
+test('screen 13, the pane: the blocked commit as ⊘ in warn with its detail line', () => {
+  const { rows, want } = pane('13', pane13)
+
+  expect(shown(rows)).toEqual(want)
+  expect(find(rows, '⊘')?.color).toBe(TOKEN.warn)
+  expect(find(rows, 'blocked')?.color).toBe(TOKEN.warn)
+})
+
+test('screen 16, the pane: four groups, the commit`s bar in accent', () => {
+  const { rows, want } = pane('16', pane16)
+
+  expect(shown(rows)).toEqual(want)
+  expect(rows[15]?.find(p => p.t === '━')?.color).toBe(TOKEN.accent)
+})
+
+test('screen 22, the pane: turn 7 as screen 01 shows it, beside the slash commands', () => {
+  const { rows, want } = pane('22', pane22)
+
+  expect(shown(rows)).toEqual(want)
 })
