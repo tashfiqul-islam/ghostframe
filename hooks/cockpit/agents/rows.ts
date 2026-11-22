@@ -1,12 +1,13 @@
 // Cockpit's `[ AGENTS ]` rows (spec E.40, E.37): one row per agent in launch order, nested agents inset under
 // their parent, and the label's counts. Pure: hooks/cockpit/head.ts fits them into the pane.
 import type { RosterAgent } from '../../../types'
-import { fitParts } from '../../shared/parts'
+import { fitParts, partsWidth } from '../../shared/parts'
 import type { Part } from '../../shared/parts'
 import { vw } from '../../shared/text'
 import { formatSpan } from '../../shared/time'
 import { C } from '../../shared/tokens'
 import { shownStep } from './roster'
+import { isOpen } from '../steps/log'
 import { cut, sectionLabel } from '../steps/rows'
 
 /** How much of `[ AGENTS ]` the pane has room for (E.37's ladder): every row, the agents not done, or the label. */
@@ -74,6 +75,10 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
   const time = formatSpan(Math.max(0, (a.endedAt ?? now) - a.startedAt))
   // No steps yet: the count and its separator go, and the time keeps its column (amendment 9).
   const right = `${a.steps > 0 ? `${String(a.steps).padStart(3)} · ` : ' '.repeat(6)}${time.padStart(7)}`
+  // Its own edits and commands that failed and stay unfixed (B4; amendment 6: a fetch or search is no failure).
+  const log = a.log ?? []
+  const open = log.filter((_, i) => isOpen(log, i)).length
+  const fail: Part[] = open > 0 ? [{ t: ` ✕${open}`, color: C.err }] : []
   const left: Part[] = [
     ...(depth > 1 ? [{ t: '  ', color: C.muted }] : []),
     glyph,
@@ -83,7 +88,7 @@ function agentRow(a: RosterAgent, depth: number, deeper: number, now: number, wi
     ...mid
   ]
 
-  return [...fitParts(left, Math.max(0, width - vw(right) - 1)), { t: ` ${right}`, color: C.dim }]
+  return [...fitParts(left, Math.max(0, width - vw(right) - 1 - partsWidth(fail))), ...fail, { t: ` ${right}`, color: C.dim }]
 }
 
 /** `1 failed · 5 running · 1 done · 1 nested`: failed first, so the narrowest label keeps it (E.40 *Label rule*). */

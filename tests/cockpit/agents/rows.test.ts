@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { addAgent, agentStep, endAgent } from '../../../hooks/cockpit/agents/roster'
+import { addAgent, agentStep, agentStepEnd, endAgent } from '../../../hooks/cockpit/agents/roster'
 import { agentRows } from '../../../hooks/cockpit/agents/rows'
 import type { AgentsLevel } from '../../../hooks/cockpit/agents/rows'
 import type { Part } from '../../../hooks/shared/parts'
@@ -127,4 +127,23 @@ test('an agent`s subject changes at most once a second: a step within the second
   // Every step counts at once; the subject stays on a.ts until its second is up.
   expect(text(roster, T + 1_500)[1]).toMatch(/^◇ Fast +read {4}a\.ts +3 · /)
   expect(text(roster, T + 2_000)[1]).toMatch(/^◇ Fast +read {4}c\.ts +3 · /)
+})
+
+test('an agent`s own failed edit or command shows on its row as ✕n in err, until it fixes it; a failed fetch is no failure (B4)', () => {
+  let roster = launched(['Edit note'])
+  const fail = { isError: true as const, text: 'no match' }
+  roster = agentStep(roster, 'a1', 'Edit', { file_path: 'a.ts' }, undefined, T + 1_000, 'e1')
+  roster = agentStepEnd(roster, 'a1', { id: 'e1', tool: 'Edit', input: { file_path: 'a.ts' }, at: T + 1_100, outcome: fail })
+  roster = agentStep(roster, 'a1', 'WebFetch', { url: 'https://example.com/x' }, undefined, T + 2_000, 'f1')
+  roster = agentStepEnd(roster, 'a1', { id: 'f1', tool: 'WebFetch', input: { url: 'https://example.com/x' }, at: T + 2_100, outcome: fail })
+
+  const rows = agentRows(roster, T + 3_000, 72)
+  expect(line(rows[1] ?? [])).toMatch(/^◇ Edit note +fetch +example\.com\/x +✕1 +2 · {6}3s$/)
+  expect(rows[1]?.find(p => p.t.includes('✕1'))).toMatchObject({ color: C.err })
+  expect(vw(line(rows[1] ?? []))).toBe(72)
+
+  // The same edit, then passing: fixed, no mark.
+  roster = agentStep(roster, 'a1', 'Edit', { file_path: 'a.ts' }, undefined, T + 4_000, 'e2')
+  roster = agentStepEnd(roster, 'a1', { id: 'e2', tool: 'Edit', input: { file_path: 'a.ts' }, at: T + 4_100, outcome: { result: {}, text: 'ok' } })
+  expect(line(agentRows(roster, T + 5_000, 72)[1] ?? [])).not.toContain('✕')
 })
