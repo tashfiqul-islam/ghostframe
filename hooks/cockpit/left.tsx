@@ -7,7 +7,7 @@ import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
 import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
-import { docked, setDockedFlag, shownAtTurn } from './mode'
+import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
 import { isOn } from './switch'
 
@@ -22,6 +22,8 @@ export const isQuiet = (): boolean => isOn() && docked() && shownAtTurn()
 // pane is closed, docked again, or hidden behind another tab: only rows drawn later take the new mode.
 // shortcut: kept in the module, so a reload forgets it and rows drawn again after one take the mode of that moment.
 const rowModes = new Map<string, boolean>()
+// The rows of the transcript a resume brought back, drawn before the session started.
+const resumedRows = new Set<string>()
 const ROWS_MAX = 2_000
 
 /**
@@ -37,6 +39,13 @@ export function isQuietRow(row: string | undefined): boolean {
   if (had !== undefined) return had
 
   const now = isQuiet()
+
+  // A resumed transcript is drawn before the session starts and the pane is placed: its rows are not held to that
+  // moment's mode, and draw again in the pane's. (A row drawn before Cockpit docks mid-session keeps its mode.)
+  if (beforeStart()) resumedRows.add(row)
+
+  if (resumedRows.has(row) && !seated()) return now
+
   remember(rowModes, row, now, ROWS_MAX)
 
   return now
@@ -91,6 +100,16 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
 }
 
 /**
+ * A click on a receipt: pins its turn and says so in a toast (a receipt of the live turn pins nothing: the pane
+ * already shows it). It only pins: nothing is sent, run again or rewound.
+ * @param $ the engine interface
+ * @param turnNo the receipt's turn
+ */
+async function pinAndSay($: EngineInterface, turnNo: number): Promise<void> {
+  $.ui.toast(await pinFromCommand($, String(turnNo)))
+}
+
+/**
  * Cockpit's part of a turn's last answer block while quiet: the receipt of the engine turn that block ended, with
  * its `still failing` rows, one blank row above (E.32). Every turn that answered gets exactly one, keyed by the
  * engine's turn id, which a block knows from its first draw: the engine's footer can't carry it, since the turns
@@ -123,11 +142,44 @@ export async function drawTurnReceipt(
   return (
     <Box flexDirection="column" marginTop={1}>
       {drawRows(ui, above)}
-      <Button key={`receipt:${turn}`} plain onPress={() => void pinFromCommand($, String(turnNo))}>
+      <Button key={`receipt:${turn}`} plain onPress={() => void pinAndSay($, turnNo)}>
         {drawRow(ui, own, 'receipt')}
       </Button>
     </Box>
   )
+}
+
+/**
+ * Whether a resumed transcript's answer block is the one a kept receipt ends on: the turn's answer, where the quiet
+ * left puts `claude`.
+ * shortcut: a resumed answer split over several messages gets the label on its last block; seed the quiet openers
+ * from `$.session.messages()` if that shows.
+ * @param $ the engine interface
+ * @param key the block's key
+ * @returns whether it is
+ */
+export async function endsKeptTurn($: EngineInterface, key: string): Promise<boolean> {
+  return key.length > 0 && (await readReceipts($)).some(r => r.answer === key && r.turn !== null)
+}
+
+/**
+ * Cockpit's part of an answer block of a resumed transcript (its rows carry no turn id): the receipt of the turn
+ * whose last answer block it is, found by the block's key, drawn as the live one is.
+ * @param $ the engine interface
+ * @param e the block's render
+ * @param key the block's key
+ * @param width the transcript rule's width
+ * @returns the tree, or undefined when no kept receipt ends on this block
+ */
+export async function drawKeptReceipt(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage', 'terminal'>,
+  key: string,
+  width: number
+): Promise<RenderElement | undefined> {
+  const receipt = key.length === 0 ? undefined : (await readReceipts($)).findLast(r => r.answer === key)
+
+  return receipt?.turn === null || receipt === undefined ? undefined : drawTurnReceipt($, e, receipt.turn, width)
 }
 
 /**

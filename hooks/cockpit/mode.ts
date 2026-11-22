@@ -18,8 +18,25 @@ let isDocked = false
  */
 let isShownAtTurn: boolean | undefined
 
+/** Whether the session has not started yet: the rows drawn until then are the transcript a resume brings back. */
+let isBeforeStart = true
+
+/** Whether the pane has been placed yet: until then, the resumed transcript's mode is not known. */
+let isSeated = false
+
 /** Whether the pane is docked now. */
 export const docked = (): boolean => isDocked
+
+/** Whether the session has not started yet (a row drawn now is the resumed transcript's). */
+export const beforeStart = (): boolean => isBeforeStart
+
+/** Whether the pane has been placed yet. */
+export const seated = (): boolean => isSeated
+
+/** The session starts: the rows drawn from now on are its own. */
+export function markStarted(): void {
+  isBeforeStart = false
+}
 
 /**
  * Keeps whether the pane is docked.
@@ -27,7 +44,8 @@ export const docked = (): boolean => isDocked
  * @returns whether that changed
  */
 export function setDockedFlag(value: boolean): boolean {
-  const isChanged = value !== isDocked
+  const isChanged = value !== isDocked || !isSeated
+  isSeated = true
   isDocked = value
 
   return isChanged

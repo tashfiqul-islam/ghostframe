@@ -10,7 +10,7 @@ import { respond } from '../../support/respond'
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: { now: number }, store: Store, session = 's1') {
+function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = []) {
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -31,8 +31,22 @@ function engine(on: On, clock: { now: number }, store: Store, session = 's1') {
 
     return { value: undefined }
   })
-  on('prompt.submit', (_, e) => ({ text: e.text }))
-  on('turn.start', (_, e) => ({ turnId: e.turnId }))
+  // Whatever starts or sends a prompt is noted in `sent`.
+  on('prompt.submit', (_, e) => {
+    sent.push(`prompt.submit ${e.text}`)
+
+    return { text: e.text }
+  })
+  on('prompt.fill', (_, e) => {
+    sent.push(`prompt.fill ${JSON.stringify(e)}`)
+
+    return {} as never
+  })
+  on('turn.start', (_, e) => {
+    sent.push(`turn.start ${e.text}`)
+
+    return { turnId: e.turnId }
+  })
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.list', () => ({ value: [] as never }))
   on('tool.call', () => {
@@ -221,4 +235,131 @@ test('compaction changes nothing: the pane reads the same after it, and /steps s
   expect(await paneText($)).toEqual(before)
   expect(await run($, 1)).toBe('pinned turn 1 · l in the pane or /steps for live')
   expect(await paneText($)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
+})
+
+/** An answer block as the engine draws it, and its rows' text. */
+const answerRow = (text: string) =>
+  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: true } }) as never
+const rowsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
+  (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0)
+
+test('each kept receipt names its turn`s last answer block, the key a resumed transcript finds it by', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  engine(on, clock, store, 'answers')
+  await threeTurns($, clock)
+  const saved = store.get('history:answers') as { turns: { receipts: { turn: string; answer: string }[] }[] }
+  expect(saved.turns.flatMap(t => t.receipts).map(r => [r.turn, r.answer])).toEqual([
+    ['e1', 'Turn 1 done.'],
+    ['e2', 'Turn 2 done.'],
+    ['e3', 'Turn 3 done.']
+  ])
+})
+
+test('resume: the answers drawn again from history get their receipts back, by block key, once the pane is drawn', ON, async ($, on) => {
+  const clock = { now: T0 + 999_000 }
+  const receipt = (turnNo: number, answer: string) => ({
+    turn: `e${turnNo}`,
+    turnNo,
+    answer,
+    state: 'done' as const,
+    agents: 0,
+    steps: turnNo,
+    failures: 0,
+    fixed: 0,
+    files: 0,
+    commit: '',
+    open: [],
+    durationMs: 2_000
+  })
+  const turns = [
+    { ...aTurn(1, T0), receipts: [receipt(1, 'Turn 1 done.')] },
+    { ...aTurn(2, T0 + 100_000), receipts: [receipt(1, 'Turn 1 done.'), receipt(2, 'Turn 2 done.')] }
+  ]
+  engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed')
+
+  // The engine draws the resumed transcript before the session starts: its mode is not known yet, and it is not
+  // held to it; placing the pane draws it again.
+  const first = await $.ui.mount(answerRow('Turn 1 done.'))
+  const second = await $.ui.mount(answerRow('Turn 2 done.'))
+  expect((await rowsOf(second)).some(t => t.startsWith('─ done'))).toBe(false)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const pane = await $.ui.mount(focused(false))
+  await first.redraw()
+  await second.redraw()
+
+  // Drawn again in the pane's mode: each answer carries `claude` and ends with its own turn's receipt, as it did live.
+  expect(await rowsOf(first)).toContain('claude')
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
+  // An answer no kept receipt ends on gets none.
+  const other = await $.ui.mount(answerRow('Something else.'))
+  expect((await rowsOf(other)).some(t => t.startsWith('─ done'))).toBe(false)
+  expect(await rowsOf(other)).not.toContain('claude')
+
+  // And a resumed receipt pins its turn, like a live one (turn 2, the last, is the live turn).
+  await first.press({ key: 'receipt:e1' })
+  await pane.redraw()
+  expect(await rowsOf(pane)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
+  await Promise.all([first.unmount(), second.unmount(), other.unmount(), pane.unmount()])
+})
+
+test('a click on any Cockpit row sends nothing: receipts, step rows and key hints only pin, open or say', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const sent: string[] = []
+  const toasts: string[] = []
+  engine(on, clock, new Map(), 's1', sent)
+  on('ui.toast', (_, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  on('ui.copy', () => ({ value: undefined }) as never)
+  await threeTurns($, clock)
+  const pane = await $.ui.mount(focused(true))
+  sent.length = 0
+
+  // Every receipt: turns 1 and 2 pin; turn 3 is the live turn, and says so.
+  for (const n of [1, 2, 3]) {
+    const answer = await $.ui.mount(answerRow(`Turn ${n} done.`))
+    await answer.press({ key: `receipt:e${n}` })
+    await answer.unmount()
+  }
+
+  expect(toasts).toEqual([
+    'pinned turn 1 · l in the pane or /steps for live',
+    'pinned turn 2 · l in the pane or /steps for live',
+    'turn 3 is the live turn · the pane follows it'
+  ])
+
+  // Every Button the focused pane draws: its step rows and its key hints.
+  await pane.redraw()
+  const keys = (await pane.findAll({ type: 'Button' })).flatMap(b => [(b.props as { key?: string }).key ?? []].flat())
+  expect(keys.some(k => k.startsWith('step:'))).toBe(true)
+  expect(keys.some(k => k.startsWith('key-'))).toBe(true)
+
+  await pane.unmount()
+  let pressed = 0
+
+  // Each from the live list: a step row's press opens its detail and `p` pins, so `b` and `/steps` come back first.
+  for (const key of keys) {
+    await run($, '')
+    const ui = await $.ui.mount(focused(true))
+    const drawn = async () => (await ui.findAll({ type: 'Button' })).map(b => (b.props as { key?: string }).key)
+
+    while ((await drawn()).includes('key-b')) {
+      await ui.press({ key: 'key-b' })
+      await ui.redraw()
+    }
+
+    if ((await drawn()).includes(key)) {
+      await ui.press({ key })
+      pressed++
+    }
+
+    await ui.unmount()
+  }
+
+  expect(pressed).toBe(keys.length)
+  expect(sent).toEqual([])
 })

@@ -24,7 +24,7 @@ const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as Rost
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-4' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-5' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -216,15 +216,16 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
  * @param $ the engine interface
  * @param durationMs how long the engine says the turn ran
  * @param isAborted whether it was interrupted (correction G: no receipt; `[ LAST ]` carries the state)
+ * @param answer the key of the turn's last answer block, where its receipt is drawn ('' when it wrote none)
  */
-export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean): Promise<void> {
+export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean, answer = ''): Promise<void> {
   if (!isOn()) return
 
   const now = await $.clock.now()
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
-  const receipt = receiptOf(await read($, stepLog), waiting)
+  const receipt = { ...receiptOf(await read($, stepLog), waiting), answer }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
 
   if (anyRunning(await read($, roster))) startTimers($, false)

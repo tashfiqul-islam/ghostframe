@@ -70,6 +70,9 @@ Owner, 2026-11-22 (phase 8). Replaces E.45's "the last 50 turns are also written
 - A file's diff in `[ FILES ]` is its content at the turn's start (read just before the first call that could change it) against its content now, so a shell's changes are in it. A file no call named before it changed falls back to Git when Git saw it clean at the turn's start; otherwise the view says why it has no fuller diff.
 - After a compaction nothing on screen changes: E.45's `· before the compaction` in `[ LAST ]` is not drawn.
 - A pin is released by a typed prompt, `/steps` alone, `l`, or pinning the live turn; `p` at the oldest kept turn stays and says `no earlier turn kept`.
+- After a resume (`claude --continue`), the transcript the engine draws again ends each answer with its receipt, as the live session did. History messages carry no turn id, so each kept receipt records the key of its turn's last answer block (its first 100 characters, spaces folded), and a resumed block finds its receipt, and its `claude` label, by that key. The engine draws the resumed transcript before `session.start`, so those rows take the left's mode only once the pane is placed. A resumed answer split over several messages gets the label on its last block.
+- A click on a receipt pins its turn and says so in a toast (`pinned turn N · l in the pane or /steps for live`). On the live turn's receipt it pins nothing and says `turn N is the live turn · the pane follows it`. Clicks reach the plugin in the terminal: in fullscreen the engine turns on SGR mouse reporting.
+- A click on any Cockpit row (a receipt, a step row, a key hint) only pins, opens a view or says something; it never submits, runs again or rewinds a prompt. Cockpit draws nothing clickable on a prompt row.
 
 ## Corrections from the probes (facts, 2026-11-21)
 

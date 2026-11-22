@@ -92,7 +92,9 @@ export function registerTurns(on: On): void {
         await updateAwaitingFirst($, () => false)
 
         try {
-          await logTurnEnd($, e.durationMs, e.isAborted)
+          // The turn's last answer block: its receipt is drawn under it, and again there after a resume.
+          const answer = (await readFlow($)).findLast(f => f.turn === e.turnId && f.kind === 'text')?.key ?? ''
+          await logTurnEnd($, e.durationMs, e.isAborted, answer)
         } catch {
           // A step left running reads `running` until the next turn starts.
         }

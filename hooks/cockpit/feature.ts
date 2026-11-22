@@ -7,7 +7,7 @@
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
-import { PANE, STEPS } from './mode'
+import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
 import { FIRST_COLUMNS, logSeatError, registerPane } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
@@ -21,6 +21,7 @@ type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
  * @param e the session start's input
  */
 export async function startCockpit($: EngineInterface, e: SessionStart): Promise<void> {
+  markStarted()
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
   setEnvOn(await isEnvSet($))
   await $.command.register({ name: STEPS, description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live' })
@@ -32,8 +33,21 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
   }
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
-    void $.ui.open({ id: PANE, columns: FIRST_COLUMNS }).catch((error: unknown) => logSeatError($, error))
+    void seat($).catch((error: unknown) => logSeatError($, error))
   }
+}
+
+/**
+ * Opens the pane at session start. Placed, the resumed transcript (drawn before the pane) draws again in its mode.
+ * @param $ the engine interface
+ */
+async function seat($: EngineInterface): Promise<void> {
+  const { isPlaced } = await $.ui.open({ id: PANE, columns: FIRST_COLUMNS })
+
+  if (!isPlaced) return
+
+  setDockedFlag(true)
+  $.ui.invalidate('ui.render')
 }
 
 /**
