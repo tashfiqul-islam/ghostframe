@@ -343,9 +343,10 @@ test('a browser run is one frame across its rows; the next block and the close r
 
 // ─── Docked Cockpit: an agent launch is the pane's ──────────────────
 
-test('docked: an `Agent` call`s row draws nothing; one drawn before the dock keeps the engine`s row', ON, async ($, on) => {
+test('docked, and in fallback before the dock: an `Agent` call`s row draws nothing; a drawn row never changes', ON, async ($, on) => {
   engine(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('clock.now', () => ({ value: 0 }))
   const row = (id: string) =>
     ({
       plugin: 'ghostframe',
@@ -375,8 +376,9 @@ test('docked: an `Agent` call`s row draws nothing; one drawn before the dock kee
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: false })
+  // Fallback (E.13): the launch is counted in the capsule, its agents are in the live area.
   const before = await texts('c1')
-  expect(before).not.toEqual([])
+  expect(before).toEqual([])
   const pane = await $.ui.mount(PANE)
   expect(await texts('c2')).toEqual([])
   // A row drawn before the pane docked never changes.

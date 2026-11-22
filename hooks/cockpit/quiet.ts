@@ -13,8 +13,11 @@ const spaces = (n: number) => ' '.repeat(Math.max(0, n))
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 const CLOCK_W = 7
 
+/** A receipt's counts, between the rule's fill and its time. */
+const tailOf = (kept: readonly [string, number][]) => (kept.length > 0 ? ` ${kept.map(([t]) => t).join(' · ')} · ` : ' ')
+
 /** A row with its clock on the right edge, exactly `width` cells; no clock, no padding. */
-function edgeRow(parts: readonly Part[], clock: string, width: number): Part[] {
+export function edgeRow(parts: readonly Part[], clock: string, width: number): Part[] {
   if (clock.length === 0) return [...parts]
 
   const room = width - CLOCK_W - 1
@@ -35,11 +38,16 @@ const STATE = {
 /**
  * The receipt (E.32, amendment 3: the state word, no turn number) and, above it, a `still failing` row for each
  * failure nothing fixed (E.5), each at the clock of its failure. An interrupted turn has none (correction G).
+ * In fallback (E.32) the capsule already said the steps, so the receipt does not unless the turn drew more than one
+ * capsule; and each failure drew its row when it happened, so no `still failing` row repeats it. Narrow, fields
+ * drop in E.32's order (the commit first, then sources, files, agents, steps); the exceptions, the state word and
+ * the time always stay.
  * @param receipt the turn's receipt
  * @param width the rule's width
+ * @param fallback the turn's capsules, when the receipt is drawn in fallback
  * @returns the rows, top to bottom
  */
-export function receiptRows(receipt: Receipt, width: number): Part[][] {
+export function receiptRows(receipt: Receipt, width: number, fallback?: { capsules: number }): Part[][] {
   if (receipt.state === 'interrupted') return []
 
   const open = receipt.open.length
@@ -49,24 +57,39 @@ export function receiptRows(receipt: Receipt, width: number): Part[][] {
       : open === 0
         ? [`${plural(receipt.failures, 'failure')} → fixed`]
         : [plural(open, 'failure'), ...(receipt.fixed > 0 ? [`${receipt.fixed} fixed`] : [])]
-  const meta = [
+  // A turn still waiting on its agents names them in its state word: said once.
+  const launched = receipt.state === 'waiting' ? 0 : (receipt.launched ?? 0)
+  const pages = receipt.sources ?? 0
+  const isStepsSaid = fallback !== undefined && fallback.capsules <= 1
+  // Each field with the rank it drops at when the row is too narrow: higher goes first; 0 never goes.
+  const fields: [string, number][] = [
     // A turn with no steps of its own says so: it never borrows another turn's count.
-    receipt.steps > 0 ? plural(receipt.steps, 'step') : 'no steps',
-    ...exceptions,
-    ...(receipt.files > 0 ? [plural(receipt.files, 'file')] : []),
+    ...(isStepsSaid ? [] : [[receipt.steps > 0 ? plural(receipt.steps, 'step') : 'no steps', 1] as [string, number]]),
+    ...exceptions.map(e => [e, 0] as [string, number]),
+    ...(launched > 0 ? [[plural(launched, 'agent'), 2] as [string, number]] : []),
+    ...(receipt.files > 0 ? [[plural(receipt.files, 'file'), 3] as [string, number]] : []),
+    ...(pages > 0 ? [[plural(pages, 'source'), 4] as [string, number]] : []),
     // The turn made a commit: its short hash, the one thing a later turn may want to find again.
-    ...(receipt.commit.length > 0 ? [`± ${receipt.commit}`] : [])
-  ].join(' · ')
+    ...(receipt.commit.length > 0 ? [[`± ${receipt.commit}`, 5] as [string, number]] : [])
+  ]
   const time = formatSpan(receipt.durationMs)
-  const tail = meta.length > 0 ? ` ${meta} · ` : ' '
   const state = STATE[receipt.state]
   // Background agents still running when the turn ended: `waiting · 3 agents` (E.32), as it was when drawn.
   const word = receipt.state === 'waiting' ? `waiting · ${plural(receipt.agents, 'agent')}` : receipt.state
   const lead = `─ ${word} `
+  let kept = fields
+
+  while (vw(lead) + 2 + vw(tailOf(kept)) + vw(time) > width && kept.some(([, rank]) => rank > 0)) {
+    const top = Math.max(...kept.map(([, rank]) => rank))
+
+    kept = kept.filter(([, rank]) => rank !== top)
+  }
+
+  const tail = tailOf(kept)
   const fill = width - vw(lead) - vw(tail) - vw(time)
 
   // A result that only repeats the subject (`exit 3`) is said once.
-  const still = receipt.open.map(f =>
+  const still = (fallback !== undefined ? [] : receipt.open).map(f =>
     edgeRow(
       [
         { t: '✕ ', color: C.err },

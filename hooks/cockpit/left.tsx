@@ -1,5 +1,6 @@
-// Cockpit's part of the left while its pane is docked (spec E.1, E.5, E.32, E.33): the quiet transcript's `↗` rows
-// and receipts, and the one-row live area.
+// Cockpit's part of the left (spec E.1, E.3, E.5, E.32, E.33, E.47): docked, the quiet transcript's `↗` rows and
+// receipts and the one-row live area; in fallback (Cockpit on, no pane docked), the same quiet transcript with a
+// capsule per stretch of work and a row per failure, and the whole live area (fallback/).
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { remember } from '../shared/held'
@@ -9,6 +10,8 @@ import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
+import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
+import { capsulesIn, claimFooter } from './fallback/stretch'
 import { isOn } from './switch'
 
 /**
@@ -18,27 +21,38 @@ import { isOn } from './switch'
  */
 export const isQuiet = (): boolean => isOn() && docked() && shownAtTurn()
 
+/**
+ * Whether the left is in fallback now (E.3, E.47): Cockpit on and no pane docked (too narrow, not fullscreen, or
+ * closed), so the facts the pane would show fold into capsules, failure rows and the full live area.
+ */
+export const isFallback = (): boolean => isOn() && !docked()
+
+/** How a transcript row draws: quiet beside the docked pane, quiet with capsules in fallback, or as it was. */
+type LeftMode = 'docked' | 'fallback' | 'full'
+
+const modeNow = (): LeftMode => (isQuiet() ? 'docked' : isFallback() ? 'fallback' : 'full')
+
 // Each transcript row's mode, by its request: the mode of its first draw. A row once drawn never changes when the
 // pane is closed, docked again, or hidden behind another tab: only rows drawn later take the new mode.
 // shortcut: kept in the module, so a reload forgets it and rows drawn again after one take the mode of that moment.
-const rowModes = new Map<string, boolean>()
+const rowModes = new Map<string, LeftMode>()
 // The rows of the transcript a resume brought back, drawn before the session started.
 const resumedRows = new Set<string>()
 const ROWS_MAX = 2_000
 
 /**
- * Whether a transcript row draws quiet: the mode it was first drawn in, or the mode now for a new row.
+ * A transcript row's mode: the mode it was first drawn in, or the mode now for a new row.
  * @param row the row's render request
- * @returns whether it is quiet
+ * @returns the mode
  */
-export function isQuietRow(row: string | undefined): boolean {
-  if (row === undefined) return isQuiet()
+function rowMode(row: string | undefined): LeftMode {
+  if (row === undefined) return modeNow()
 
   const had = rowModes.get(row)
 
   if (had !== undefined) return had
 
-  const now = isQuiet()
+  const now = modeNow()
 
   // A resumed transcript is drawn before the session starts and the pane is placed: its rows are not held to that
   // moment's mode, and draw again in the pane's. (A row drawn before Cockpit docks mid-session keeps its mode.)
@@ -50,6 +64,21 @@ export function isQuietRow(row: string | undefined): boolean {
 
   return now
 }
+
+/**
+ * Whether a transcript row draws quiet (Cockpit's left, docked or in fallback): narration, steps and the engine's
+ * agent rows leave it, and each turn's receipt ends its answer.
+ * @param row the row's render request
+ * @returns whether it is quiet
+ */
+export const isQuietRow = (row: string | undefined): boolean => rowMode(row) !== 'full'
+
+/**
+ * Whether a quiet row draws in fallback: with capsules and failure rows, since no pane shows the steps.
+ * @param row the row's render request
+ * @returns whether it does
+ */
+export const isFallbackRow = (row: string | undefined): boolean => rowMode(row) === 'fallback'
 
 /**
  * Sets whether the pane is docked. Rows already drawn keep their mode; the live rows follow at once.
@@ -70,9 +99,20 @@ export function setDocked($: EngineInterface, value: boolean): void {
  */
 export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
+  const p = e.props
+
+  if (isFallbackRow(e.requestId)) {
+    return drawFallbackCalls(
+      $,
+      ui,
+      e.requestId,
+      [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }],
+      width
+    )
+  }
+
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
-  const p = e.props
   const rows = shipRows(
     [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }],
     id => steps.find(s => s.id === id)?.clock,
@@ -91,6 +131,9 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
  */
 export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
+
+  if (isFallbackRow(e.requestId)) return drawFallbackCalls($, ui, e.requestId, e.props.calls, width)
+
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
@@ -128,7 +171,8 @@ export async function drawTurnReceipt(
   width: number
 ): Promise<RenderElement | undefined> {
   const receipt = (await readReceipts($)).findLast(r => r.turn === turn)
-  const rows = receipt === undefined ? [] : receiptRows(receipt, width)
+  const fallback = isFallbackRow(e.requestId) && receipt !== undefined ? { capsules: capsulesIn(receipt.turnNo) } : undefined
+  const rows = receipt === undefined ? [] : receiptRows(receipt, width, fallback)
 
   if (rows.length === 0) return undefined
 
@@ -190,13 +234,16 @@ export async function drawAnswerReceipt(
 
 /**
  * Cockpit's part of the `Spinner` site (a plugin hooks it once): while the pane is docked, the left's live area
- * is one row, `working` and the turn's time (E.33). Undefined leaves the site to the caller.
+ * is one row, `working` and the turn's time (E.33); in fallback, the whole live area. Undefined leaves the site to
+ * the caller.
  * @param $ the engine interface
  * @param e the render
  * @returns the row's tree, or undefined
  */
 export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'terminal'>): Promise<RenderElement | undefined> {
-  if (!isQuiet() || e.viewport === undefined) return undefined
+  if (e.viewport === undefined) return undefined
+  if (isFallback()) return drawFallbackLive($, $.ui.resolve(e), e.viewport.columns)
+  if (!isQuiet()) return undefined
 
   const now = await $.clock.now()
   const ui = $.ui.resolve(e)
@@ -205,4 +252,67 @@ export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'te
   const width = Math.min(e.viewport.columns - 1, 120)
 
   return <Box>{drawRows(ui, [liveRow(await readLog($), now, await readFrame($), width)])}</Box>
+}
+
+/**
+ * Cockpit's part of a block of Claude's text that stays, in fallback: the capsule that opens it (E.3 case 1).
+ * @param $ the engine interface
+ * @param e the block's render
+ * @param turn the engine turn the block belongs to, if known
+ * @param width the transcript rule's width
+ * @returns the capsule's row, and whether it comes right after an event row (no blank row above it then, C.2)
+ */
+export async function drawAnswerCapsule(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage', 'terminal'>,
+  turn: string | null | undefined,
+  width: number
+): Promise<{ capsule: RenderElement | undefined; isAfterEvent: boolean }> {
+  return isFallbackRow(e.requestId) ? drawBlockCapsule($, $.ui.resolve(e), e.requestId, turn, width) : { capsule: undefined, isAfterEvent: false }
+}
+
+/**
+ * Cockpit's part of the turn footer (`TurnDuration`) while quiet: nothing, except in fallback for a turn that wrote
+ * no text, where the footer draws the turn's capsule and its receipt (E.3 case 3). The footer claims, at its first
+ * draw, the turn that just ended; a turn that wrote text has its receipt under its answer instead.
+ * @param $ the engine interface
+ * @param e the footer's render
+ * @param width the transcript rule's width
+ * @returns the tree (an empty Box draws nothing)
+ */
+export async function drawQuietFooter($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>, width: number): Promise<RenderElement> {
+  const ui = $.ui.resolve(e)
+  const { Box } = ui
+
+  if (!isFallbackRow(e.requestId)) return <Box />
+
+  const turn = claimFooter(e.requestId, (await readLog($)).turn)
+  const receipt = turn === null ? undefined : (await readReceipts($)).findLast(r => r.turn === turn)
+
+  if (turn === null || receipt === undefined || receipt.answer !== '') return <Box />
+
+  const capsule = await footerCapsule($, e.requestId, turn, width)
+  const rows = receiptRows(receipt, width, { capsules: capsulesIn(receipt.turnNo) })
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, [...(capsule === undefined ? [] : [capsule]), ...rows])}
+    </Box>
+  )
+}
+
+/**
+ * Cockpit's part of an agent's notice (`UserMessage`) while quiet: nothing, except in fallback for an agent that
+ * failed, whose `✕` row draws at once (E.13).
+ * @param $ the engine interface
+ * @param e the notice's render
+ * @param width the transcript rule's width
+ * @returns the tree (an empty Box draws nothing)
+ */
+export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMessage', 'terminal'>, width: number): Promise<RenderElement> {
+  const ui = $.ui.resolve(e)
+  const task = e.props.origin.kind === 'task-notification' ? e.props.task : undefined
+  const failed = isFallbackRow(e.requestId) && task !== undefined ? await drawAgentFailure($, ui, e.requestId, task, width) : undefined
+
+  return failed ?? <ui.Box />
 }

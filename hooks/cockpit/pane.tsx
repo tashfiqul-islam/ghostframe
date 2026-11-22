@@ -12,9 +12,10 @@ import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn } from './switch'
 import { readWork } from './work'
-import { PANE, STEPS } from './mode'
+import { PANE, STEPS, docked } from './mode'
 import { readHistory, readPin } from './history/store'
 import { pinFromCommand } from './keys/view'
+import { INSPECTOR_ROWS, inspectorLines } from './fallback/inspector'
 
 export type On = Parameters<Register>[0]
 
@@ -29,8 +30,11 @@ export const FIRST_COLUMNS = 72
 let openedAt: number | undefined
 /** The terminal's columns where Cockpit last closed an inline pane, so a refused close cannot loop. */
 let leftAt: number | undefined
-/** The person's `/cockpit` ran where no dock exists, so an inline pane is theirs and stays. */
-let isAskedInline = false
+/**
+ * Who asked for an inline pane, so it is theirs and stays: `/cockpit` where no dock exists (the whole pane), or
+ * `/steps` there (the inline inspector, E.46). Undefined: an inline pane nobody asked for, which Cockpit closes.
+ */
+let askedInline: 'cockpit' | 'steps' | undefined
 /**
  * The pane's body rows while no dialog covers the prompt. A permission dialog or a question card grows the pane
  * (correction C); the pane is still fitted to this height, so every row stays where it was and the new rows stay
@@ -85,9 +89,10 @@ export function logSeatError($: EngineInterface, error: unknown): void {
  * @param on the `on` that `register` receives
  */
 export function registerPane(on: On): void {
-  // The person closed the pane: the transcript is no longer quiet.
+  // The person closed the pane: the transcript is no longer quiet, and an inline pane is no longer asked for.
   on('ui.close', { id: PANE }, ($, e, next) => {
     setDocked($, false)
+    askedInline = undefined
 
     return next(e)
   })
@@ -108,7 +113,7 @@ export function registerPane(on: On): void {
     }
 
     const { columns, isFullscreen } = e.presentation
-    isAskedInline = !isFullscreen || columns < DOCK_MIN
+    askedInline = !isFullscreen || columns < DOCK_MIN ? 'cockpit' : undefined
     leftAt = undefined
     const opened = await openAt($, columns)
 
@@ -116,12 +121,30 @@ export function registerPane(on: On): void {
   })
 
   // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
+  // With no pane placed it also opens one, with the keyboard (E.46): where no dock exists the engine seats it
+  // inline, the inspector, and Escape closes it; from 110 columns in fullscreen an asked open docks it (amendment 5).
   on('command.run', { command: STEPS }, async ($, e) => {
     if (!isOn()) {
       return { text: OFF_NOTE }
     }
 
-    return { text: await pinFromCommand($, e.args) }
+    const text = await pinFromCommand($, e.args)
+    const asked = e.args.trim()
+    const pin = await readPin($)
+    const isPinned = asked.length === 0 || pin === Number(asked) || Number(asked) === (await readLog($)).turnNo
+
+    // Docked, the pane already shows it. An inline pane already open takes the open again: the same pane, focused.
+    if (docked() || !isPinned) {
+      return { text }
+    }
+
+    const { columns, isFullscreen } = e.presentation
+    askedInline = !isFullscreen || columns < DOCK_MIN ? 'steps' : undefined
+    leftAt = undefined
+    openedAt = columns
+    const opened = await $.ui.open({ id: PANE, columns: paneColumns(columns), rows: INSPECTOR_ROWS, focus: true, closeOnEscape: true })
+
+    return { text: opened.isPlaced ? text : `${text} · pane not placed · ${opened.reason}` }
   })
 
   // The focus ring moved in the pane: `c` copies what it is on.
@@ -155,11 +178,11 @@ export function registerPane(on: On): void {
       setDocked($, placement !== 'inline')
 
       if (placement === 'inline') {
-        if (!isAskedInline && leftAt !== columns) {
+        if (askedInline === undefined && leftAt !== columns) {
           void leaveInline($, columns, viewport.isFullscreen === true).catch((error: unknown) => logSeatError($, error))
         }
 
-        if (!isAskedInline) {
+        if (askedInline === undefined) {
           return <Box />
         }
       } else if (columns !== openedAt) {
@@ -191,7 +214,9 @@ export function registerPane(on: On): void {
     const pinNo = await readPin($)
     const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
     const isPinned = pinned !== undefined
-    const fitTo = (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns, isPinned) : 0)
+    const isInspector = placement === 'inline' && askedInline === 'steps'
+    const fitTo =
+      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector) : 0)
     const shown =
       pinned !== undefined
         ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
@@ -209,10 +234,12 @@ export function registerPane(on: On): void {
       const step = shown.steps[at]
       const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
       lines = step === undefined ? [] : detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
+    } else if (isInspector) {
+      lines = inspectorLines(log, bodyColumns, fitTo, pinned)
     } else {
       lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned)
     }
 
-    return drawPane($, e, lines, view, copiedNote(now), isPinned)
+    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector)
   })
 }

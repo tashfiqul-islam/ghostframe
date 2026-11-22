@@ -129,6 +129,9 @@ export type Receipt = {
   failures: number
   fixed: number
   files: number
+  /** The agents the turn's launches started, and the pages it fetched (E.32); absent in a receipt kept before phase 9. */
+  launched?: number
+  sources?: number
   commit: string
   open: OpenFailure[]
   durationMs: number
