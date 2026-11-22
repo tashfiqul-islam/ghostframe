@@ -82,6 +82,13 @@ export type LogStep = {
   done?: number
   failed?: number
   ended?: string[]
+  /**
+   * A call refused before it ran (spec 13.7, 13.8): `blocked` by a system (a hook, the classifier, the sandbox, a
+   * policy), `denied` by the person. Neither is a failure. `why` names who refused it and the reason, or the
+   * person's words for a denial. Absent for a call that ran.
+   */
+  state?: 'blocked' | 'denied'
+  why?: string
 }
 
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
@@ -141,8 +148,11 @@ export type Receipt = {
   state: LastTurn['state'] | 'waiting'
   agents: number
   steps: number
+  /** Failures and fixes counted by key (spec 13.1), not by attempt. */
   failures: number
   fixed: number
+  /** Steps a system refused (spec 13.7); absent in a receipt kept before phase 12. */
+  blocked?: number
   files: number
   /** The agents the turn's launches started, and the pages it fetched (E.32); absent in a receipt kept before phase 9. */
   launched?: number

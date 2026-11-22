@@ -17,7 +17,7 @@ export function drawRow(ui: Pick<Ui, 'Text'>, row: readonly Part[], key: string)
   return (
     <Text key={key} wrap="truncate">
       {row.map((p, j) => (
-        <Text key={`${j}`} color={p.color} {...(p.bold === true ? { weight: 'bold' as const } : {})}>
+        <Text key={`${j}`} color={p.color} {...(p.bold === true ? { weight: 'bold' as const } : {})} {...(p.bg === undefined ? {} : { backgroundColor: p.bg })}>
           {p.t}
         </Text>
       ))}

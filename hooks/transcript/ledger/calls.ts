@@ -2,7 +2,7 @@
 // (`tool.check`). What a finished call adds to the turn: the tally, test counts, what shipped.
 import type { EngineInterface, On } from 'claude-code'
 
-import { logAgentStep, logAgentStepEnd, logAsk, logStepEnd, logStepStart } from '../../cockpit/log'
+import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepStart } from '../../cockpit/log'
 import { runnerOf } from '../../shared/calls/describe'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
@@ -164,6 +164,9 @@ export function registerCalls(on: On): void {
         await updateAsked($, list => [...list.filter(x => x !== id), id].slice(-100))
         await logAsk($, id)
       }
+
+      // Refused by a check, not by the person (13.7): its step settles `blocked`.
+      if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') logBlocked(id, verdict)
     } catch {
       // A note that fails costs the row its `needs you`, nothing more.
     }

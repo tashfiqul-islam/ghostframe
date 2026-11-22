@@ -32,6 +32,9 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/fallback/`: the left with no pane docked (E.3, E.5, E.33, E.46): the capsule and where each stretch of
   work ends (worked out from the turn's flow and steps at every draw, amendment 10), failure rows, the whole live
   area, and the inline inspector `/steps` opens.
+- `cockpit/v8/`: Cockpit v8's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
+  draws, built on `shared/look/`. The left's rows Cockpit owns (event rows, the receipt, the worked node, the live
+  line, slash command rows) and the pane's components (tabs, head card, timeline, drawer, the other views, the keys).
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line, the
   turn rule Cockpit's prompts open with (E.1).
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.

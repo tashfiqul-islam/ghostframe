@@ -185,9 +185,11 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   if (!isOn()) return
 
   const ran = outcome ?? { isError: true as const, text: 'failed' }
+  const blockedBy = blocks.get(e.tool_use_id)
+  blocks.delete(e.tool_use_id)
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
-  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
+  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy }))
   await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
 }
@@ -202,6 +204,31 @@ export async function logCited($: EngineInterface, cited: readonly { url: string
   if (!isOn() || cited.length === 0) return
 
   await noteCited($, cited)
+}
+
+// The main-loop calls a check refused, by id, with who refused them (13.7), until their step settles.
+// shortcut: kept in the module, so a reload between a check and its call's end loses the block; the step then reads as
+// the engine's refusal text says (a policy). Fine: a check and its call's end are milliseconds apart.
+const blocks = new Map<string, string>()
+const BLOCKS_MAX = 100
+
+/**
+ * A check refused a main-loop call before it ran (13.7): a hook (`PreToolUse`), a settings rule or the organization's
+ * ceiling. Its step settles `blocked`, with this as its detail line. The person's refusal is not a check's: a denial.
+ * @param id the call's id
+ * @param verdict the check's verdict: the hook event, the rule, and the reason it gave
+ */
+export function logBlocked(id: string, verdict: { hook?: string | undefined; rule?: string | undefined; reason?: string | undefined }): void {
+  if (!isOn()) return
+
+  const who = verdict.hook !== undefined ? `by a hook · ${verdict.hook}` : verdict.rule !== undefined ? `by a rule · ${verdict.rule}` : 'by a policy'
+  const reason = verdict.reason
+    ?.split('\n')
+    .find(l => l.trim().length > 0)
+    ?.trim()
+
+  blocks.set(id, reason === undefined || reason.length === 0 ? who : `${who} · ${reason}`)
+  while (blocks.size > BLOCKS_MAX) blocks.delete(blocks.keys().next().value ?? id)
 }
 
 /**

@@ -4,7 +4,7 @@ import { clip, vw } from './text'
 // ─── Parts: coloured pieces of one drawn line ────────────────────────────────
 
 /** One coloured piece of a framed line. */
-export type Part = { t: string; color: string; bold?: boolean; href?: string }
+export type Part = { t: string; color: string; bold?: boolean; href?: string; bg?: string }
 
 /** Clip `parts` to `n` cells (the cut part ends in `…`), then pad with spaces to exactly `n`. */
 export function fitParts(parts: readonly Part[], n: number): Part[] {
