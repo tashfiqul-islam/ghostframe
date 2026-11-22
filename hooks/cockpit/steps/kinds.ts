@@ -1,5 +1,5 @@
 // A step's kind word, subject and fix key (spec E.12), read off the call's tool and input.
-import { describe, mcpName, TEST_CMD, runnerOf } from '../../shared/calls/describe'
+import { describe, mcpName, TEST_CMD } from '../../shared/calls/describe'
 import { stripCd } from '../../shared/look/command'
 import { relPath } from '../../shared/url'
 
@@ -104,9 +104,4 @@ export function subjectOf(tool: string, input: unknown, cwd: string | undefined)
       return describe(tool, input, cwd)?.target ?? ''
     }
   }
-}
-
-/** What a later step must share to fix a failed one: its kind and subject, and for a test run, its runner. */
-export function fixKey(kind: string, subject: string, input: unknown): string {
-  return kind === 'test' ? `test:${runnerOf(command(input)) ?? subject}` : `${kind}:${subject}`
 }

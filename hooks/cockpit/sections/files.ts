@@ -1,16 +1,9 @@
-// Cockpit's `[ FILES ]` (spec E.42): the files the turn changed, in order of first change, with their +/− lines
-// updated in place, `new` and `del` tags, and the section's rows. Pure: hooks/cockpit/work.ts keeps the list and
-// hooks/cockpit/fit.ts fits the rows.
+// The files a turn changed (spec E.42; v8 8.7): in order of first change, with their +/− lines updated in place and
+// whether each is new or deleted. Pure: hooks/cockpit/work.ts keeps the list and hooks/cockpit/v8/views.ts draws it.
 import type { FileChange } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { patchCounts } from '../../shared/calls/results'
-import type { Part } from '../../shared/parts'
-import { vw } from '../../shared/text'
-import { C } from '../../shared/tokens'
-import { clipPath, relPath } from '../../shared/url'
-import { partsOf, plain } from '../line'
-import type { Line } from '../line'
-import { sectionLabel } from '../steps/rows'
+import { relPath } from '../../shared/url'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 const lineCount = (t: string) => (t.length === 0 ? 0 : t.replace(/\n+$/, '').split('\n').length)
@@ -159,84 +152,4 @@ export function noteFiles(files: readonly FileChange[], tool: string, input: unk
   }
 
   return [...files]
-}
-
-const spaces = (n: number) => ' '.repeat(Math.max(0, n))
-const RIGHT_W = 19 // `    new  +141  −238`: the tag in 7, then +n and −n in 5 each
-
-/** One file's row, exactly `width` cells: the path cut in the middle (the file name kept), the tag, +n, −n. */
-function fileRow(f: FileChange, width: number): Part[] {
-  const room = width - 2 - RIGHT_W - 1
-  const path = clipPath(f.path, room)
-  const plus = f.adds > 0 ? `+${f.adds}` : ''
-  const minus = f.dels > 0 ? `−${f.dels}` : ''
-
-  return [
-    { t: f.isAgent === true ? '◇ ' : '  ', color: C.dim },
-    { t: `${path}${spaces(room - vw(path) + 1)}`, color: C.text },
-    { t: f.tag.padStart(7), color: C.muted },
-    { t: ` ${plus.padStart(5)}`, color: C.add },
-    { t: ` ${minus.padStart(5)}`, color: C.del }
-  ]
-}
-
-const sum = (files: readonly FileChange[]) => files.reduce((n, f) => ({ adds: n.adds + f.adds, dels: n.dels + f.dels }), { adds: 0, dels: 0 })
-
-/**
- * `[ FILES ]`: the label, `N changed · +a −d`, then a row per file up to `cap`; past it, `cap − 1` rows and
- * `… n more files · +a −b`.
- * @param files the files, in order of first change
- * @param width the pane's body columns
- * @param cap the rows (4, or 6 in a tall pane)
- * @param isLabel only the label fits
- * @returns one Part list per row; none when the turn changed no file
- */
-export function fileRows(files: readonly FileChange[], width: number, cap: number, isLabel = false): Part[][] {
-  return partsOf(fileLines(files, width, cap, isLabel))
-}
-
-/**
- * `[ FILES ]` as `fileRows` fits it, each file's row under its id (`file:<path>`) so the pane can open its diff.
- * @param files the files, in order of first change
- * @param width the pane's body columns
- * @param cap the rows; `Infinity` for every file (`f`)
- * @param isLabel only the label fits
- * @param title the label (`FILES · TURN n` for a pinned turn)
- * @returns the rows
- */
-export function fileLines(files: readonly FileChange[], width: number, cap: number, isLabel = false, title = 'FILES'): Line[] {
-  if (files.length === 0) return []
-
-  const total = sum(files)
-  const label = sectionLabel(
-    title,
-    [
-      { t: `${files.length} changed`, color: C.muted },
-      // A side with no lines is left out: a turn that only deleted says `1 changed`.
-      ...(total.adds > 0
-        ? [
-            { t: ` · `, color: C.muted },
-            { t: `+${total.adds}`, color: C.add }
-          ]
-        : []),
-      ...(total.dels > 0
-        ? [
-            { t: total.adds > 0 ? ' ' : ' · ', color: C.muted },
-            { t: `−${total.dels}`, color: C.del }
-          ]
-        : [])
-    ],
-    width
-  )
-
-  const line = (f: FileChange): Line => ({ parts: fileRow(f, width), id: `file:${f.path}` })
-
-  if (isLabel) return [plain(label)]
-  if (files.length <= cap) return [plain(label), ...files.map(line)]
-
-  const keep = files.slice(0, cap - 1)
-  const rest = sum(files.slice(cap - 1))
-  const more = `  … ${files.length - keep.length} more files · +${rest.adds} −${rest.dels}`
-
-  return [plain(label), ...keep.map(line), plain([{ t: more + spaces(width - vw(more)), color: C.dim }])]
 }

@@ -1,9 +1,8 @@
-// Cockpit: the pane beside the transcript. Phase 1, the seat: it opens at session start and docks at the
-// width rule (seat.ts, pane.tsx). Phase 2, the step log: the turn's `[ STEPS ]` (steps/, log.ts). Phase 3, the
-// head: `[ NOW ]` / `[ LAST ]` above it, and the left's live area reduced to one row (head.ts). Phase 4,
-// the quiet left: docked, the transcript keeps the conversation, `↗` rows and the receipt (quiet.ts, left.tsx).
-// Phase 5, agents: `[ AGENTS ]` from `agent.spawn` and `agent.report` (agents/), one `[ STEPS ]` row per launch.
-// Spec: docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H; cockpit-v7-amendments.md.
+// Cockpit: the pane beside the transcript. The seat: it opens at session start and docks at the width rule (seat.ts,
+// pane.tsx). The step log: the turn's steps (steps/, log.ts). The quiet left: docked, the transcript keeps the
+// conversation, the event rows and the receipt (left.tsx). Agents: the roster from `agent.spawn` and `agent.report`
+// (agents/). Every row is drawn by the v8 renderers (v8/, ../transcript/v8/).
+// Spec: docs/design/cockpit-v8.md; docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
 import { readVersion } from './version'
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 

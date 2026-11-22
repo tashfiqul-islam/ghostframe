@@ -2,21 +2,13 @@ import { expect, test } from 'claude-code/testing'
 
 import { newLog, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { Outcome } from '../../../hooks/cockpit/steps/log'
-import { stepRows } from '../../../hooks/cockpit/steps/rows'
 
-/** The result column of one settled shell step, as `[ STEPS ]` draws it at 72 columns. */
+/** The result word of one settled shell step, as the step log keeps it. */
 function shellResult(command: string, outcome: Outcome): string {
   const input = { command }
   const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool: 'Bash', input, at: 0 }), { id: 'a', tool: 'Bash', input, outcome, at: 1_000 })
-  const row =
-    stepRows(log, 72, 10)[1]
-      ?.map(p => p.t)
-      .join('') ?? ''
 
-  return row
-    .slice(11, -9)
-    .replace(/^.*? {2,}/, '')
-    .trim()
+  return log.steps[0]?.result ?? ''
 }
 
 const out = (stdout: string): Outcome => ({ result: { stdout, stderr: '' }, text: stdout })

@@ -24,13 +24,6 @@ export type View =
   | { kind: 'diff'; path: string; patch: string[]; note?: string }
   | { kind: 'agent'; id: string; note: string }
 
-/**
- * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. `m` goes back from anywhere
- * in the pane (Enter on the agent's row too). Escape at the prompt is not offered: live, it stopped the viewed agent's
- * running shell first, and went back to main only when nothing ran.
- */
-export const AGENT_NOTE = 'agent in view · m for main'
-
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])

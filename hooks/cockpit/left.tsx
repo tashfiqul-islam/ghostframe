@@ -147,9 +147,6 @@ let columns: number | undefined
 /** How many times the width has changed: a wait for it to hold starts again when this moves. */
 let widthChanges = 0
 
-/** The terminal's columns as last drawn; undefined before any draw. */
-export const columnsNow = (): number | undefined => columns
-
 /** A count that moves each time the terminal's width changes. */
 export const widthTick = (): number => widthChanges
 

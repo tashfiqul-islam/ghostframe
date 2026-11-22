@@ -10,13 +10,11 @@ import type { Ui } from '../../shared/rule'
 import { readFlow } from '../../shared/flow'
 import { drawRows } from '../draw'
 import { keptRecords } from '../history/store'
-import { readFrame, readLog, readRoster } from '../log'
+import { readLog, readRoster } from '../log'
 import type { GroupCall } from '../quiet'
-import { liveArea } from '../v8/live'
 import { workedCounts } from '../v8/receipt'
 import { workedRow } from '../v8/left'
 import { shipEventRows } from '../v8/ships'
-import { readWork } from '../work'
 import type { Capsule } from './capsule'
 import { failureOf, failureRows } from './events'
 import type { Failure } from './events'
@@ -135,17 +133,6 @@ export async function footerCapsule($: EngineInterface, turn: string, width: num
 }
 
 /**
- * How many capsules the typed turn of an engine turn draws in fallback: its receipt leaves the steps to the capsule
- * only when there is exactly one (E.32).
- * @param $ the engine interface
- * @param turn the engine turn
- * @returns the count
- */
-export async function capsuleCount($: EngineInterface, turn: string): Promise<number> {
-  return (await turnView($, turn))?.plan.capsules.size ?? 0
-}
-
-/**
  * A failed agent's row, drawn from its notice (E.13): `✕ failed · agent <name> · <reason>`, on the turn clock when it
  * ended, from the roster of its turn (the live one, or history's).
  * @param $ the engine interface
@@ -175,18 +162,4 @@ export async function drawAgentFailure(
       {drawRows(ui, failureRows(failure, width))}
     </ui.Box>
   )
-}
-
-/**
- * The live area in fallback (E.33): the now-row, the roster and the to-do in progress, across the band.
- * @param $ the engine interface
- * @param ui the surface's elements
- * @param columns the terminal's columns
- * @returns the band's tree
- */
-export async function drawFallbackLive($: EngineInterface, ui: Pick<Ui, 'Box' | 'Text'>, columns: number): Promise<RenderElement> {
-  const now = await $.clock.now()
-  const rows = liveArea(await readLog($), await readRoster($), (await readWork($)).todo, now, await readFrame($), columns, true)
-
-  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
 }
