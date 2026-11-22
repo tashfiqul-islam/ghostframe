@@ -176,6 +176,12 @@ export type RosterAgent = {
   endedAt: number | null
   subjectAt: number
   pending: { kind: string; subject: string } | null
+  /**
+   * The agent's own steps (phase 11, B1): its calls as `[ STEPS ]` rows on its own clock (ms since `startedAt`), and
+   * how many of its oldest went past the cap. Absent in an entry kept before phase 11, or for an agent with no call yet.
+   */
+  log?: LogStep[]
+  logDropped?: number
 }
 
 /** One to-do item (spec E.41): its id (the task's, or its place in a TodoWrite list), its text and its state. */

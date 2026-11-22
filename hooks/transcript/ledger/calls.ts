@@ -2,7 +2,7 @@
 // (`tool.check`). What a finished call adds to the turn: the tally, test counts, what shipped.
 import type { EngineInterface, On } from 'claude-code'
 
-import { logAgentStep, logAsk, logStepEnd, logStepStart } from '../../cockpit/log'
+import { logAgentStep, logAgentStepEnd, logAsk, logStepEnd, logStepStart } from '../../cockpit/log'
 import { runnerOf } from '../../shared/calls/describe'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
@@ -67,14 +67,28 @@ export function registerCalls(on: On): void {
   // Time every main-loop call. Observes only: the call runs exactly as it would.
   on('tool.call', async ($, e, next) => {
     if (e.agentId !== undefined) {
+      const agentId = e.agentId
+
       try {
-        // A subagent's call is its own: its `[ AGENTS ]` row says what it does now.
-        await logAgentStep($, e.agentId, e, sessionCwd())
+        // A subagent's call is its own: its `[ AGENTS ]` row says what it does now, and its own log gets the step.
+        await logAgentStep($, agentId, e, sessionCwd())
       } catch (error: unknown) {
         $.ui.log(`cockpit: agent step failed: ${String(error)}`)
       }
 
-      return next(e)
+      let done: Awaited<ReturnType<typeof next>> | undefined
+
+      try {
+        done = await next(e)
+
+        return done
+      } finally {
+        try {
+          await logAgentStepEnd($, agentId, e, done)
+        } catch (error: unknown) {
+          $.ui.log(`cockpit: agent step failed: ${String(error)}`)
+        }
+      }
     }
 
     const id = e.tool_use_id

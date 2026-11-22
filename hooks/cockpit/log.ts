@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Timer, ToolCallInput } from 'claude-code'
 
-import { addAgent, agentStep, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents, waitingOn } from './agents/roster'
+import { addAgent, agentLaunchEnd, agentStep, agentStepEnd, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents, waitingOn } from './agents/roster'
 import type { AgentEnd, AgentStart } from './agents/roster'
 import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
@@ -323,7 +323,22 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   if (!isOn()) return
 
   const at = await $.clock.now()
-  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd, at) : list))
+  await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id) : list))
+}
+
+/**
+ * An agent's own call ended: its row in the agent's own log settles.
+ * @param $ the engine interface
+ * @param id the agent's id
+ * @param e the call
+ * @param outcome what `next(e)` resolved to; undefined when it threw
+ */
+export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCallInput, outcome: Outcome | undefined): Promise<void> {
+  if (!isOn()) return
+
+  const at = await $.clock.now()
+  const ran = outcome ?? { isError: true as const, text: 'failed' }
+  await update($, roster, list => agentStepEnd(list, id, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
 }
 
 /**
@@ -345,6 +360,10 @@ export async function logAgentEnd($: EngineInterface, end: Omit<AgentEnd, 'at'>)
   // The launch counts each agent once (`endLaunched` keeps which); a later report of a finished one counts nothing.
   if (agent.parent === null && agent.call.length > 0) {
     await update($, stepLog, log => endLaunched(log, agent.call, end.status !== 'completed', at))
+  } else if (agent.parent !== null && agent.call.length > 0) {
+    // A nested agent's launch is a row of its parent's own log.
+    const parent = agent.parent
+    await update($, roster, list => agentLaunchEnd(list, parent, agent.call, end.status !== 'completed', at))
   }
 
   const log = await read($, stepLog)

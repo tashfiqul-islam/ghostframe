@@ -1,7 +1,9 @@
 // Cockpit's roster of agents (spec E.40, correction M): one entry per agent from its launch to the end of the
 // turn, changed in place and never reordered. Pure: hooks/cockpit/log.ts keeps it in $.state.
-import type { RosterAgent } from '../../../types'
-import { kindOf, subjectOf } from '../steps/kinds'
+import type { RosterAgent, StepLog } from '../../../types'
+import { UNLISTED, kindOf, subjectOf } from '../steps/kinds'
+import { endLaunched, newLog, settleStep, startStep } from '../steps/log'
+import type { StepEnd } from '../steps/log'
 
 /** An agent as it starts: `agent.spawn`'s answer and input, and the wall clock in ms. */
 export type AgentStart = { id: string; call: string; parent: string | null; name: string; called?: readonly string[]; isBackground: boolean; at: number }
@@ -45,18 +47,55 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
 
 const SUBJECT_MS = 1_000 // an agent's subject changes at most once a second (E.40)
 
+const AGENT_STEPS_MAX = 500 // an agent's own rows kept; older ones are counted in `logDropped`
+
+/** An agent's own steps as a step log on its own clock, so the main loop's pure step functions write it. */
+function logOf(a: RosterAgent): StepLog {
+  return { ...newLog(null, a.startedAt), steps: a.log ?? [], dropped: a.logDropped ?? 0, turnNo: 1, isTurnRunning: true }
+}
+
+/** The agent with its step log written back, the oldest rows past the cap counted. */
+function withLog(a: RosterAgent, log: StepLog): RosterAgent {
+  const over = Math.max(0, log.steps.length - AGENT_STEPS_MAX)
+
+  return { ...a, log: log.steps.slice(over), logDropped: log.dropped + over }
+}
+
 /**
  * An agent's own call started at `at`: the step counts at once; its row says what it does now if its subject last
  * changed a second ago or more, else the step waits as `pending` (see `shownStep`), so a fast agent never flickers.
+ * With the call's id, the step also joins the agent's own log (B1). A call that draws no step row (UNLISTED) counts
+ * for nothing.
  */
-export function agentStep(roster: readonly RosterAgent[], id: string, tool: string, input: unknown, cwd: string | undefined, at: number): RosterAgent[] {
+export function agentStep(
+  roster: readonly RosterAgent[],
+  id: string,
+  tool: string,
+  input: unknown,
+  cwd: string | undefined,
+  at: number,
+  callId?: string
+): RosterAgent[] {
   return roster.map(a => {
-    if (a.id !== id || a.state !== 'running') return a
+    if (a.id !== id || a.state !== 'running' || UNLISTED.has(tool)) return a
 
     const step = { kind: kindOf(tool, input), subject: subjectOf(tool, input, cwd) }
+    const logged = callId === undefined ? a : withLog(a, startStep(logOf(a), { id: callId, tool, input, at }, cwd))
 
-    return at - a.subjectAt >= SUBJECT_MS ? { ...a, ...step, steps: a.steps + 1, subjectAt: at, pending: null } : { ...a, steps: a.steps + 1, pending: step }
+    return at - a.subjectAt >= SUBJECT_MS
+      ? { ...logged, ...step, steps: a.steps + 1, subjectAt: at, pending: null }
+      : { ...logged, steps: a.steps + 1, pending: step }
   })
+}
+
+/** An agent's own call ended: its row in the agent's log settles, once (a launch, when its agents have reported). */
+export function agentStepEnd(roster: readonly RosterAgent[], id: string, end: StepEnd): RosterAgent[] {
+  return roster.map(a => (a.id === id && a.log !== undefined ? withLog(a, settleStep(logOf(a), end)) : a))
+}
+
+/** A nested agent ended: its launch in its parent's own log counts it (amendment 1), settling once all have. */
+export function agentLaunchEnd(roster: readonly RosterAgent[], parent: string, call: string, isFailed: boolean, at: number): RosterAgent[] {
+  return roster.map(a => (a.id === parent && a.log !== undefined ? withLog(a, endLaunched(logOf(a), call, isFailed, at)) : a))
 }
 
 /** What a running agent's row says at `now`: its pending step once a second has passed since its subject changed. */

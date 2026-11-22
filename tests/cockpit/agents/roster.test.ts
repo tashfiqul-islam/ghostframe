@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { addAgent, agentStep, endAgent, endTurnAgents, reconcile, startTurnAgents } from '../../../hooks/cockpit/agents/roster'
+import { addAgent, agentLaunchEnd, agentStep, agentStepEnd, endAgent, endTurnAgents, reconcile, startTurnAgents } from '../../../hooks/cockpit/agents/roster'
 import type { RosterAgent } from '../../../types'
 
 const T = 1_000_000
@@ -65,4 +65,40 @@ test('the engine`s list settles a run whose report never came: killed or gone is
     ['c', 'done', ''],
     ['d', 'failed', 'stopped']
   ])
+})
+
+test('an agent keeps its own steps, on its own clock: each call a row that settles once (B1)', () => {
+  let roster = addAgent([], start('a'))
+  roster = agentStep(roster, 'a', 'Edit', { file_path: '/repo/a.ts' }, '/repo', T + 1_000, 'e1')
+  expect(roster[0]?.log).toMatchObject([{ id: 'e1', kind: 'edit', subject: 'a.ts', isRunning: true, clock: 1_000 }])
+
+  roster = agentStepEnd(roster, 'a', {
+    id: 'e1',
+    tool: 'Edit',
+    input: { file_path: '/repo/a.ts' },
+    at: T + 3_000,
+    outcome: { result: { structuredPatch: [{ lines: ['+x', '+y', '-z'] }] }, text: 'ok' }
+  })
+  expect(roster[0]?.log).toMatchObject([{ id: 'e1', kind: 'edit', subject: 'a.ts', result: '+2 −1', mark: '', isRunning: false, clock: 3_000 }])
+})
+
+test('an agent`s report call is no step, and past 500 steps the oldest are counted, not kept', () => {
+  let roster = addAgent([], start('a'))
+  roster = agentStep(roster, 'a', 'SubagentHandback', { message: 'done' }, undefined, T + 1, 'h1')
+  expect(roster[0]?.log ?? []).toEqual([])
+
+  for (let i = 0; i < 503; i++) roster = agentStep(roster, 'a', 'Read', { file_path: `f${i}.ts` }, undefined, T + 10 + i, `r${i}`)
+  expect(roster[0]?.log).toHaveLength(500)
+  expect(roster[0]?.logDropped).toBe(3)
+  expect(roster[0]?.log?.[0]?.id).toBe('r3')
+})
+
+test('a nested launch settles in its parent`s own log when the child reports', () => {
+  let roster = addAgent([], start('p'))
+  roster = agentStep(roster, 'p', 'Agent', { description: 'child', prompt: 'go' }, undefined, T + 1_000, 'k1')
+  roster = agentStepEnd(roster, 'p', { id: 'k1', tool: 'Agent', input: {}, at: T + 1_100, outcome: { result: { status: 'async_launched' }, text: '' } })
+  expect(roster[0]?.log?.[0]).toMatchObject({ kind: 'agent', isRunning: true })
+
+  roster = agentLaunchEnd(roster, 'p', 'k1', false, T + 9_000)
+  expect(roster[0]?.log?.[0]).toMatchObject({ kind: 'agent', isRunning: false, result: '1 done', clock: 9_000 })
 })

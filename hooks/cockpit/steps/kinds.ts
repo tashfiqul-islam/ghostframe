@@ -18,9 +18,19 @@ export const command = (input: unknown): string => firstLine(str(rec(input)['com
 
 /**
  * Calls that draw no `[ STEPS ]` row: the to-do tools (`[ TODO ]` shows what they do) and the engine's own plumbing
- * (loading deferred tools, waiting for MCP servers, reading the task list back).
+ * (loading deferred tools, waiting for MCP servers, reading the task list back), and a subagent's report call
+ * (`SubagentHandback`: its report, not its work).
  */
-export const UNLISTED: ReadonlySet<string> = new Set(['TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch', 'WaitForMcpServers'])
+export const UNLISTED: ReadonlySet<string> = new Set([
+  'TodoWrite',
+  'TaskCreate',
+  'TaskUpdate',
+  'TaskList',
+  'TaskGet',
+  'ToolSearch',
+  'WaitForMcpServers',
+  'SubagentHandback'
+])
 
 /** The E.12 kind word for a call. */
 export function kindOf(tool: string, input: unknown): string {
