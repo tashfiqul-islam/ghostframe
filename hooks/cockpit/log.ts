@@ -5,7 +5,21 @@ import type { EngineInterface, Timer, ToolCallInput } from 'claude-code'
 
 import { addAgent, agentLaunchEnd, agentStep, agentStepEnd, anyRunning, endAgent, endTurnAgents, reconcile, startTurnAgents, waitingOn } from './agents/roster'
 import type { AgentEnd, AgentStart } from './agents/roster'
-import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
+import {
+  askStep,
+  clearAgentWork,
+  continueTurn,
+  endLaunched,
+  endTurn,
+  newLog,
+  newTurn,
+  noteAgentWork,
+  noteMode,
+  noteSaid,
+  receiptOf,
+  settleStep,
+  startStep
+} from './steps/log'
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
@@ -235,6 +249,7 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
   const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+  await update($, stepLog, clearAgentWork)
 
   if (anyRunning(await read($, roster))) startTimers($, false)
   else stopTimers()
@@ -346,6 +361,7 @@ export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCal
   const ran = outcome ?? { isError: true as const, text: 'failed' }
   await noteEnd($, e.tool_use_id, e, ran, at)
   await update($, roster, list => agentStepEnd(list, id, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
+  await update($, stepLog, log => noteAgentWork(log, e.tool, e, ran, cwd))
   await noteWork($, e.tool, e, ran, cwd, true)
 }
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { endLaunched, endTurn, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import { endLaunched, endTurn, newLog, newTurn, noteAgentWork, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 const launch = (ids: readonly string[]): StepLog => {
@@ -101,4 +101,21 @@ test('to-do calls and the engine`s own plumbing draw no [ STEPS ] row: [ TODO ] 
 
   expect(log.steps.map(s => s.kind)).toEqual(['read'])
   expect(receiptOf(endTurn(log, 2_000, false, 2_000)).steps).toBe(1)
+})
+
+test('a receipt counts the files and pages agents touched since the last receipt, beside the main loop`s; its steps stay the main loop`s (B3)', () => {
+  let log = newTurn(newLog(null, null), 't1', 0)
+  log = startStep(log, { id: 'e1', tool: 'Edit', input: { file_path: '/repo/a.ts' }, at: 1_000 }, '/repo')
+  log = settleStep(log, { id: 'e1', tool: 'Edit', input: { file_path: '/repo/a.ts' }, at: 2_000, outcome: { result: { structuredPatch: [] }, text: 'ok' } })
+  const patch = { result: { structuredPatch: [{ lines: ['+x'] }] }, text: 'ok' }
+  log = noteAgentWork(log, 'Edit', { file_path: '/repo/a.ts' }, patch, '/repo')
+  log = noteAgentWork(log, 'Write', { file_path: '/repo/b.ts' }, patch, '/repo')
+  log = noteAgentWork(log, 'Edit', { file_path: '/repo/c.ts' }, { isError: true, text: 'no match' }, '/repo')
+  log = noteAgentWork(log, 'WebFetch', { url: 'https://www.Example.com/docs/' }, { isError: true, text: '404' }, '/repo')
+  log = noteAgentWork(log, 'Read', { file_path: '/repo/d.ts' }, { text: 'ok' }, '/repo')
+
+  expect(receiptOf(log)).toMatchObject({ steps: 1, files: 2, sources: 1 })
+
+  // A new typed turn carries what no receipt has counted yet.
+  expect(receiptOf(newTurn(log, 't2', 9_000))).toMatchObject({ steps: 0, files: 2, sources: 1 })
 })

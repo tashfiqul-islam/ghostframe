@@ -46,7 +46,8 @@ export function newLog(turn: string | null, startedAt: number | null): StepLog {
 export function newTurn(log: StepLog, turn: string, startedAt: number | null): StepLog {
   const prev = log.steps.length > 0 ? { turnNo: log.turnNo, steps: log.steps, dropped: log.dropped } : log.prev
 
-  return { ...newLog(turn, startedAt), turnNo: log.turnNo + 1, isTurnRunning: true, prev }
+  // Agents' work no receipt has counted yet (a background agent's, between turns) goes to this turn's first receipt.
+  return { ...newLog(turn, startedAt), turnNo: log.turnNo + 1, isTurnRunning: true, prev, ...(log.agentWork === undefined ? {} : { agentWork: log.agentWork }) }
 }
 
 /**
@@ -280,6 +281,33 @@ export function endTurn(log: StepLog, engineMs: number, isAborted = false, ended
 
 const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
+/** A page as a receipt counts it: the fetch's host and path, as `[ SOURCES ]` keeps one row per page. */
+const pageOf = (subject: string) => subject.toLowerCase().replace(/^www\./, '')
+
+/**
+ * An agent's own call ended (B3): a file it changed (an edit that did not fail) or a page it fetched joins what the
+ * next receipt counts, by the same subject a main-loop step of it would have. Its step counts nothing.
+ */
+export function noteAgentWork(log: StepLog, tool: string, input: unknown, outcome: Outcome, cwd?: string): StepLog {
+  const kind = kindOf(tool, input)
+  const isFile = FILE_KINDS.has(kind) && outcome.isError !== true && outcome.deny === undefined
+
+  if (!isFile && kind !== 'fetch') return log
+
+  const subject = subjectOf(tool, input, cwd)
+  const had = log.agentWork ?? { files: [], pages: [] }
+  const agentWork = isFile ? { ...had, files: [...new Set([...had.files, subject])] } : { ...had, pages: [...new Set([...had.pages, pageOf(subject)])] }
+
+  return { ...log, agentWork }
+}
+
+/** A receipt was written: the agents' work it counted clears. */
+export const clearAgentWork = (log: StepLog): StepLog => {
+  const { agentWork: _, ...rest } = log
+
+  return rest
+}
+
 /**
  * A finished engine turn's receipt (E.32): its state, and its own steps only (a turn its agents' reports started
  * borrows nothing from the typed turn before it): their count, failures and how many were fixed, files changed,
@@ -295,9 +323,9 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
     return s === undefined || !isOpen(all, i) ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
   })
   const steps = all.slice(from)
-  const files = new Set(steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject))
-  // A page is the fetch's host and path, as `[ SOURCES ]` keeps one row per page.
-  const pages = new Set(steps.filter(s => s.kind === 'fetch').map(s => s.subject.toLowerCase().replace(/^www\./, '')))
+  // Agents' files and pages count too, once each beside the main loop's (B3); their steps do not.
+  const files = new Set([...steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject), ...(log.agentWork?.files ?? [])])
+  const pages = new Set([...steps.filter(s => s.kind === 'fetch').map(s => pageOf(s.subject)), ...(log.agentWork?.pages ?? [])])
   const launched = steps.filter(s => s.kind === 'agent').reduce((n, s) => n + (s.calls?.length ?? 1), 0)
   const isCut = log.last?.state === 'interrupted'
   const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'

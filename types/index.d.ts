@@ -117,6 +117,11 @@ export type StepLog = {
   asking: string[]
   last: LastTurn | null
   prev: PrevSteps | null
+  /**
+   * The files agents changed and the pages they read since the last receipt (phase 11, B3), as their steps' subjects:
+   * the next receipt counts them beside the main loop's own, then they clear. Absent before phase 11.
+   */
+  agentWork?: { files: string[]; pages: string[] }
 }
 
 /** A failure nothing fixed by the end of its turn: its `still failing` row above the receipt (spec E.5). */
