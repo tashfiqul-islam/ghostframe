@@ -3,10 +3,11 @@ export type TurnAfter = 'resume' | 'compact' | 'rewind'
 
 /**
  * A typed prompt: when it was submitted, so its turn rule can show the time. While Cockpit is on, also the row the
- * engine draws it under (its `session.append` uuid), its turn number (the step log's; predicted at the submit, set
- * when its turn starts) and what came right before its turn.
+ * engine draws it under (its `session.append` uuid), its turn number (the step log's, set only when its turn starts)
+ * and what came right before its turn. A prompt typed while a turn ran keeps that turn's id (`over`); delivered into
+ * it, it is a steer (E.20), `steerMs` the turn clock it arrived at, and takes no number.
  */
-export type PromptStamp = { text: string; at: number; row?: string; turnNo?: number; after?: TurnAfter }
+export type PromptStamp = { text: string; at: number; row?: string; turnNo?: number; after?: TurnAfter; over?: string; steerMs?: number }
 
 /** One finished main-loop turn, for its close rule: tokens, tally, and an open browser frame to close. */
 /** `turn`: the turn it closed, so each footer row claims exactly one close. */

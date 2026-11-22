@@ -106,6 +106,53 @@ test('the engine`s stand-in row shows the number and the time without taking eit
   expect((await rowsOf($, prompt('u1', 127, 'go')))[0]).toBe(rule('TURN 1', 89))
 })
 
+for (const [mode, columns] of [
+  ['docked', 127],
+  ['fallback', 100]
+] as const) {
+  test(`${mode}: a prompt folded into the running turn opens no rule; \`steer\` and the turn clock sit on its time edge (E.20)`, ON, async ($, on) => {
+    const clock = { now: T0 }
+    engine(on, clock, mode === 'docked')
+    await start($, mode === 'docked')
+    await $.prompt.submit({ text: 'ten steps', wait: false, origin: { kind: 'composer' } })
+    await $.session.append({
+      message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'ten steps' }] },
+      door: 'prompt',
+      origin: { kind: 'composer' },
+      uuid: 'u1'
+    } as never)
+    await $.turn.start({ text: 'ten steps', turnId: 'e1' })
+    clock.now += 3_000
+    await $.prompt.submit({ text: 'also this', wait: false, origin: { kind: 'composer' }, turnId: 'e1' } as never)
+    await $.session.append({
+      message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'also this' }] },
+      door: 'queue',
+      origin: { kind: 'composer' },
+      uuid: 'q1'
+    } as never)
+
+    // Waiting to be delivered (the engine's own queued row): no rule, no number, nothing on the edge yet.
+    const waiting = await rowsOf($, prompt('q2', columns, 'also this'))
+    expect(waiting.some(r => r.includes('TURN'))).toBe(false)
+    expect(waiting.some(r => r.includes('steer'))).toBe(false)
+
+    clock.now += 4_000
+    const said = '<system-reminder>\nThe user sent a new message while you were working:\nalso this\n</system-reminder>'
+    await $.session.append({ message: { type: 'attachment', role: 'user', content: [{ type: 'text', text: said }] }, door: 'delivery', uuid: 'd1' } as never)
+    clock.now += 5_000
+    await $.turn.complete({ answer: 'ok', durationMs: 12_000, isAborted: false, turnId: 'e1', reason: 'answer' })
+
+    const rows = await rowsOf($, prompt('d1', columns, 'also this'))
+    const width = (await rowsOf($, prompt('u1', columns, 'ten steps')))[0]?.length ?? 0
+    expect(rows.some(r => r.includes('TURN'))).toBe(false)
+    expect(rows).toContain('you')
+    const line = rows.find(r => r.startsWith('▎ also this')) ?? ''
+    expect(line).toMatch(/^▎ also this +steer · 7s$/)
+    // The edge ends where the rule and the receipt end: the gutter's 12 cells, then the row.
+    expect(12 + line.length).toBe(width)
+  })
+}
+
 test('narrow fallback: below 40 cells the clock goes and the label stays whole', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, false)

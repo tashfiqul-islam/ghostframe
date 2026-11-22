@@ -7,7 +7,7 @@ import { aTurn } from '../../support/history'
 // Each typed prompt's stamp carries what its turn rule needs after a resume (amendment 12): the row the engine draws
 // it under, its turn number (the step log's) and what came right before it. Kept in the state and in the store.
 type Store = Map<string, unknown>
-type Stamp = { text: string; at: number; row?: string; turnNo?: number; after?: string }
+type Stamp = { text: string; at: number; row?: string; turnNo?: number; after?: string; over?: string; steerMs?: number }
 
 function engine(on: On, clock: { now: number }, store: Store, denied: Set<string> = new Set()) {
   on('clock.now', () => ({ value: clock.now }))
@@ -81,15 +81,104 @@ test('live: each typed stamp keeps its row and its turn number, in the store; an
   ])
 })
 
-test('a stamp gets its predicted number at the submit, before its turn starts', ON, async ($, on) => {
+test('a stamp holds no number until its turn starts: a number is claimed only by a turn that starts', ON, async ($, on) => {
   const clock = { now: T0 }
   const store: Store = new Map()
   engine(on, clock, store)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   await typed($, clock, 'first', 'e1', 'u1')
 
-  await $.prompt.submit({ text: 'queued', wait: false, origin: { kind: 'composer' } })
-  expect(kept(store).at(-1)?.turnNo).toBe(2)
+  await $.prompt.submit({ text: 'next', wait: false, origin: { kind: 'composer' } })
+  expect(kept(store).at(-1)?.turnNo).toBeUndefined()
+})
+
+/** A turn started for a typed prompt and left running: the submit, its row, its start. */
+async function started($: Engine, text: string, turnId: string, row: string) {
+  await $.prompt.submit({ text, wait: false, origin: { kind: 'composer' } })
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: row
+  } as never)
+  await $.turn.start({ text, turnId })
+}
+
+/** A prompt typed while `turnId` runs, as the engine takes it (live, 2.1.330): the submit over that turn, its queued row. */
+async function typedOver($: Engine, text: string, turnId: string) {
+  await $.prompt.submit({ text, wait: false, origin: { kind: 'composer' }, turnId } as never)
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text }] },
+    door: 'queue',
+    origin: { kind: 'composer' },
+    uuid: `q:${text}`
+  } as never)
+}
+
+/** The engine delivers the waiting prompt into the running turn at its next tool boundary: an attachment row. */
+async function delivered($: Engine, text: string, row: string) {
+  const said = `<system-reminder>\nThe user sent a new message while you were working:\n${text}\n</system-reminder>`
+  await $.session.append({ message: { type: 'attachment', role: 'user', content: [{ type: 'text', text: said }] }, door: 'delivery', uuid: row } as never)
+}
+
+async function completed($: Engine, clock: { now: number }, turnId: string) {
+  clock.now += 5_000
+  await $.turn.complete({ answer: 'ok', durationMs: 5_000, isAborted: false, turnId, reason: 'answer' })
+  clock.now += 60_000
+}
+
+test('a prompt folded into the running turn takes no number; it is a steer, at the turn clock it was delivered', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await typed($, clock, 'first', 'e1', 'u1')
+
+  await started($, 'ten steps', 'e2', 'u2')
+  clock.now += 3_000
+  await typedOver($, 'also this', 'e2')
+  clock.now += 4_000
+  await delivered($, 'also this', 'd1')
+  await completed($, clock, 'e2')
+  await typed($, clock, 'third', 'e3', 'u3')
+
+  expect(kept(store).map(s => [s.text, s.row, s.turnNo, s.over, s.steerMs])).toEqual([
+    ['first', 'u1', 1, undefined, undefined],
+    ['ten steps', 'u2', 2, undefined, undefined],
+    ['also this', 'd1', undefined, 'e2', 7_000],
+    ['third', 'u3', 3, undefined, undefined]
+  ])
+})
+
+test('a prompt queued behind the running turn that becomes its own turn takes the next number when that turn starts', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+
+  await started($, 'a story', 'e1', 'u1')
+  await typedOver($, 'then this', 'e1')
+  // An agent's report starts a turn of its own while the prompt waits: it takes neither the stamp nor a number.
+  await completed($, clock, 'e1')
+  await reported($, clock, 'r1')
+  expect(kept(store).at(-1)?.turnNo).toBeUndefined()
+
+  // Live: after the turn ends the engine stores the prompt as typed, then starts its turn; no second submit.
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'then this' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'u2'
+  } as never)
+  await $.turn.start({ text: 'then this', turnId: 'e2' })
+  await completed($, clock, 'e2')
+  await typed($, clock, 'and on', 'e3', 'u3')
+
+  expect(kept(store).map(s => [s.text, s.row, s.turnNo])).toEqual([
+    ['a story', 'u1', 1],
+    ['then this', 'u2', 2],
+    ['and on', 'u3', 3]
+  ])
 })
 
 test('a resume: the first typed turn after it is RESUMED and takes the next number; the one after is plain', ON, async ($, on) => {

@@ -8,7 +8,9 @@ import { readFlow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
 import { answerRowOf, sessionCwd } from './session'
+import type { PromptStamp } from '../../../types'
 import {
+  isSameText,
   keepPrompts,
   readPrompts,
   readTally,
@@ -24,7 +26,8 @@ import {
 
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
 let lastSubmitted: number | undefined
-// The same stamp, until a main-loop turn takes it as its start (Cockpit's turn clock).
+// The same stamp, until a main-loop turn takes it as its start (Cockpit's turn clock). A prompt typed over a running
+// turn is not one: it waits, and is delivered into that turn or starts its own after it (E.20, amendment 12).
 let unclaimedSubmit: number | undefined
 // The main-loop turn that completed last: its footer row is the next one the engine draws.
 let lastClosed: string | undefined
@@ -46,6 +49,25 @@ export function lastClosedTurn(): string | undefined {
 }
 
 /**
+ * Whether a prompt typed over a running turn is about to start its own: that turn ended (or the prompt's own row is
+ * stored) and it was never delivered into it.
+ * @param s the stamp
+ * @returns whether it is
+ */
+const isQueuedStart = (s: PromptStamp): boolean =>
+  s.over !== undefined && s.steerMs === undefined && s.turnNo === undefined && (s.row !== undefined || s.over === lastClosed)
+
+/**
+ * Whether a stamp's turn is about to start: the prompt submitted while the session was idle, or one that waited
+ * behind the running turn and now starts its own. Its rule shows the next number before the turn takes it.
+ * @param s the stamp
+ * @returns whether it is
+ */
+export function isPendingStart(s: PromptStamp): boolean {
+  return s.turnNo === undefined && (s.at === unclaimedSubmit || isQueuedStart(s))
+}
+
+/**
  * Whether a row has left the main conversation: `$.session.messages` reads on from no row that was cleared, rewound or
  * left behind a compaction.
  * @param $ the engine interface
@@ -63,15 +85,20 @@ async function isGone($: EngineInterface, row: string): Promise<boolean> {
  * before it: a resume or a compaction noted since the last typed turn, else a rewind when the previous typed
  * prompt's row has left the conversation. Kept in the store, so a resumed transcript draws the same rule.
  * @param $ the engine interface
- * @param at the stamp's submit time
+ * @param isIt whether a stamp is the turn's prompt's
  */
-async function numberTurn($: EngineInterface, at: number): Promise<void> {
+async function numberTurn($: EngineInterface, isIt: (s: PromptStamp) => boolean): Promise<void> {
   const turnNo = (await readLog($)).turnNo
   const list = await readPrompts($)
-  const i = list.findLastIndex(s => s.at === at)
-  const prev = list.slice(0, Math.max(0, i)).findLast(s => s.row !== undefined)?.row
+  const i = list.findLastIndex(isIt)
+  // The previous typed turn's row: a steer's row is a delivery, never a turn's.
+  const prev = list.slice(0, Math.max(0, i)).findLast(s => s.row !== undefined && s.turnNo !== undefined)?.row
   const after = (await takePending($)) ?? (prev !== undefined && (await isGone($, prev)) ? 'rewind' : undefined)
-  const next = await updatePrompts($, l => l.map(s => (s.at === at ? { ...s, turnNo, ...(after === undefined ? {} : { after }) } : s)))
+  const next = await updatePrompts($, l => {
+    const at = l.findLastIndex(isIt)
+
+    return at < 0 ? l : l.with(at, { ...l[at]!, turnNo, ...(after === undefined ? {} : { after }) })
+  })
 
   await keepPrompts($, next)
 }
@@ -87,15 +114,23 @@ export function registerTurns(on: On): void {
       await updateTurn($, () => e.turnId)
       await updateStreaming($, () => true)
 
+      // A prompt typed over the last turn and never delivered into it starts this one, by its text (live: the
+      // engine stores it as typed and starts its turn, with no second submit).
+      const submitted = unclaimedSubmit
+      const queued = submitted === undefined ? (await readPrompts($)).find(s => isQueuedStart(s) && isSameText(s.text, e.text)) : undefined
+      const start = submitted ?? queued?.at
+      const isIt = (s: PromptStamp) =>
+        queued === undefined ? s.at === submitted && s.over === undefined : s.at === queued.at && s.over === queued.over && s.text === queued.text
+
       try {
         // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
-        await logTurnStart($, e.turnId, unclaimedSubmit, sessionCwd())
+        await logTurnStart($, e.turnId, start, sessionCwd())
       } catch {
         // A log that can't start costs the pane this turn's steps, nothing more.
       }
 
       try {
-        if (unclaimedSubmit !== undefined && isOn()) await numberTurn($, unclaimedSubmit)
+        if (start !== undefined && isOn()) await numberTurn($, isIt)
       } catch (error: unknown) {
         $.ui.log(`ghostframe: turn rule not numbered: ${String(error)}`)
       }
@@ -113,15 +148,14 @@ export function registerTurns(on: On): void {
 
     if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
-      // Cockpit on: the number its turn will take, so a row drawn before the turn starts shows it (amendment 12).
-      const logged = isOn() ? (await readLog($)).turnNo : undefined
-      const list = await updatePrompts($, l => {
-        const turnNo = logged === undefined ? undefined : Math.max(logged, ...l.map(s => s.turnNo ?? 0)) + 1
+      // No number yet: a number is claimed only by a turn that starts (amendment 12). Typed over a running turn, the
+      // prompt keeps that turn's id and leaves the next turn's start alone.
+      const list = await updatePrompts($, l => [...l, { text: e.text, at, ...(e.turnId === undefined ? {} : { over: e.turnId }) }].slice(-100))
 
-        return [...l, { text: e.text, at, ...(turnNo === undefined ? {} : { turnNo }) }].slice(-100)
-      })
-      lastSubmitted = at
-      unclaimedSubmit = at
+      if (e.turnId === undefined) {
+        lastSubmitted = at
+        unclaimedSubmit = at
+      }
 
       try {
         await keepPrompts($, list)

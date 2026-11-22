@@ -44,6 +44,14 @@ const isStamp = (p: unknown): p is PromptStamp =>
 const isStamps = (v: unknown): v is PromptStamp[] => Array.isArray(v) && v.every(isStamp)
 
 /**
+ * Whether a stamp's text is a prompt's: both trimmed.
+ * @param a one text
+ * @param b the other
+ * @returns whether they are the same prompt's
+ */
+export const isSameText = (a: string, b: string): boolean => a.trim() === b.trim()
+
+/**
  * Keeps the prompts' stamps in the store, for a resume.
  * @param $ the engine interface
  * @param list the stamps, oldest first

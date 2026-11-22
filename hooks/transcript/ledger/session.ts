@@ -4,7 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
-import { logCited, logSaid } from '../../cockpit/log'
+import { logCited, logSaid, readLog } from '../../cockpit/log'
 import { isOn } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
@@ -170,6 +170,30 @@ async function notePromptRow($: EngineInterface, content: Content, row: string):
 }
 
 /**
+ * A prompt typed over the running turn was delivered into it (`door: 'delivery'`, live in 2.1.330): its stamp takes
+ * the delivery's row, the one the engine draws it under, and the turn clock it arrived at. A steer (E.20): it takes
+ * no number.
+ * @param $ the engine interface
+ * @param content the delivery's blocks, the prompt's text inside the engine's frame
+ * @param row the delivery's uuid
+ */
+async function noteSteer($: EngineInterface, content: Content, row: string): Promise<void> {
+  const said = content.flatMap(b => (b.type === 'text' && typeof b.text === 'string' ? [b.text] : [])).join('\n')
+  const now = await $.clock.now()
+  const startedAt = (await readLog($)).startedAt ?? now
+  let isNoted = false
+  const list = await updatePrompts($, l => {
+    const i = l.findLastIndex(p => p.over !== undefined && p.row === undefined && p.text.trim().length > 0 && said.includes(p.text.trim()))
+
+    isNoted = i >= 0
+
+    return isNoted ? l.with(i, { ...l[i]!, row, steerMs: Math.max(0, now - startedAt) }) : l
+  })
+
+  if (isNoted) await keepPrompts($, list)
+}
+
+/**
  * Adds the session's observe hooks: `session.start` (with Cockpit's part of it) and `session.append`.
  * @param on the `on` that `register` receives
  */
@@ -244,6 +268,10 @@ export function registerSession(on: On): void {
 
       if (e.agentId === undefined && e.door === 'prompt' && e.message.isMeta !== true && isOn()) {
         await notePromptRow($, e.message.content, e.uuid)
+      }
+
+      if (e.agentId === undefined && e.door === 'delivery' && isOn()) {
+        await noteSteer($, e.message.content, e.uuid)
       }
 
       if (e.agentId === undefined && (e.door === 'prompt' || e.door === 'command')) {

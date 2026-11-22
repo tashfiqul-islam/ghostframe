@@ -146,3 +146,56 @@ test('resume: each redrawn rule keeps its number and time from the store, drawn 
   await typed($, clock, 4)
   expect((await rowsOf($, promptRow('u4', 'prompt 4')))[0]).toMatch(/^─ \[ TURN 4 \] ─+ 11:27$/)
 })
+
+test('mid-turn prompts: one folded in claims no number, one queued into a turn of its own takes the next; none twice, none skipped', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, new Map())
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+  const user = (said: string, door: string, uuid: string) =>
+    $.session.append({ message: { type: 'user', role: 'user', content: [{ type: 'text', text: said }] }, door, origin: { kind: 'composer' }, uuid } as never)
+
+  await typed($, clock, 1)
+
+  // Turn 2 runs; a prompt typed over it is delivered into it at its next tool boundary (live: `door: 'delivery'`).
+  await $.prompt.submit({ text: 'prompt 2', wait: false, origin: { kind: 'composer' } })
+  await user('prompt 2', 'prompt', 'u2')
+  await $.turn.start({ text: 'prompt 2', turnId: 'e2' })
+  clock.now += 2_000
+  await $.prompt.submit({ text: 'and this', wait: false, origin: { kind: 'composer' }, turnId: 'e2' } as never)
+  await user('and this', 'queue', 'q1')
+  clock.now += 2_000
+  const frame = '<system-reminder>\nThe user sent a new message while you were working:\nand this\n</system-reminder>'
+  await $.session.append({ message: { type: 'attachment', role: 'user', content: [{ type: 'text', text: frame }] }, door: 'delivery', uuid: 'd1' } as never)
+  await $.session.append(respond([text('answer 2')], 'a2'))
+  await $.turn.complete({ answer: 'answer 2', durationMs: 4_000, isAborted: false, turnId: 'e2', reason: 'answer' })
+
+  // Turn 3 runs with no tool boundary left; a prompt typed over it waits, then starts turn 4 (live: `door: 'prompt'`
+  // after the turn ends, then `turn.start`, no second submit).
+  await typed($, clock, 3)
+  await $.prompt.submit({ text: 'prompt 4', wait: false, origin: { kind: 'composer' }, turnId: 'e3' } as never)
+  await user('prompt 4', 'queue', 'q2')
+  await user('prompt 4', 'prompt', 'u4')
+  await $.turn.start({ text: 'prompt 4', turnId: 'e4' })
+  await $.session.append(respond([text('answer 4')], 'a4'))
+  await $.turn.complete({ answer: 'answer 4', durationMs: 1_000, isAborted: false, turnId: 'e4', reason: 'answer' })
+  await typed($, clock, 5)
+
+  const label = async (row: string, said: string) => /\[ (TURN \d+)/.exec((await rowsOf($, promptRow(row, said))).join('\n'))?.[1]
+  expect(
+    await Promise.all([
+      label('u1', 'prompt 1'),
+      label('u2', 'prompt 2'),
+      label('d1', 'and this'),
+      label('u3', 'prompt 3'),
+      label('u4', 'prompt 4'),
+      label('u5', 'prompt 5')
+    ])
+  ).toEqual(['TURN 1', 'TURN 2', undefined, 'TURN 3', 'TURN 4', 'TURN 5'])
+  expect((await rowsOf($, promptRow('d1', 'and this'))).join('\n')).toMatch(/steer · 4s/)
+
+  const pane = await $.ui.mount(PANE)
+  const head = (await pane.findAll({ type: 'Text' })).map(t => t.text)
+  await pane.unmount()
+  expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 5/))
+})
