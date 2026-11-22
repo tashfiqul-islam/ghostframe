@@ -3491,3 +3491,23 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Screen 24 has no wordmark.** Every other pane draws one and 8.12 says every view does; screen 24's last row is keys alone. The renderer draws the wordmark on every view; screen 24's test draws its hint row as the canvas does, through the same key renderer.
 - **An agent in view draws no now-line** (screen 27): its timeline is the agent's, not the live turn's.
 - **The change bar** is 5 cells: lit in proportion to the file's change against the turn's largest, split ok and err by its additions and removals, the rest dim.
+- **No `? keys` hint.** The engine takes a hotkey only from `a` to `z` and `0` to `9`; a `?` hotkey throws inside the pane's render and the engine draws its own pane instead. The hint rows drop `? keys`; every other key in 9.5 works as specified.
+- **The hint row is drawn as text.** The keys themselves are hotkey Buttons with nothing of their own to draw, bound only while the pane holds the keyboard (amendment 7), so the hint row keeps the canvas's exact cells.
+- **The pane comes back to the Timeline tab when it loses focus.** The tab, the open drawer and the URL toggle are view state; losing focus resets the view (amendment 7), and the tab with it, so an unfocused pane always shows the live turn's timeline.
+- **`m` is bound only while an agent is in view.** It answers with `$.ui.view`, which the engine allows only while an agent's conversation is shown; bound everywhere, it called the engine on every press.
+- **The docked worked node sits below the `↗` rows** of the same turn, directly above the receipt (7.12, 7.13), so the receipt tree reads node, then receipt.
+- **No third-row `+ n more` in fallback.** Fallback draws a failure as it happens and a drawn row never changes; a later failure is a row of its own, so the count line that would need redrawing is not drawn.
+- **ctrl+o uses the narrow text column under 110 columns** (6.1) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
+- **No output frame in ctrl+o.** A step line carries its result word and, for an edit, its diff card (7.17); a command's output is in the step's detail in the pane, not repeated on the left.
+- **The Files tab opens no hunk in place.** Enter on a file opens the full diff view (8.7, screen 28); screen 23's hunk under a Files row is drawn by its renderer and tested, but the live pane goes to the full diff, since the pane draws whole rows and the engine gives no in-place expansion.
+- **No interrupted line in the live pane.** The `◼ interrupted` row has its renderer and test, but the engine sends no event between Esc and the turn's end that a pane row could draw from; the receipt's state says it once the turn ends.
+- **`/steps n all` prints at most 20 rows**, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
+- **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.
+- **The pinned head's state pill** is the live turn's (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
+- **`Waiting on n agents`** is the head card's summary while background agents run after the turn's answer (7.12's waiting receipt), so the head and the left say the same.
+- **The prompt's rows and the turn's stamp are found apart.** The prompt site draws the header and card from the message alone; which turn number it carries comes from the ledger's stamp, so a row drawn again keeps its number (the turn rule, amendment 10).
+- **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
+- **The `/copy` phrasing** follows 7.14: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
+- **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
+- **Engine notices are drawn as `●` rows** (7.15) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
+- **What the engine does not give.** The classifier's text for a blocked step and the person's reason for a denial are not in any event the plugin receives; a blocked step names the hook that blocked it and a denied one says `denied` alone.
