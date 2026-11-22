@@ -114,8 +114,8 @@ export type OpenFailure = { kind: string; subject: string; result: string; clock
 
 /**
  * What a finished engine turn's receipt says (spec E.32, amendment 3), by the engine's turn id, so a receipt drawn
- * again later still shows its own turn (`answer`, the key of the turn's last answer block, finds it for a resumed
- * transcript, whose messages carry no turn id): the state (`waiting` while background agents run on, `agents` of them),
+ * again later still shows its own turn (`answer`, the id of the turn's last answer row, the same after a resume,
+ * finds it there: two answers with the same text never swap receipts): the state (`waiting` while background agents run on, `agents` of them),
  * its own counts (never another turn's), the last commit's short hash (or ''), the failures left open, and the
  * turn's time on Cockpit's clock.
  */

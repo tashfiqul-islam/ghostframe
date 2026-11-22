@@ -1,6 +1,6 @@
 import type { On, Engine } from './engine'
 import { T0, VIEW } from './cockpit'
-import { respond } from './respond'
+import { respond, rowOf } from './respond'
 
 export const text = (t: string) => ({ type: 'text', text: t })
 
@@ -66,4 +66,4 @@ export async function fixedTurn($: Engine, clock: { now: number }) {
 }
 
 export const message = (t: string) =>
-  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const
+  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', ...rowOf(t), viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const

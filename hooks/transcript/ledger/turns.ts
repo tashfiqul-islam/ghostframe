@@ -5,8 +5,19 @@ import type { On } from 'claude-code'
 import { logMode, logTurnEnd, logTurnStart } from '../../cockpit/log'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
-import { sessionCwd } from './session'
-import { readFlow, readTally, updateAwaitingFirst, updateCaps, updateCloses, updatePrompts, updateStreaming, updateTally, updateTurn } from './state'
+import { answerRowOf, sessionCwd } from './session'
+import {
+  keepPrompts,
+  readFlow,
+  readTally,
+  updateAwaitingFirst,
+  updateCaps,
+  updateCloses,
+  updatePrompts,
+  updateStreaming,
+  updateTally,
+  updateTurn
+} from './state'
 
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
 let lastSubmitted: number | undefined
@@ -61,9 +72,15 @@ export function registerTurns(on: On): void {
 
     if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
-      await updatePrompts($, list => [...list, { text: e.text, at }].slice(-100))
+      const list = await updatePrompts($, l => [...l, { text: e.text, at }].slice(-100))
       lastSubmitted = at
       unclaimedSubmit = at
+
+      try {
+        await keepPrompts($, list)
+      } catch (error: unknown) {
+        $.ui.log(`ghostframe: prompt times not kept for a resume: ${String(error)}`)
+      }
     }
 
     return next(e)
@@ -92,9 +109,8 @@ export function registerTurns(on: On): void {
         await updateAwaitingFirst($, () => false)
 
         try {
-          // The turn's last answer block: its receipt is drawn under it, and again there after a resume.
-          const answer = (await readFlow($)).findLast(f => f.turn === e.turnId && f.kind === 'text')?.key ?? ''
-          await logTurnEnd($, e.durationMs, e.isAborted, answer)
+          // The turn's last answer row: its receipt is drawn under it, and again there after a resume.
+          await logTurnEnd($, e.durationMs, e.isAborted, answerRowOf(e.turnId))
         } catch {
           // A step left running reads `running` until the next turn starts.
         }

@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { ON, PANE, T0, VIEW } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
-import { respond } from '../support/respond'
+import { respond, rowOf } from '../support/respond'
 
 // Phase 5 screen check, as seen on screen: three background agents whose reports arrive as turns of their own
 // (the first alone, the other two together), then a nested agent. Each turn that answers ends with exactly one
@@ -13,7 +13,7 @@ const ASYNC = { result: { status: 'async_launched', agentId: 'x', description: '
 const FOOTER = (durationMs: number) =>
   ({ plugin: 'ghostframe', surface: 'terminal', component: 'TurnDuration', viewport: VIEW, props: { word: 'Baked', durationMs } }) as const
 const ANSWER = (t: string) =>
-  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const
+  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', ...rowOf(t), viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const
 
 function engine(on: On, clock: { now: number }) {
   on('clock.now', () => ({ value: clock.now }))

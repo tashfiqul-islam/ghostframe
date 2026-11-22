@@ -150,34 +150,40 @@ export async function drawTurnReceipt(
 }
 
 /**
- * Whether a resumed transcript's answer block is the one a kept receipt ends on: the turn's answer, where the quiet
- * left puts `claude`.
- * shortcut: a resumed answer split over several messages gets the label on its last block; seed the quiet openers
+ * Whether an answer row is the one a receipt ends on: the turn's answer, where the quiet left puts `claude` on a
+ * resumed transcript (its rows have no place in the flow).
+ * shortcut: a resumed answer split over several messages gets the label on its last row; seed the quiet openers
  * from `$.session.messages()` if that shows.
  * @param $ the engine interface
- * @param key the block's key
+ * @param row the row's id
  * @returns whether it is
  */
-export async function endsKeptTurn($: EngineInterface, key: string): Promise<boolean> {
-  return key.length > 0 && (await readReceipts($)).some(r => r.answer === key && r.turn !== null)
+export async function endsKeptTurn($: EngineInterface, row: string): Promise<boolean> {
+  return (await readReceipts($)).some(r => r.answer === row && r.turn !== null)
 }
 
 /**
- * Cockpit's part of an answer block of a resumed transcript (its rows carry no turn id): the receipt of the turn
- * whose last answer block it is, found by the block's key, drawn as the live one is.
+ * Cockpit's part of an answer row while quiet: the receipt that names the row (its turn's last answer row, by the
+ * id it is drawn under, live and after a resume, so two answers with the same text never swap receipts); for a
+ * turn that named no row, the turn's receipt under its last block in the flow.
  * @param $ the engine interface
- * @param e the block's render
- * @param key the block's key
+ * @param e the row's render
+ * @param turn the row's turn in the flow, null when it has no place there
+ * @param endsTurn whether it is its turn's last text block in the flow
  * @param width the transcript rule's width
- * @returns the tree, or undefined when no kept receipt ends on this block
+ * @returns the tree, or undefined when no receipt ends on this row
  */
-export async function drawKeptReceipt(
+export async function drawAnswerReceipt(
   $: EngineInterface,
   e: RenderInput<'AssistantMessage', 'terminal'>,
-  key: string,
+  turn: string | null,
+  endsTurn: boolean,
   width: number
 ): Promise<RenderElement | undefined> {
-  const receipt = key.length === 0 ? undefined : (await readReceipts($)).findLast(r => r.answer === key)
+  const list = await readReceipts($)
+  const own = list.findLast(r => r.answer === e.requestId)
+  const turns = turn === null || !endsTurn ? undefined : list.findLast(r => r.turn === turn)
+  const receipt = own ?? (turns?.answer === '' ? turns : undefined)
 
   return receipt?.turn === null || receipt === undefined ? undefined : drawTurnReceipt($, e, receipt.turn, width)
 }

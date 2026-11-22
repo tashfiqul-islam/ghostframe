@@ -20,10 +20,13 @@ import { wrapPlain } from '../prose'
 // earlier rule never takes a later submit's time. Written while drawing.
 // shortcut: an older row with the same text that first draws after a reload, between a
 // submit and its own row, takes that submit; the new row then shows the older time.
+// The engine draws a submitted prompt first in a stand-in row (request `placeholder`, live in 2.1.330), then in
+// its own row: the stand-in shows the stamp but never claims it, or the real row would find it taken.
+const PLACEHOLDER = 'placeholder'
 const promptClaims = new Map<string, number>()
 const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
   claim(
-    promptClaims,
+    row === PLACEHOLDER ? new Map(promptClaims) : promptClaims,
     row,
     list.filter(p => p.text.trim() === text.trim()),
     p => p.at,

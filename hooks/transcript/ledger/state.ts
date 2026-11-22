@@ -35,6 +35,33 @@ const streaming = atom({ plugin: 'ghostframe', key: 'streaming' } as const, fals
 // Main-loop calls whose permission check asked the person, until the call returns.
 const asked = atom({ plugin: 'ghostframe', key: 'asked' } as const, [] as string[], { shape: 'asked-1' })
 
+// The prompts' stamps are also kept in $.store under the session's id: $.state does not outlive the process, and
+// a resumed session's turn rules show their times from there.
+const PROMPTS_KEY = 'prompts:'
+
+const isStamp = (p: unknown): p is PromptStamp =>
+  typeof p === 'object' && p !== null && 'text' in p && typeof p.text === 'string' && 'at' in p && typeof p.at === 'number'
+const isStamps = (v: unknown): v is PromptStamp[] => Array.isArray(v) && v.every(isStamp)
+
+/**
+ * Keeps the prompts' stamps in the store, for a resume.
+ * @param $ the engine interface
+ * @param list the stamps, oldest first
+ */
+export async function keepPrompts($: EngineInterface, list: readonly PromptStamp[]): Promise<void> {
+  await $.store.set(`${PROMPTS_KEY}${await $.session.id()}`, [...list])
+}
+
+/**
+ * Session start: the stamps this session kept before a restart come back, unless the state holds some (a reload).
+ * @param $ the engine interface
+ */
+export async function restorePrompts($: EngineInterface): Promise<void> {
+  const kept: unknown = await $.store.get(`${PROMPTS_KEY}${await $.session.id()}`)
+
+  if (isStamps(kept)) await update($, prompts, list => (list.length > 0 ? list : kept))
+}
+
 export async function readPrompts($: EngineInterface): Promise<PromptStamp[]> {
   return read($, prompts)
 }

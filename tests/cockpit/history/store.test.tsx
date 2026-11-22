@@ -4,7 +4,7 @@ import { ON, PANE, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 import { text } from '../../support/docked'
 import { aTurn } from '../../support/history'
-import { respond } from '../../support/respond'
+import { respond, rowOf } from '../../support/respond'
 
 // Phase 8, history (spec E.45): every typed turn kept in $.state and $.store; a past turn pinned into the pane by
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
@@ -57,14 +57,14 @@ function engine(on: On, clock: { now: number }, store: Store, session = 's1', se
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 }
 
-/** A typed turn reading `files`, each its own step, answered `Turn n done.`. */
-async function turn($: Engine, clock: { now: number }, n: number, files: readonly string[]) {
+/** A typed turn reading `files`, each its own step, answered `Turn n done.` (or `answer`) in row `mn`. */
+async function turn($: Engine, clock: { now: number }, n: number, files: readonly string[], answer = `Turn ${n} done.`) {
   await $.prompt.submit({ text: `turn ${n}`, wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: `turn ${n}`, turnId: `e${n}` })
 
   for (const [i, f] of files.entries()) await $.tool.call({ tool: 'Read', file_path: f, tool_use_id: `t${n}r${i}` } as never)
 
-  await $.session.append(respond([text(`Turn ${n} done.`)], `m${n}`))
+  await $.session.append(respond([text(answer)], `m${n}`))
   clock.now += 1_000
   await $.turn.complete({ answer: 'x', durationMs: 2_000, isAborted: false, turnId: `e${n}`, reason: 'answer' })
 }
@@ -174,6 +174,7 @@ test('a typed prompt releases the pin; a click on a receipt pins its turn', ON, 
     plugin: 'ghostframe',
     surface: 'terminal',
     component: 'AssistantMessage',
+    ...rowOf('Turn 2 done.'),
     viewport: VIEW,
     props: { text: 'Turn 2 done.', isFirstOfReply: true }
   })
@@ -189,7 +190,8 @@ test('every turn is kept in the store under the session`s key, as the turns end'
   const store: Store = new Map()
   engine(on, clock, store, 'kept')
   await threeTurns($, clock)
-  expect([...store.keys()]).toEqual(['history:kept'])
+  // Beside the history, the transcript keeps its prompts' submit times for the turn rules.
+  expect([...store.keys()].toSorted()).toEqual(['history:kept', 'prompts:kept'])
   const saved = store.get('history:kept') as { turns: { turnNo: number; steps: unknown[] }[] }
   expect(saved.turns.map(t => [t.turnNo, t.steps.length])).toEqual([
     [1, 1],
@@ -237,26 +239,26 @@ test('compaction changes nothing: the pane reads the same after it, and /steps s
   expect(await paneText($)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
 })
 
-/** An answer block as the engine draws it, and its rows' text. */
-const answerRow = (text: string) =>
-  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: true } }) as never
+/** An answer row as the engine draws it, under its message's id, and its rows' text. */
+const answerRow = (text: string, id = rowOf(text).requestId ?? 'unknown') =>
+  ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', requestId: id, viewport: VIEW, props: { text, isFirstOfReply: true } }) as never
 const rowsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
   (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0)
 
-test('each kept receipt names its turn`s last answer block, the key a resumed transcript finds it by', ON, async ($, on) => {
+test('each kept receipt names its turn`s last answer row, by the id it is drawn under, the same after a resume', ON, async ($, on) => {
   const clock = { now: T0 }
   const store: Store = new Map()
   engine(on, clock, store, 'answers')
   await threeTurns($, clock)
   const saved = store.get('history:answers') as { turns: { receipts: { turn: string; answer: string }[] }[] }
   expect(saved.turns.flatMap(t => t.receipts).map(r => [r.turn, r.answer])).toEqual([
-    ['e1', 'Turn 1 done.'],
-    ['e2', 'Turn 2 done.'],
-    ['e3', 'Turn 3 done.']
+    ['e1', 'm1'],
+    ['e2', 'm2'],
+    ['e3', 'm3']
   ])
 })
 
-test('resume: the answers drawn again from history get their receipts back, by block key, once the pane is drawn', ON, async ($, on) => {
+test('resume: the answers drawn again from history get their receipts back, by row id, once the pane is drawn', ON, async ($, on) => {
   const clock = { now: T0 + 999_000 }
   const receipt = (turnNo: number, answer: string) => ({
     turn: `e${turnNo}`,
@@ -273,15 +275,15 @@ test('resume: the answers drawn again from history get their receipts back, by b
     durationMs: 2_000
   })
   const turns = [
-    { ...aTurn(1, T0), receipts: [receipt(1, 'Turn 1 done.')] },
-    { ...aTurn(2, T0 + 100_000), receipts: [receipt(1, 'Turn 1 done.'), receipt(2, 'Turn 2 done.')] }
+    { ...aTurn(1, T0), receipts: [receipt(1, 'row1')] },
+    { ...aTurn(2, T0 + 100_000), receipts: [receipt(2, 'row2')] }
   ]
   engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed')
 
   // The engine draws the resumed transcript before the session starts: its mode is not known yet, and it is not
   // held to it; placing the pane draws it again.
-  const first = await $.ui.mount(answerRow('Turn 1 done.'))
-  const second = await $.ui.mount(answerRow('Turn 2 done.'))
+  const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
+  const second = await $.ui.mount(answerRow('Turn 2 done.', 'row2'))
   expect((await rowsOf(second)).some(t => t.startsWith('─ done'))).toBe(false)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount(focused(false))
@@ -293,7 +295,7 @@ test('resume: the answers drawn again from history get their receipts back, by b
   expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
   expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
   // An answer no kept receipt ends on gets none.
-  const other = await $.ui.mount(answerRow('Something else.'))
+  const other = await $.ui.mount(answerRow('Something else.', 'row9'))
   expect((await rowsOf(other)).some(t => t.startsWith('─ done'))).toBe(false)
   expect(await rowsOf(other)).not.toContain('claude')
 
@@ -362,4 +364,90 @@ test('a click on any Cockpit row sends nothing: receipts, step rows and key hint
 
   expect(pressed).toBe(keys.length)
   expect(sent).toEqual([])
+})
+
+test('two answers with the same text keep their own receipts live, whatever order they draw in', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  engine(on, clock, store, 'same')
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await turn($, clock, 1, ['one.ts'], 'Same as before.')
+  await turn($, clock, 2, ['two-a.ts', 'two-b.ts'], 'Same as before.')
+  const pane = await $.ui.mount(focused(false))
+  const receiptOf = async (id: string) => {
+    const ui = await $.ui.mount(answerRow('Same as before.', id))
+    const row = (await rowsOf(ui)).find(t => t.startsWith('─ done'))
+    await ui.unmount()
+
+    return row
+  }
+
+  // Live: turn 2's answer drawn first, then turn 1's; each keeps its own turn's receipt.
+  expect(await receiptOf('m2')).toMatch(/ 2 steps · \d+s$/)
+  expect(await receiptOf('m1')).toMatch(/ 1 step · \d+s$/)
+  await pane.unmount()
+  const kept = store.get('history:same') as { turns: { receipts: { answer: string; steps: number }[] }[] }
+  expect(kept.turns.flatMap(t => t.receipts).map(r => [r.answer, r.steps])).toEqual([
+    ['m1', 1],
+    ['m2', 2]
+  ])
+})
+
+test('resume: two answers with the same text get their own receipts back, in either drawing order', ON, async ($, on) => {
+  const clock = { now: T0 + 999_000 }
+  const receipt = (turnNo: number) => ({
+    turn: `e${turnNo}`,
+    turnNo,
+    answer: `row${turnNo}`,
+    state: 'done' as const,
+    agents: 0,
+    steps: turnNo,
+    failures: 0,
+    fixed: 0,
+    files: 0,
+    commit: '',
+    open: [],
+    durationMs: 2_000
+  })
+  const turns = [
+    { ...aTurn(1, T0), receipts: [receipt(1)] },
+    { ...aTurn(2, T0 + 100_000), receipts: [receipt(2)] }
+  ]
+  engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed')
+
+  // Drawn bottom first, as a scrolled-back viewport may: the later answer, then the earlier one.
+  const second = await $.ui.mount(answerRow('Same as before.', 'row2'))
+  const first = await $.ui.mount(answerRow('Same as before.', 'row1'))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  const pane = await $.ui.mount(focused(false))
+  await second.redraw()
+  await first.redraw()
+
+  expect((await rowsOf(first)).find(t => t.startsWith('─ done'))).toMatch(/ 1 step · 2s$/)
+  expect((await rowsOf(second)).find(t => t.startsWith('─ done'))).toMatch(/ 2 steps · 2s$/)
+  await Promise.all([first.unmount(), second.unmount(), pane.unmount()])
+})
+
+test('one `/steps` after a click on a receipt returns the pane to live at once, with no redraw asked', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, new Map())
+  on('ui.toast', () => ({ value: undefined }))
+  await threeTurns($, clock)
+  const pane = await $.ui.mount(focused(false))
+  const pinnedNow = async () => (await pane.findAll({ type: 'Text' })).some(t => t.text.includes('PINNED'))
+
+  const answer = await $.ui.mount(answerRow('Turn 1 done.'))
+  await answer.press({ key: 'receipt:e1' })
+  expect(await pinnedNow()).toBe(true)
+
+  // The command's answer and the pane agree, the first time: the pane is drawn again by the release itself.
+  expect(await run($, '')).toBe('live · the pane follows the current turn')
+  expect(await pinnedNow()).toBe(false)
+
+  // Pinned again by a click, released by one `/steps` again.
+  await answer.press({ key: 'receipt:e1' })
+  expect(await pinnedNow()).toBe(true)
+  expect(await run($, '')).toBe('live · the pane follows the current turn')
+  expect(await pinnedNow()).toBe(false)
+  await Promise.all([answer.unmount(), pane.unmount()])
 })
