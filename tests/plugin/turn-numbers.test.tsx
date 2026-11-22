@@ -351,3 +351,16 @@ test('resume: `/steps n all` prints a kept turn`s steps, though the flow that dr
   expect(all).toContain('module-0')
   expect(all).toContain('module-19')
 })
+
+test('`/steps n all` for a kept turn with no steps says so; `no step log` is only for a turn that is not kept', ON, async ($, on) => {
+  const clock = { now: T0 + 3_600_000 }
+  const bare = { ...aTurn(2, T0 + 60_000), turns: ['e2'], steps: [], details: [], dropped: 0 }
+  const store: Store = new Map<string, unknown>([['history:s1', { savedAt: T0, turns: [{ ...aTurn(1, T0), turns: ['e1'] }, bare] }]])
+  engine(on, clock, store)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await (await $.ui.mount(PANE)).unmount()
+
+  const all = async (n: string) => ((await $.command.run(steps(n) as never)) as { text?: string }).text
+  expect(await all('2 all')).toBe('turn 2 had no steps')
+  expect(await all('9 all')).toBe('no step log for turn 9 · kept: turns 1 to 2')
+})

@@ -115,8 +115,12 @@ export const frameWidth = (columns: number): number => ruleWidth(layout(columns)
  */
 export async function stepsAllText($: EngineInterface, turnNo: number, columns: number): Promise<string> {
   const rows = await turnRows($, turnNo, frameWidth(columns))
+  const known = await knownTurns($)
 
-  return rows.length > 0 ? rows.map(rowText).join('\n') : `no step log for turn ${turnNo} · kept: ${span(await knownTurns($))}`
+  if (rows.length > 0) return rows.map(rowText).join('\n')
+
+  // A kept turn with nothing to print had no steps; only a turn Cockpit does not keep has no step log.
+  return known.includes(turnNo) ? `turn ${turnNo} had no steps` : `no step log for turn ${turnNo} · kept: ${span(known)}`
 }
 
 /** The fenced code blocks of a Markdown text, each without the indent it was nested at. */
@@ -227,9 +231,7 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
     if (form === 'steps') {
       const rows = await turnRows($, n, frameWidth(columns))
 
-      return rows.length > 0
-        ? copy(rows.map(rowText).join('\n'), `the steps of turn ${n} · ${plural(rows.length, 'row')}`)
-        : `no step log for turn ${n} · kept: ${span(known)}`
+      return rows.length > 0 ? copy(rows.map(rowText).join('\n'), `the steps of turn ${n} · ${plural(rows.length, 'row')}`) : `turn ${n} had no steps`
     }
 
     const text = await turnText($, n)
