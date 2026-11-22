@@ -266,7 +266,19 @@ test('/tui: the switch is kept as the command runs and said once by the next dra
 
     return { value: undefined }
   })
-  mock.store(on)
+  // The store, not $.state: live, a state write made inside `/tui`'s own dispatch read `null` in the copy loaded after it.
+  const store = new Map<string, unknown>()
+  on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
+  on('store.set', (_, e) => {
+    store.set(e.key, JSON.parse(JSON.stringify(e.value)))
+
+    return { value: undefined }
+  })
+  on('store.delete', (_, e) => {
+    store.delete(e.key)
+
+    return { value: undefined }
+  })
   on('session.id', () => ({ value: 'switch-test' }))
   on('command.run', () => ({ text: 'Switched back to the classic renderer' }))
   const tui = (args: string, isFullscreen: boolean) =>
@@ -289,6 +301,7 @@ test('/tui: the switch is kept as the command runs and said once by the next dra
 
   // Off fullscreen: the old screen's draw says nothing; the main screen's first draw says it, once.
   await tui('classic', true)
+  expect(store.get('switch:switch-test')).toEqual({ isFullscreen: false, columns: 200 })
   await hint(true)
   await hint(false)
   await hint(false)

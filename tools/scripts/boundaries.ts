@@ -5,7 +5,9 @@
 //   hooks/transcript/**  transcript/**, shared/**, types/, `claude-code`, and the cockpit's public surface only
 //   hooks/register.tsx   anything under hooks/ (it composes the features)
 // and no file may re-export (`export … from`, `export *`): every import names the module that defines it. It also
-// checks hooks/README.md against the folders under hooks/: every folder it names exists, and every folder is named.
+// checks hooks/README.md against the folders under hooks/: every folder it names exists, and every folder is named;
+// and that no debug row can ship: each `$.ui.log` row a person sees is a `cockpit:` or `ghostframe:` notice (or the
+// `/tui` switch's `notice`), and a trace goes to the debug log alone (`{ to: 'debug' }`).
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, posix, relative, sep } from 'node:path'
 
@@ -80,6 +82,35 @@ export function readmeDrift(readme: string, folders: readonly string[]): string[
   ]
 }
 
+// A `$.ui.log` call: its first argument's start, and what follows it (for a `{ to: 'debug' }` option).
+const UI_LOG = /\$\.ui\.log\(\s*([^,)]{0,60})(?=([\s\S]{0,300}))/g
+const NOTICE = /^(?:[`'"](?:cockpit|ghostframe): |notice\s*$)/
+
+/**
+ * The `$.ui.log` rows that are not notices: a row a person would see in the transcript that no prefix names, such as
+ * a probe's `probe19 load=…`, which a live check printed under every step.
+ * @param files repo-relative path (forward slashes) to source text
+ * @returns one message per such call
+ */
+export function loggedRows(files: ReadonlyMap<string, string>): string[] {
+  const found: string[] = []
+
+  for (const [file, source] of files) {
+    for (const m of source.matchAll(UI_LOG)) {
+      const first = (m[1] ?? '').trim()
+      const rest = m[2] ?? ''
+      const isDebug = /^\s*,\s*\{\s*to:\s*['"]debug['"]/.test(rest)
+
+      if (!NOTICE.test(first) && !isDebug) {
+        const line = source.slice(0, m.index).split('\n').length
+        found.push(`${file}:${line}: $.ui.log row ${first.slice(0, 40)} is no cockpit: or ghostframe: notice; a trace goes { to: 'debug' }`)
+      }
+    }
+  }
+
+  return found
+}
+
 /** Every folder under `dir`, relative to it with forward slashes. */
 function foldersUnder(dir: string, base = '', out: string[] = []): string[] {
   for (const name of readdirSync(join(dir, base))) {
@@ -146,7 +177,19 @@ function selfTest(): void {
     fail('a folder the README does not name passed')
   }
 
-  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways)`)
+  const logs = new Map([
+    [
+      'hooks/cockpit/a.ts',
+      "$.ui.log(`cockpit: seat change failed: ${e}`)\n$.ui.log('ghostframe: x')\n$.ui.log(notice)\n$.ui.log(`trace ${n}`, { to: 'debug' })"
+    ]
+  ])
+
+  if (loggedRows(logs).length > 0) fail(`notices were refused: ${loggedRows(logs).join('; ')}`)
+  if (loggedRows(new Map([['hooks/cockpit/pane.tsx', 'if (s !== last) { last = s; $.ui.log(s) }\n$.ui.log(`probe19 load=${id}`)']])).length !== 2) {
+    fail('a debug row passed')
+  }
+
+  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught)`)
 }
 
 if (process.argv.includes('--self-test')) {
@@ -154,7 +197,8 @@ if (process.argv.includes('--self-test')) {
 } else {
   const root = process.cwd()
   const hooks = join(root, 'hooks')
-  const found = [...violations(sources(root, hooks)), ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))]
+  const files = sources(root, hooks)
+  const found = [...violations(files), ...loggedRows(files), ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))]
 
   if (found.length > 0) {
     console.error(found.join('\n'))

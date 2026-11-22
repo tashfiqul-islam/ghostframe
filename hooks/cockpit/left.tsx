@@ -4,6 +4,8 @@
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { remember } from '../shared/held'
+import type { Part } from '../shared/parts'
+import type { Ui } from '../shared/rule'
 import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
 import { liveRow } from './head'
@@ -11,7 +13,7 @@ import { readFrame, readLog, readReceipts } from './log'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
 import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
-import { claimFooter } from './fallback/stretch'
+
 import { readFlow, isNarrationAt } from '../shared/flow'
 import { shellText } from '../shared/calls/ships'
 import { turnOfCall, turnView } from './fallback/facts'
@@ -248,19 +250,91 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
   const ui = $.ui.resolve(e)
   const p = e.props
 
-  if (isFallbackRow(e)) {
-    return drawFallbackCalls($, ui, [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }], width)
-  }
+  const calls = [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }]
+  const isFallbackNow = isFallbackRow(e)
+  const tail = await noTextReceipt($, ui, [p.tool_use_id], width, isFallbackNow)
+
+  if (isFallbackNow) return withTail(ui, await drawFallbackCalls($, ui, calls, width), tail)
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
-  const rows = shipRows(
-    [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }],
-    id => steps.find(s => s.id === id)?.clock,
-    width
+  const rows = shipRows(calls, id => steps.find(s => s.id === id)?.clock, width)
+
+  return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
+}
+
+/** A call's rows, then the receipt of a turn that ended on it, if one did. */
+const withTail = (ui: Pick<Ui, 'Box'>, rows: RenderElement, tail: RenderElement | undefined): RenderElement =>
+  tail === undefined ? (
+    rows
+  ) : (
+    <ui.Box flexDirection="column">
+      {rows}
+      {tail}
+    </ui.Box>
   )
 
-  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
+/**
+ * The receipt of a turn that wrote no answer row (E.3 case 3, E.47: no turn is left without its numbers), drawn under
+ * the row of the turn's last call, which the receipt names: docked, the receipt; in fallback, the capsule of the
+ * turn's last stretch and the receipt. It reads only what is kept (the receipt, history), never what an earlier draw
+ * decided, so it is drawn after a reload and a resume too. Nothing for an interrupted turn (correction G).
+ * @param $ the engine interface
+ * @param ui the surface's elements
+ * @param ids the call ids of the row
+ * @param width the transcript rule's width
+ * @param isFallbackNow whether the row draws in fallback
+ * @returns the tree, or undefined when no such turn ended on this row
+ */
+async function noTextReceipt(
+  $: EngineInterface,
+  ui: Pick<Ui, 'Box' | 'Button' | 'Text'>,
+  ids: readonly string[],
+  width: number,
+  isFallbackNow: boolean
+): Promise<RenderElement | undefined> {
+  const receipt = (await readReceipts($)).findLast(r => r.answer === '' && r.lastCall !== undefined && ids.includes(r.lastCall))
+  const turn = receipt?.turn
+
+  if (receipt === undefined || turn === null || turn === undefined) return undefined
+
+  const capsule = isFallbackNow ? await footerCapsule($, turn, width) : undefined
+  const rows = receiptRows(receipt, width, isFallbackNow ? { capsules: await capsuleCount($, turn) } : undefined)
+
+  if (rows.length === 0) return undefined
+
+  return receiptTree($, ui, receipt.turnNo, turn, [...(capsule === undefined ? [] : [capsule]), ...rows.slice(0, -1)], rows.at(-1) ?? [])
+}
+
+/**
+ * A receipt's tree: one blank row above, the rows above it, then the receipt itself as a Button: a click pins its turn
+ * in the pane (E.45; probe 25: a Button there is pressed by a click).
+ * @param $ the engine interface
+ * @param ui the surface's elements
+ * @param turnNo the receipt's typed turn
+ * @param turn its engine turn, for the Button's key
+ * @param above the rows above it (a capsule, `still failing` rows)
+ * @param own the receipt's row
+ * @returns the tree
+ */
+function receiptTree(
+  $: EngineInterface,
+  ui: Pick<Ui, 'Box' | 'Button' | 'Text'>,
+  turnNo: number,
+  turn: string,
+  above: readonly Part[][],
+  own: readonly Part[]
+): RenderElement {
+  const { Box, Button } = ui
+
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, above)}
+      <Button key={`receipt:${turn}`} plain onPress={() => void pinAndSay($, turnNo)}>
+        {drawRow(ui, own, 'receipt')}
+      </Button>
+    </Box>
+  )
 }
 
 /**
@@ -273,14 +347,18 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
 export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
 
-  if (isFallbackRow(e)) return drawFallbackCalls($, ui, e.props.calls, width)
+  const ids = e.props.calls.flatMap(c => (c.tool_use_id === undefined ? [] : [c.tool_use_id]))
+  const isFallbackNow = isFallbackRow(e)
+  const tail = await noTextReceipt($, ui, ids, width, isFallbackNow)
+
+  if (isFallbackNow) return withTail(ui, await drawFallbackCalls($, ui, e.props.calls, width), tail)
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
   const rows = shipRows(e.props.calls, clockOf, width)
 
-  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
+  return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }
 
 /**
@@ -317,21 +395,7 @@ export async function drawTurnReceipt(
 
   if (rows.length === 0) return undefined
 
-  const ui = $.ui.resolve(e)
-  const { Box, Button } = ui
-  const turnNo = receipt?.turnNo ?? 0
-  const above = rows.slice(0, -1)
-  const own = rows.at(-1) ?? []
-
-  // A click on the receipt pins its turn in the pane (E.45; probe 25: a Button there is pressed by a click).
-  return (
-    <Box flexDirection="column" marginTop={1}>
-      {drawRows(ui, above)}
-      <Button key={`receipt:${turn}`} plain onPress={() => void pinAndSay($, turnNo)}>
-        {drawRow(ui, own, 'receipt')}
-      </Button>
-    </Box>
-  )
+  return receiptTree($, $.ui.resolve(e), receipt?.turnNo ?? 0, turn, rows.slice(0, -1), rows.at(-1) ?? [])
 }
 
 /**
@@ -415,34 +479,15 @@ export async function drawAnswerCapsule(
 }
 
 /**
- * Cockpit's part of the turn footer (`TurnDuration`) while quiet: nothing, except in fallback for a turn that wrote
- * no text, where the footer draws the turn's capsule and its receipt (E.3 case 3). The footer claims, at its first
- * draw, the turn that just ended; a turn that wrote text has its receipt under its answer instead.
+ * Cockpit's part of the turn footer (`TurnDuration`) while quiet: nothing. A turn that wrote text has its receipt
+ * under its answer, and one that wrote none under its last call's row (E.3 case 3): the engine's footer names no
+ * turn (phase 5), so it cannot carry one.
  * @param $ the engine interface
  * @param e the footer's render
- * @param width the transcript rule's width
  * @returns the tree (an empty Box draws nothing)
  */
-export async function drawQuietFooter($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>, width: number): Promise<RenderElement> {
-  const ui = $.ui.resolve(e)
-  const { Box } = ui
-  // Claimed at its first draw, docked or not, so the footer still knows its turn when a resize redraws it in fallback.
-  const turn = claimFooter(e.requestId, (await readLog($)).turn)
-
-  if (!isFallbackRow(e)) return <Box />
-
-  const receipt = turn === null ? undefined : (await readReceipts($)).findLast(r => r.turn === turn)
-
-  if (turn === null || receipt === undefined || receipt.answer !== '') return <Box />
-
-  const capsule = await footerCapsule($, turn, width)
-  const rows = receiptRows(receipt, width, { capsules: await capsuleCount($, turn) })
-
-  return (
-    <Box flexDirection="column" marginTop={1}>
-      {drawRows(ui, [...(capsule === undefined ? [] : [capsule]), ...rows])}
-    </Box>
-  )
+export function drawQuietFooter($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>): RenderElement {
+  return $.ui.resolve(e).Box({})
 }
 
 /**

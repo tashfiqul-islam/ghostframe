@@ -229,7 +229,10 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
-  const receipt = { ...receiptOf(await read($, stepLog), waiting), answer }
+  const ended = await read($, stepLog)
+  // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
+  const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
+  const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
 
   if (anyRunning(await read($, roster))) startTimers($, false)

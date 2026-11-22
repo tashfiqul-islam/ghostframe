@@ -123,6 +123,7 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
     const argv = e.argv.join(' ')
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
     if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: tracked[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: others[Math.min(lists++, 2)] ?? '', stderr: '' } } as never
@@ -153,6 +154,7 @@ test('an append to a file the turn created counts too: its lines are read again 
     const argv = e.argv.join(' ')
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
     if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: lists++ === 0 ? '' : 'notes5.txt\0', stderr: '' } } as never
@@ -165,4 +167,39 @@ test('an append to a file the turn created counts too: its lines are read again 
   await call($, 'Bash', 'b2', { command: `printf 'three\n' >> "$PWD/notes5.txt"` })
 
   expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}notes5\.txt +new {4}\+3 {6}$/))
+})
+
+test('a repo with no commits yet: Git has seen nothing, so every file it lists is new, and no notice is printed', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const said: string[] = []
+  on('ui.log', (_, e) => {
+    said.push(e.text)
+
+    return { value: undefined }
+  })
+  // `git init`, two files added, no commit: HEAD does not resolve, and `git diff HEAD` would fail.
+  const listed = ['a.txt\0notes.txt\0', 'a.txt\0notes.txt\0new.txt\0']
+  let lists = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 1, stdout: '', stderr: '' } } as never
+    if (argv.startsWith('git diff')) return { value: { exitCode: 128, stdout: '', stderr: "fatal: bad revision 'HEAD'" } } as never
+    if (argv === 'git ls-files --cached --others --exclude-standard -z')
+      return { value: { exitCode: 0, stdout: listed[Math.min(lists++, 1)] ?? '', stderr: '' } } as never
+
+    return { value: { exitCode: 1, stdout: '', stderr: `unexpected: ${argv}` } } as never
+  })
+  on('fs.read', () => ({ value: 'one\n' }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'add a file', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'add a file', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: `printf 'one\n' > new.txt` })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}new\.txt +new {4}\+1 {6}$/))
+  expect(rows.some(r => /a\.txt|notes\.txt/.test(r))).toBe(false)
+  expect(said.filter(t => /git|unreadable/.test(t))).toEqual([])
 })

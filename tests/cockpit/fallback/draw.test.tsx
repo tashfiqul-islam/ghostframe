@@ -49,7 +49,7 @@ test('capsule, trigger 2: a step that starts after five silent minutes draws the
   expect(await rowsOf($, groupOf(shell('s3'), 100))).toEqual(rows)
 })
 
-test('capsule, trigger 3: a turn that ends without any text draws its capsule and receipt in the footer', ON, async ($, on) => {
+test('capsule, trigger 3: a turn that ends without any text draws its capsule and receipt under its last call`s row', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock)
   await $.prompt.submit({ text: 'just run it', wait: false, origin: { kind: 'composer' } })
@@ -59,8 +59,10 @@ test('capsule, trigger 3: a turn that ends without any text draws its capsule an
   clock.now += 1_000
   await $.turn.complete({ answer: '', durationMs: 2_000, isAborted: false, turnId: 'quiet', reason: 'answer' })
 
-  const footer = await rowsOf($, site('TurnDuration', 'td-quiet', 100, { word: 'Baked', durationMs: 2_000 }))
-  expect(footer).toEqual([expect.stringMatching(/^│ worked · 1 step · 1 shell +1s$/), expect.stringMatching(/^─ done ─+ 2s$/)])
+  const row = await rowsOf($, groupOf({ id: 'q1', tool: 'Bash', input: { command: 'echo hi' } }, 100))
+  expect(row).toEqual([expect.stringMatching(/^│ worked · 1 step · 1 shell +1s$/), expect.stringMatching(/^─ done ─+ 2s$/)])
+  // The footer names no turn (phase 5), so it draws nothing.
+  expect(await rowsOf($, site('TurnDuration', 'td-quiet', 100, { word: 'Baked', durationMs: 2_000 }))).toEqual([])
 })
 
 test('a failure draws its row at once at a narrow width: `✕ failed`, its clock, the decisive line, nothing cut but the subject', ON, async ($, on) => {

@@ -79,12 +79,10 @@ export function registerChrome(on: On): void {
     }
 
     // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
-    // reports start share one footer, or get none, so a footer can't say which turn it closes. In fallback, a turn
-    // that wrote no text has its capsule and receipt here (E.3 case 3).
+    // reports start share one footer, or get none, so a footer can't say which turn it closes. A turn that wrote no
+    // text has its receipt (in fallback with its capsule) under its last call's row instead (E.3 case 3).
     if (isQuietRow(e)) {
-      const lay = layout(e.viewport?.columns)
-
-      return drawQuietFooter($, e, ruleWidth(lay) ?? lay?.width ?? 0)
+      return drawQuietFooter($, e)
     }
 
     if (e.props.waitingFor) {

@@ -135,6 +135,11 @@ export type Receipt = {
   commit: string
   open: OpenFailure[]
   durationMs: number
+  /**
+   * For a turn that wrote no answer row: the id of its last call, whose row draws the receipt instead (E.3 case 3,
+   * E.47). Kept with the receipt in the state and in history's store copy, so it outlives a reload and a resume.
+   */
+  lastCall?: string
 }
 
 /**

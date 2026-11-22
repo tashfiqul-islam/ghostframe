@@ -184,3 +184,9 @@ Probed in phase 10 (Claude Code 2.1.330, 200 × 50, a ConPTY session as for the 
 - Built from this (amendment 10): the switch notices, the env read on each copy's first draw, and no row memory kept while Cockpit is off.
 
 Also seen in phase 10: the engine keeps an unasked docked pane down to 110 columns, so Cockpit closes it below 144 itself (amendment 10); the prompt hint's viewport is the region beside the pane while one is docked; and fullscreen ctrl+o draws the prompt, each message's time row and the turn's footer itself (amendment 11).
+
+Phase 10 review, 2026-11-22, what can be lost across `/tui` (a probe build: the `/tui` hook writes a marker to `$.state` before `next`; each prompt-hint draw logs the copy's load stamp, the marker, the step log's turn and step count):
+
+- Idle: the old copy wrote the marker (`mark=99576`) and read it back. The new copy's first draw read every value at its default (`mark=0 turnNo=0 steps=0`); its next draw read the turn and its step (`turnNo=1 steps=1`), and the marker stayed `0` from then on. So the state comes back a moment after the copy loads, and only the write made inside `/tui`'s own dispatch is lost.
+- Mid-turn: `/tui fullscreen` typed at step 5 of a 20-step turn did not run then. Its hook ran after step 20 (`wrote … steps=20`), and the new copy read `turnNo=2 steps=20 running=false`. The turn's end, written just before the command ran, came through; the pane and the receipt said `20 steps`. A typed `/tui` waits for the turn.
+- So no step of a turn, and no turn's end, can land inside the switch. What is written inside it, the `/tui` hook's own value, is kept in `$.store` instead (amendment 10). A background agent's events while idle were not probed. A first draw after a reload reads defaults; rows drawn then are drawn again once the state comes back.
