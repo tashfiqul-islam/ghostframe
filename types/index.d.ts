@@ -165,6 +165,8 @@ export type RosterAgent = {
   call: string
   parent: string | null
   name: string
+  /** The other names a row may give it: its own name and its type (`Explore`), as a peer's message names its sender. */
+  called?: string[]
   isBackground: boolean
   state: 'running' | 'done' | 'failed'
   kind: string

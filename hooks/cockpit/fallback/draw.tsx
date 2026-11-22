@@ -8,7 +8,7 @@ import type { EngineInterface, RenderElement } from 'claude-code'
 import type { Ui } from '../../shared/rule'
 import { readFlow } from '../../shared/flow'
 import { drawRows } from '../draw'
-import { readHistory } from '../history/store'
+import { keptRecords } from '../history/store'
 import { readFrame, readLog, readRoster } from '../log'
 import { shipRows } from '../quiet'
 import type { GroupCall } from '../quiet'
@@ -157,7 +157,7 @@ export async function drawAgentFailure(
 ): Promise<RenderElement | undefined> {
   const isIt = (a: { id: string; call: string }) => a.id === task.id || (task.toolUseId !== undefined && a.call === task.toolUseId)
   const live = (await readRoster($)).find(isIt)
-  const record = live === undefined ? (await readHistory($)).find(r => r.roster.some(isIt)) : undefined
+  const record = live === undefined ? (await keptRecords($)).find(r => r.roster.some(isIt)) : undefined
   const agent = live ?? record?.roster.find(isIt)
 
   if (agent === undefined || agent.state !== 'failed') return undefined

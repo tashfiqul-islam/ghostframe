@@ -66,9 +66,11 @@ function registerAgents(on: On): void {
 
     if (started.deny === undefined && started.agentId !== undefined) {
       const name = [e.description, e.name ?? '', e.subagentType].find(n => n.trim().length > 0) ?? 'agent'
+      // A peer's message names its sender by the agent's name, else its type: kept, so a resumed row is known.
+      const called = [e.name ?? '', e.subagentType].filter(n => n.trim().length > 0)
 
       try {
-        await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, isBackground: e.background })
+        await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, called, isBackground: e.background })
       } catch (error: unknown) {
         $.ui.log(`cockpit: agent row failed: ${String(error)}`)
       }

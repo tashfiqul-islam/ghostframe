@@ -12,8 +12,8 @@ import { respond, rowOf } from '../support/respond'
 // `/copy steps n` use. An agent's report starts a turn of its own that carries on the typed one: no rule, no number.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: Clock, store: Store) {
-  fallbackEngine(on, clock, true)
+function engine(on: On, clock: Clock, store: Store, isPlaced = true) {
+  fallbackEngine(on, clock, isPlaced)
   on('session.id', () => ({ value: 's1' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
@@ -199,3 +199,69 @@ test('mid-turn prompts: one folded in claims no number, one queued into a turn o
   await pane.unmount()
   expect(head).toContainEqual(expect.stringMatching(/^┄ \[ LAST \] ┄+ turn 5/))
 })
+
+// After a resume the engine's list of agents is empty and the live roster holds the last turn's agents at most:
+// every kept turn's roster says which agents were this session's, read from the store for rows drawn before the
+// session starts (amendments 8, 9).
+for (const [mode, columns] of [
+  ['docked', 127],
+  ['fallback', 100]
+] as const) {
+  test(`${mode} resume: an earlier turn's agents keep their notice and message rows hidden, before the session starts and after`, ON, async ($, on) => {
+    const agent = (id: string, call: string, state: 'done' | 'failed', subject: string) => ({
+      id,
+      call,
+      parent: null,
+      name: `Count lines ${id}`,
+      called: ['Explore'],
+      isBackground: true,
+      state,
+      kind: state,
+      subject,
+      steps: 2,
+      startedAt: T0 + 1_000,
+      endedAt: T0 + 9_000,
+      subjectAt: T0 + 9_000,
+      pending: null
+    })
+    const first = { ...aTurn(1, T0), roster: [agent('ag1', 'c1', 'done', '1 line'), agent('ag2', 'c2', 'failed', 'file not found')] }
+    const store: Store = new Map<string, unknown>([
+      [
+        'prompts:s1',
+        [
+          { text: 'prompt 1', at: T0, row: 'u1', turnNo: 1 },
+          { text: 'prompt 2', at: T0 + 300_000, row: 'u2', turnNo: 2 }
+        ]
+      ],
+      ['history:s1', { savedAt: T0, turns: [first, aTurn(2, T0 + 300_000)] }]
+    ])
+    engine(on, { now: T0 + 600_000 }, store, mode === 'docked')
+    const notice = (id: string, call: string, status: string) =>
+      rowsOf(
+        $,
+        site('UserMessage', `n${id}`, columns, {
+          text: `Agent "Count lines" ${status}`,
+          origin: { kind: 'task-notification' },
+          task: { id, toolUseId: call, status },
+          isExpanded: false
+        })
+      )
+    const message = () =>
+      rowsOf($, site('UserMessage', 'pm', columns, { text: 'notes.txt has 1 line', origin: { kind: 'peer' }, from: { name: 'Explore' }, isExpanded: false }))
+
+    for (const phase of ['before the start', 'after the start']) {
+      if (phase === 'after the start') {
+        await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+        if (mode === 'docked') await (await $.ui.mount(PANE)).unmount()
+      }
+
+      expect(await notice('ag1', 'c1', 'completed'), phase).toEqual([])
+      expect(await message(), phase).toEqual([])
+      const failed = await notice('ag2', 'c2', 'failed')
+
+      // A failed agent keeps its `✕` row in fallback only; before the pane is placed, every row is a fallback row.
+      if (mode === 'docked' && phase === 'after the start') expect(failed, phase).toEqual([])
+      else expect(failed.join('\n'), phase).toMatch(/^✕ failed · agent · Count lines ag2 · file not found +9s$/)
+    }
+  })
+}

@@ -3,9 +3,9 @@
 import type { EngineInterface, On, RenderElement, RenderPropsOf } from 'claude-code'
 
 import { readEnvOnce } from '../../cockpit/switch'
-import type { PromptStamp } from '../../../types'
-import { drawAgentNotice, isQuietRow } from '../../cockpit/left'
-import { readLog, readRoster } from '../../cockpit/log'
+import type { PromptStamp, RosterAgent } from '../../../types'
+import { drawAgentNotice, isQuietRow, keptAgents } from '../../cockpit/left'
+import { readLog } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import type { Lay } from '../../shared/layout'
 import { Rule } from '../../shared/rule'
@@ -90,9 +90,9 @@ function durationLabel(ms: number) {
 
 /**
  * Whether a row is one of this session's agents speaking: the notice that it finished (`task-notification`, its
- * task an agent) or its message to the main loop (`peer`, from an agent's name or type). Cockpit's roster says which
- * agents this session launched (the engine's list may have dropped one that finished), else the engine's own list;
- * a list it cannot give keeps the row.
+ * task an agent) or its message to the main loop (`peer`, from an agent's name or type). Cockpit's roster and every
+ * kept turn's say which agents this session launched (the engine's list may have dropped one that finished, and
+ * after a resume holds none), else the engine's own list; a list it cannot give keeps the row.
  * @param $ the engine interface
  * @param p the row's props
  * @returns whether the row is an agent's
@@ -105,7 +105,12 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 
   const task = p.origin.kind === 'task-notification' ? p.task : undefined
 
-  if ((await readRoster($)).some(a => a.id === id || (task?.toolUseId !== undefined && a.call === task.toolUseId))) return true
+  const isIt = (a: RosterAgent) =>
+    a.id === id ||
+    (task?.toolUseId !== undefined && a.call === task.toolUseId) ||
+    (from !== undefined && (a.name === from || a.called?.includes(from) === true))
+
+  if ((await keptAgents($)).some(isIt)) return true
 
   try {
     const agents = await $.agent.list()

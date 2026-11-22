@@ -30,28 +30,48 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
 let storedNarration: Set<string> | undefined
-/** This session's kept receipts as the store had them when this copy of the module first asked. */
-let storedReceipts: Receipt[] | undefined
+/** This session's kept turns as the store had them when this copy of the module first asked. */
+let storedRecords: TurnRecord[] | undefined
 
 /**
- * This session's kept receipts from the store, read once per copy of the module: for rows drawn before the session's
+ * This session's kept turns from the store, read once per copy of the module: for rows drawn before the session's
  * start has brought them into the state (a resumed transcript is drawn first, amendment 8).
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+async function storedRecordList($: EngineInterface): Promise<TurnRecord[]> {
+  if (storedRecords === undefined) {
+    // A store that cannot be read costs the early draw only: the state's turns come with the session's start.
+    try {
+      const k = `${PREFIX}${await $.session.id()}`
+      storedRecords = keptOf(k, await $.store.get(k))?.turns ?? []
+    } catch (error: unknown) {
+      $.ui.log(`cockpit: kept turns not read before the session start: ${String(error)}`, { to: 'debug' })
+      storedRecords = []
+    }
+  }
+
+  return storedRecords
+}
+
+/**
+ * This session's kept receipts from the store, read once per copy of the module (see `storedRecordList`).
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
 export async function storedReceiptList($: EngineInterface): Promise<Receipt[]> {
-  if (storedReceipts === undefined) {
-    // A store that cannot be read costs the early draw its receipts only: the state's come with the session's start.
-    try {
-      const k = `${PREFIX}${await $.session.id()}`
-      storedReceipts = keptOf(k, await $.store.get(k))?.turns.flatMap(t => t.receipts) ?? []
-    } catch (error: unknown) {
-      $.ui.log(`cockpit: kept receipts not read before the session start: ${String(error)}`, { to: 'debug' })
-      storedReceipts = []
-    }
-  }
+  return (await storedRecordList($)).flatMap(t => t.receipts)
+}
 
-  return storedReceipts
+/**
+ * The session's kept turns: the state's, or, before the session's start has brought them there, the store's.
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
+  const held = await read($, history)
+
+  return held.length > 0 ? held : storedRecordList($)
 }
 
 /**

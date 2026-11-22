@@ -4,7 +4,7 @@ import type { RosterAgent } from '../../../types'
 import { kindOf, subjectOf } from '../steps/kinds'
 
 /** An agent as it starts: `agent.spawn`'s answer and input, and the wall clock in ms. */
-export type AgentStart = { id: string; call: string; parent: string | null; name: string; isBackground: boolean; at: number }
+export type AgentStart = { id: string; call: string; parent: string | null; name: string; called?: readonly string[]; isBackground: boolean; at: number }
 
 /** How an agent's run ended, as `agent.report` says. */
 export type AgentEnd = { id: string; status: 'completed' | 'failed' | 'stopped'; text: string; at: number }
@@ -20,6 +20,7 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
     call: start.call,
     parent: start.parent,
     name: start.name,
+    ...(start.called === undefined || start.called.length === 0 ? {} : { called: [...start.called] }),
     isBackground: start.isBackground,
     state: 'running',
     kind: 'start',
