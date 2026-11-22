@@ -69,9 +69,9 @@ test('docked: the rules, the pane`s head and /steps agree on n across a session 
   engine(on, clock, new Map())
   const copied: string[] = []
   on('ui.copy', (_, e) => {
-    copied.push((e as { text: string }).text)
+    copied.push(e.text)
 
-    return { value: undefined }
+    return { value: { isCopied: true } }
   })
   on('ui.toast', () => ({ value: undefined }))
   // The engine's own `/copy`, beneath Cockpit's forms.
@@ -92,7 +92,7 @@ test('docked: the rules, the pane`s head and /steps agree on n across a session 
   expect(report.some(r => r.includes('TURN'))).toBe(false)
 
   // The rule and the receipt end on one edge: the same width.
-  const receipt = (await rowsOf($, { ...site('AssistantMessage', 'a3', 127, { text: 'answer 3', isFirstOfReply: true }), ...rowOf('answer 3') })).at(-1) ?? ''
+  const receipt = (await rowsOf($, site('AssistantMessage', rowOf('answer 3').requestId ?? 'a3', 127, { text: 'answer 3', isFirstOfReply: true }))).at(-1) ?? ''
   expect(receipt).toMatch(/^─ done ─+/)
   expect(rules[2]?.length).toBe(receipt.length)
 
