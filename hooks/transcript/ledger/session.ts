@@ -43,7 +43,7 @@ export function sessionCwd(): string | undefined {
 type Content = ReadonlyArray<{ type: string; text?: unknown; id?: unknown; name?: unknown; input?: unknown }>
 
 // Each stored assistant block, in order, under the current turn; cited links count as sources.
-async function noteFlow($: EngineInterface, content: Content) {
+async function noteFlow($: EngineInterface, content: Content, row: string | undefined) {
   const turn = await readTurn($)
   const items: FlowStamp[] = []
   const links: string[] = []
@@ -53,7 +53,7 @@ async function noteFlow($: EngineInterface, content: Content) {
     if (b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0) {
       const { own } = citationsOf(splitBlocks(b.text), earlier)
 
-      items.push({ turn, kind: 'text', key: firstKey(b.text), ...(own.length > 0 ? { cites: own } : {}) })
+      items.push({ turn, kind: 'text', key: firstKey(b.text), ...(row === undefined ? {} : { row }), ...(own.length > 0 ? { cites: own } : {}) })
       earlier.push(...own.filter(c => !earlier.some(x => x.url === c.url)))
       links.push(...own.map(c => c.url))
     } else if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
@@ -212,7 +212,7 @@ export function registerSession(on: On): void {
           lastAnswer = { turn: await readTurn($), row: e.uuid }
         }
 
-        await noteFlow($, e.message.content)
+        await noteFlow($, e.message.content, e.uuid)
         await logSaid($, e.message.content)
       }
 

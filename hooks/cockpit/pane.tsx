@@ -7,7 +7,7 @@ import { drawPane, hintRows } from './keys/draw'
 import { allRows, detailRows, diffRows } from './keys/views'
 import { copiedNote, hasCopied, noteRing, readViewTick, viewNow, wholeNow } from './keys/view'
 import type { Line } from './line'
-import { columnsNow, noteColumns, setDocked, widthTick } from './left'
+import { noteColumns, setDocked, widthTick } from './left'
 import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn, readEnvOnce } from './switch'
@@ -39,8 +39,6 @@ let leftAt: number | undefined
 let askedInline: 'cockpit' | 'steps' | undefined
 /** Whether the person asked for the pane (`/cockpit`, `/steps`): it then docks from 110 columns, not 144 (amendment 5). */
 let isAsked = false
-/** The width a re-open waits to see stable, so a drag across a threshold does not flap (E.47, amendment 10). */
-let settling: number | undefined
 /**
  * The pane's body rows while no dialog covers the prompt. A permission dialog or a question card grows the pane
  * (correction C); the pane is still fitted to this height, so every row stays where it was and the new rows stay
@@ -61,36 +59,69 @@ export const PANE_HINT = 'pane · tab moves · enter opens · esc returns to the
  */
 async function openAt($: EngineInterface, columns: number): Promise<UiOpenResult> {
   openedAt = columns
+  $.ui.log(`cockpit: seat open at ${columns} columns (body ${paneColumns(columns)})`, { to: 'debug' })
 
   return $.ui.open({ id: PANE, columns: paneColumns(columns) })
 }
 
-/** How long the terminal's width must hold before the pane opens again (E.47). */
-export const SETTLE_MS = 300
+/** The pane's placement at its last render, so the debug log has a line each time it changes. */
+let lastPlacement = ''
+
+/**
+ * Notes a change of the pane's placement in the debug log (never the transcript).
+ * @param $ the engine interface
+ * @param placement the placement and the terminal's columns
+ */
+function notePlacement($: EngineInterface, placement: string): void {
+  if (placement === lastPlacement) return
+
+  lastPlacement = placement
+  $.ui.log(`cockpit: pane drawn ${placement}`, { to: 'debug' })
+}
+
+/**
+ * How long a seat change waits after the draw that asks for it. The engine draws nothing while a window is dragged and
+ * draws every site once, about 0.5 s after the width stops (phase 10 drag probe: 1.145 s → 1.649 s, 4.1 s → 4.613 s),
+ * so the draw itself says the width has held longer than E.47's 300 ms. Waiting more only drew the screen twice (the
+ * engine's draw at the new width, then Cockpit's change). One tick lets a later draw of the same burst win.
+ */
+export const SETTLE_MS = 1
 
 /** Below this many columns a pane nobody asked for leaves the dock (amendment 5; the engine keeps it to 110). */
 export const UNASKED_MIN = 144
 
+/** A seat change waiting for the width to hold: what it does, at which width, and the count of width changes then. */
+let settling: { action: 'open' | 'close'; columns: number; tick: number } | undefined
+/** Whether the person closed the pane (its close mark, ctrl+x x, `/cockpit`): it stays closed until asked (E.47). */
+let isClosedByPerson = false
+/** Whether a close is Cockpit's own, so the close hook tells it from the person's. */
+let isClosing = false
+
 /**
- * Opens the pane again once the terminal's width has held for 300 ms: a width change inside the wait starts it again
- * at the new width. Every open passes `columns` (correction K).
+ * Changes the seat just after the draw that asks for it: the engine draws only once a resize has settled, so a drag
+ * across a threshold changes nothing until it stops. A width change inside the wait drops it: the draw at the new width
+ * decides again.
  * @param $ the engine interface
+ * @param action open at the width rule, or close a pane nobody asked for
  * @param columns the terminal's columns now
  */
-function openWhenStable($: EngineInterface, columns: number): void {
-  if (settling === columns) return
-
-  settling = columns
+function settle($: EngineInterface, action: 'open' | 'close', columns: number): void {
   const tick = widthTick()
+
+  if (settling?.action === action && settling.columns === columns && settling.tick === tick) return
+
+  const mine = { action, columns, tick }
+  settling = mine
 
   try {
     $.clock.after(SETTLE_MS, () => {
-      if (settling !== columns) return
+      if (settling !== mine) return
 
       settling = undefined
 
-      if (widthTick() !== tick) openWhenStable($, columnsNow() ?? columns)
-      else void openAt($, columns).catch((error: unknown) => logSeatError($, error))
+      if (widthTick() !== tick) return
+
+      void (action === 'open' ? openAt($, columns) : leaveUnasked($, columns)).catch((error: unknown) => logSeatError($, error))
     })
   } catch (error: unknown) {
     settling = undefined
@@ -99,17 +130,78 @@ function openWhenStable($: EngineInterface, columns: number): void {
 }
 
 /**
- * Closes a pane nobody asked for where it may not stay: inline, or docked below 144 columns. In fullscreen it opens
- * again once the width holds, and that open waits undrawn until the terminal is wide enough for the dock again.
+ * Closes a pane nobody asked for where it may not stay: inline, or docked below 144 columns. It leaves no open
+ * waiting behind (one would dock by itself at its old width once the terminal widens); a draw that finds the width
+ * wide enough again opens it at the width rule (`seatFor`).
  * @param $ the engine interface
+ * @param columns the terminal's columns
+ */
+async function leaveUnasked($: EngineInterface, columns: number): Promise<void> {
+  leftAt = columns
+  $.ui.log(`cockpit: seat close at ${columns} columns (not asked)`, { to: 'debug' })
+  isClosing = true
+
+  try {
+    await $.ui.close({ id: PANE })
+  } finally {
+    isClosing = false
+  }
+
+  setDocked($, false)
+}
+
+/**
+ * The seat for a draw at this width (amendments 5 and 10): an inline pane nobody asked for leaves at once (it would
+ * cover the conversation); a docked one nobody asked for leaves below 144 columns; a docked pane opens again at the width
+ * rule at a new width; with no pane placed, a fullscreen terminal at 144 columns or more gets one, unless the person
+ * closed it. Each waits for the draw's burst to end (settle).
+ * @param $ the engine interface
+ * @param placement the pane's seat now, `none` when no pane is placed
  * @param columns the terminal's columns
  * @param isFullscreen whether this session docks panes at all
  */
-async function leaveUnasked($: EngineInterface, columns: number, isFullscreen: boolean): Promise<void> {
-  leftAt = columns
-  await $.ui.close({ id: PANE })
+function seatFor($: EngineInterface, placement: 'dock' | 'inline' | 'none', columns: number, isFullscreen: boolean): void {
+  if (placement === 'inline') {
+    if (askedInline === undefined && leftAt !== columns) {
+      settling = undefined
+      void leaveUnasked($, columns).catch((error: unknown) => logSeatError($, error))
+    }
 
-  if (isFullscreen) openWhenStable($, columns)
+    return
+  }
+
+  if (placement === 'dock') {
+    if (!isAsked && columns < UNASKED_MIN) {
+      if (leftAt !== columns) settle($, 'close', columns)
+    } else if (columns !== openedAt) settle($, 'open', columns)
+    else if (settling?.action === 'close') settling = undefined
+
+    return
+  }
+
+  if (isFullscreen && !isAsked && !isClosedByPerson && columns >= UNASKED_MIN) settle($, 'open', columns)
+}
+
+/**
+ * Opens the pane at session start: placed at once from 144 columns. Narrower, the engine would keep the open waiting
+ * and dock it by itself at the start's width; it is withdrawn instead, and a draw opens it once the terminal is wide.
+ * @param $ the engine interface
+ * @returns whether it was placed
+ */
+export async function seatAtStart($: EngineInterface): Promise<boolean> {
+  const { isPlaced } = await $.ui.open({ id: PANE, columns: FIRST_COLUMNS })
+
+  if (!isPlaced) {
+    isClosing = true
+
+    try {
+      await $.ui.close({ id: PANE })
+    } finally {
+      isClosing = false
+    }
+  }
+
+  return isPlaced
 }
 
 /**
@@ -131,6 +223,7 @@ export function registerPane(on: On): void {
     setDocked($, false)
     askedInline = undefined
     isAsked = false
+    if (!isClosing) isClosedByPerson = true
 
     return next(e)
   })
@@ -143,6 +236,7 @@ export function registerPane(on: On): void {
     const isPlaced = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isPlaced)
 
     if (isPlaced) {
+      isClosedByPerson = true
       await $.ui.close({ id: PANE })
 
       setDocked($, false)
@@ -153,6 +247,7 @@ export function registerPane(on: On): void {
     const { columns, isFullscreen } = e.presentation
     askedInline = !isFullscreen || columns < DOCK_MIN ? 'cockpit' : undefined
     isAsked = true
+    isClosedByPerson = false
     leftAt = undefined
     const opened = await openAt($, columns)
 
@@ -189,6 +284,7 @@ export function registerPane(on: On): void {
     const { columns, isFullscreen } = e.presentation
     askedInline = !isFullscreen || columns < DOCK_MIN ? 'steps' : undefined
     isAsked = true
+    isClosedByPerson = false
     leftAt = undefined
     openedAt = columns
     const opened = await $.ui.open({ id: PANE, columns: paneColumns(columns), rows: INSPECTOR_ROWS, focus: true, closeOnEscape: true })
@@ -245,8 +341,10 @@ export function registerPane(on: On): void {
     if (notice !== undefined) $.ui.log(notice)
 
     if (isOn() && e.surface === 'terminal') {
-      // Docked, the hint is measured beside the pane; the Pane render says the terminal's width then.
+      // Docked, the hint is measured beside the pane; the Pane render says the terminal's width and the seat then.
       noteColumns(docked() ? undefined : e.viewport?.columns)
+
+      if (!docked() && e.viewport !== undefined) seatFor($, 'none', e.viewport.columns, e.viewport.isFullscreen === true)
     }
 
     if (!isOn() || !isPaneFocused || e.surface !== 'terminal') {
@@ -270,28 +368,19 @@ export function registerPane(on: On): void {
       const columns = terminalColumns(placement, viewport.columns, bodyColumns)
       const isFullscreen = viewport.isFullscreen === true
       noteColumns(columns)
+      notePlacement($, `${placement} ${columns}`)
 
       if (placement === 'inline') {
         setDocked($, false)
-
-        if (askedInline === undefined && leftAt !== columns) {
-          void leaveUnasked($, columns, isFullscreen).catch((error: unknown) => logSeatError($, error))
-        }
+        seatFor($, 'inline', columns, isFullscreen)
 
         if (askedInline === undefined) {
           return <Box />
         }
-      } else if (!isAsked && columns < UNASKED_MIN) {
-        // The engine keeps a docked pane down to 110 columns; one nobody asked for leaves below 144 (amendment 5).
-        setDocked($, false)
-
-        if (leftAt !== columns) void leaveUnasked($, columns, isFullscreen).catch((error: unknown) => logSeatError($, error))
-
-        return <Box />
       } else {
+        // Docked, the left stays docked until a seat change settles (one nobody asked for leaving below 144).
         setDocked($, true)
-
-        if (columns !== openedAt) openWhenStable($, columns)
+        seatFor($, 'dock', columns, isFullscreen)
       }
     }
 

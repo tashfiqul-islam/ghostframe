@@ -3,6 +3,7 @@
 // capsule per stretch of work and a row per failure, and the whole live area (fallback/).
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
+import type { Receipt } from '../../types'
 import { remember } from '../shared/held'
 import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
@@ -17,6 +18,7 @@ import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, dr
 import { readFlow, isNarrationAt } from '../shared/flow'
 import { shellText } from '../shared/calls/ships'
 import { turnOfCall, turnView } from './fallback/facts'
+import { isKeptNarration, storedReceiptList } from './history/store'
 import { isOn } from './switch'
 import { diffFrame, noteUnfolded, outputFrame, sentenceRows, stepRow, unfolded } from './unfolded'
 
@@ -37,6 +39,9 @@ export const isFallback = (): boolean => isOn() && !docked()
 type LeftMode = 'docked' | 'fallback' | 'full'
 
 const modeNow = (): LeftMode => (isQuiet() ? 'docked' : isFallback() ? 'fallback' : 'full')
+
+/** The width from which the seat docks a pane nobody asked for (amendment 5): what a resumed row guesses before it. */
+const SEAT_MIN = 144
 
 /** A transcript row as its render carries it: its request, and the screen it is drawn on. */
 export type RowSite = { requestId: string; viewport?: { columns?: number; isFullscreen?: boolean | undefined } | undefined }
@@ -70,6 +75,11 @@ function rowMode(site: RowSite): LeftMode {
   // Fullscreen, the pane leaving or coming back redraws every row in the mode now (amendment 10). Whether a row was
   // drawn beside Cockpit's tab or another pane's is kept from its first draw (amendment 9): that is not a fallback.
   if (site.viewport?.isFullscreen !== false) {
+    // A resumed transcript is drawn before the session starts and the pane is seated (amendment 8): it takes the mode
+    // the seat will give, docked from 144 columns in fullscreen, so it does not draw once in fallback first.
+    if (beforeStart()) resumedRows.add(row)
+    if (resumedRows.has(row) && !seated() && isOn()) return (site.viewport?.columns ?? 0) >= SEAT_MIN ? 'docked' : 'fallback'
+
     const now = modeNow()
 
     // Off (a copy of the module that has not read its switch yet, after a reload), nothing is kept: the row draws again
@@ -136,12 +146,37 @@ export function noteColumns(width: number | undefined): void {
 }
 
 /**
+ * The receipts rows draw from: the state's, or, before the session's start has brought them there (a resumed
+ * transcript is drawn first, amendment 8), the store's, so a resumed answer draws its receipt on its first draw.
+ * @param $ the engine interface
+ * @returns the receipts, oldest first
+ */
+async function receiptsNow($: EngineInterface): Promise<Receipt[]> {
+  const live = await readReceipts($)
+
+  return live.length > 0 || !beforeStart() ? live : storedReceiptList($)
+}
+
+/**
  * Sets whether the pane is docked. Rows already drawn keep their mode; the live rows follow at once.
  * @param $ the engine interface
  * @param value whether it is
  */
 export function setDocked($: EngineInterface, value: boolean): void {
-  if (setDockedFlag(value)) $.ui.invalidate('ui.render')
+  if (!setDockedFlag(value)) return
+
+  $.ui.log(`cockpit: left ${value ? 'docked' : 'fallback'}`, { to: 'debug' })
+  $.ui.invalidate('ui.render')
+}
+
+/**
+ * Whether a text row is narration a kept turn recorded (amendment 10): a resumed transcript has no flow to tell.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it is
+ */
+export async function isNarrationRow($: EngineInterface, row: string): Promise<boolean> {
+  return isOn() && isKeptNarration($, row)
 }
 
 /**
@@ -223,13 +258,22 @@ export async function drawUnfoldedSentence(
   const flow = await readFlow($)
   const at = flow.findLastIndex(f => f.kind === 'text' && f.key === key)
   const f = flow[at]
+  const ui = $.ui.resolve(e)
+
+  // A resumed transcript has no flow: a sentence history kept as narration draws without its clock.
+  if (f === undefined && (await isKeptNarration($, e.requestId))) {
+    return (
+      <ui.Box flexDirection="column" marginTop={1}>
+        {drawRows(ui, sentenceRows(e.props.text.trim(), undefined, width))}
+      </ui.Box>
+    )
+  }
 
   if (f === undefined || f.turn === null || !isNarrationAt(flow, at)) return undefined
 
   const view = await turnView($, f.turn)
   const next = flow.slice(at + 1).find(g => g.turn === f.turn && g.kind === 'tool')
   const clock = next === undefined ? undefined : view?.startOf(next.key)
-  const ui = $.ui.resolve(e)
 
   return (
     <ui.Box flexDirection="column" marginTop={1}>
@@ -293,7 +337,7 @@ async function noTextReceipt(
   width: number,
   isFallbackNow: boolean
 ): Promise<RenderElement | undefined> {
-  const receipt = (await readReceipts($)).findLast(r => r.answer === '' && r.lastCall !== undefined && ids.includes(r.lastCall))
+  const receipt = (await receiptsNow($)).findLast(r => r.answer === '' && r.lastCall !== undefined && ids.includes(r.lastCall))
   const turn = receipt?.turn
 
   if (receipt === undefined || turn === null || turn === undefined) return undefined
@@ -389,7 +433,7 @@ export async function drawTurnReceipt(
   turn: string,
   width: number
 ): Promise<RenderElement | undefined> {
-  const receipt = (await readReceipts($)).findLast(r => r.turn === turn)
+  const receipt = (await receiptsNow($)).findLast(r => r.turn === turn)
   const fallback = isFallbackRow(e) && receipt !== undefined ? { capsules: await capsuleCount($, turn) } : undefined
   const rows = receipt === undefined ? [] : receiptRows(receipt, width, fallback)
 
@@ -408,7 +452,7 @@ export async function drawTurnReceipt(
  * @returns whether it is
  */
 export async function endsKeptTurn($: EngineInterface, row: string): Promise<boolean> {
-  return (await readReceipts($)).some(r => r.answer === row && r.turn !== null)
+  return (await receiptsNow($)).some(r => r.answer === row && r.turn !== null)
 }
 
 /**
@@ -429,7 +473,7 @@ export async function drawAnswerReceipt(
   endsTurn: boolean,
   width: number
 ): Promise<RenderElement | undefined> {
-  const list = await readReceipts($)
+  const list = await receiptsNow($)
   const own = list.findLast(r => r.answer === e.requestId)
   const turns = turn === null || !endsTurn ? undefined : list.findLast(r => r.turn === turn)
   const receipt = own ?? (turns?.answer === '' ? turns : undefined)

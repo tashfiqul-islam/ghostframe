@@ -167,7 +167,7 @@ test('on the main screen a printed row stays as printed: the pane coming back do
   expect(await main(100)).toEqual(printed)
 })
 
-test('the seat: an unasked pane leaves the dock below 144 columns and opens again only once the width holds 300 ms', ON, async ($, on) => {
+test('the seat follows the engine`s settled draw: one close below 144, no open left waiting, one open when wide again', ON, async ($, on) => {
   const clock = mock.clock(on)
   const opened: number[] = []
   const closed: string[] = []
@@ -186,8 +186,8 @@ test('the seat: an unasked pane leaves the dock below 144 columns and opens agai
     props: { ...PANE.props, bodyColumns: body },
     viewport: { columns: columns - body - 1, rows: 50, isFullscreen: true }
   })
-  // The prompt's hint spans the terminal: each resize draws it at the new width.
-  const rowAt = (columns: number) =>
+  // The prompt's hint spans the terminal: with no pane placed, the draw after a resize is the hint's.
+  const hintAt = (columns: number) =>
     $.ui.mount({
       plugin: 'ghostframe',
       surface: 'terminal',
@@ -196,24 +196,61 @@ test('the seat: an unasked pane leaves the dock below 144 columns and opens agai
       props: { hint: '' }
     } as never)
 
-  // Docked at 150 (the engine keeps it to 110): narrowed to 130, Cockpit closes it at once, since nobody asked for it.
-  await (await $.ui.mount(paneAt(150, 56))).unmount()
+  // Two draws in one burst (150, then 130): the later one decides; the pane nobody asked for leaves, once.
+  await (await $.ui.mount(paneAt(150, 40))).unmount()
   await (await $.ui.mount(paneAt(130, 40))).unmount()
+  expect(closed).toEqual([])
+  await clock.advance(1)
   expect(closed).toEqual(['cockpit'])
-
-  // A drag back and forth: the width moves under 300 ms each time, so no open is made, and nothing flaps.
-  await (await rowAt(150)).unmount()
-  await clock.advance(200)
-  await (await rowAt(130)).unmount()
-  await clock.advance(200)
-  await (await rowAt(160)).unmount()
-  await clock.advance(299)
   expect(opened).toEqual([])
 
-  // Held at 160: one open, with the columns for that width (correction K).
-  await clock.advance(301)
-  expect(opened).toEqual([56])
+  // Nothing waits behind the close: a draw at 140 opens nothing.
+  await (await hintAt(140)).unmount()
+  await clock.advance(1_000)
+  expect(opened).toEqual([])
+
+  // Widened: the hint's draw at 200 opens it once, at the width rule for 200 (correction K).
+  await (await hintAt(200)).unmount()
+  await clock.advance(1)
+  expect(opened).toEqual([72])
   expect(closed).toEqual(['cockpit'])
+})
+
+test('a pane the person closed stays closed when the terminal widens; /cockpit brings it back', ON, async ($, on) => {
+  const clock = mock.clock(on)
+  const opened: number[] = []
+  on('ui.open', (_, e) => {
+    opened.push(e.columns ?? 0)
+
+    return { value: { isPlaced: true } }
+  })
+  let placed = false
+  on('ui.panes', () => ({ value: placed ? [{ id: 'cockpit', title: 'cockpit', isShown: true, isFocused: false, isPlaced: true }] : [] }))
+  on('ui.close', () => {
+    placed = false
+
+    return { value: undefined }
+  })
+  const hintAt = (columns: number) =>
+    $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'PromptHint',
+      viewport: { columns, rows: 50, isFullscreen: true },
+      props: { hint: '' }
+    } as never)
+  const cockpit = () => $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+
+  // Open, then closed by the person (`/cockpit` again): a wide terminal does not bring it back.
+  await cockpit()
+  placed = true
+  await cockpit()
+  await (await hintAt(200)).unmount()
+  await clock.advance(1_000)
+  expect(opened).toEqual([72])
+
+  await cockpit()
+  expect(opened).toEqual([72, 72])
 })
 
 test('docked at a steady width, the hint and the pane drawing over and over make one open, not one per draw', ON, async ($, on) => {

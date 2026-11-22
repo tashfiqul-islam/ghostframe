@@ -2,6 +2,7 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../../cockpit/switch'
 import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
@@ -30,6 +31,9 @@ export function registerReply(on: On): void {
   // one measure. Plain paragraphs and headings are laid out here (exact widths, code
   // chips); anything else goes through the engine's Markdown, links and all.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     const lay = layout(e.viewport?.columns)
 
     if (e.surface !== 'terminal' || e.props.text.trim().length === 0 || lay === undefined) {
@@ -45,7 +49,7 @@ export function registerReply(on: On): void {
 
     if (sentence !== undefined) return sentence
 
-    if (isQuietRow(e) && (await isHiddenNarration($, e.props.text))) {
+    if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId))) {
       const { Box } = $.ui.resolve(e)
 
       return <Box />

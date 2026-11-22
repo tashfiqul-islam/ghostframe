@@ -4,7 +4,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { TurnRecord } from '../../../types'
+import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
 
@@ -26,6 +26,50 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
   const value = typeof v === 'object' && v !== null ? (v as { savedAt?: unknown; turns?: unknown }) : {}
 
   return isRecords(value.turns) ? { key: k, savedAt: typeof value.savedAt === 'number' ? value.savedAt : 0, turns: value.turns } : undefined
+}
+
+/** This session's kept narration rows as the store had them when this copy of the module first asked. */
+let storedNarration: Set<string> | undefined
+/** This session's kept receipts as the store had them when this copy of the module first asked. */
+let storedReceipts: Receipt[] | undefined
+
+/**
+ * This session's kept receipts from the store, read once per copy of the module: for rows drawn before the session's
+ * start has brought them into the state (a resumed transcript is drawn first, amendment 8).
+ * @param $ the engine interface
+ * @returns the receipts, oldest first
+ */
+export async function storedReceiptList($: EngineInterface): Promise<Receipt[]> {
+  if (storedReceipts === undefined) {
+    // A store that cannot be read costs the early draw its receipts only: the state's come with the session's start.
+    try {
+      const k = `${PREFIX}${await $.session.id()}`
+      storedReceipts = keptOf(k, await $.store.get(k))?.turns.flatMap(t => t.receipts) ?? []
+    } catch (error: unknown) {
+      $.ui.log(`cockpit: kept receipts not read before the session start: ${String(error)}`, { to: 'debug' })
+      storedReceipts = []
+    }
+  }
+
+  return storedReceipts
+}
+
+/**
+ * Whether a row is narration a kept turn recorded: from the state's history, or, for a row drawn before the session's
+ * start has brought history back (a resumed transcript is drawn first, amendment 8), from the store, read once.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it is
+ */
+export async function isKeptNarration($: EngineInterface, row: string): Promise<boolean> {
+  if ((await read($, history)).some(r => r.narration?.includes(row) === true)) return true
+
+  if (storedNarration === undefined) {
+    const k = `${PREFIX}${await $.session.id()}`
+    storedNarration = new Set(keptOf(k, await $.store.get(k))?.turns.flatMap(t => t.narration ?? []) ?? [])
+  }
+
+  return storedNarration.has(row)
 }
 
 /**

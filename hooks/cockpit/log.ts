@@ -12,6 +12,7 @@ import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { loadHistory, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
+import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { isOn } from './switch'
@@ -255,7 +256,13 @@ async function keepTurn($: EngineInterface): Promise<void> {
     const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
 
     const mine = (await read($, receipts)).filter(r => r.turnNo === log.turnNo)
-    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs })
+    // The turn's narration, by row id, so a resumed transcript (no flow) leaves it hidden as the live one did.
+    const turns = new Set([...mine.flatMap(r => (r.turn === null ? [] : [r.turn])), ...(log.turn === null ? [] : [log.turn])])
+    const flow = await readFlow($)
+    const narration = flow.flatMap((f, i) =>
+      f.kind === 'text' && f.row !== undefined && f.turn !== null && turns.has(f.turn) && isNarrationAt(flow, i) ? [f.row] : []
+    )
+    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
   } catch (error: unknown) {
     $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`)
   }

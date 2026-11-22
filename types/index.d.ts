@@ -31,10 +31,12 @@ export type TallyStamp = {
 
 /** One assistant block, in stored order: a text (its key) or a tool call (its id and tool). */
 /** `cites`: the sources a text block adds to its turn, first-cited order (`listed`: named in a Sources list; `marked`: a drawn block carries its marker). */
+/** `row`: a text block's row id, the `session.append` uuid the engine draws it under, live and after a resume. */
 export type FlowStamp = {
   turn: string | null
   kind: 'text' | 'tool'
   key: string
+  row?: string
   tool?: string
   cites?: { url: string; title: string; listed?: boolean; marked?: boolean }[]
 }
@@ -232,6 +234,11 @@ export type TurnRecord = {
   details: StepDetail[]
   diffs: FileDiff[]
   isTrimmed: boolean
+  /**
+   * The row ids of the turn's narration (text a tool call followed): a resumed transcript has no flow to tell, so these
+   * stay hidden by their ids. Part of the summary, never trimmed; absent in a record kept before phase 10.
+   */
+  narration?: string[]
 }
 
 declare module 'claude-code' {

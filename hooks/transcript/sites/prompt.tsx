@@ -1,6 +1,7 @@
 // The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail.
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
+import { readEnvOnce } from '../../cockpit/switch'
 import type { PromptStamp } from '../../../types'
 import { drawAgentNotice, isQuietRow } from '../../cockpit/left'
 import { readRoster } from '../../cockpit/log'
@@ -77,6 +78,9 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 export function registerPrompt(on: On): void {
   // User prompt: peach rail over the full height, text verbatim. Task notifications get the tree look.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     if (e.surface !== 'terminal' || e.props.isExpanded || e.props.text.length === 0) {
       return next(e)
     }

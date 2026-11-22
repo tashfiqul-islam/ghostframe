@@ -2,6 +2,7 @@
 // output and the info notice under the logo.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../cockpit/switch'
 import type { TurnClose } from '../../../types'
 import { drawLive, drawQuietFooter, isQuietRow, noteView } from '../../cockpit/left'
 import { G, layout, ruleWidth } from '../../shared/layout'
@@ -72,6 +73,9 @@ export function registerChrome(on: On): void {
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     if (e.surface === 'terminal') noteView($, e.props.isExpanded)
 
     if (e.surface !== 'terminal' || e.props.isExpanded) {
@@ -119,6 +123,9 @@ export function registerChrome(on: On): void {
   // The spinner (§5.11): props only. The verb says what the turn does; the engine keeps
   // its own time, tokens and `esc` hint. A state's own message stands.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     // Docked Cockpit: the live area is one `working` row (E.33).
     const live = e.surface === 'terminal' ? await drawLive($, e) : undefined
 

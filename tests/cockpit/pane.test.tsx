@@ -40,7 +40,7 @@ test('session start registers /cockpit and opens the pane, passing columns', ON,
   expect(typeof opened[0]?.columns).toBe('number')
 })
 
-test('a docked pane opens again with the width rule when the terminal width changes, once per width, once it holds', ON, async ($, on) => {
+test('a docked pane opens again with the width rule when the terminal width changes, once per width, just after the draw', ON, async ($, on) => {
   const opened: Opened[] = []
   const clock = mock.clock(on)
   on('ui.open', (_, e) => {
@@ -48,9 +48,9 @@ test('a docked pane opens again with the width rule when the terminal width chan
     return { value: { isPlaced: true } }
   })
 
-  // 163 columns, granted 72 from an earlier open: the rule wants 56, once the width has held for 300 ms.
+  // 163 columns, granted 72 from an earlier open: the rule wants 56, asked just after the draw (the engine draws once a
+  // resize has settled).
   const at163 = await $.ui.mount({ ...PANE, viewport: { columns: 90, rows: 50, isFullscreen: true } })
-  await clock.advance(299)
   expect(opened).toEqual([])
   await clock.advance(1)
   expect(opened).toEqual([{ id: 'cockpit', columns: 56 }])
@@ -62,7 +62,7 @@ test('a docked pane opens again with the width rule when the terminal width chan
 
   // Widened to 184 columns (transcript 127, body 56): the rule wants 72.
   const at184 = await $.ui.mount({ ...PANE, props: { ...PANE.props, bodyColumns: 56 }, viewport: { columns: 127, rows: 50, isFullscreen: true } })
-  await clock.advance(300)
+  await clock.advance(1)
   expect(opened).toEqual([
     { id: 'cockpit', columns: 56 },
     { id: 'cockpit', columns: 72 }

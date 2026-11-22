@@ -1,6 +1,7 @@
 // A folded group of reads and searches (`ToolGroup`): one step row per call, the fold row, or the engine's line.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../../cockpit/switch'
 import { drawQuietGroup, isQuietRow, noteView } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
@@ -22,6 +23,9 @@ export function registerToolGroup(on: On): void {
   // A folded group of reads/searches: one timeline row per call (v3), when every call is
   // one we can read and the group holds nothing but calls. Expanded → the engine.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
 

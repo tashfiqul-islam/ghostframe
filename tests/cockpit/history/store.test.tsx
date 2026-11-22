@@ -280,11 +280,11 @@ test('resume: the answers drawn again from history get their receipts back, by r
   ]
   engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed')
 
-  // The engine draws the resumed transcript before the session starts: its mode is not known yet, and it is not
-  // held to it; placing the pane draws it again.
+  // The engine draws the resumed transcript before the session starts: the rows read the store's receipts then, so
+  // the answer ends with its receipt on its first draw (amendment 10), and placing the pane draws it again.
   const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
   const second = await $.ui.mount(answerRow('Turn 2 done.', 'row2'))
-  expect((await rowsOf(second)).some(t => t.startsWith('─ done'))).toBe(false)
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const pane = await $.ui.mount(focused(false))
   await first.redraw()

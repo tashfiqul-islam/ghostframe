@@ -2,6 +2,7 @@
 // the fold row, or the engine's row in the grid.
 import type { On } from 'claude-code'
 
+import { readEnvOnce } from '../../../cockpit/switch'
 import { drawQuietCall, drawUnfoldedCall, isQuietRow, noteView } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
@@ -27,6 +28,9 @@ export function registerToolUse(on: On): void {
   // A standalone call's row. ctrl+o (expanded) stays the engine's; a tool we can't read is
   // the engine's row, in the gutter grid.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
+    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+    await readEnvOnce($)
+
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
     // Only the paths that hand the row to the engine pay for the quieted output.
