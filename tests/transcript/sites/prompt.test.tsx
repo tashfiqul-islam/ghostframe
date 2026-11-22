@@ -114,8 +114,8 @@ test('docked: an agent`s message (`peer`, from an agent) and its notice (`task-n
     return t
   }
 
-  // Not docked yet: the engine's message row is drawn as before.
-  expect(await texts(FROM_AGENT)).toEqual(['engine'])
+  // Not docked yet (fallback, E.13): the live roster has the agent, and the row draws nothing as well.
+  expect(await texts(FROM_AGENT)).toEqual([])
 
   const pane = await $.ui.mount(PANE)
   expect(await texts(FROM_AGENT)).toEqual([])
@@ -200,4 +200,28 @@ test('resume: each turn rule shows its submit time again, from the store, though
   expect(await shown(first)).toContain('07:08')
   expect(await shown(second)).toContain('07:12')
   await Promise.all([first.unmount(), second.unmount()])
+})
+
+test('quiet: an agent`s finished notice draws nothing once the engine`s list has dropped it: Cockpit`s roster knows it', ON, async ($, on) => {
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('clock.now', () => ({ value: 1_000 }))
+  on('agent.list', () => ({ value: [] as never }))
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  on('agent.spawn', () => ({ model: 'haiku', agentId: 'ag7' }))
+  await $.agent.spawn({
+    tool_use_id: 'call7',
+    prompt: 'count',
+    description: 'Count files',
+    subagentType: 'Explore',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'haiku',
+    background: true,
+    fork: false
+  } as never)
+
+  const ui = await $.ui.mount(
+    agentRow({ text: 'Agent "Count files" finished', origin: { kind: 'task-notification' }, task: { id: 'ag7', status: 'completed' } })
+  )
+  expect((await ui.findAll({ type: 'Text' })).map(x => x.text).filter(x => x.trim().length > 0)).toEqual([])
+  await ui.unmount()
 })

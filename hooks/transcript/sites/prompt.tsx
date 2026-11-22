@@ -2,7 +2,8 @@
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
 import type { PromptStamp } from '../../../types'
-import { isQuietRow } from '../../cockpit/left'
+import { drawAgentNotice, isQuietRow } from '../../cockpit/left'
+import { readRoster } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { Rule } from '../../shared/rule'
 import { fmtClock } from '../../shared/time'
@@ -41,8 +42,9 @@ function durationLabel(ms: number) {
 
 /**
  * Whether a row is one of this session's agents speaking: the notice that it finished (`task-notification`, its
- * task an agent) or its message to the main loop (`peer`, from an agent's name or type). The engine's own list
- * says which agents there are; a list it cannot give keeps the row.
+ * task an agent) or its message to the main loop (`peer`, from an agent's name or type). Cockpit's roster says which
+ * agents this session launched (the engine's list may have dropped one that finished), else the engine's own list;
+ * a list it cannot give keeps the row.
  * @param $ the engine interface
  * @param p the row's props
  * @returns whether the row is an agent's
@@ -52,6 +54,10 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
   const from = p.origin.kind === 'peer' ? p.from?.name : undefined
 
   if (id === undefined && from === undefined) return false
+
+  const task = p.origin.kind === 'task-notification' ? p.task : undefined
+
+  if ((await readRoster($)).some(a => a.id === id || (task?.toolUseId !== undefined && a.call === task.toolUseId))) return true
 
   try {
     const agents = await $.agent.list()
@@ -77,9 +83,12 @@ export function registerPrompt(on: On): void {
 
     const { Box, Text } = $.ui.resolve(e)
 
-    // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing.
+    // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing, except in fallback
+    // for an agent that failed (its `✕` row).
     if (isQuietRow(e.requestId) && (await isAgentRow($, e.props))) {
-      return <Box />
+      const lay = layout(e.viewport?.columns)
+
+      return drawAgentNotice($, e, ruleWidth(lay) ?? lay?.width ?? 0)
     }
 
     if (e.props.origin.kind === 'task-notification') {

@@ -12,10 +12,13 @@ import type { View } from './view'
 /** One of Cockpit's keys: its letter and the word the hint row gives it. */
 type Key = { key: string; label: string }
 
-/** The keys each view offers. */
-export function keysOf(view: View, isPinned = false): Key[] {
+/** The section keys, which the inline inspector (E.46), one section only, does not offer. */
+const SECTION_KEYS = new Set(['a', 't', 'f', 'u'])
+
+/** The keys each view offers; the inline inspector's fitted view offers no section keys. */
+export function keysOf(view: View, isPinned = false, isInspector = false): Key[] {
   if (view.kind === 'fit') {
-    return [
+    const keys = [
       { key: 's', label: 'steps' },
       { key: 'a', label: 'agents' },
       { key: 't', label: 'todo' },
@@ -26,6 +29,8 @@ export function keysOf(view: View, isPinned = false): Key[] {
       { key: 'n', label: 'next' },
       ...(isPinned ? [{ key: 'l', label: 'live' }] : [])
     ]
+
+    return isInspector ? keys.filter(k => !SECTION_KEYS.has(k.key)) : keys
   }
 
   return view.kind === 'all'
@@ -41,8 +46,8 @@ export function keysOf(view: View, isPinned = false): Key[] {
 }
 
 /** The hint row's rows: as many as its keys take at this width, each key `k: label` and two cells apart. */
-export function hintRows(view: View, width: number, isPinned = false): number {
-  const cells = keysOf(view, isPinned).reduce((n, k) => n + k.key.length + 2 + k.label.length + 2, 0) + 'esc: prompt'.length
+export function hintRows(view: View, width: number, isPinned = false, isInspector = false): number {
+  const cells = keysOf(view, isPinned, isInspector).reduce((n, k) => n + k.key.length + 2 + k.label.length + 2, 0) + 'esc: prompt'.length
 
   return Math.max(1, Math.ceil(cells / Math.max(1, width)))
 }
@@ -57,6 +62,7 @@ export function hintRows(view: View, width: number, isPinned = false): number {
  * @param view what the pane shows
  * @param note `copied` or `nothing to copy`, while it shows
  * @param isPinned whether a past turn is pinned (`l` is then offered)
+ * @param isInspector whether the pane is the inline inspector (no section keys)
  * @returns the tree
  */
 export function drawPane(
@@ -65,7 +71,8 @@ export function drawPane(
   lines: readonly Line[],
   view: View,
   note: string | undefined,
-  isPinned = false
+  isPinned = false,
+  isInspector = false
 ): RenderElement {
   const ui = $.ui.resolve(e)
   const { Box, Text, Button } = ui
@@ -82,7 +89,7 @@ export function drawPane(
   })
   const hint = e.props.isFocused ? (
     <Box key="keys" flexDirection="row" flexWrap="wrap">
-      {keysOf(view, isPinned).map(k => (
+      {keysOf(view, isPinned, isInspector).map(k => (
         <Box key={`key:${k.key}`} marginRight={2}>
           <Button key={`key-${k.key}`} hotkey={k.key} plain onPress={() => void pressKey($, k.key)}>
             {k.label}

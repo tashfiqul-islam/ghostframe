@@ -69,7 +69,7 @@ test('three agents in parallel: one launch row, three roster rows that change in
   expect(rows.filter(r => r.startsWith('▸ agent '))).toEqual([expect.stringMatching(/^▸ agent {4}3 launched +running/)])
   expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ AGENTS \] ┄+ 3 running$/))
   expect(rows).toContainEqual(expect.stringMatching(/^◇ Read seat {14}read {4}hooks\/cockpit\/seat\.ts +1 · {6}2s$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read switch {12}start {3}reading its brief +0 ·/))
+  expect(rows).toContainEqual(expect.stringMatching(/^◇ Read switch {12}start {3}reading its brief +2s$/))
 
   // The turn ends with its agents still running in the background: the launch and the roster stay live.
   clock.now += 1_000

@@ -24,6 +24,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
   file's snapshot at the turn's start and the line diff that compares it with the file now.
 - `cockpit/keys/`: the focused pane (E.44): its keys and views (a step's detail, a diff, every step, sections shown
   whole), the steps' kept details, and the tree with its row and hotkey Buttons.
+- `cockpit/fallback/`: the left with no pane docked (E.3, E.5, E.33, E.46): the capsule and where each stretch of
+  work ends, failure rows drawn at once, the whole live area, and the inline inspector `/steps` opens.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
 - `transcript/blocks/`: splitting a reply into blocks: headings, lists, fences.
@@ -66,8 +68,9 @@ loop. Render sites are hooked by the folder that draws them.
 | `transcript/sites/reply/` |                                                                                                                                                        | `AssistantMessage`                                                                                 |
 | `transcript/sites/tools/` |                                                                                                                                                        | `ToolUse`, `ToolGroup`, `ToolResult`                                                               |
 
-While the cockpit is on and docked, `Spinner`, `ToolGroup` and `AssistantMessage` ask `cockpit/left` first: the quiet
-left. Narration draws nothing, and each turn's receipt ends its last answer block, keyed by the engine's turn id;
+While the cockpit is on, `Spinner`, `ToolGroup`, `ToolUse`, `TurnDuration`, `UserMessage` and `AssistantMessage` ask
+`cockpit/left` first: the quiet left, docked or in fallback (no pane docked: a capsule per stretch of work, a row per
+failure, the whole live area; `cockpit/fallback/`). Each row keeps the mode of its first draw. Narration draws nothing, and each turn's receipt ends its last answer block, keyed by the engine's turn id;
 `TurnDuration` draws nothing, since the turns an agent's reports start share one footer, or have none. Docked, the engine's agent rows draw nothing: an agent's `UserMessage` (its
 message or its finished notice), the `ToolUse` of an `Agent` call, and each `AgentRow`. A subagent's `tool.call`
 (the ledger's) feeds its `[ AGENTS ]` row.

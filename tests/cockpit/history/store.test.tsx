@@ -10,10 +10,10 @@ import { respond, rowOf } from '../../support/respond'
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = []) {
+function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true) {
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.focus', { plugin: '*' }, () => ({}))
   on('session.id', () => ({ value: session }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -304,6 +304,42 @@ test('resume: the answers drawn again from history get their receipts back, by r
   await pane.redraw()
   expect(await rowsOf(pane)).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · TURN 1 · PINNED \]/))
   await Promise.all([first.unmount(), second.unmount(), other.unmount(), pane.unmount()])
+})
+
+test('resume in fallback: no capsule was drawn for the turns brought back, so each receipt carries its step count', ON, async ($, on) => {
+  const clock = { now: T0 + 999_000 }
+  const receipt = (turnNo: number, answer: string) => ({
+    turn: `e${turnNo}`,
+    turnNo,
+    answer,
+    state: 'done' as const,
+    agents: 0,
+    steps: turnNo,
+    failures: 0,
+    fixed: 0,
+    files: 0,
+    commit: '',
+    open: [],
+    durationMs: 2_000
+  })
+  const turns = [
+    { ...aTurn(1, T0), receipts: [receipt(1, 'row1')] },
+    { ...aTurn(2, T0 + 100_000), receipts: [receipt(2, 'row2')] }
+  ]
+  // No dock: the engine does not place the pane, so the left is in fallback.
+  engine(on, clock, new Map([['history:resumed', { savedAt: T0, turns }]]), 'resumed', [], false)
+
+  const first = await $.ui.mount(answerRow('Turn 1 done.', 'row1'))
+  const second = await $.ui.mount(answerRow('Turn 2 done.', 'row2'))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await first.redraw()
+  await second.redraw()
+
+  // E.47: no turn is left without its numbers. The steps are in the receipt, since no capsule said them.
+  expect(await rowsOf(first)).toContainEqual(expect.stringMatching(/^─ done ─.* 1 step · 2s$/))
+  expect(await rowsOf(second)).toContainEqual(expect.stringMatching(/^─ done ─.* 2 steps · 2s$/))
+  expect((await rowsOf(first)).some(t => t.startsWith('│ worked'))).toBe(false)
+  await Promise.all([first.unmount(), second.unmount()])
 })
 
 test('a click on any Cockpit row sends nothing: receipts, step rows and key hints only pin, open or say', ON, async ($, on) => {

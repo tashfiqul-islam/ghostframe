@@ -24,7 +24,7 @@ const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as Rost
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-6' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-7' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -167,9 +167,10 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   if (!isOn()) return
 
   const ran = outcome ?? { isError: true as const, text: 'failed' }
+  // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
+  await noteEnd($, e.tool_use_id, e, ran, at)
   await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
   await noteWork($, e.tool, e, ran, cwd)
-  await noteEnd($, e.tool_use_id, e, ran, at)
   lastMode = 'requesting'
 }
 

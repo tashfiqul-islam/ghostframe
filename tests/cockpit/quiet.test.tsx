@@ -221,12 +221,12 @@ test('off: the transcript is as it was: narration and the old footer draw', asyn
   await footer.unmount()
 })
 
-test('on, but no pane docked: the transcript is as it was', ON, async ($, on) => {
+test('on, but no pane docked: the left is quiet too, in fallback: narration leaves it (E.3)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, CALLS, clock)
   await fixedTurn($, clock)
 
   const said = await $.ui.mount(message(NARRATION))
-  expect(await said.find({ type: 'Text', text: /width tests first/ })).toBeDefined()
+  expect(await said.find({ type: 'Text', text: /width tests first/ })).toBeUndefined()
   await said.unmount()
 })

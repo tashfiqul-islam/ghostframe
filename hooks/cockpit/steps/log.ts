@@ -296,6 +296,9 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
   })
   const steps = all.slice(from)
   const files = new Set(steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject))
+  // A page is the fetch's host and path, as `[ SOURCES ]` keeps one row per page.
+  const pages = new Set(steps.filter(s => s.kind === 'fetch').map(s => s.subject.toLowerCase().replace(/^www\./, '')))
+  const launched = steps.filter(s => s.kind === 'agent').reduce((n, s) => n + (s.calls?.length ?? 1), 0)
   const isCut = log.last?.state === 'interrupted'
   const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'
 
@@ -309,6 +312,8 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
     failures: failed.length,
     fixed: failed.length - open.length,
     files: files.size,
+    launched,
+    sources: pages.size,
     commit: steps.findLast(s => s.mark === '±')?.result ?? '',
     open,
     durationMs: log.segmentMs

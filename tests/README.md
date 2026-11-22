@@ -17,7 +17,8 @@ tests may have several files, each named for what it covers (`reply/tables`, `re
 - `support/`: helpers more than one test file uses, each defined in exactly one file and imported from it (no
   barrels): `respond` (a stored response), `view` (viewport sizes), `engine` (an engine stub that draws a marker),
   `text` (the text a tree draws), `cockpit` and `docked` (Cockpit on, its pane docked, a fixed-on-the-second-run
-  turn), and fixtures for figures, sources, states and narrow widths.
+  turn), `fallback` (Cockpit on, no pane docked, a turn of every kind of step), and fixtures for figures, sources,
+  states and narrow widths.
 
 ## Adding a test
 

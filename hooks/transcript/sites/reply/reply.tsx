@@ -2,7 +2,7 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { drawAnswerReceipt, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
+import { drawAnswerCapsule, drawAnswerReceipt, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -141,6 +141,9 @@ export function registerReply(on: On): void {
     // the block starts and kept: a card collapsing later never moves this block.
     const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
     const gap = replyGap(message, prev, place?.turn)
+    // Fallback: a block that stays opens with the capsule of the work before it (E.3), decided before its receipt.
+    const opening = isQuietLeft ? await drawAnswerCapsule($, e, place?.turn, ruleWidth(lay) ?? width) : undefined
+    const capsule = opening?.capsule
     // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
     const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
     // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
@@ -149,7 +152,9 @@ export function registerReply(on: On): void {
     return (
       <Box flexDirection="column">
         {above > 0 && closeRow(ui, lay, above)}
-        <Box flexDirection="column" marginTop={gap}>
+        {/* C.2: a capsule right under an event row (a failure) touches it. */}
+        <Box flexDirection="column" marginTop={opening?.isAfterEvent === true ? 0 : gap}>
+          {capsule !== undefined && <Box marginBottom={1}>{capsule}</Box>}
           {capsRow !== undefined && <Box marginBottom={1}>{cell(ui, lay, claude(true), drawParts(ui, capsRow, 'caps'))}</Box>}
           {(opensWide || lay.narrow) && label.length > 0 && <Text color={C.accent}>{label}</Text>}
           {segments.map((seg, si) =>
