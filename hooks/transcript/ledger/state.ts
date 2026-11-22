@@ -3,12 +3,14 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { CapsStamp, FirstText, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnClose } from '../../../types'
+import type { CapsStamp, FirstText, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnAfter, TurnClose } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
 // Session state (survives a reload). Change a shape tag when its fields change.
 const prompts = atom({ plugin: 'ghostframe', key: 'prompts' } as const, [] as PromptStamp[], { shape: 'prompts-1' })
+// What came before the next typed turn (a resume, a compaction), until that turn's stamp takes it.
+const pendingAfter = atom({ plugin: 'ghostframe', key: 'pendingAfter' } as const, null as TurnAfter | null, { shape: 'pendingAfter-1' })
 // Every finished main-loop turn: its close rule finds its own by duration.
 const closes = atom({ plugin: 'ghostframe', key: 'closes' } as const, [] as TurnClose[], { shape: 'closes-1' })
 // What the turn used before its first visible block, then what each turn's opener carries.
@@ -51,13 +53,58 @@ export async function keepPrompts($: EngineInterface, list: readonly PromptStamp
 }
 
 /**
+ * The stamps the store holds for this session: what a resumed transcript, drawn before the session starts, reads.
+ * @param $ the engine interface
+ * @returns the stamps, oldest first; none when the store holds none
+ */
+export async function storedPrompts($: EngineInterface): Promise<PromptStamp[]> {
+  const kept: unknown = await $.store.get(`${PROMPTS_KEY}${await $.session.id()}`)
+
+  return isStamps(kept) ? kept : []
+}
+
+/**
  * Session start: the stamps this session kept before a restart come back, unless the state holds some (a reload).
+ * Taking them back is a resume: the next typed turn's rule says `RESUMED` (amendment 12).
  * @param $ the engine interface
  */
 export async function restorePrompts($: EngineInterface): Promise<void> {
-  const kept: unknown = await $.store.get(`${PROMPTS_KEY}${await $.session.id()}`)
+  const kept = await storedPrompts($)
+  let isResume = false
 
-  if (isStamps(kept)) await update($, prompts, list => (list.length > 0 ? list : kept))
+  await update($, prompts, list => {
+    isResume = list.length === 0 && kept.length > 0
+
+    return isResume ? kept : list
+  })
+
+  if (isResume) await notePending($, 'resume')
+}
+
+/**
+ * Notes what the next typed turn comes after; the latest wins.
+ * @param $ the engine interface
+ * @param after a resume or a compaction
+ */
+export async function notePending($: EngineInterface, after: TurnAfter): Promise<void> {
+  await update($, pendingAfter, () => after)
+}
+
+/**
+ * Takes what the typed turn starting now comes after, and clears it.
+ * @param $ the engine interface
+ * @returns it, or undefined when nothing came between
+ */
+export async function takePending($: EngineInterface): Promise<TurnAfter | undefined> {
+  let taken: TurnAfter | null = null
+
+  await update($, pendingAfter, held => {
+    taken = held
+
+    return null
+  })
+
+  return taken ?? undefined
 }
 
 export async function readPrompts($: EngineInterface): Promise<PromptStamp[]> {

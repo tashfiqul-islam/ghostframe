@@ -1,12 +1,10 @@
 // The turn rule while Cockpit is on (spec E.1, amendment 12): `─ [ TURN n ] ──── 09:23`, the first row of a typed
 // prompt, its number the step log's. Pure: the prompt site draws what this returns.
+import type { TurnAfter } from '../../types'
 import type { Part } from '../shared/parts'
 import { fmtClock } from '../shared/time'
 import { C } from '../shared/tokens'
 import { vw } from '../shared/text'
-
-/** What came right before a turn, named on its rule: a resume, a compaction, a rewind. */
-export type TurnAfter = 'resume' | 'compact' | 'rewind'
 
 const STATE: Record<TurnAfter, string> = { resume: 'RESUMED', compact: 'AFTER COMPACT', rewind: 'AFTER REWIND' }
 // Below this many cells the clock may go (E.1, amendment 12); the label never does.

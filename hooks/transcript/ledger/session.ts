@@ -5,6 +5,7 @@ import type { EngineInterface, On } from 'claude-code'
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
 import { logCited, logSaid } from '../../cockpit/log'
+import { isOn } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
 import { readFlow, updateFlow } from '../../shared/flow'
@@ -14,8 +15,11 @@ import { citationsOf, turnCites } from '../citations'
 import { NO_CAPS, hasCaps, withMcp, withSkill } from '../live'
 import { firstKey } from './flow'
 import {
+  keepPrompts,
+  notePending,
   readAwaitingFirst,
   restorePrompts,
+  updatePrompts,
   readTurn,
   updateAwaitingFirst,
   updateCaps,
@@ -144,6 +148,28 @@ export function answerRowOf(turn: string): string {
 }
 
 /**
+ * A typed prompt was stored (amendment 12): its stamp keeps the row's id, which the engine draws the prompt under, live
+ * and after a resume, so its turn rule finds its own number and time by row, never by text.
+ * @param $ the engine interface
+ * @param content the stored row's blocks
+ * @param row the row's id
+ */
+async function notePromptRow($: EngineInterface, content: Content, row: string): Promise<void> {
+  const said = content.flatMap(b => (b.type === 'text' && typeof b.text === 'string' ? [b.text] : [])).join('\n')
+  let isNoted = false
+  const list = await updatePrompts($, l => {
+    const i = l.findLastIndex(p => p.row === undefined && p.text.trim().length > 0 && said.includes(p.text.trim()))
+
+    isNoted = i >= 0
+
+    return isNoted ? l.with(i, { ...l[i]!, row }) : l
+  })
+
+  if (isNoted) await keepPrompts($, list)
+  $.ui.log(`ghostframe: prompt row ${row} ${isNoted ? 'noted' : 'matched no stamp'}`, { to: 'debug' })
+}
+
+/**
  * Adds the session's observe hooks: `session.start` (with Cockpit's part of it) and `session.append`.
  * @param on the `on` that `register` receives
  */
@@ -216,6 +242,10 @@ export function registerSession(on: On): void {
         await logSaid($, e.message.content)
       }
 
+      if (e.agentId === undefined && e.door === 'prompt' && e.message.isMeta !== true && isOn()) {
+        await notePromptRow($, e.message.content, e.uuid)
+      }
+
       if (e.agentId === undefined && (e.door === 'prompt' || e.door === 'command')) {
         await updateAwaitingFirst($, () => true)
       } else if (e.agentId === undefined && e.door === 'response' && (await readAwaitingFirst($))) {
@@ -242,4 +272,20 @@ export function registerSession(on: On): void {
 
     return next(e)
   }).catch((_$, e, next) => next(e))
+
+  // A compaction of the main conversation (not a `precompute`, which installs nothing, nor a skipped one): the next
+  // typed turn's rule says `AFTER COMPACT` (E.22, amendment 12).
+  on('session.compact', async ($, e, next) => {
+    const done = await next(e)
+
+    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done && typeof done.skip === 'string')) {
+      try {
+        await notePending($, 'compact')
+      } catch (error: unknown) {
+        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`)
+      }
+    }
+
+    return done
+  })
 }

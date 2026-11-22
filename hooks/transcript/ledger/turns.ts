@@ -1,13 +1,26 @@
 // The main loop's turns, observed: a typed prompt's stamp (`prompt.submit`), the turn's start and end
 // (`turn.start`, `turn.complete`), and the thinking time before each block (`turn.step`).
-import type { On } from 'claude-code'
+import type { EngineInterface, On } from 'claude-code'
 
-import { logMode, logTurnEnd, logTurnStart } from '../../cockpit/log'
+import { logMode, logTurnEnd, logTurnStart, readLog } from '../../cockpit/log'
+import { isOn } from '../../cockpit/switch'
 import { readFlow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
 import { answerRowOf, sessionCwd } from './session'
-import { keepPrompts, readTally, updateAwaitingFirst, updateCaps, updateCloses, updatePrompts, updateStreaming, updateTally, updateTurn } from './state'
+import {
+  keepPrompts,
+  readPrompts,
+  readTally,
+  takePending,
+  updateAwaitingFirst,
+  updateCaps,
+  updateCloses,
+  updatePrompts,
+  updateStreaming,
+  updateTally,
+  updateTurn
+} from './state'
 
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
 let lastSubmitted: number | undefined
@@ -33,6 +46,37 @@ export function lastClosedTurn(): string | undefined {
 }
 
 /**
+ * Whether a row has left the main conversation: `$.session.messages` reads on from no row that was cleared, rewound or
+ * left behind a compaction.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it has
+ */
+async function isGone($: EngineInterface, row: string): Promise<boolean> {
+  const after = await $.session.messages({ after: row })
+
+  return !Array.isArray(after)
+}
+
+/**
+ * A typed turn started (amendment 12): its prompt's stamp takes the step log's turn number, and what came right
+ * before it: a resume or a compaction noted since the last typed turn, else a rewind when the previous typed
+ * prompt's row has left the conversation. Kept in the store, so a resumed transcript draws the same rule.
+ * @param $ the engine interface
+ * @param at the stamp's submit time
+ */
+async function numberTurn($: EngineInterface, at: number): Promise<void> {
+  const turnNo = (await readLog($)).turnNo
+  const list = await readPrompts($)
+  const i = list.findLastIndex(s => s.at === at)
+  const prev = list.slice(0, Math.max(0, i)).findLast(s => s.row !== undefined)?.row
+  const after = (await takePending($)) ?? (prev !== undefined && (await isGone($, prev)) ? 'rewind' : undefined)
+  const next = await updatePrompts($, l => l.map(s => (s.at === at ? { ...s, turnNo, ...(after === undefined ? {} : { after }) } : s)))
+
+  await keepPrompts($, next)
+}
+
+/**
  * Adds the turn observe hooks: `turn.start`, `prompt.submit`, `turn.complete` and `turn.step`.
  * @param on the `on` that `register` receives
  */
@@ -46,10 +90,17 @@ export function registerTurns(on: On): void {
       try {
         // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
         await logTurnStart($, e.turnId, unclaimedSubmit, sessionCwd())
-        unclaimedSubmit = undefined
       } catch {
         // A log that can't start costs the pane this turn's steps, nothing more.
       }
+
+      try {
+        if (unclaimedSubmit !== undefined && isOn()) await numberTurn($, unclaimedSubmit)
+      } catch (error: unknown) {
+        $.ui.log(`ghostframe: turn rule not numbered: ${String(error)}`)
+      }
+
+      unclaimedSubmit = undefined
     }
 
     return next(e)
@@ -62,7 +113,13 @@ export function registerTurns(on: On): void {
 
     if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()
-      const list = await updatePrompts($, l => [...l, { text: e.text, at }].slice(-100))
+      // Cockpit on: the number its turn will take, so a row drawn before the turn starts shows it (amendment 12).
+      const logged = isOn() ? (await readLog($)).turnNo : undefined
+      const list = await updatePrompts($, l => {
+        const turnNo = logged === undefined ? undefined : Math.max(logged, ...l.map(s => s.turnNo ?? 0)) + 1
+
+        return [...l, { text: e.text, at, ...(turnNo === undefined ? {} : { turnNo }) }].slice(-100)
+      })
       lastSubmitted = at
       unclaimedSubmit = at
 
