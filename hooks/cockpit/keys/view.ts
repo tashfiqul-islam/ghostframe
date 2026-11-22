@@ -8,14 +8,25 @@ import type { EngineInterface } from 'claude-code'
 
 import type { LogStep, StepDetail, TurnRecord } from '../../../types'
 import type { Section } from '../fit'
-import { readLog } from '../log'
+import { readLog, readRoster } from '../log'
 import { fileDiff } from '../history/snapshots'
 import { readHistory, readPin, setPin } from '../history/store'
 import { cwdNow, readWork } from '../work'
 import { readDetails } from './details'
 
-/** What the pane shows: the fitted layout, every step, one step's detail, or a diff. */
-export type View = { kind: 'fit' } | { kind: 'all' } | { kind: 'step'; id: string } | { kind: 'diff'; path: string; patch: string[]; note?: string }
+/**
+ * What the pane shows: the fitted layout, every step, one step's detail, a diff, or the fitted layout listing an
+ * agent's own steps where the engine would not put its conversation in view (`note` says why).
+ */
+export type View =
+  | { kind: 'fit' }
+  | { kind: 'all' }
+  | { kind: 'step'; id: string }
+  | { kind: 'diff'; path: string; patch: string[]; note?: string }
+  | { kind: 'agent'; id: string; note: string }
+
+/** The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation (probe 1: Esc at the prompt goes back). */
+export const AGENT_NOTE = 'agent in view · enter on its row, or esc at the prompt, for main'
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
@@ -32,6 +43,16 @@ const whole = new Set<Section>()
 let ring: string | undefined
 /** What the last `c` said, and when. */
 let copied: { note: string; at: number } | undefined
+/** The agent whose conversation the engine shows now (the Pane's `view` prop at its last draw), undefined for main. */
+let viewed: string | undefined
+
+/**
+ * The Pane drew: which agent's conversation the engine has in view, so Enter on that agent's row goes back.
+ * @param agentId the `view` prop's agent, undefined for the main conversation
+ */
+export function noteViewed(agentId: string | undefined): void {
+  viewed = agentId
+}
 
 /**
  * The view to draw. The pane that lost the keyboard (Escape, a click on the prompt) goes back to the fitted layout,
@@ -147,12 +168,13 @@ async function fileView($: EngineInterface, path: string): Promise<{ patch: stri
   return { patch, note: missing(patch, row, diff.note) }
 }
 
-/** A step of the current log, of the earlier turn it shows, or of the pinned turn. */
+/** A step of the current log, of the earlier turn it shows, of the pinned turn, or of an agent's own log. */
 async function stepOf($: EngineInterface, id: string): Promise<LogStep | undefined> {
   const log = await readLog($)
   const pinned = await pinnedRecord($)
+  const agents = (await readRoster($)).flatMap(a => a.log ?? [])
 
-  return [...log.steps, ...(log.prev?.steps ?? []), ...(pinned?.steps ?? [])].find(s => s.id === id)
+  return [...log.steps, ...(log.prev?.steps ?? []), ...(pinned?.steps ?? []), ...agents].find(s => s.id === id)
 }
 
 /** A step's detail, from the session's or, for a pinned turn, from its history. */
@@ -161,12 +183,37 @@ async function detailOf($: EngineInterface, id: string): Promise<StepDetail | un
 }
 
 /**
- * Enter on a row: a step opens its detail, an edit step or a FILES row its diff.
+ * Enter on an agent's row (A1): the engine puts its conversation in view (`$.ui.view`, only as the answer to the
+ * person's own press), and the pane lists its steps; on the agent in view, back to the main conversation. Where the
+ * engine refuses (an agent it no longer holds: finished a while ago, or before a resume), the pane still lists the
+ * agent's kept steps and says why; Enter again or `b` goes back.
  * @param $ the engine interface
- * @param id the row's id (`step:<call id>`, `file:<path>`)
+ * @param agentId the agent's id
+ */
+async function openAgent($: EngineInterface, agentId: string): Promise<void> {
+  if (view.kind === 'agent' && view.id === agentId) {
+    view = FIT
+
+    return
+  }
+
+  const isBack = viewed === agentId
+  const { deny } = await $.ui.view(isBack ? {} : { agentId })
+
+  if (deny === undefined) view = FIT
+  else if (isBack) await say($, deny)
+  else view = { kind: 'agent', id: agentId, note: `conversation not held · ${deny} · b: back` }
+}
+
+/**
+ * Enter on a row: a step opens its detail, an edit step or a FILES row its diff, an agent its conversation.
+ * @param $ the engine interface
+ * @param id the row's id (`step:<call id>`, `file:<path>`, `agent:<id>`)
  */
 export async function openRow($: EngineInterface, id: string): Promise<void> {
-  if (id.startsWith('file:')) {
+  if (id.startsWith('agent:')) {
+    await openAgent($, id.slice('agent:'.length))
+  } else if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
     view = { kind: 'diff', path, ...(await fileView($, path)) }
   } else if (id.startsWith('step:')) {

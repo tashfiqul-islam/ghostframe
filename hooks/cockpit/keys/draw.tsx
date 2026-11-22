@@ -17,6 +17,9 @@ const SECTION_KEYS = new Set(['a', 't', 'f', 'u'])
 
 /** The keys each view offers; the inline inspector's fitted view offers no section keys. */
 export function keysOf(view: View, isPinned = false, isInspector = false): Key[] {
+  // An agent's steps listed where the engine would not show its conversation: the fitted layout, and `b` back.
+  if (view.kind === 'agent') return [...keysOf({ kind: 'fit' }, isPinned, isInspector), { key: 'b', label: 'back' }]
+
   if (view.kind === 'fit') {
     const keys = [
       { key: 's', label: 'steps' },
@@ -82,7 +85,8 @@ export function drawPane(
     return id === undefined ? (
       drawRow(ui, l.parts, `row:${i}`)
     ) : (
-      <Button key={id} plain onPress={() => void openRow($, id)}>
+      // The press's promise is returned: an agent's row calls `$.ui.view`, allowed only while it answers the press.
+      <Button key={id} plain onPress={async () => openRow($, id)}>
         {drawRow(ui, l.parts, `text:${i}`)}
       </Button>
     )
@@ -101,11 +105,13 @@ export function drawPane(
     </Box>
   ) : undefined
 
+  const isFitted = view.kind === 'fit' || view.kind === 'agent'
+
   return (
     <Box flexDirection="column">
-      {view.kind !== 'fit' && hint}
+      {!isFitted && hint}
       {rows}
-      {view.kind === 'fit' && hint}
+      {isFitted && hint}
     </Box>
   )
 }

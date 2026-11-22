@@ -7,6 +7,8 @@ import { vw } from '../../shared/text'
 import { formatSpan } from '../../shared/time'
 import { C } from '../../shared/tokens'
 import { shownStep } from './roster'
+import { partsOf, plain } from '../line'
+import type { Line } from '../line'
 import { isOpen } from '../steps/log'
 import { cut, sectionLabel } from '../steps/rows'
 
@@ -117,10 +119,23 @@ function labelMeta(drawn: ReturnType<typeof tree>, roster: readonly RosterAgent[
  * @returns one Part list per row; none for an empty roster
  */
 export function agentRows(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full', cap: number = AGENTS_CAP): Part[][] {
+  return partsOf(agentLines(roster, now, width, level, cap))
+}
+
+/**
+ * `[ AGENTS ]` as `agentRows` draws it, each agent's row under its id (`agent:<id>`) so Enter opens its conversation.
+ * @param roster the agents, in launch order
+ * @param now the wall clock in ms
+ * @param width the pane's body columns
+ * @param level how much fits
+ * @param cap the top-level rows shown
+ * @returns the rows
+ */
+export function agentLines(roster: readonly RosterAgent[], now: number, width: number, level: AgentsLevel = 'full', cap: number = AGENTS_CAP): Line[] {
   if (roster.length === 0) return []
 
   const drawn = tree(roster)
-  const label = sectionLabel('AGENTS', labelMeta(drawn, roster), width)
+  const label = plain(sectionLabel('AGENTS', labelMeta(drawn, roster), width))
 
   if (level === 'label') return [label]
 
@@ -132,11 +147,15 @@ export function agentRows(roster: readonly RosterAgent[], now: number, width: nu
   while (shown[end] !== undefined && (shown[end]?.depth ?? 1) > 1) end += 1
 
   const more = tops.length - cap
-  const moreRow = (n: number): Part[] => {
+  const moreRow = (n: number): Line => {
     const t = `  … ${n} more`
 
-    return [{ t: t + spaces(width - vw(t)), color: C.dim }]
+    return plain([{ t: t + spaces(width - vw(t)), color: C.dim }])
   }
 
-  return [label, ...shown.slice(0, end).map(d => agentRow(d.agent, d.depth, d.deeper, now, width)), ...(more > 0 ? [moreRow(more)] : [])]
+  return [
+    label,
+    ...shown.slice(0, end).map(d => ({ parts: agentRow(d.agent, d.depth, d.deeper, now, width), id: `agent:${d.agent.id}` })),
+    ...(more > 0 ? [moreRow(more)] : [])
+  ]
 }

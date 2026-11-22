@@ -317,3 +317,75 @@ test('a FILES row no call named, which had changes from before the turn: its dif
   expect(note).toBe('… +2 −1 more from shell commands · no snapshot · no call named this file before it changed, and it had changes from before the turn')
   await ui.unmount()
 })
+
+/** A turn that launches `Edit note`, whose own calls are a read and an edit. */
+async function agentTurn($: Engine, clock: { now: number }) {
+  await aTurn($)
+  await $.tool.call({ tool: 'Agent', description: 'Edit note', prompt: 'go', run_in_background: true, tool_use_id: 'c1' } as never)
+  await $.agent.spawn({
+    tool_use_id: 'c1',
+    prompt: 'go',
+    description: 'Edit note',
+    subagentType: 'general-purpose',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'haiku',
+    background: true,
+    fork: false
+  } as never)
+  clock.now += 2_000
+  await $.tool.call({ tool: 'Read', file_path: 'notes.md', tool_use_id: 'ar1', agentId: 'ag-Edit note' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: 'notes.md', old_string: 'a', new_string: 'b', tool_use_id: 'ae1', agentId: 'ag-Edit note' } as never)
+}
+
+const viewing = (agentId?: string) => ({ ...PANE, props: { ...PANE.props, isFocused: true, view: agentId === undefined ? {} : { agentId } } })
+
+test('Enter on an agent opens its conversation; the pane lists its own steps as `[ STEPS · AGENT name ]`; Enter again goes back (A1)', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  const views: unknown[] = []
+  on('ui.view', (_, e) => {
+    views.push({ ...e })
+
+    return { value: {} }
+  })
+  await agentTurn($, clock)
+
+  let ui = await $.ui.mount(viewing())
+  await ui.press({ key: 'agent:ag-Edit note' })
+  await ui.unmount()
+  expect(views).toEqual([{ agentId: 'ag-Edit note' }])
+
+  ui = await $.ui.mount(viewing('ag-Edit note'))
+  const rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 2 steps$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}agent in view · enter on its row, or esc at the prompt, for main/))
+  // On the agent's own clock: its read ends 3 s after its launch (7 s on the turn's), its edit 4 s after.
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}read {5}notes\.md +3 lines +3s$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}edit {5}notes\.md +\+2 −1 +4s$/))
+  // The main loop's steps are not listed while the agent's are.
+  expect(rows.some(r => /bun test tests\/width/.test(r))).toBe(false)
+
+  await ui.press({ key: 'agent:ag-Edit note' })
+  await ui.unmount()
+  expect(views).toEqual([{ agentId: 'ag-Edit note' }, {}])
+})
+
+test('a view the engine refuses (no agent under that id): the pane still lists the agent`s kept steps and says why; `b` goes back', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  on('ui.view', () => ({ value: { deny: 'no agent under that id' } }))
+  await agentTurn($, clock)
+
+  const ui = await $.ui.mount(viewing())
+  await ui.press({ key: 'agent:ag-Edit note' })
+  await ui.redraw()
+  let rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS · AGENT Edit note \] ┄+ 2 steps$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}conversation not held · no agent under that id · b: back/))
+
+  await ui.press({ key: 'key-b' })
+  await ui.redraw()
+  rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS \] ┄+ 4 steps · 1 failed$/))
+  await ui.unmount()
+})
