@@ -123,7 +123,7 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
     return { root, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
     copy = null
-    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`)
+    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, { to: 'debug' })
 
     return undefined
   }
@@ -252,7 +252,7 @@ export async function workDiff($: EngineInterface, path: string): Promise<string
 
     return [`@@ -0,0 +1,${lines.length} @@`, ...lines.map(l => `+${l}`)].slice(0, DIFF_MAX)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`)
+    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`, { to: 'debug' })
 
     return []
   }

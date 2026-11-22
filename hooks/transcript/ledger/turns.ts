@@ -3,7 +3,7 @@
 import type { EngineInterface, On } from 'claude-code'
 
 import { logMode, logTurnEnd, logTurnStart, readLog } from '../../cockpit/log'
-import { isOn } from '../../cockpit/switch'
+import { isOn, noticeSink } from '../../cockpit/switch'
 import { readFlow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
@@ -133,7 +133,7 @@ export function registerTurns(on: On): void {
       try {
         if (start !== undefined && isOn()) await numberTurn($, isIt)
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: turn rule not numbered: ${String(error)}`)
+        $.ui.log(`ghostframe: turn rule not numbered: ${String(error)}`, noticeSink())
       }
 
       unclaimedSubmit = undefined
@@ -161,7 +161,7 @@ export function registerTurns(on: On): void {
       try {
         await keepPrompts($, list)
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: prompt times not kept for a resume: ${String(error)}`)
+        $.ui.log(`ghostframe: prompt times not kept for a resume: ${String(error)}`, noticeSink())
       }
     }
 

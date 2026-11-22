@@ -12,6 +12,13 @@ export const OFF_NOTE = 'cockpit is off · enable with /config (Cockpit pane) or
 export const isOn = (): boolean => isOptionOn || isEnvOn
 
 /**
+ * Where the plugin's own notices go (spec 13.3): the debug log while Cockpit is on, so the left holds only the
+ * conversation; the transcript, as on main, while it is off.
+ * @returns `$.ui.log`'s options
+ */
+export const noticeSink = (): { to?: 'debug' } => (isOn() ? { to: 'debug' } : {})
+
+/**
  * Keeps the `cockpit` option, as `register` received it.
  * @param value whether it is `true`
  */

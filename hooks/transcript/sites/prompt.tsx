@@ -2,7 +2,7 @@
 // is on, the rule is E.1's `─ [ TURN n ] ─── 09:23` (amendment 12), also above the engine's own row in ctrl+o.
 import type { EngineInterface, On, RenderElement, RenderPropsOf } from 'claude-code'
 
-import { readEnvOnce } from '../../cockpit/switch'
+import { noticeSink, readEnvOnce } from '../../cockpit/switch'
 import type { PromptStamp, RosterAgent } from '../../../types'
 import { drawAgentNotice, isQuietRow, keptAgents } from '../../cockpit/left'
 import { readLog } from '../../cockpit/log'
@@ -117,7 +117,7 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 
     return agents.some(a => a.id === id || (from !== undefined && (a.name === from || a.type === from || a.description === from)))
   } catch (error: unknown) {
-    $.ui.log(`ghostframe: agent list unavailable: ${String(error)}`)
+    $.ui.log(`ghostframe: agent list unavailable: ${String(error)}`, noticeSink())
 
     return false
   }

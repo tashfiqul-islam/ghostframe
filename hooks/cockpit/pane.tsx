@@ -249,7 +249,7 @@ export function markStartSeated(): void {
  * @param error what the engine answered
  */
 export function logSeatError($: EngineInterface, error: unknown): void {
-  $.ui.log(`cockpit: seat change failed: ${String(error)}`)
+  $.ui.log(`cockpit: seat change failed: ${String(error)}`, { to: 'debug' })
 }
 
 /**
@@ -375,7 +375,7 @@ export function registerPane(on: On): void {
 
     const notice = isOn()
       ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
-          $.ui.log(`cockpit: /tui note not read: ${String(error)}`)
+          $.ui.log(`cockpit: /tui note not read: ${String(error)}`, { to: 'debug' })
 
           return undefined
         })

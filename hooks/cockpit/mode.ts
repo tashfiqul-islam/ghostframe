@@ -68,6 +68,6 @@ export async function noteShown($: EngineInterface): Promise<void> {
     // the pane comes back (live: `/tui classic`, a turn, `/tui fullscreen` drew both turns unquiet).
     isShownAtTurn = pane?.isPlaced !== true || pane.isShown
   } catch (error: unknown) {
-    $.ui.log(`cockpit: pane list unavailable: ${String(error)}`)
+    $.ui.log(`cockpit: pane list unavailable: ${String(error)}`, { to: 'debug' })
   }
 }

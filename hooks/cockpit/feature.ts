@@ -32,7 +32,7 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
   try {
     await logSessionStart($)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: history not restored: ${String(error)}`)
+    $.ui.log(`cockpit: history not restored: ${String(error)}`, { to: 'debug' })
   }
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
@@ -72,7 +72,7 @@ function registerAgents(on: On): void {
       try {
         await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, called, isBackground: e.background })
       } catch (error: unknown) {
-        $.ui.log(`cockpit: agent row failed: ${String(error)}`)
+        $.ui.log(`cockpit: agent row failed: ${String(error)}`, { to: 'debug' })
       }
     }
 
@@ -85,7 +85,7 @@ function registerAgents(on: On): void {
     try {
       await logAgentEnd($, { id: e.agentId, status: e.status, text: e.text })
     } catch (error: unknown) {
-      $.ui.log(`cockpit: agent row failed: ${String(error)}`)
+      $.ui.log(`cockpit: agent row failed: ${String(error)}`, { to: 'debug' })
     }
 
     return reported

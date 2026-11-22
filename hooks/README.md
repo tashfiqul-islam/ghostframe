@@ -37,6 +37,9 @@ The folders are the index. Each folder below holds files of one responsibility, 
   line, slash command rows) and the pane's components (tabs, head card, timeline, drawer, the other views, the keys).
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line, the
   turn rule Cockpit's prompts open with (E.1).
+- `transcript/v8/`: Cockpit v8's left (spec section 7), pure: the turn header, your message as a card, the thought
+  row, the answer's markdown (headings, lists, quotes, task items, footnotes), code and diff cards, tables, the note
+  and the plan card, built on `shared/look/`.
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
 - `transcript/blocks/`: splitting a reply into blocks: headings, lists, fences.
 - `transcript/table/`: Markdown tables: parse, column layout, cells.

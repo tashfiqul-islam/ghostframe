@@ -73,7 +73,7 @@ export function registerCalls(on: On): void {
         // A subagent's call is its own: its `[ AGENTS ]` row says what it does now, and its own log gets the step.
         await logAgentStep($, agentId, e, sessionCwd())
       } catch (error: unknown) {
-        $.ui.log(`cockpit: agent step failed: ${String(error)}`)
+        $.ui.log(`cockpit: agent step failed: ${String(error)}`, { to: 'debug' })
       }
 
       let done: Awaited<ReturnType<typeof next>> | undefined
@@ -86,7 +86,7 @@ export function registerCalls(on: On): void {
         try {
           await logAgentStepEnd($, agentId, e, done, sessionCwd())
         } catch (error: unknown) {
-          $.ui.log(`cockpit: agent step failed: ${String(error)}`)
+          $.ui.log(`cockpit: agent step failed: ${String(error)}`, { to: 'debug' })
         }
       }
     }

@@ -5,7 +5,7 @@ import type { EngineInterface, On } from 'claude-code'
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
 import { logCited, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
-import { isOn } from '../../cockpit/switch'
+import { isOn, noticeSink } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
 import { readFlow, updateFlow } from '../../shared/flow'
@@ -256,7 +256,7 @@ export function registerSession(on: On): void {
     try {
       await restorePrompts($)
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`)
+      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`, noticeSink())
     }
 
     await startCockpit($, e)
@@ -264,7 +264,7 @@ export function registerSession(on: On): void {
     try {
       await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`)
+      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`, noticeSink())
     }
 
     return next(e)
@@ -334,7 +334,7 @@ export function registerSession(on: On): void {
       try {
         await notePending($, 'compact')
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`)
+        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`, noticeSink())
       }
     }
 

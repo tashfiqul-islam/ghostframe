@@ -112,7 +112,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
     // A `/tui` switch is old news too; a note that cannot be cleared costs a repeat of it after a reload, nothing more.
-    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`))
+    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`, { to: 'debug' }))
   }
 
   lastMode = undefined
@@ -132,7 +132,7 @@ async function settleUnreported($: EngineInterface, now: number): Promise<void> 
     const listed = await $.agent.list()
     await update($, roster, list => reconcile(list, listed, now))
   } catch (error: unknown) {
-    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`)
+    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`, { to: 'debug' })
   }
 }
 
@@ -307,7 +307,7 @@ async function keepTurn($: EngineInterface): Promise<void> {
     )
     await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
   } catch (error: unknown) {
-    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`)
+    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, { to: 'debug' })
   }
 }
 

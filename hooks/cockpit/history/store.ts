@@ -212,7 +212,7 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
   try {
     kept = await write($, all)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`)
+    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, { to: 'debug' })
     await readStore($)
     kept = await write($, all)
   }

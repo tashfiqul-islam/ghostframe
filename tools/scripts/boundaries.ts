@@ -156,7 +156,7 @@ export function strayLiterals(files: ReadonlyMap<string, string>): string[] {
     if (!file.startsWith('hooks/')) continue
 
     for (const [i, line] of text.split('\n').entries()) {
-      if (!PALETTES.has(file) && HEX.test(line)) out.push(`${file}:${i + 1} holds a colour hex: use shared/look/palette.ts`)
+      if (!PALETTES.has(file) && HEX.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) out.push(`${file}:${i + 1} holds a colour hex: use shared/look/palette.ts`)
       if (V8_FOLDERS.some(f => file.startsWith(f)) && file !== 'hooks/shared/look/glyphs.ts' && STATUS_GLYPH.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) {
         out.push(`${file}:${i + 1} holds a status glyph: use shared/look/glyphs.ts`)
       }
