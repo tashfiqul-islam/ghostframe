@@ -45,6 +45,18 @@ export function sessionCwd(): string | undefined {
   return cwd
 }
 
+// The rows the session held when it started (a resume, a reload): no turn of this process wrote them.
+let startRows = new Set<string>()
+
+/**
+ * Whether a row was already in the session when it started: a resumed or reloaded row, never a running turn's.
+ * @param row the row's id
+ * @returns whether it was
+ */
+export function isStartRow(row: string): boolean {
+  return startRows.has(row)
+}
+
 type Content = ReadonlyArray<{ type: string; text?: unknown; id?: unknown; name?: unknown; input?: unknown }>
 
 // Each stored assistant block, in order, under the current turn; cited links count as sources.
@@ -208,6 +220,7 @@ export function registerSession(on: On): void {
       const found = await $.session.messages()
 
       if (Array.isArray(found)) {
+        startRows = new Set(found.flatMap(m => (m.uuid === undefined ? [] : [m.uuid])))
         const keys: string[] = []
         let waiting = false
 
