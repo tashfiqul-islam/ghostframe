@@ -98,7 +98,7 @@ test('focused: the hint row lists the keys as hotkeys, the prompt`s hint line sa
 
     return typeof hk === 'string' ? [hk] : []
   })
-  expect(keys).toEqual(['s', 'a', 't', 'f', 'u', 'c'])
+  expect(keys).toEqual(['s', 'a', 't', 'f', 'u', 'c', 'p', 'n'])
   // Every key is one lowercase letter: the only kind a pane may bind, and never one the engine keeps.
   for (const k of keys) expect(k).toMatch(/^[a-z]$/)
   expect(await texts(ui)).toContainEqual('esc: prompt')
@@ -246,7 +246,7 @@ test('`a` shows every agent (an eighth is no longer `… 1 more`); again to fit'
   await ui.unmount()
 })
 
-test('a FILES row a shell also changed: its diff says what no kept patch holds, never less than the row without saying so', ON, async ($, on) => {
+test('a FILES row a shell also changed: its diff is the whole turn`s, the file at the turn`s start against now', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, [])
   // Git, as the work tree reads at the turn's start, after the Edit, and after the shell's append.
@@ -260,20 +260,60 @@ test('a FILES row a shell also changed: its diff says what no kept patch holds, 
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
+  // The file before the Edit (read as the Edit starts), and after the shell's append (read when the diff opens).
+  let content = 'old line\nkept\n'
+  on('fs.read', () => ({ value: content }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
-  await $.tool.call({ tool: 'Edit', file_path: '/repo/notes.md', old_string: 'a', new_string: 'b', tool_use_id: 'e1' } as never)
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/notes.md', old_string: 'old line', new_string: 'new line', tool_use_id: 'e1' } as never)
+  content = 'new line\nkept\n'
   await $.tool.call({ tool: 'PowerShell', command: 'Add-Content notes.md "four"', tool_use_id: 'p1' } as never)
+  content = 'new line\nkept\nfour\n'
 
   const ui = await $.ui.mount(pane(true))
   await ui.press({ key: 'file:notes.md' })
   await ui.redraw()
   const rows = await texts(ui)
   expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ DIFF · notes\.md \] ┄+ \+2 −1 · 1 hunk$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}… \+1 more from shell commands, in no kept patch/))
+  expect(rows.filter(r => /^ {2}[−+ ]/.test(r)).map(r => r.trimEnd())).toEqual(['  −old line', '  +new line', '   kept', '  +four'])
+  expect(rows.some(r => /more from shell commands|no snapshot/.test(r))).toBe(false)
+  await ui.unmount()
+})
+
+test('a FILES row no call named, which had changes from before the turn: its diff says why it holds no more', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  // src/app.ts was already changed when the turn started; a formatter changes it again without naming it.
+  const numstat = ['3\t0\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n']
+  let diffs = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: numstat[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'fmt', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'fmt', turnId: 't1' })
+  await $.tool.call({ tool: 'PowerShell', command: 'bun run fmt', tool_use_id: 'p1' } as never)
+
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'file:src/app.ts' })
+  await ui.redraw()
+  const rows = await texts(ui)
+  const note = rows
+    .filter(r => /^ {2}\S/.test(r) && !r.includes('[ DIFF'))
+    .map(r => r.trim())
+    .join(' ')
+  expect(note).toBe('… +2 −1 more from shell commands · no snapshot · no call named this file before it changed, and it had changes from before the turn')
   await ui.unmount()
 })

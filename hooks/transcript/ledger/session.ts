@@ -14,6 +14,7 @@ import { NO_CAPS, hasCaps, withMcp, withSkill } from '../live'
 import { firstKey } from './flow'
 import {
   readAwaitingFirst,
+  restorePrompts,
   readFlow,
   readTurn,
   updateAwaitingFirst,
@@ -129,6 +130,20 @@ function reloadNote<M extends { content: unknown }>(message: M): M | undefined {
   return { ...message, content: typeof c === 'string' ? short : [{ ...block, text: short }] }
 }
 
+// The main loop's last row with text, and the turn it came in: the row a turn's receipt is drawn under.
+// shortcut: kept in the module, so a reload mid-turn forgets it and that turn's receipt goes back to the flow's
+// last block; move it to $.state if that shows.
+let lastAnswer: { turn: string | null; row: string } | undefined
+
+/**
+ * The id of a turn's last answer row (the id it is drawn under, the same after a resume).
+ * @param turn the engine turn
+ * @returns the row's id, or '' when the turn wrote no text
+ */
+export function answerRowOf(turn: string): string {
+  return lastAnswer?.turn === turn ? lastAnswer.row : ''
+}
+
 /**
  * Adds the session's observe hooks: `session.start` (with Cockpit's part of it) and `session.append`.
  * @param on the `on` that `register` receives
@@ -170,6 +185,13 @@ export function registerSession(on: On): void {
       // No history: live turns still mark their openers.
     }
 
+    // The turn rules of a resumed transcript show their submit times again.
+    try {
+      await restorePrompts($)
+    } catch (error: unknown) {
+      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`)
+    }
+
     await startCockpit($, e)
 
     return next(e)
@@ -187,6 +209,10 @@ export function registerSession(on: On): void {
 
     try {
       if (e.agentId === undefined && e.door === 'response') {
+        if (e.message.content.some(b => b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0)) {
+          lastAnswer = { turn: await readTurn($), row: e.uuid }
+        }
+
         await noteFlow($, e.message.content)
         await logSaid($, e.message.content)
       }

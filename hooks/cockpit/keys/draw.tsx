@@ -13,7 +13,7 @@ import type { View } from './view'
 type Key = { key: string; label: string }
 
 /** The keys each view offers. */
-export function keysOf(view: View): Key[] {
+export function keysOf(view: View, isPinned = false): Key[] {
   if (view.kind === 'fit') {
     return [
       { key: 's', label: 'steps' },
@@ -21,7 +21,10 @@ export function keysOf(view: View): Key[] {
       { key: 't', label: 'todo' },
       { key: 'f', label: 'files' },
       { key: 'u', label: 'sources' },
-      { key: 'c', label: 'copy' }
+      { key: 'c', label: 'copy' },
+      { key: 'p', label: 'prev' },
+      { key: 'n', label: 'next' },
+      ...(isPinned ? [{ key: 'l', label: 'live' }] : [])
     ]
   }
 
@@ -37,8 +40,12 @@ export function keysOf(view: View): Key[] {
       ]
 }
 
-/** The hint row's rows: one, or two in a pane too narrow for the fitted layout's keys on one row. */
-export const hintRows = (view: View, width: number): number => (view.kind === 'fit' && width < 64 ? 2 : 1)
+/** The hint row's rows: as many as its keys take at this width, each key `k: label` and two cells apart. */
+export function hintRows(view: View, width: number, isPinned = false): number {
+  const cells = keysOf(view, isPinned).reduce((n, k) => n + k.key.length + 2 + k.label.length + 2, 0) + 'esc: prompt'.length
+
+  return Math.max(1, Math.ceil(cells / Math.max(1, width)))
+}
 
 /**
  * The pane's tree: its rows, an openable one as a Button under its id, and, while focused, the hint row: at the
@@ -49,9 +56,17 @@ export const hintRows = (view: View, width: number): number => (view.kind === 'f
  * @param lines the rows
  * @param view what the pane shows
  * @param note `copied` or `nothing to copy`, while it shows
+ * @param isPinned whether a past turn is pinned (`l` is then offered)
  * @returns the tree
  */
-export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, lines: readonly Line[], view: View, note: string | undefined): RenderElement {
+export function drawPane(
+  $: EngineInterface,
+  e: RenderInput<'Pane'>,
+  lines: readonly Line[],
+  view: View,
+  note: string | undefined,
+  isPinned = false
+): RenderElement {
   const ui = $.ui.resolve(e)
   const { Box, Text, Button } = ui
   const rows = lines.map((l, i) => {
@@ -67,7 +82,7 @@ export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, lines: read
   })
   const hint = e.props.isFocused ? (
     <Box key="keys" flexDirection="row" flexWrap="wrap">
-      {keysOf(view).map(k => (
+      {keysOf(view, isPinned).map(k => (
         <Box key={`key:${k.key}`} marginRight={2}>
           <Button key={`key-${k.key}`} hotkey={k.key} plain onPress={() => void pressKey($, k.key)}>
             {k.label}

@@ -113,6 +113,15 @@ export async function noteEnd($: EngineInterface, id: string, input: unknown, ou
 }
 
 /**
+ * A resumed session: the last kept turn's details come back, where the session holds none.
+ * @param $ the engine interface
+ * @param kept the details
+ */
+export async function restoreDetails($: EngineInterface, kept: readonly StepDetail[]): Promise<void> {
+  await update($, details, list => (list.length > 0 ? list : [...kept]))
+}
+
+/**
  * The steps' details; read while drawing a detail or a diff.
  * @param $ the engine interface
  * @returns the details, oldest first

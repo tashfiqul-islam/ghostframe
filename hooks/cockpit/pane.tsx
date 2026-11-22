@@ -12,7 +12,9 @@ import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { OFF_NOTE, isOn } from './switch'
 import { readWork } from './work'
-import { PANE } from './mode'
+import { PANE, STEPS } from './mode'
+import { readHistory, readPin } from './history/store'
+import { pinFromCommand } from './keys/view'
 
 export type On = Parameters<Register>[0]
 
@@ -113,6 +115,15 @@ export function registerPane(on: On): void {
     return { text: opened.isPlaced ? `pane open · ${paneColumns(columns)} columns` : `pane not placed · ${opened.reason}` }
   })
 
+  // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
+  on('command.run', { command: STEPS }, async ($, e) => {
+    if (!isOn()) {
+      return { text: OFF_NOTE }
+    }
+
+    return { text: await pinFromCommand($, e.args) }
+  })
+
   // The focus ring moved in the pane: `c` copies what it is on.
   on('ui.focus', (_$, e, next) => {
     if (e.component === 'Pane' && e.requestId === PANE) noteRing(e.element)
@@ -177,8 +188,16 @@ export function registerPane(on: On): void {
 
     if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
 
-    const fitTo = (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns) : 0)
-    const shown = log.steps.length > 0 || log.prev === null ? log : { ...log, steps: log.prev.steps, dropped: log.prev.dropped, turnNo: log.prev.turnNo }
+    const pinNo = await readPin($)
+    const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
+    const isPinned = pinned !== undefined
+    const fitTo = (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) - (e.props.isFocused ? hintRows(view, bodyColumns, isPinned) : 0)
+    const shown =
+      pinned !== undefined
+        ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
+        : log.steps.length > 0 || log.prev === null
+          ? log
+          : { ...log, steps: log.prev.steps, dropped: log.prev.dropped, turnNo: log.prev.turnNo }
     let lines: Line[]
 
     if (view.kind === 'all') {
@@ -188,12 +207,12 @@ export function registerPane(on: On): void {
     } else if (view.kind === 'step') {
       const at = shown.steps.findIndex(s => s.id === view.id)
       const step = shown.steps[at]
-      const detail = (await readDetails($)).find(d => d.id === view.id)
+      const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
       lines = step === undefined ? [] : detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
     } else {
-      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow())
+      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned)
     }
 
-    return drawPane($, e, lines, view, copiedNote(now))
+    return drawPane($, e, lines, view, copiedNote(now), isPinned)
   })
 }

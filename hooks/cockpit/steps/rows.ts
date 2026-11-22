@@ -96,12 +96,16 @@ export function sectionLabel(title: string, meta: readonly Part[], width: number
 }
 
 /** `┄ [ STEPS ] ┄…┄ 12 steps · 2 failed`, exactly `width` cells. */
-function labelRow(log: StepLog, width: number, title: string): Part[] {
+/** How a label is drawn: its title's colour, and what its meta adds after the counts (a pinned turn's duration). */
+export type LabelStyle = { color?: string; extra?: string }
+
+function labelRow(log: StepLog, width: number, title: string, style: LabelStyle = {}): Part[] {
   const total = log.steps.length + log.dropped
   const failed = log.steps.filter(s => s.mark === '✕').length
   const fail = failed > 0 ? [{ t: ` · ${failed} failed`, color: C.err }] : []
+  const extra = style.extra === undefined ? [] : [{ t: ` · ${style.extra}`, color: C.muted }]
 
-  return sectionLabel(title, [{ t: plural(total, 'step'), color: C.muted }, ...fail], width)
+  return sectionLabel(title, [{ t: plural(total, 'step'), color: C.muted }, ...fail, ...extra], width, style.color ?? C.muted)
 }
 
 const OPEN_MAX = 3
@@ -128,14 +132,15 @@ export const stepLine = (s: LogStep, width: number): Line => ({ parts: stepRow(s
  * @param width the pane's body columns
  * @param rows the rows it may take; `Infinity` for every step (the full view, `s`)
  * @param title the label
+ * @param style how the label is drawn
  * @returns the rows
  */
-export function stepLines(log: StepLog, width: number, rows: number, title = 'STEPS'): Line[] {
+export function stepLines(log: StepLog, width: number, rows: number, title = 'STEPS', style: LabelStyle = {}): Line[] {
   const steps = log.steps
 
   if (steps.length === 0 || rows < 1) return []
 
-  const label = plain(labelRow(log, width, title))
+  const label = plain(labelRow(log, width, title, style))
   const room = rows - 1
 
   if (steps.length <= room && log.dropped === 0) return [label, ...steps.map(s => stepLine(s, width))]

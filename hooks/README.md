@@ -20,6 +20,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/steps/`: the step log itself: kinds and subjects, results, the log's updates and verdict, the fitted rows.
 - `cockpit/agents/`: `[ AGENTS ]`: the roster of agents (launch, steps, report, resume) and its rows.
 - `cockpit/sections/`: `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: what each call adds to them, and their rows.
+- `cockpit/history/`: every turn kept (E.45): its record, the store's budget and trimming, the pinned turn, each
+  file's snapshot at the turn's start and the line diff that compares it with the file now.
 - `cockpit/keys/`: the focused pane (E.44): its keys and views (a step's detail, a diff, every step, sections shown
   whole), the steps' kept details, and the tree with its row and hotkey Buttons.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
@@ -58,7 +60,7 @@ loop. Render sites are hooked by the folder that draws them.
 
 | Folder                    | Engine events                                                                                                                                          | Render sites                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `cockpit/`                | `command.run` (`/cockpit`), `ui.close`, `ui.focus`, `agent.spawn`, `agent.report`                                                                      | `Pane`, `PromptHint`                                                                               |
+| `cockpit/`                | `command.run` (`/cockpit`, `/steps`), `ui.close`, `ui.focus`, `agent.spawn`, `agent.report`                                                            | `Pane`, `PromptHint`                                                                               |
 | `transcript/ledger/`      | `session.start`, `session.append`, `turn.start`, `turn.step`, `turn.complete`, `prompt.submit`, `tool.call`, `tool.check`, `skill.prompt`, `classic.*` |                                                                                                    |
 | `transcript/sites/`       |                                                                                                                                                        | `UserMessage`, `SessionMode`, `TurnDuration`, `Spinner`, `CommandOutput`, `InfoNotice`, `AgentRow` |
 | `transcript/sites/reply/` |                                                                                                                                                        | `AssistantMessage`                                                                                 |

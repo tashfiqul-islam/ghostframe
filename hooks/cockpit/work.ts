@@ -3,7 +3,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { FileChange, TurnWork } from '../../types'
+import type { FileChange, TurnRecord, TurnWork } from '../../types'
 import { filesFromCommand, filesFromDiff, noteFiles } from './sections/files'
 import type { Counted } from './sections/files'
 import { noteSources } from './sections/sources'
@@ -30,6 +30,26 @@ let copy: { root: string } | null | undefined
 let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
 let lastDiff: Counted[] | undefined
+/** The work tree's diff at the typed turn's start: what was changed before the turn. */
+let startDiff: { root: string; files: Counted[] } | undefined
+
+/** The session's folder, as the last turn or call gave it. */
+export const cwdNow = (): string | undefined => lastCwd
+
+/**
+ * Whether a file had changes from before the turn, as Git saw the work tree at the typed turn's start.
+ * @param path the file, from the session's folder
+ * @returns true or false; undefined where there is no Git work tree to say
+ */
+export function wasChangedBefore(path: string): boolean | undefined {
+  if (startDiff === undefined || lastCwd === undefined) return undefined
+
+  const root = startDiff.root.replaceAll('\\', '/').replace(/\/+$/, '')
+  const here = lastCwd.replaceAll('\\', '/').replace(/\/+$/, '')
+  const fromRoot = here.toLowerCase().startsWith(root.toLowerCase()) ? `${here.slice(root.length + 1)}/${path}`.replace(/^\//, '') : path
+
+  return startDiff.files.some(f => f.path === fromRoot)
+}
 
 const NEW_FILE_MAX = 2_000_000 // a new file past this many characters is listed, its lines not counted
 const RECOUNT_MAX = 50 // up to this many new files are read again at every diff; past it, each is read once
@@ -129,6 +149,7 @@ async function shellFiles($: EngineInterface, command: string, cwd: string | und
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
   lastDiff = (await diffNow($, cwd))?.files
+  startDiff = lastDiff === undefined ? undefined : { root: copy?.root ?? '', files: lastDiff }
   await update($, work, w => {
     const todo = startTodo({ items: w.todo, isRevised: w.isRevised })
 
@@ -208,6 +229,15 @@ export async function workDiff($: EngineInterface, path: string): Promise<string
 
     return []
   }
+}
+
+/**
+ * A resumed session: the last kept turn's files and pages come back (its to-dos are the engine's to restore).
+ * @param $ the engine interface
+ * @param record the turn
+ */
+export async function restoreWork($: EngineInterface, record: TurnRecord): Promise<void> {
+  await update($, work, w => (w.files.length > 0 || w.sources.length > 0 ? w : { ...w, files: record.files, sources: record.sources, cited: record.cited }))
 }
 
 /**

@@ -371,6 +371,10 @@ test('docked: an `Agent` call`s row draws nothing; one drawn before the dock kee
     return t
   }
 
+  // Mid-session: the session has started (a row drawn before that is a resumed transcript's, drawn again once docked).
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: false })
   const before = await texts('c1')
   expect(before).not.toEqual([])
   const pane = await $.ui.mount(PANE)

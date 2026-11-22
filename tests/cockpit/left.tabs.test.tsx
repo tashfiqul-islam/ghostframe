@@ -79,9 +79,9 @@ async function drawn($: Engine, site: Parameters<Engine['ui']['mount']>[0]): Pro
 
 /** What a turn's rows look like on the left: narration shown or hidden, the step row, a receipt under the answer. */
 async function look($: Engine, n: number) {
-  const narration = await drawn($, message(NARRATION(n), `a${n}`))
+  const narration = await drawn($, message(NARRATION(n), `m${n}a`))
   const step = await drawn($, group(`r${n}`))
-  const answer = await drawn($, message(ANSWER(n), `b${n}`))
+  const answer = await drawn($, message(ANSWER(n), `m${n}b`))
 
   return {
     isNarrationShown: narration.some(t => t.includes(NARRATION(n))),

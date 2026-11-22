@@ -3,10 +3,11 @@
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { remember } from '../shared/held'
-import { drawRows } from './draw'
+import { drawRow, drawRows } from './draw'
+import { pinFromCommand } from './keys/view'
 import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
-import { docked, setDockedFlag, shownAtTurn } from './mode'
+import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
 import { isOn } from './switch'
 
@@ -21,6 +22,8 @@ export const isQuiet = (): boolean => isOn() && docked() && shownAtTurn()
 // pane is closed, docked again, or hidden behind another tab: only rows drawn later take the new mode.
 // shortcut: kept in the module, so a reload forgets it and rows drawn again after one take the mode of that moment.
 const rowModes = new Map<string, boolean>()
+// The rows of the transcript a resume brought back, drawn before the session started.
+const resumedRows = new Set<string>()
 const ROWS_MAX = 2_000
 
 /**
@@ -36,6 +39,13 @@ export function isQuietRow(row: string | undefined): boolean {
   if (had !== undefined) return had
 
   const now = isQuiet()
+
+  // A resumed transcript is drawn before the session starts and the pane is placed: its rows are not held to that
+  // moment's mode, and draw again in the pane's. (A row drawn before Cockpit docks mid-session keeps its mode.)
+  if (beforeStart()) resumedRows.add(row)
+
+  if (resumedRows.has(row) && !seated()) return now
+
   remember(rowModes, row, now, ROWS_MAX)
 
   return now
@@ -90,6 +100,16 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
 }
 
 /**
+ * A click on a receipt: pins its turn and says so in a toast (a receipt of the live turn pins nothing: the pane
+ * already shows it). It only pins: nothing is sent, run again or rewound.
+ * @param $ the engine interface
+ * @param turnNo the receipt's turn
+ */
+async function pinAndSay($: EngineInterface, turnNo: number): Promise<void> {
+  $.ui.toast(await pinFromCommand($, String(turnNo)))
+}
+
+/**
  * Cockpit's part of a turn's last answer block while quiet: the receipt of the engine turn that block ended, with
  * its `still failing` rows, one blank row above (E.32). Every turn that answered gets exactly one, keyed by the
  * engine's turn id, which a block knows from its first draw: the engine's footer can't carry it, since the turns
@@ -113,12 +133,59 @@ export async function drawTurnReceipt(
   if (rows.length === 0) return undefined
 
   const ui = $.ui.resolve(e)
+  const { Box, Button } = ui
+  const turnNo = receipt?.turnNo ?? 0
+  const above = rows.slice(0, -1)
+  const own = rows.at(-1) ?? []
 
+  // A click on the receipt pins its turn in the pane (E.45; probe 25: a Button there is pressed by a click).
   return (
-    <ui.Box flexDirection="column" marginTop={1}>
-      {drawRows(ui, rows)}
-    </ui.Box>
+    <Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, above)}
+      <Button key={`receipt:${turn}`} plain onPress={() => void pinAndSay($, turnNo)}>
+        {drawRow(ui, own, 'receipt')}
+      </Button>
+    </Box>
   )
+}
+
+/**
+ * Whether an answer row is the one a receipt ends on: the turn's answer, where the quiet left puts `claude` on a
+ * resumed transcript (its rows have no place in the flow).
+ * shortcut: a resumed answer split over several messages gets the label on its last row; seed the quiet openers
+ * from `$.session.messages()` if that shows.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it is
+ */
+export async function endsKeptTurn($: EngineInterface, row: string): Promise<boolean> {
+  return (await readReceipts($)).some(r => r.answer === row && r.turn !== null)
+}
+
+/**
+ * Cockpit's part of an answer row while quiet: the receipt that names the row (its turn's last answer row, by the
+ * id it is drawn under, live and after a resume, so two answers with the same text never swap receipts); for a
+ * turn that named no row, the turn's receipt under its last block in the flow.
+ * @param $ the engine interface
+ * @param e the row's render
+ * @param turn the row's turn in the flow, null when it has no place there
+ * @param endsTurn whether it is its turn's last text block in the flow
+ * @param width the transcript rule's width
+ * @returns the tree, or undefined when no receipt ends on this row
+ */
+export async function drawAnswerReceipt(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage', 'terminal'>,
+  turn: string | null,
+  endsTurn: boolean,
+  width: number
+): Promise<RenderElement | undefined> {
+  const list = await readReceipts($)
+  const own = list.findLast(r => r.answer === e.requestId)
+  const turns = turn === null || !endsTurn ? undefined : list.findLast(r => r.turn === turn)
+  const receipt = own ?? (turns?.answer === '' ? turns : undefined)
+
+  return receipt?.turn === null || receipt === undefined ? undefined : drawTurnReceipt($, e, receipt.turn, width)
 }
 
 /**

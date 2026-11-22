@@ -2,7 +2,7 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { drawTurnReceipt, isQuietRow } from '../../../cockpit/left'
+import { drawAnswerReceipt, endsKeptTurn, isQuietRow } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -126,7 +126,9 @@ export function registerReply(on: On): void {
     // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
     const isQuietLeft = isQuietRow(e.requestId)
     const isOpener = isQuietLeft
-      ? place !== undefined && isQuietOpenerAt(blocksSoFar, place.at)
+      ? place === undefined
+        ? await endsKeptTurn($, e.requestId)
+        : isQuietOpenerAt(blocksSoFar, place.at)
       : e.props.isFirstOfReply && isTurnOpener(await readFirstTexts($), e.props.text, place?.turn)
     // The capability line takes `claude`'s row; the reply follows a blank row below it. Quiet, it is the pane's.
     const capsRow = isOpener && !isQuietLeft ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
@@ -141,7 +143,8 @@ export function registerReply(on: On): void {
     const gap = replyGap(message, prev, place?.turn)
     // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
     const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
-    const receipt = isQuietLeft && endsTurn && place.turn !== null ? await drawTurnReceipt($, e, place.turn, ruleWidth(lay) ?? width) : undefined
+    // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
+    const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, ruleWidth(lay) ?? width) : undefined
 
     return (
       <Box flexDirection="column">

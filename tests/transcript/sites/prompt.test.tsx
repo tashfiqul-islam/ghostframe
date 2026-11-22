@@ -24,6 +24,23 @@ test('your message: gutter `you`, rail, verbatim text, submit time on the rule',
   await ui.unmount()
 })
 
+test('the engine`s stand-in row (`placeholder`) shows the submit time without taking it from the prompt`s own row', async ($, on) => {
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('clock.now', () => ({ value: new Date(2026, 10, 17, 7, 8).getTime() }))
+  const row = (requestId: string) => $.ui.mount({ ...USER, requestId, viewport: VIEW })
+
+  // Drawn before the submit lands, then after it, as the engine does.
+  const stand = await row('placeholder')
+  await $.prompt.submit({ text: USER.props.text, wait: false, origin: { kind: 'composer' } })
+  await stand.redraw()
+  expect(textAt(await stand.drawn(), 120).join('\n')).toContain('07:08')
+  await stand.unmount()
+
+  const own = await row('8ea528c4')
+  expect(textAt(await own.drawn(), 120).join('\n')).toContain('07:08')
+  await own.unmount()
+})
+
 test('no viewport measured: the engine draws', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
@@ -122,4 +139,65 @@ test('a prompt that starts with a URL verb keeps its first letter: `Fetch https:
   const shown = (await ui.findAll({ type: 'Text' })).map(x => x.text)
   await ui.unmount()
   expect(shown.some(x => x.startsWith(' Fetch https://bun.sh'))).toBe(true)
+})
+
+test('each typed prompt`s submit time is kept in the store under the session`s id, for a resume', async ($, on) => {
+  const store = new Map<string, unknown>()
+  let now = new Date(2026, 10, 17, 7, 8).getTime()
+  on('prompt.submit', (_, e) => ({ text: e.text }))
+  on('clock.now', () => ({ value: now }))
+  on('session.id', () => ({ value: 's1' }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('store.keys', () => ({ value: [...store.keys()] }))
+  on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
+  on('store.set', (_, e) => {
+    store.set(e.key, JSON.parse(JSON.stringify(e.value)))
+
+    return { value: undefined }
+  })
+
+  // Before the restart: two prompts typed, their stamps kept.
+  await $.prompt.submit({ text: 'Run ls in Bash.', wait: false, origin: { kind: 'composer' } })
+  now = new Date(2026, 10, 17, 7, 12).getTime()
+  await $.prompt.submit({ text: 'Read notes.txt.', wait: false, origin: { kind: 'composer' } })
+  expect(store.get('prompts:s1')).toEqual([
+    { text: 'Run ls in Bash.', at: new Date(2026, 10, 17, 7, 8).getTime() },
+    { text: 'Read notes.txt.', at: now }
+  ])
+})
+
+test('resume: each turn rule shows its submit time again, from the store, though drawn before the session starts', async ($, on) => {
+  const at = (h: number, m: number) => new Date(2026, 10, 17, h, m).getTime()
+  // What the session kept before the restart.
+  const store = new Map<string, unknown>([
+    [
+      'prompts:s1',
+      [
+        { text: 'Run ls in Bash.', at: at(7, 8) },
+        { text: 'Read notes.txt.', at: at(7, 12) }
+      ]
+    ]
+  ])
+  on('clock.now', () => ({ value: at(9, 0) }))
+  on('session.id', () => ({ value: 's1' }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('store.keys', () => ({ value: [...store.keys()] }))
+  on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
+  const row = (requestId: string, text: string) => $.ui.mount({ ...USER, requestId, viewport: VIEW, props: { ...USER.props, text } })
+  const shown = async (ui: Awaited<ReturnType<typeof row>>) => textAt(await ui.drawn(), 120).join(' ')
+
+  // The engine draws the resumed transcript first.
+  const first = await row('u1', 'Run ls in Bash.')
+  const second = await row('u2', 'Read notes.txt.')
+  await $.session.start({ cwd: '/', surface: 'terminal', isInteractive: false })
+  await first.redraw()
+  await second.redraw()
+
+  expect(await shown(first)).toContain('07:08')
+  expect(await shown(second)).toContain('07:12')
+  await Promise.all([first.unmount(), second.unmount()])
 })

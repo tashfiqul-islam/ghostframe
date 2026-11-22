@@ -8,10 +8,13 @@ import type { AgentEnd, AgentStart } from './agents/roster'
 import { askStep, continueTurn, endLaunched, endTurn, newLog, newTurn, noteMode, noteSaid, receiptOf, settleStep, startStep } from './steps/log'
 import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
-import { noteEnd, noteStart } from './keys/details'
+import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
+import { restoredLog } from './history/record'
+import { loadHistory, saveTurn, setPin } from './history/store'
+import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { isOn } from './switch'
-import { noteCited, noteWork, startWork } from './work'
+import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
@@ -21,7 +24,7 @@ const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as Rost
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
-const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-3' })
+const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-6' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -30,6 +33,8 @@ const FRAME_MS = 100 // H.1 asks 80 ms; the engine redraws a site at most ten ti
 // shortcut: the timers live in the module; a reload stops them (the engine's rule) and a turn running across a
 // reload then shows its last second until the next turn starts. Fine while Cockpit is a test-only feature.
 let timers: Timer[] = []
+/** The session's folder, as the last call gave it: where the turn's files are read for their diffs. */
+let lastCwd: string | undefined
 
 /**
  * A second passed: the pane, which reads `second`, draws again.
@@ -84,6 +89,9 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
     await update($, stepLog, log => newTurn(log, turn, at))
+    // A typed prompt means the person has moved on: the pin goes (E.45), and the new turn's files are read afresh.
+    await setPin($, null, 0)
+    resetSnapshots()
     await startWork($, cwd)
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
@@ -139,6 +147,9 @@ export async function logMode($: EngineInterface, what: string): Promise<void> {
  */
 export async function logStepStart($: EngineInterface, e: ToolCallInput, at: number, cwd: string | undefined): Promise<void> {
   if (!isOn()) return
+
+  lastCwd = cwd ?? lastCwd
+  await snapshotBefore($, e.tool, e, cwd)
 
   await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
   await noteStart($, e.tool_use_id, e.tool, e, at)
@@ -205,19 +216,62 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
  * @param $ the engine interface
  * @param durationMs how long the engine says the turn ran
  * @param isAborted whether it was interrupted (correction G: no receipt; `[ LAST ]` carries the state)
+ * @param answer the id of the turn's last answer row, where its receipt is drawn ('' when it wrote none)
  */
-export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean): Promise<void> {
+export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean, answer = ''): Promise<void> {
   if (!isOn()) return
 
   const now = await $.clock.now()
   await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
-  const receipt = receiptOf(await read($, stepLog), waiting)
+  const receipt = { ...receiptOf(await read($, stepLog), waiting), answer }
   await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
 
   if (anyRunning(await read($, roster))) startTimers($, false)
   else stopTimers()
+
+  await keepTurn($)
+}
+
+const DIFFS_MAX = 50 // files whose diff a turn keeps
+
+/**
+ * Keeps the typed turn in history (E.45): its log, its work, its agents, its receipts, its steps' details and each
+ * file's diff over the turn. A history that cannot be kept costs the pane its pins, never the turn.
+ * @param $ the engine interface
+ */
+async function keepTurn($: EngineInterface): Promise<void> {
+  try {
+    const log = await read($, stepLog)
+    const work = await readWork($)
+    const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
+
+    const mine = (await read($, receipts)).filter(r => r.turnNo === log.turnNo)
+    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs })
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`)
+  }
+}
+
+/**
+ * Session start (a resume, a restart, a reload): history comes back from the store, and a pane that has no turn yet
+ * shows the last kept one as it ended (`[ LAST ]`, its sections, its receipts).
+ * @param $ the engine interface
+ */
+export async function logSessionStart($: EngineInterface): Promise<void> {
+  if (!isOn()) return
+
+  const records = await loadHistory($)
+  const last = records.at(-1)
+
+  if (last === undefined || (await read($, stepLog)).turnNo > 0) return
+
+  await update($, stepLog, log => restoredLog(log, last))
+  await update($, receipts, list => (list.length > 0 ? list : records.flatMap(r => r.receipts).slice(-RECEIPTS_MAX)))
+  await update($, roster, list => (list.length > 0 ? list : last.roster))
+  await restoreWork($, last)
+  await restoreDetails($, last.details)
 }
 
 /**
