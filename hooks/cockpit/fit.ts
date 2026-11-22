@@ -10,7 +10,7 @@ import { AGENTS_CAP, agentLines } from './agents/rows'
 import type { AgentsLevel } from './agents/rows'
 import { headRows } from './head'
 import { fileLines } from './sections/files'
-import { sourceRows } from './sections/sources'
+import { sourceLines } from './sections/sources'
 import { todoRows } from './sections/todo'
 import type { TodoLevel } from './sections/todo'
 import { formatSpan } from '../shared/time'
@@ -133,15 +133,16 @@ export function paneLines(
       levels.files === 'none' ? [] : fileLines(files, width, cap('files', isTall ? 6 : 4), levels.files === 'label', `FILES${pinTag}`),
       levels.sources === 'none'
         ? []
-        : sourceRows(
+        : sourceLines(
             sources.pages,
             sources.cited,
             sources.isRunning,
             width,
             cap('sources', isTall ? 4 : 3),
             levels.sources === 'label',
-            `SOURCES${pinTag}`
-          ).map(plain)
+            `SOURCES${pinTag}`,
+            whole.has('sources')
+          )
     ]
 
     return sections.flatMap(section => (section.length > 0 ? [blank, ...section] : []))

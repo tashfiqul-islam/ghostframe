@@ -8,6 +8,8 @@ import type { Part } from '../../shared/parts'
 import { sup, vw } from '../../shared/text'
 import { C } from '../../shared/tokens'
 import { sourceLabel } from '../../shared/url'
+import { partsOf, plain } from '../line'
+import type { Line } from '../line'
 import { sectionLabel } from '../steps/rows'
 
 /** A URL as the pane and the answer both know it: no `www.`, no hash, no trailing slash, the host in lower case. */
@@ -147,21 +149,66 @@ export function sourceRows(
   isLabel = false,
   title = 'SOURCES'
 ): Part[][] {
+  return partsOf(sourceLines(pages, cited, isRunning, width, cap, isLabel, title))
+}
+
+const URL_INDENT = 4
+
+/** A page's whole URL under its row (`u`), in dim from column 4, cut into rows of the pane's width. */
+function urlRows(url: string, width: number): Line[] {
+  const room = Math.max(1, width - URL_INDENT)
+  const chars = [...url]
+  const rows: Line[] = []
+
+  for (let at = 0; at < chars.length; at += room) {
+    const t = ' '.repeat(URL_INDENT) + chars.slice(at, at + room).join('')
+    rows.push(plain([{ t: t + ' '.repeat(Math.max(0, width - vw(t))), color: C.dim }]))
+  }
+
+  return rows
+}
+
+/**
+ * `[ SOURCES ]` as `sourceRows` draws it, each page's row under its id (`source:<url>`) so Enter and `c` copy its URL
+ * (A2: no key opens a browser). Shown whole (`u`), each page's whole URL follows its row.
+ * @param pages the pages read, in fetch order
+ * @param cited the answer's cited pages, in mark order
+ * @param isRunning whether the turn runs
+ * @param width the pane's body columns
+ * @param cap the rows; `Infinity` for every page (`u`)
+ * @param isLabel only the label fits
+ * @param title the label
+ * @param withUrls whether each page's URL follows it (`u`)
+ * @returns the rows
+ */
+export function sourceLines(
+  pages: readonly SourcePage[],
+  cited: readonly { url: string; title: string }[],
+  isRunning: boolean,
+  width: number,
+  cap: number,
+  isLabel = false,
+  title = 'SOURCES',
+  withUrls = false
+): Line[] {
   const rows = ordered(pages, cited, isRunning)
 
   if (rows.length === 0) return []
 
   // Marks come with the answer, once the turn ends: until then nothing is counted as cited.
   const citedCount = rows.filter(r => r.mark > 0).length
-  const label = sectionLabel(title, [{ t: `${rows.length} read · ${citedCount} cited`, color: C.muted }], width)
+  const label = plain(sectionLabel(title, [{ t: `${rows.length} read · ${citedCount} cited`, color: C.muted }], width))
 
   if (isLabel) return [label]
 
-  const draw = (r: (typeof rows)[number]) => pageRow(r.page, r.mark, titleOf(r.page), width)
+  const draw = (r: (typeof rows)[number]): Line[] => [
+    { parts: pageRow(r.page, r.mark, titleOf(r.page), width), id: `source:${r.page.url}` },
+    ...(withUrls ? urlRows(r.page.url, width) : [])
+  ]
 
-  if (rows.length <= cap) return [label, ...rows.map(draw)]
+  if (rows.length <= cap) return [label, ...rows.flatMap(draw)]
 
   const more = `  … ${rows.length - (cap - 1)} more`
 
-  return [label, ...rows.slice(0, cap - 1).map(draw), [{ t: more + ' '.repeat(Math.max(0, width - vw(more))), color: C.dim }]]
+  return [label, ...rows.slice(0, cap - 1).flatMap(draw), plain([{ t: more + ' '.repeat(Math.max(0, width - vw(more))), color: C.dim }])]
 }

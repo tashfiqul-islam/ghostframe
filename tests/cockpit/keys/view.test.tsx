@@ -389,3 +389,28 @@ test('a view the engine refuses (no agent under that id): the pane still lists t
   expect(rows).toContainEqual(expect.stringMatching(/^┄ \[ STEPS \] ┄+ 4 steps · 1 failed$/))
   await ui.unmount()
 })
+
+test('Enter on a source copies its URL and says no key opens a browser; `c` on it copies the URL (A2)', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const copies: string[] = []
+  engine(on, clock, copies)
+  await aTurn($)
+  await $.tool.call({ tool: 'WebFetch', url: 'https://bun.sh/docs/cli/publish', prompt: 'x', tool_use_id: 'f1' } as never)
+
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'source:https://bun.sh/docs/cli/publish' })
+  await ui.redraw()
+  expect(copies).toEqual(['https://bun.sh/docs/cli/publish'])
+  expect((await texts(ui)).join(' ')).toContain('url copied · no key opens a browser')
+
+  await $.ui.focus({
+    component: 'Pane',
+    requestId: 'cockpit',
+    plugin: 'ghostframe',
+    element: 'source:https://bun.sh/docs/cli/publish',
+    origin: { kind: 'person' }
+  } as never)
+  await ui.press({ key: 'key-c' })
+  expect(copies).toEqual(['https://bun.sh/docs/cli/publish', 'https://bun.sh/docs/cli/publish'])
+  await ui.unmount()
+})

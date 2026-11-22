@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { noteSources, sourceRows } from '../../../hooks/cockpit/sections/sources'
+import { noteSources, sourceLines, sourceRows } from '../../../hooks/cockpit/sections/sources'
 import type { Part } from '../../../hooks/shared/parts'
 import { vw } from '../../../hooks/shared/text'
 import { C } from '../../../hooks/shared/tokens'
@@ -87,4 +87,29 @@ test('an agent`s fetch joins the pages marked ◇ at column 0; a failed one keep
   const rows = sourceRows(pages, [], true, W, 4)
   expect(rows.slice(1).map(line)).toEqual([expect.stringMatching(/^◇ · example\.com +a +200$/), expect.stringMatching(/^◇ · example\.com +b +404$/)])
   expect(rows[2]?.at(-1)).toMatchObject({ t: '404', color: C.err, bold: true })
+})
+
+test('`u` lists each page, then its whole URL from column 4 in dim, wrapped to the pane; each page is a row that opens (A2)', () => {
+  const long = `https://docs.github.com/en/actions/${'writing-workflows/'.repeat(5)}workflow-syntax`
+  const pages: SourcePage[] = [
+    { url: 'https://bun.sh/docs/cli/publish', title: 'bun publish', status: '200' },
+    { url: long, title: 'Workflow syntax', status: '200' }
+  ]
+  const lines = sourceLines(pages, [], false, W, Infinity, false, 'SOURCES', true)
+  const rows = lines.map(l => line(l.parts))
+
+  // 145 characters in rows of 68: three URL rows.
+  expect(lines.map(l => l.id)).toEqual([undefined, 'source:https://bun.sh/docs/cli/publish', undefined, `source:${long}`, undefined, undefined, undefined])
+  expect(rows[2]).toBe(`    https://bun.sh/docs/cli/publish`.padEnd(W))
+  expect(
+    rows
+      .slice(4)
+      .map(r => r.trim())
+      .join('')
+  ).toBe(long)
+  expect(rows.every(r => vw(r) === W)).toBe(true)
+  expect(lines[2]?.parts[0]).toMatchObject({ color: C.dim })
+
+  // Fitted (no `u`), no URL rows.
+  expect(sourceLines(pages, [], false, W, 4).map(l => l.id)).toEqual([undefined, 'source:https://bun.sh/docs/cli/publish', `source:${long}`])
 })

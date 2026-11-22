@@ -213,6 +213,10 @@ async function openAgent($: EngineInterface, agentId: string): Promise<void> {
 export async function openRow($: EngineInterface, id: string): Promise<void> {
   if (id.startsWith('agent:')) {
     await openAgent($, id.slice('agent:'.length))
+  } else if (id.startsWith('source:')) {
+    // No key can open a browser (phase 11, probe 3): the URL goes to the clipboard, and the note says so.
+    const { isCopied } = await $.ui.copy({ text: id.slice('source:'.length) })
+    await say($, isCopied ? 'url copied · no key opens a browser' : 'nothing to copy')
   } else if (id.startsWith('file:')) {
     const path = id.slice('file:'.length)
     view = { kind: 'diff', path, ...(await fileView($, path)) }
@@ -240,6 +244,8 @@ async function copyText($: EngineInterface): Promise<string | undefined> {
   if (view.kind === 'diff') return view.patch.length > 0 ? view.patch.join('\n') : undefined
 
   const at = view.kind === 'step' ? `step:${view.id}` : ring
+
+  if (at?.startsWith('source:') === true) return at.slice('source:'.length)
 
   if (at?.startsWith('file:') === true) {
     const { patch } = await fileView($, at.slice('file:'.length))
