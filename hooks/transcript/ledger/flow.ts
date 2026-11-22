@@ -1,5 +1,6 @@
 // Queries over the ledger's flow and first-of-turn lists: a block's key, where it sits in its turn, what is above it.
 import type { FirstText, FlowStamp } from '../../../types'
+import { isNarrationAt } from '../../shared/flow'
 import { browserTool, openRunBefore } from '../browser'
 
 /** A block's identity for first-of-turn matching: whitespace folded, first 100 chars. */
@@ -15,17 +16,8 @@ export const sameKey = (x: string, k: string): boolean =>
 export const ANY_TURN: undefined = undefined
 export const inTurn = (entry: string | null | undefined, turn: string | null | undefined): boolean =>
   entry === undefined || turn === undefined || entry === turn
-// Text before these tools is a question or a plan put to the person: they must act on it, so it is not narration.
-export const ASKS_THE_PERSON: Set<string> = new Set(['AskUserQuestion', 'ExitPlanMode'])
 /** Where a text block sits in the flow, by its key, newest first. */
 export const textAt = (list: readonly FlowStamp[], key: string): number => list.findLastIndex(f => f.kind === 'text' && sameKey(f.key, key))
-/** Narration (phase 4): a text block that a tool call follows in its own turn, unless that call asks the person. */
-export const isNarrationAt = (list: readonly FlowStamp[], at: number): boolean => {
-  const f = list[at]
-  const next = f === undefined ? undefined : list.slice(at + 1).find(g => g.turn === f.turn && g.kind === 'tool')
-
-  return next !== undefined && !ASKS_THE_PERSON.has(next.tool ?? '')
-}
 /** Quiet, `claude` goes on the first text block of its turn that is not narration: the first one left on screen. */
 export const isQuietOpenerAt = (list: readonly FlowStamp[], at: number): boolean => {
   const turn = list[at]?.turn

@@ -85,7 +85,7 @@ export function registerPrompt(on: On): void {
 
     // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing, except in fallback
     // for an agent that failed (its `✕` row).
-    if (isQuietRow(e.requestId) && (await isAgentRow($, e.props))) {
+    if (isQuietRow(e) && (await isAgentRow($, e.props))) {
       const lay = layout(e.viewport?.columns)
 
       return drawAgentNotice($, e, ruleWidth(lay) ?? lay?.width ?? 0)

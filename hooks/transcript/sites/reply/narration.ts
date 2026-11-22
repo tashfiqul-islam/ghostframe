@@ -2,8 +2,8 @@
 import type { EngineInterface } from 'claude-code'
 
 import { runningTurn } from '../../../cockpit/log'
-import { ASKS_THE_PERSON, firstKey, isNarrationAt, textAt } from '../../ledger/flow'
-import { readFlow } from '../../ledger/state'
+import { ASKS_THE_PERSON, isNarrationAt, readFlow } from '../../../shared/flow'
+import { firstKey, textAt } from '../../ledger/flow'
 
 // Quiet (Cockpit docked): narration leaves the transcript; its sentence is the pane's [ NOW ] (probe 1).
 // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:

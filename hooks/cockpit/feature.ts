@@ -24,7 +24,10 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
   markStarted()
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
   setEnvOn(await isEnvSet($))
-  await $.command.register({ name: STEPS, description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live' })
+  await $.command.register({
+    name: STEPS,
+    description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live; /steps <n> all prints its steps'
+  })
 
   try {
     await logSessionStart($)

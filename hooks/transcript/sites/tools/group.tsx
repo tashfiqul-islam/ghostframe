@@ -1,7 +1,7 @@
 // A folded group of reads and searches (`ToolGroup`): one step row per call, the fold row, or the engine's line.
 import type { On } from 'claude-code'
 
-import { drawQuietGroup, isQuietRow } from '../../../cockpit/left'
+import { drawQuietGroup, isQuietRow, noteView } from '../../../cockpit/left'
 import { layout, ruleWidth } from '../../../shared/layout'
 import { foldOf, foldRow } from '../../activity/fold'
 import { activityHead } from '../../activity/rule'
@@ -11,7 +11,8 @@ import { drawParts } from '../../draw/parts'
 import { drawStep, stepTime } from '../../draw/step'
 import { afterNarration, browserOpenAbove, flowPlace, isBrowserTool } from '../../ledger/flow'
 import { sessionCwd } from '../../ledger/session'
-import { openerCaps, readAsked, readFirstTools, readFlow, readSteps, readStreaming, readTurn } from '../../ledger/state'
+import { readFlow } from '../../../shared/flow'
+import { openerCaps, readAsked, readFirstTools, readSteps, readStreaming, readTurn } from '../../ledger/state'
 
 /**
  * Adds a folded group's drawing (`ToolGroup`).
@@ -24,12 +25,15 @@ export function registerToolGroup(on: On): void {
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
 
+    // A folded group is the main view's: fullscreen ctrl+o draws none (E.4).
+    if (e.surface === 'terminal') noteView($, e.props.isExpanded)
+
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(e)
     }
 
     // Quiet: the steps are the pane's; only a push or a pull request leaves a row here (E.5).
-    if (isQuietRow(e.requestId)) {
+    if (isQuietRow(e)) {
       return drawQuietGroup($, e, ruleWidth(lay) ?? width)
     }
 

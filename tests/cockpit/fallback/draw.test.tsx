@@ -23,26 +23,30 @@ test('capsule, trigger 1: a block of text that stays opens with the capsule of t
   expect(await rowsOf($, site('AssistantMessage', 'm11-sh11', 100, { text: 'Next, Bash for turn 11.', isFirstOfReply: true }))).toEqual([])
 })
 
-test('capsule, trigger 2: after five silent minutes the next step`s row draws the capsule of the stretch so far', ON, async ($, on) => {
+test('capsule, trigger 2: a step that starts after five silent minutes draws the capsule of the stretch before it', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock)
   await $.prompt.submit({ text: 'a long one', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'a long one', turnId: 'long' })
-  const [shell, edit] = MIXED(12)
-  await $.session.append(respond([use(shell?.id ?? '', 'Bash', shell?.input ?? {})], 'l1'))
-  await $.tool.call({ tool: 'Bash', command: 'echo hi', tool_use_id: shell?.id } as never)
+  const shell = (id: string) => ({ id, tool: 'Bash', input: { command: 'echo hi' } })
+  const run = async (id: string, at: number) => {
+    clock.now = at
+    await $.session.append(respond([use(id, 'Bash', { command: 'echo hi' })], `long-${id}`))
+    await $.tool.call({ tool: 'Bash', command: 'echo hi', tool_use_id: id } as never)
+  }
 
-  // Under five minutes: the next step's row draws nothing.
-  clock.now = T0 + 4 * 60_000
-  expect(await rowsOf($, groupOf(must(edit), 100))).toEqual([])
+  // Four minutes after the turn started: no capsule.
+  await run('s1', T0)
+  await run('s2', T0 + 4 * 60_000)
+  expect(await rowsOf($, groupOf(shell('s2'), 100))).toEqual([])
 
-  // Over five minutes since the left last drew: the next step's first draw carries the capsule, and keeps it.
-  clock.now = T0 + 6 * 60_000
-  const later = { ...must(edit), id: 'ed12b' }
-  const rows = await rowsOf($, groupOf(later, 100))
-  expect(rows).toEqual([expect.stringMatching(/^│ worked · 1 step · 1 shell +1s$/)])
-  clock.now += 60_000
-  expect(await rowsOf($, groupOf(later, 100))).toEqual(rows)
+  // Ten minutes in, with nothing drawn on the left since the start: the capsule of the two steps before it.
+  await run('s3', T0 + 10 * 60_000)
+  const rows = await rowsOf($, groupOf(shell('s3'), 100))
+  expect(rows).toEqual([expect.stringMatching(/^│ worked · 2 steps · 2 shell +4m 01s$/)])
+  // Drawn again later (a resize, a scroll), it is the same row: it comes from the steps, not from the moment.
+  clock.now += 60 * 60_000
+  expect(await rowsOf($, groupOf(shell('s3'), 100))).toEqual(rows)
 })
 
 test('capsule, trigger 3: a turn that ends without any text draws its capsule and receipt in the footer', ON, async ($, on) => {
@@ -111,7 +115,6 @@ test('/steps where no dock exists opens the inline inspector, focused, closing o
 test('C.2 in fallback: one blank row above the first event row after the prompt, none between event rows or above the capsule', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock)
-  await mixedTurn($, clock, 15)
   const topOf = async (raised: Parameters<typeof $.ui.mount>[0]) => {
     const ui = await $.ui.mount(raised)
     const box = await ui.find({ type: 'Box' })
@@ -119,12 +122,19 @@ test('C.2 in fallback: one blank row above the first event row after the prompt,
 
     return box?.props['marginTop']
   }
-  const failing = { ...must(MIXED(15)[3]), id: 'ls15' }
-
-  // The edit and the failing command: the first event row of the turn has a blank row above it, the second none.
-  expect(await topOf(groupOf(failing, 100, true))).toBe(1)
+  const failing = (id: string) => ({ id, tool: 'Bash', input: { command: 'ls /nope' } })
+  await $.prompt.submit({ text: 'list both', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'list both', turnId: 'two' })
+  await $.session.append(respond([text('Listing it twice.'), use('ls15', 'Bash', { command: 'ls /nope' })], 'c15-1'))
+  await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15' } as never)
+  await $.session.append(respond([use('ls15b', 'Bash', { command: 'ls /nope' })], 'c15-2'))
   await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15b' } as never)
-  expect(await topOf(groupOf({ ...failing, id: 'ls15b' }, 100, true))).toBe(0)
+  await $.session.append(respond([text(answerOf(15))], 'm15-answer'))
+  await $.turn.complete({ answer: answerOf(15), durationMs: 3_000, isAborted: false, turnId: 'two', reason: 'answer' })
+
+  // Two failing commands: the first event row of the turn has a blank row above it (the narration left), the second none.
+  expect(await topOf(groupOf(failing('ls15'), 100, true))).toBe(1)
+  expect(await topOf(groupOf(failing('ls15b'), 100, true))).toBe(0)
   // The answer's capsule touches the event row above it.
   const answer = await $.ui.mount(site('AssistantMessage', 'm15-answer', 100, { text: answerOf(15), isFirstOfReply: true }))
   const boxes = await answer.findAll({ type: 'Box' })

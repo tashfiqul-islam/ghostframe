@@ -7,6 +7,7 @@ import { startCockpit } from '../../cockpit/feature'
 import { logCited, logSaid } from '../../cockpit/log'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
+import { readFlow, updateFlow } from '../../shared/flow'
 import { capTurns } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
@@ -15,13 +16,11 @@ import { firstKey } from './flow'
 import {
   readAwaitingFirst,
   restorePrompts,
-  readFlow,
   readTurn,
   updateAwaitingFirst,
   updateCaps,
   updateFirstTexts,
   updateFirstTools,
-  updateFlow,
   updateOpeners,
   updateTally
 } from './state'

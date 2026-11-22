@@ -10,9 +10,13 @@ import { liveRow } from './head'
 import { readFrame, readLog, readReceipts } from './log'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { receiptRows, shipRows } from './quiet'
-import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
-import { capsulesIn, claimFooter } from './fallback/stretch'
+import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
+import { claimFooter } from './fallback/stretch'
+import { readFlow, isNarrationAt } from '../shared/flow'
+import { shellText } from '../shared/calls/ships'
+import { turnOfCall, turnView } from './fallback/facts'
 import { isOn } from './switch'
+import { diffFrame, noteUnfolded, outputFrame, sentenceRows, stepRow, unfolded } from './unfolded'
 
 /**
  * Whether the left is quiet now (phase 4): Cockpit on, its pane docked, and its tab shown when the running turn
@@ -32,23 +36,47 @@ type LeftMode = 'docked' | 'fallback' | 'full'
 
 const modeNow = (): LeftMode => (isQuiet() ? 'docked' : isFallback() ? 'fallback' : 'full')
 
-// Each transcript row's mode, by its request: the mode of its first draw. A row once drawn never changes when the
-// pane is closed, docked again, or hidden behind another tab: only rows drawn later take the new mode.
-// shortcut: kept in the module, so a reload forgets it and rows drawn again after one take the mode of that moment.
+/** A transcript row as its render carries it: its request, and the screen it is drawn on. */
+export type RowSite = { requestId: string; viewport?: { columns?: number; isFullscreen?: boolean | undefined } | undefined }
+
+// Outside fullscreen (the main screen, tmux) a row is printed once into the scrollback and never drawn again, so each
+// row keeps the mode of its first draw (amendment 9). In fullscreen the engine redraws every visible row, and a row
+// takes the mode the session is in now (amendment 10): what it draws is worked out from its own data, never from what
+// an earlier draw decided, so it is the same after a resize, a resume or a reload.
+// shortcut: kept in the module, so a reload forgets it; main-screen rows drawn again after one take that moment's mode.
 const rowModes = new Map<string, LeftMode>()
 // The rows of the transcript a resume brought back, drawn before the session started.
 const resumedRows = new Set<string>()
 const ROWS_MAX = 2_000
 
 /**
- * A transcript row's mode: the mode it was first drawn in, or the mode now for a new row.
- * @param row the row's render request
+ * A transcript row's mode: in fullscreen the mode now; on the main screen the mode it was first drawn in.
+ * @param site the row's render
  * @returns the mode
  */
-function rowMode(row: string | undefined): LeftMode {
-  if (row === undefined) return modeNow()
+function rowMode(site: RowSite): LeftMode {
+  const row = site.requestId
+
+  // Docked, a row's width is the region beside the pane, not the terminal's.
+  noteScreen(site.viewport?.isFullscreen, docked() ? undefined : site.viewport?.columns)
+
+  // The ctrl+o view is the full record (E.4): quiet, its steps and sentences drawn as text rows, the same at any width.
+  if (isOn() && unfolded()) return 'docked'
 
   const had = rowModes.get(row)
+
+  // Fullscreen, the pane leaving or coming back redraws every row in the mode now (amendment 10). Whether a row was
+  // drawn beside Cockpit's tab or another pane's is kept from its first draw (amendment 9): that is not a fallback.
+  if (site.viewport?.isFullscreen !== false) {
+    const now = modeNow()
+
+    if (now === 'fallback' || (resumedRows.has(row) && !seated())) return now
+    if (had !== undefined && had !== 'fallback') return had
+
+    remember(rowModes, row, now, ROWS_MAX)
+
+    return now
+  }
 
   if (had !== undefined) return had
 
@@ -71,14 +99,68 @@ function rowMode(row: string | undefined): LeftMode {
  * @param row the row's render request
  * @returns whether it is quiet
  */
-export const isQuietRow = (row: string | undefined): boolean => rowMode(row) !== 'full'
+export const isQuietRow = (row: RowSite): boolean => rowMode(row) !== 'full'
 
 /**
  * Whether a quiet row draws in fallback: with capsules and failure rows, since no pane shows the steps.
  * @param row the row's render request
  * @returns whether it does
  */
-export const isFallbackRow = (row: string | undefined): boolean => rowMode(row) === 'fallback'
+export const isFallbackRow = (row: RowSite): boolean => rowMode(row) === 'fallback'
+
+/** What the last row drawn said of the screen: fullscreen, the main screen, or not yet known. */
+let screen: boolean | undefined
+/** The terminal's columns as last drawn, so a re-open can wait for the width to hold (pane.tsx). */
+let columns: number | undefined
+/** How many times the width has changed: a wait for it to hold starts again when this moves. */
+let widthChanges = 0
+
+/** The terminal's columns as last drawn; undefined before any draw. */
+export const columnsNow = (): number | undefined => columns
+
+/** A count that moves each time the terminal's width changes. */
+export const widthTick = (): number => widthChanges
+
+/** A switch of screen to announce once (F.40), set by a row's draw and said at the next pane or spinner draw. */
+let toSay: boolean | undefined
+
+/**
+ * Notes the screen a row is drawn on. `/tui` switches it mid-session (probe 19: the engine remounts the transcript in
+ * the same session, `$.state` and the plugin kept); the switch is said once, by `sayScreen`.
+ * @param isFullscreen the row's `viewport.isFullscreen`
+ * @param width the terminal's columns, when the draw knows them
+ */
+export function noteScreen(isFullscreen: boolean | undefined, width?: number): void {
+  if (width !== undefined && width !== columns) {
+    columns = width
+    widthChanges += 1
+  }
+  if (isFullscreen === undefined || isFullscreen === screen) return
+  if (screen !== undefined) toSay = isFullscreen
+
+  screen = isFullscreen
+}
+
+/**
+ * Says a switch of screen once, as a notice row (F.40): off, that the dock is gone and capsules take its place; on,
+ * that the pane is back, and how many turns its log keeps.
+ * @param $ the engine interface
+ * @param paneColumns the width the pane docks at
+ * @param kept how many turns history keeps
+ */
+export function sayScreen($: EngineInterface, paneColumns: number, kept: number): void {
+  if (toSay === undefined || !isOn()) return
+
+  $.ui.log(
+    toSay
+      ? `fullscreen on · cockpit docked at ${paneColumns} columns · step logs for ${kept} ${kept === 1 ? 'turn' : 'turns'}`
+      : 'fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt'
+  )
+  toSay = undefined
+}
+
+/** Whether a switch of screen waits to be said. */
+export const screenToSay = (): boolean | undefined => toSay
 
 /**
  * Sets whether the pane is docked. Rows already drawn keep their mode; the live rows follow at once.
@@ -87,6 +169,100 @@ export const isFallbackRow = (row: string | undefined): boolean => rowMode(row) 
  */
 export function setDocked($: EngineInterface, value: boolean): void {
   if (setDockedFlag(value)) $.ui.invalidate('ui.render')
+}
+
+/**
+ * Notes what a site says of the view (its `isExpanded`): the ctrl+o view, or not (E.4).
+ * @param $ the engine interface
+ * @param isExpanded the site's prop, undefined where it says nothing
+ */
+export function noteView($: EngineInterface, isExpanded: boolean | undefined): void {
+  if (isOn()) noteUnfolded($, isExpanded)
+}
+
+/** The kinds whose output the ctrl+o view shows in a frame under their row. */
+const OUTPUT_KINDS = new Set(['shell', 'test'])
+
+/**
+ * A call's rows in the ctrl+o view (E.4, F.8): its step row, inset under the sentence that announced it, then its
+ * diff (an edit or a write) or its output (a command, a test) in a frame. A launch of several agents is one step
+ * (amendment 1): its other calls draw nothing. Undefined for a call Cockpit's log does not have (the engine's row).
+ * @param $ the engine interface
+ * @param e the call's render, expanded
+ * @param width the transcript rule's width
+ * @returns the rows' tree, or undefined
+ */
+export async function drawUnfoldedCall($: EngineInterface, e: RenderInput<'ToolUse', 'terminal'>, width: number): Promise<RenderElement | undefined> {
+  const p = e.props
+  const turn = await turnOfCall($, await readFlow($), p.tool_use_id)
+  const view = turn === undefined ? undefined : await turnView($, turn)
+  const step = view?.steps.find(s => s.id === p.tool_use_id || s.calls?.includes(p.tool_use_id) === true)
+
+  if (view === undefined || step === undefined) return undefined
+
+  const ui = $.ui.resolve(e)
+
+  if (step.id !== p.tool_use_id) return <ui.Box />
+
+  const detail = view.details.find(d => d.id === step.id)
+  const below =
+    detail !== undefined && detail.patch.length > 0
+      ? diffFrame(step.subject, detail.patch, width)
+      : OUTPUT_KINDS.has(step.kind)
+        ? outputFrame(shellText(p.output), width)
+        : []
+
+  return <ui.Box flexDirection="column">{drawRows(ui, [stepRow(step, detail?.ms, width), ...below])}</ui.Box>
+}
+
+/**
+ * Whether a call's result row (`ToolResult`) draws nothing in the ctrl+o view: its output is in its step's frame.
+ * @param $ the engine interface
+ * @param id the call's id
+ * @returns whether it does
+ */
+export async function isUnfoldedResult($: EngineInterface, id: string): Promise<boolean> {
+  if (!isOn() || !unfolded()) return false
+
+  const turn = await turnOfCall($, await readFlow($), id)
+  const view = turn === undefined ? undefined : await turnView($, turn)
+
+  return view?.steps.some(s => s.id === id || s.calls?.includes(id) === true) === true
+}
+
+/**
+ * A sentence Claude said while working, in the ctrl+o view (E.4): `│` rows in muted, wrapped, with the turn clock at
+ * which the step it announced started. Undefined for a block that is not narration (the answer draws as it does).
+ * @param $ the engine interface
+ * @param e the block's render
+ * @param key the block's key in the flow
+ * @param width the transcript rule's width
+ * @returns the rows' tree, or undefined
+ */
+export async function drawUnfoldedSentence(
+  $: EngineInterface,
+  e: RenderInput<'AssistantMessage', 'terminal'>,
+  key: string,
+  width: number
+): Promise<RenderElement | undefined> {
+  if (!isOn() || !unfolded()) return undefined
+
+  const flow = await readFlow($)
+  const at = flow.findLastIndex(f => f.kind === 'text' && f.key === key)
+  const f = flow[at]
+
+  if (f === undefined || f.turn === null || !isNarrationAt(flow, at)) return undefined
+
+  const view = await turnView($, f.turn)
+  const next = flow.slice(at + 1).find(g => g.turn === f.turn && g.kind === 'tool')
+  const clock = next === undefined ? undefined : view?.startOf(next.key)
+  const ui = $.ui.resolve(e)
+
+  return (
+    <ui.Box flexDirection="column" marginTop={1}>
+      {drawRows(ui, sentenceRows(e.props.text.trim(), clock, width))}
+    </ui.Box>
+  )
 }
 
 /**
@@ -101,14 +277,8 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
   const ui = $.ui.resolve(e)
   const p = e.props
 
-  if (isFallbackRow(e.requestId)) {
-    return drawFallbackCalls(
-      $,
-      ui,
-      e.requestId,
-      [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }],
-      width
-    )
+  if (isFallbackRow(e)) {
+    return drawFallbackCalls($, ui, [{ tool_use_id: p.tool_use_id, tool: p.tool, input: p.input, output: p.output, isErrored: p.isErrored }], width)
   }
 
   const log = await readLog($)
@@ -132,7 +302,7 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
 export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGroup', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
 
-  if (isFallbackRow(e.requestId)) return drawFallbackCalls($, ui, e.requestId, e.props.calls, width)
+  if (isFallbackRow(e)) return drawFallbackCalls($, ui, e.props.calls, width)
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
@@ -171,7 +341,7 @@ export async function drawTurnReceipt(
   width: number
 ): Promise<RenderElement | undefined> {
   const receipt = (await readReceipts($)).findLast(r => r.turn === turn)
-  const fallback = isFallbackRow(e.requestId) && receipt !== undefined ? { capsules: capsulesIn(receipt.turnNo) } : undefined
+  const fallback = isFallbackRow(e) && receipt !== undefined ? { capsules: await capsuleCount($, turn) } : undefined
   const rows = receipt === undefined ? [] : receiptRows(receipt, width, fallback)
 
   if (rows.length === 0) return undefined
@@ -258,6 +428,7 @@ export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'te
  * Cockpit's part of a block of Claude's text that stays, in fallback: the capsule that opens it (E.3 case 1).
  * @param $ the engine interface
  * @param e the block's render
+ * @param key the block's key in the flow, if it has a place there
  * @param turn the engine turn the block belongs to, if known
  * @param width the transcript rule's width
  * @returns the capsule's row, and whether it comes right after an event row (no blank row above it then, C.2)
@@ -265,10 +436,11 @@ export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'te
 export async function drawAnswerCapsule(
   $: EngineInterface,
   e: RenderInput<'AssistantMessage', 'terminal'>,
+  key: string | undefined,
   turn: string | null | undefined,
   width: number
 ): Promise<{ capsule: RenderElement | undefined; isAfterEvent: boolean }> {
-  return isFallbackRow(e.requestId) ? drawBlockCapsule($, $.ui.resolve(e), e.requestId, turn, width) : { capsule: undefined, isAfterEvent: false }
+  return isFallbackRow(e) ? drawBlockCapsule($, $.ui.resolve(e), key, turn, width) : { capsule: undefined, isAfterEvent: false }
 }
 
 /**
@@ -283,16 +455,17 @@ export async function drawAnswerCapsule(
 export async function drawQuietFooter($: EngineInterface, e: RenderInput<'TurnDuration', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
   const { Box } = ui
-
-  if (!isFallbackRow(e.requestId)) return <Box />
-
+  // Claimed at its first draw, docked or not, so the footer still knows its turn when a resize redraws it in fallback.
   const turn = claimFooter(e.requestId, (await readLog($)).turn)
+
+  if (!isFallbackRow(e)) return <Box />
+
   const receipt = turn === null ? undefined : (await readReceipts($)).findLast(r => r.turn === turn)
 
   if (turn === null || receipt === undefined || receipt.answer !== '') return <Box />
 
-  const capsule = await footerCapsule($, e.requestId, turn, width)
-  const rows = receiptRows(receipt, width, { capsules: capsulesIn(receipt.turnNo) })
+  const capsule = await footerCapsule($, turn, width)
+  const rows = receiptRows(receipt, width, { capsules: await capsuleCount($, turn) })
 
   return (
     <Box flexDirection="column" marginTop={1}>
@@ -312,7 +485,7 @@ export async function drawQuietFooter($: EngineInterface, e: RenderInput<'TurnDu
 export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMessage', 'terminal'>, width: number): Promise<RenderElement> {
   const ui = $.ui.resolve(e)
   const task = e.props.origin.kind === 'task-notification' ? e.props.task : undefined
-  const failed = isFallbackRow(e.requestId) && task !== undefined ? await drawAgentFailure($, ui, e.requestId, task, width) : undefined
+  const failed = isFallbackRow(e) && task !== undefined ? await drawAgentFailure($, ui, task, width) : undefined
 
   return failed ?? <ui.Box />
 }

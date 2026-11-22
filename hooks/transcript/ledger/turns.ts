@@ -3,21 +3,11 @@
 import type { On } from 'claude-code'
 
 import { logMode, logTurnEnd, logTurnStart } from '../../cockpit/log'
+import { readFlow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
 import { answerRowOf, sessionCwd } from './session'
-import {
-  keepPrompts,
-  readFlow,
-  readTally,
-  updateAwaitingFirst,
-  updateCaps,
-  updateCloses,
-  updatePrompts,
-  updateStreaming,
-  updateTally,
-  updateTurn
-} from './state'
+import { keepPrompts, readTally, updateAwaitingFirst, updateCaps, updateCloses, updatePrompts, updateStreaming, updateTally, updateTurn } from './state'
 
 // The stamp of the prompt submitted last: its turn rule is the next one the engine draws.
 let lastSubmitted: number | undefined
