@@ -203,3 +203,47 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
   expect(rows.some(r => /a\.txt|notes\.txt/.test(r))).toBe(false)
   expect(said.filter(t => /git|unreadable/.test(t))).toEqual([])
 })
+
+test('an agent`s edit and fetch reach FILES and SOURCES marked ◇, never the main loop`s steps; its diff starts before its call', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
+  let content = 'old line\nkept\n'
+  on('fs.read', () => ({ value: content }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Agent', 'c1', { description: 'Edit note', prompt: 'go', run_in_background: true })
+  await $.agent.spawn({
+    tool_use_id: 'c1',
+    prompt: 'go',
+    description: 'Edit note',
+    subagentType: 'general-purpose',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'haiku',
+    background: true,
+    fork: false
+  } as never)
+
+  const agent = { agentId: 'ag-Edit note' }
+  await call($, 'Edit', 'a1', { ...agent, file_path: '/repo/notes.md', old_string: 'old line', new_string: 'new line' })
+  content = 'new line\nkept\n'
+  await call($, 'WebFetch', 'a2', { ...agent, url: URLS[2], prompt: 'x' })
+  await call($, 'Edit', 'e1', { file_path: '/repo/notes.md', old_string: 'kept', new_string: 'kept too' })
+  content = 'new line\nkept too\n'
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^◇ notes\.md +\+4 {4}−2$/))
+  expect(rows.some(r => /^ {2}notes\.md /.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^◇ · docs\.sigstore\.dev .* 404$/))
+  // The main loop's steps: the launch and its own edit; the agent's fetch failed in its own log, not here.
+  expect(rows.filter(r => /^[ ▸✕] (agent|edit|fetch) /.test(r)).map(r => r.slice(2, 8))).toEqual(['agent ', 'edit  '])
+  expect(rows.some(r => /still failing|failed/.test(r))).toBe(false)
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'file:notes.md' })
+  await ui.redraw()
+  const diff = (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => /^ {2}[−+ ]/.test(t) && !t.includes('\n'))
+  expect([...new Set(diff.map(r => r.trimEnd()))]).toEqual(['  −old line', '  −kept', '  +new line', '  +kept too'])
+  await ui.unmount()
+})

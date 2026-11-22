@@ -188,10 +188,12 @@ export type RosterAgent = {
 export type TodoItem = { id: string; text: string; state: 'pending' | 'in_progress' | 'completed' }
 
 /** One file the turn changed (spec E.42): its path from the project root, `new` or `del` (or ''), and its +/− lines. */
-export type FileChange = { path: string; tag: '' | 'new' | 'del'; adds: number; dels: number }
+/** `isAgent`: an agent changed it (phase 11), set once and never taken back. */
+export type FileChange = { path: string; tag: '' | 'new' | 'del'; adds: number; dels: number; isAgent?: true }
 
 /** One page the turn read (spec E.43): its URL, a title (the answer's link text, a search result's, or ''), and its HTTP status ('' unknown). */
-export type SourcePage = { url: string; title: string; status: string }
+/** `isAgent`: an agent read it (phase 11), set once and never taken back. */
+export type SourcePage = { url: string; title: string; status: string; isAgent?: true }
 
 /**
  * What a typed turn worked on, for `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]`: the session's to-do list (kept across

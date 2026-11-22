@@ -97,3 +97,19 @@ test('shell writes: from the working copy`s diff between steps (a new file, an a
   expect(writeTargets('Set-Content -Path notes.md "x"; "y" | Out-File log.txt')).toEqual(['notes.md', 'log.txt'])
   expect(filesFromCommand([], `printf 'x' >> "$PWD/notes3.txt"`, '/repo')).toEqual([{ path: 'notes3.txt', tag: '', adds: 0, dels: 0 }])
 })
+
+test('an agent`s edit joins the list marked ◇ at column 0, once: the main loop`s edit of the same file sums into its row', () => {
+  const patch = { structuredPatch: [{ lines: ['+a', '-b'] }] }
+  let files = noteFiles([], 'Edit', { file_path: '/repo/a.ts' }, patch, '/repo', true)
+  files = noteFiles(files, 'Edit', { file_path: '/repo/a.ts' }, patch, '/repo')
+  files = noteFiles(files, 'Edit', { file_path: '/repo/b.ts' }, patch, '/repo')
+  expect(files).toEqual([
+    { path: 'a.ts', tag: '', adds: 2, dels: 2, isAgent: true },
+    { path: 'b.ts', tag: '', adds: 1, dels: 1 }
+  ])
+
+  const rows = fileRows(files, W, 4).map(line)
+  expect(rows[1]).toMatch(/^◇ a\.ts +\+2 +−2$/)
+  expect(rows[2]).toMatch(/^ {2}b\.ts +\+1 +−1$/)
+  expect(rows.every(r => vw(r) === W)).toBe(true)
+})

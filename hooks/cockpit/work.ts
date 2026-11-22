@@ -136,14 +136,21 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
  * @param cwd the session's folder
  * @returns how it changes the files list, applied when the list is written
  */
-async function shellFiles($: EngineInterface, command: string, cwd: string | undefined): Promise<(files: readonly FileChange[]) => FileChange[]> {
+async function shellFiles(
+  $: EngineInterface,
+  command: string,
+  cwd: string | undefined,
+  isAgent: boolean
+): Promise<(files: readonly FileChange[]) => FileChange[]> {
   const before = lastDiff
   const now = await diffNow($, cwd)
   lastDiff = now?.files
 
+  // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
+  // main loop's may take the other's mark (`◇`); the rows and counts are the same either way.
   return now !== undefined && before !== undefined
-    ? files => filesFromDiff(files, before, now.files, now.root, cwd)
-    : files => filesFromCommand(files, command, cwd)
+    ? files => filesFromDiff(files, before, now.files, now.root, cwd, isAgent)
+    : files => filesFromCommand(files, command, cwd, isAgent)
 }
 
 /**
@@ -171,27 +178,28 @@ export async function startWork($: EngineInterface, cwd?: string): Promise<void>
  * @param input the call's input
  * @param outcome what the call came back with
  * @param cwd the session's folder, for paths from the project root
+ * @param isAgent whether the call was an agent's own: its files and pages are marked `◇`, and its to-dos are its own
  */
-export async function noteWork($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined): Promise<void> {
+export async function noteWork($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent = false): Promise<void> {
   lastCwd = cwd ?? lastCwd
   const isOk = outcome.isError !== true && outcome.deny === undefined
   const isShell = tool === 'Bash' || tool === 'PowerShell'
   const command = typeof input === 'object' && input !== null && 'command' in input && typeof input.command === 'string' ? input.command : ''
   // A shell step that failed may still have written: its diff counts. Its own `rm` targets come last, so `del` stands.
-  const shell = isShell && outcome.deny === undefined ? await shellFiles($, command, cwd) : undefined
+  const shell = isShell && outcome.deny === undefined ? await shellFiles($, command, cwd, isAgent) : undefined
 
   if (isOk && EDITS.has(tool)) lastDiff = (await diffNow($, cwd))?.files
 
   await update($, work, w => {
-    const todo = isOk ? noteTodo({ items: w.todo, isRevised: w.isRevised }, tool, input, outcome.result) : { items: w.todo, isRevised: w.isRevised }
+    const todo = isOk && !isAgent ? noteTodo({ items: w.todo, isRevised: w.isRevised }, tool, input, outcome.result) : { items: w.todo, isRevised: w.isRevised }
     const files = shell === undefined ? w.files : shell(w.files)
 
     return {
       ...w,
       todo: todo.items,
       isRevised: todo.isRevised,
-      files: isOk ? noteFiles(files, tool, input, outcome.result, cwd) : files,
-      sources: outcome.deny === undefined ? noteSources(w.sources, tool, input, outcome) : w.sources
+      files: isOk ? noteFiles(files, tool, input, outcome.result, cwd, isAgent) : files,
+      sources: outcome.deny === undefined ? noteSources(w.sources, tool, input, outcome, isAgent) : w.sources
     }
   })
 }

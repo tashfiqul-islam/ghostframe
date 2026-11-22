@@ -36,7 +36,9 @@ function add(pages: readonly SourcePage[], page: SourcePage): SourcePage[] {
 
   if (had === undefined) return [...pages, page]
 
-  return pages.with(at, { ...had, status: page.status.length > 0 ? page.status : had.status, title: had.title.length > 0 ? had.title : page.title })
+  const by = had.isAgent === true || page.isAgent === true ? { isAgent: true as const } : {}
+
+  return pages.with(at, { ...had, status: page.status.length > 0 ? page.status : had.status, title: had.title.length > 0 ? had.title : page.title, ...by })
 }
 
 /**
@@ -46,13 +48,15 @@ function add(pages: readonly SourcePage[], page: SourcePage): SourcePage[] {
  * @param tool the call's tool
  * @param input the call's input
  * @param outcome what the call came back with
+ * @param isAgent whether the call was an agent's own (its page is marked `◇`)
  * @returns the pages after it
  */
 export function noteSources(
   pages: readonly SourcePage[],
   tool: string,
   input: unknown,
-  outcome: { result?: unknown; text?: string | undefined; isError?: true | undefined }
+  outcome: { result?: unknown; text?: string | undefined; isError?: true | undefined },
+  isAgent = false
 ): SourcePage[] {
   const o = obj(outcome.result)
 
@@ -65,7 +69,7 @@ export function noteSources(
     const said = /\b([1-5]\d\d)\b/.exec(outcome.text ?? '')?.[1]
     const status = code !== undefined ? String(code) : outcome.isError === true ? (said ?? 'failed') : ''
 
-    return add(pages, { url, title: '', status })
+    return add(pages, { url, title: '', status, ...(isAgent ? { isAgent: true as const } : {}) })
   }
 
   if (tool === 'WebSearch') {
@@ -112,7 +116,7 @@ function pageRow(page: SourcePage, mark: number, title: string, width: number): 
   const status = page.status
   const right: Part = isOk(status) ? { t: status, color: C.dim } : { t: status, color: C.err, bold: true }
   const left: Part[] = [
-    { t: '  ', color: C.muted },
+    { t: page.isAgent === true ? '◇ ' : '  ', color: C.dim },
     mark > 0 ? { t: sup(mark), color: C.link } : { t: '·', color: C.dim },
     { t: ' ', color: C.muted },
     { t: hostOf(page.url), color: C.web },

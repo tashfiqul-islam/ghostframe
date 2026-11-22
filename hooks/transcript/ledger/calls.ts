@@ -84,7 +84,7 @@ export function registerCalls(on: On): void {
         return done
       } finally {
         try {
-          await logAgentStepEnd($, agentId, e, done)
+          await logAgentStepEnd($, agentId, e, done, sessionCwd())
         } catch (error: unknown) {
           $.ui.log(`cockpit: agent step failed: ${String(error)}`)
         }

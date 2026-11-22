@@ -68,3 +68,23 @@ test('once the turn ends: the cited pages first, with the answer`s marks in its 
   expect(sourceRows(research(), CITED, false, W, 3).map(line).at(-1)?.trimEnd()).toBe('  … 6 more')
   expect(sourceRows(research(), CITED, false, 40, 8).map(line)[1]).toBe('  ¹ docs.github.com                  200')
 })
+
+test('an agent`s fetch joins the pages marked ◇ at column 0; a failed one keeps its status in err', () => {
+  let pages = noteSources([], 'WebFetch', { url: 'https://example.com/a' }, { result: { url: 'https://example.com/a', code: 200 }, text: 'ok' }, true)
+  pages = noteSources(
+    pages,
+    'WebFetch',
+    { url: 'https://example.com/b' },
+    { result: 'Request failed with status code 404', isError: true, text: 'Request failed with status code 404' },
+    true
+  )
+  pages = noteSources(pages, 'WebFetch', { url: 'https://example.com/a' }, { result: { url: 'https://example.com/a', code: 200 }, text: 'ok' })
+  expect(pages).toEqual([
+    { url: 'https://example.com/a', title: '', status: '200', isAgent: true },
+    { url: 'https://example.com/b', title: '', status: '404', isAgent: true }
+  ])
+
+  const rows = sourceRows(pages, [], true, W, 4)
+  expect(rows.slice(1).map(line)).toEqual([expect.stringMatching(/^◇ · example\.com +a +200$/), expect.stringMatching(/^◇ · example\.com +b +404$/)])
+  expect(rows[2]?.at(-1)).toMatchObject({ t: '404', color: C.err, bold: true })
+})

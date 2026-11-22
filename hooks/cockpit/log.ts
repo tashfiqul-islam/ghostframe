@@ -323,22 +323,30 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   if (!isOn()) return
 
   const at = await $.clock.now()
+  lastCwd = cwd ?? lastCwd
+  // A file's diff is the whole turn's change: an agent's call reads it first too (amendment 8).
+  await snapshotBefore($, e.tool, e, cwd)
   await update($, roster, list => (list.some(a => a.id === id) ? agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id) : list))
+  await noteStart($, e.tool_use_id, e.tool, e, at)
 }
 
 /**
- * An agent's own call ended: its row in the agent's own log settles.
+ * An agent's own call ended: its row in the agent's own log settles, its detail is kept, and its files and pages join
+ * the turn's, marked as the agent's. Nothing reaches the main loop's steps.
  * @param $ the engine interface
  * @param id the agent's id
  * @param e the call
  * @param outcome what `next(e)` resolved to; undefined when it threw
+ * @param cwd the session's folder, for paths from the project root
  */
-export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCallInput, outcome: Outcome | undefined): Promise<void> {
+export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCallInput, outcome: Outcome | undefined, cwd?: string): Promise<void> {
   if (!isOn()) return
 
   const at = await $.clock.now()
   const ran = outcome ?? { isError: true as const, text: 'failed' }
+  await noteEnd($, e.tool_use_id, e, ran, at)
   await update($, roster, list => agentStepEnd(list, id, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
+  await noteWork($, e.tool, e, ran, cwd, true)
 }
 
 /**
