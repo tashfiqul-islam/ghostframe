@@ -29,7 +29,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/fallback/`: the left with no pane docked (E.3, E.5, E.33, E.46): the capsule and where each stretch of
   work ends (worked out from the turn's flow and steps at every draw, amendment 10), failure rows, the whole live
   area, and the inline inspector `/steps` opens.
-- `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
+- `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line, the
+  turn rule Cockpit's prompts open with (E.1).
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
 - `transcript/blocks/`: splitting a reply into blocks: headings, lists, fences.
 - `transcript/table/`: Markdown tables: parse, column layout, cells.
@@ -63,13 +64,13 @@ and that every folder under `hooks/` is named here. Run it with `bun run --cwd t
 transcript's ledger owns the engine events and calls the cockpit's log functions where the cockpit needs the main
 loop. Render sites are hooked by the folder that draws them.
 
-| Folder                    | Engine events                                                                                                                                          | Render sites                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `cockpit/`                | `command.run` (`/cockpit`, `/steps`), `ui.close`, `ui.focus`, `agent.spawn`, `agent.report`                                                            | `Pane`, `PromptHint`                                                                               |
-| `transcript/ledger/`      | `session.start`, `session.append`, `turn.start`, `turn.step`, `turn.complete`, `prompt.submit`, `tool.call`, `tool.check`, `skill.prompt`, `classic.*` |                                                                                                    |
-| `transcript/sites/`       |                                                                                                                                                        | `UserMessage`, `SessionMode`, `TurnDuration`, `Spinner`, `CommandOutput`, `InfoNotice`, `AgentRow` |
-| `transcript/sites/reply/` |                                                                                                                                                        | `AssistantMessage`                                                                                 |
-| `transcript/sites/tools/` |                                                                                                                                                        | `ToolUse`, `ToolGroup`, `ToolResult`                                                               |
+| Folder                    | Engine events                                                                                                                                                             | Render sites                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `cockpit/`                | `command.run` (`/cockpit`, `/steps`), `ui.close`, `ui.focus`, `agent.spawn`, `agent.report`                                                                               | `Pane`, `PromptHint`                                                                               |
+| `transcript/ledger/`      | `session.start`, `session.append`, `session.compact`, `turn.start`, `turn.step`, `turn.complete`, `prompt.submit`, `tool.call`, `tool.check`, `skill.prompt`, `classic.*` |                                                                                                    |
+| `transcript/sites/`       |                                                                                                                                                                           | `UserMessage`, `SessionMode`, `TurnDuration`, `Spinner`, `CommandOutput`, `InfoNotice`, `AgentRow` |
+| `transcript/sites/reply/` |                                                                                                                                                                           | `AssistantMessage`                                                                                 |
+| `transcript/sites/tools/` |                                                                                                                                                                           | `ToolUse`, `ToolGroup`, `ToolResult`                                                               |
 
 While the cockpit is on, `Spinner`, `ToolGroup`, `ToolUse`, `TurnDuration`, `UserMessage` and `AssistantMessage` ask
 `cockpit/left` first: the quiet left, docked or in fallback (no pane docked: a capsule per stretch of work, a row per
