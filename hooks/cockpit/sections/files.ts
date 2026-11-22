@@ -8,6 +8,8 @@ import type { Part } from '../../shared/parts'
 import { vw } from '../../shared/text'
 import { C } from '../../shared/tokens'
 import { clipPath, relPath } from '../../shared/url'
+import { partsOf, plain } from '../line'
+import type { Line } from '../line'
 import { sectionLabel } from '../steps/rows'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
@@ -179,6 +181,18 @@ const sum = (files: readonly FileChange[]) => files.reduce((n, f) => ({ adds: n.
  * @returns one Part list per row; none when the turn changed no file
  */
 export function fileRows(files: readonly FileChange[], width: number, cap: number, isLabel = false): Part[][] {
+  return partsOf(fileLines(files, width, cap, isLabel))
+}
+
+/**
+ * `[ FILES ]` as `fileRows` fits it, each file's row under its id (`file:<path>`) so the pane can open its diff.
+ * @param files the files, in order of first change
+ * @param width the pane's body columns
+ * @param cap the rows; `Infinity` for every file (`f`)
+ * @param isLabel only the label fits
+ * @returns the rows
+ */
+export function fileLines(files: readonly FileChange[], width: number, cap: number, isLabel = false): Line[] {
   if (files.length === 0) return []
 
   const total = sum(files)
@@ -203,12 +217,14 @@ export function fileRows(files: readonly FileChange[], width: number, cap: numbe
     width
   )
 
-  if (isLabel) return [label]
-  if (files.length <= cap) return [label, ...files.map(f => fileRow(f, width))]
+  const line = (f: FileChange): Line => ({ parts: fileRow(f, width), id: `file:${f.path}` })
+
+  if (isLabel) return [plain(label)]
+  if (files.length <= cap) return [plain(label), ...files.map(line)]
 
   const keep = files.slice(0, cap - 1)
   const rest = sum(files.slice(cap - 1))
   const more = `  … ${files.length - keep.length} more files · +${rest.adds} −${rest.dels}`
 
-  return [label, ...keep.map(f => fileRow(f, width)), [{ t: more + spaces(width - vw(more)), color: C.dim }]]
+  return [plain(label), ...keep.map(line), plain([{ t: more + spaces(width - vw(more)), color: C.dim }])]
 }

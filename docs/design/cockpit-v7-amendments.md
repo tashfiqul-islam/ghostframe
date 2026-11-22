@@ -50,6 +50,16 @@ Owner, 2026-11-22, from the phase 6 screen check: a 404 made the turn `failed` a
 - `still failing` stays for tests, builds, commands, edits and agents: every other kind.
 - Replaces: the parts of E.5 and E.32 that count any `✕` step as a failure of the turn.
 
+### 7. The keys the focused pane gets, and the ones the engine keeps
+
+From the phase 7 probe (see the feasibility report). E.44's own keys hold: a single lowercase letter or digit is a `hotkey` Button and fires only while the pane holds the keyboard, never from the prompt. The engine keeps every other key, and none of these reaches Cockpit as a key:
+
+- Tab and Shift+Tab move the focus ring through the pane's Buttons (Cockpit hears `ui.focus`); the arrows, the page keys, Home and End scroll the pane (`ui.scroll`).
+- Enter presses the Button under the ring: Cockpit's openable rows are Buttons, so Enter opens the row, but there is no Enter key to bind.
+- Escape returns the keyboard to the prompt; Cockpit sees only that the pane is no longer focused. So Escape cannot close a view and leave the pane focused: an unfocused pane is always the fitted layout, and `b` is the way back that keeps the keyboard.
+- ctrl+x tab focuses the pane and ctrl+x x closes it.
+- Replaces: E.44's "Escape, or `s` again, returns to the fitted layout" (Escape also returns the keyboard), and E.44's step detail `r` key, which is not built: `c` copies a detail's command.
+
 ## Corrections from the probes (facts, 2026-11-21)
 
 Observed in a real fullscreen session at 200 × 50, Claude Code 2.1.329. Each replaces a statement in the spec. Evidence is in [cockpit-v7-feasibility.md](cockpit-v7-feasibility.md).

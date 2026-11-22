@@ -26,6 +26,8 @@ const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 // starts from a fresh diff, listing nothing it changed before. Move them to $.state if that matters.
 /** The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). */
 let copy: { root: string } | null | undefined
+/** The session's folder, as the last turn or call gave it: where a file's diff is read (`workDiff`). */
+let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
 let lastDiff: Counted[] | undefined
 
@@ -125,6 +127,7 @@ async function shellFiles($: EngineInterface, command: string, cwd: string | und
  * @param cwd the session's folder
  */
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
+  lastCwd = cwd ?? lastCwd
   lastDiff = (await diffNow($, cwd))?.files
   await update($, work, w => {
     const todo = startTodo({ items: w.todo, isRevised: w.isRevised })
@@ -143,6 +146,7 @@ export async function startWork($: EngineInterface, cwd?: string): Promise<void>
  * @param cwd the session's folder, for paths from the project root
  */
 export async function noteWork($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined): Promise<void> {
+  lastCwd = cwd ?? lastCwd
   const isOk = outcome.isError !== true && outcome.deny === undefined
   const isShell = tool === 'Bash' || tool === 'PowerShell'
   const command = typeof input === 'object' && input !== null && 'command' in input && typeof input.command === 'string' ? input.command : ''
@@ -172,6 +176,38 @@ export async function noteWork($: EngineInterface, tool: string, input: unknown,
  */
 export async function noteCited($: EngineInterface, cited: readonly { url: string; title: string }[]): Promise<void> {
   await update($, work, w => ({ ...w, cited: cited.map(c => ({ url: c.url, title: c.title })) }))
+}
+
+const DIFF_MAX = 400 // diff rows a file's diff view keeps
+
+/**
+ * One file's diff against HEAD as unified rows from its first `@@`, for a FILES row no Write or Edit patch covers (a
+ * shell wrote it): `git diff HEAD -- <path>`, or a new file's content as `+` rows. Asked when the row is opened.
+ * @param $ the engine interface
+ * @param path the file, from the session's folder
+ * @returns the rows; none where Git and the file give nothing
+ */
+export async function workDiff($: EngineInterface, path: string): Promise<string[]> {
+  const cwd = lastCwd
+
+  if (cwd === undefined) return []
+
+  try {
+    const diff = await $.process.run(['git', 'diff', 'HEAD', '--', path], { cwd })
+    const rows = diff.exitCode === 0 ? diff.stdout.split('\n') : []
+    const from = rows.findIndex(r => r.startsWith('@@'))
+
+    if (from >= 0) return rows.slice(from, from + DIFF_MAX).filter((r, i, all) => i < all.length - 1 || r.length > 0)
+
+    const text = await $.fs.read(`${cwd}/${path}`)
+    const lines = text.replace(/\n$/, '').split('\n')
+
+    return [`@@ -0,0 +1,${lines.length} @@`, ...lines.map(l => `+${l}`)].slice(0, DIFF_MAX)
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`)
+
+    return []
+  }
 }
 
 /**

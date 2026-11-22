@@ -177,6 +177,24 @@ export type TurnWork = {
   cited: { url: string; title: string }[]
 }
 
+/**
+ * What a step's detail view (spec E.44, Enter) shows, kept apart from the step log: the call's full command or
+ * subject, when it started (wall clock, ms) and how long it ran (null while running), whether it failed, its output
+ * (its line count and an excerpt: the first rows of a success, the last of a failure), and, for an edit or a write,
+ * its patch as unified lines (`@@` headers, `+`, `-` and ` ` rows).
+ */
+export type StepDetail = {
+  id: string
+  tool: string
+  command: string
+  startAt: number
+  ms: number | null
+  isFailed: boolean
+  lines: number
+  excerpt: string[]
+  patch: string[]
+}
+
 declare module 'claude-code' {
   interface PluginState {
     ghostframe: {
@@ -201,6 +219,8 @@ declare module 'claude-code' {
       receipts: Shaped<Receipt[]>
       roster: Shaped<RosterAgent[]>
       work: Shaped<TurnWork>
+      details: Shaped<StepDetail[]>
+      viewTick: Shaped<number>
     }
   }
 }
