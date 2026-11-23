@@ -2,7 +2,7 @@
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
 import type { On } from 'claude-code'
 
-import { readEnvOnce } from '../../../cockpit/switch'
+import { isOn, readEnvOnce } from '../../../cockpit/switch'
 import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow, leftCells } from '../../../cockpit/left'
 import { layout } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
@@ -41,6 +41,10 @@ export function registerReply(on: On): void {
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
+
+    // A summary of Claude's thinking between calls is narration: with Cockpit on it draws nothing, docked or in
+    // fallback (7.4); the pane's head carries what Claude is doing.
+    if (isOn() && e.props.isSummary === true) return $.ui.resolve(e).Box({})
 
     const lay = layout(e.viewport?.columns)
 
