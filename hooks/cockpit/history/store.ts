@@ -200,14 +200,18 @@ async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<Tu
 }
 
 /**
- * A typed turn's engine turn ended: its record is kept, in the session's state and in the store, under the budget.
- * A store that refuses the write is read again, all of it, and the plan made afresh, once.
+ * A typed turn's engine turn ended: its record is kept, in the session's state first, then in the store, under the
+ * budget. A store that refuses the write is read again, all of it, and the plan made afresh, once.
  * @param $ the engine interface
  * @param parts what the record is built from
  */
 export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<void> {
   const record = recordOf(parts)
   const all = withRecord(await read($, history), record)
+
+  // The session keeps the turn whether or not the store takes it: the pane's pins and fallback's redraw of a past
+  // turn (13.1) read it. A refused write costs the turn its place after a resume, never the session's copy.
+  await update($, history, () => all)
   let kept: TurnRecord[]
 
   try {

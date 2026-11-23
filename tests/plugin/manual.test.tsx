@@ -2,7 +2,8 @@ import { expect, test } from 'claude-code/testing'
 
 import { ON, PANE, T0 } from '../support/cockpit'
 import type { Engine } from '../support/engine'
-import { liveEngine, liveTurn, MANUAL } from '../support/live'
+import { groupOf, rowsOf, site } from '../support/fallback'
+import { blockRow, blocksOf, liveEngine, liveTurn, MANUAL } from '../support/live'
 
 // The person's own manual run (tests/fixtures/manual.ts), replayed: each test is something they saw on screen, at
 // 200 columns docked (127 for the transcript beside the 72-column pane) or at 100 in fallback.
@@ -13,7 +14,7 @@ async function manualSession($: Engine, on: Parameters<typeof liveEngine>[0], is
   const clock = { now: T0 }
   liveEngine(on, clock, isDocked, MANUAL)
   await $.session.start({ cwd: String.raw`D:\Projects\cockpit-live`, surface: 'terminal', isInteractive: true } as never)
-  if (isDocked) await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+  // The session's start seats the pane where it docks; its first draw places it.
   if (isDocked) await (await $.ui.mount(PANE)).unmount()
 
   return clock
@@ -129,3 +130,23 @@ test('4. turn 5`s Sources: `Test runner` for bun.sh, the fetch`s own title; the 
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}. example\.com {3}example\.com\/missing-page +404 *$/))
   expect(rows.some(r => /bun\.sh · test/.test(r))).toBe(false)
 })
+
+test(
+  '11. after /cockpit closes the pane two turns later, turn 2 redraws in fallback with its failure row, not just `◇ worked` and the receipt',
+  LONG,
+  async ($, on) => {
+    const clock = await manualSession($, on, true)
+    // As in the manual run: turns went on after turn 2 before the switch.
+    await turns($, clock, 4)
+    await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+    const c = MANUAL.turns[2]?.events.find(e => e.k === 'call' && JSON.stringify(e['input']).includes('bun test'))
+    const call = { id: String(c?.['id']), tool: String(c?.['tool']), input: c?.['input'] as Record<string, unknown> }
+    const rows = await rowsOf($, groupOf(call, 200, true))
+    const [answer] = blocksOf(2, 'text', MANUAL)
+    const left = await rowsOf($, site('AssistantMessage', blockRow(2, answer ?? '', MANUAL), 200, { text: answer, isFirstOfReply: true }))
+
+    expect(rows).toContainEqual(expect.stringMatching(/×  test bun test .*1 of 3 fail/))
+    expect(left.some(r => /◇  worked/.test(r))).toBe(true)
+    expect(left.at(-1)).toMatch(/×  FAILED/)
+  }
+)
