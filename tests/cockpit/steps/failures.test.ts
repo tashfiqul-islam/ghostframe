@@ -211,3 +211,10 @@ test('7. a commit step is named after its commit, its message`s first line, neve
   expect(subjectOf('Bash', { command: 'git add a.ts && git commit -q -m "fix: x" && git push' }, PROJECT)).toBe('git commit -q -m "fix: x"')
   expect(subjectOf('Bash', { command: 'git -C sub commit -am "wip"' }, PROJECT)).toBe('git -C sub commit -am "wip"')
 })
+
+test('6. kind, subject, result and key come from one statement: the test run, not the `git mv` before it (manual run, turn 7)', () => {
+  const command = 'git mv src/width.test.ts src/width.spec.ts; git status --short; bun test 2>&1 | Select-Object -Last 6'
+
+  expect(subjectOf('PowerShell', { command }, PROJECT)).toBe('bun test')
+  expect(pwsh(command, 'test')).toBe('bun · test ·')
+})

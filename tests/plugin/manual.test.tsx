@@ -55,3 +55,12 @@ test('7. turn 1: the commit step reads `git commit …` and the head summary `�
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 failure → fixed · ↗ 078b71c *$/))
   expect(rows.some(r => /git add|±/.test(r))).toBe(false)
 })
+
+test('6. turn 7: the failing step is `× test bun test … 3 of 3`, never `test git mv …`', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 7)
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}× test bun test .* 3 of 3 *$/))
+  expect(rows.some(r => /git mv/.test(r))).toBe(false)
+})
