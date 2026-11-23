@@ -32,7 +32,7 @@ test('section 2: the tokens, tints, pills and trace steps, with exactly the spec
   expect(TRACE_STEPS).toEqual(['#2E3A39', '#3B524F', '#496965', '#56817C', '#639992', '#71B0A8', '#7EC8BE'])
   expect(TRACE_STEPS.at(-1)).toBe(TOKEN.machine)
   expect(Object.keys(TINT)).toEqual(['addedLine', 'addedWord', 'removedLine', 'removedWord', 'errCard', 'zebra', 'drawer', 'selected', 'dividerFocused'])
-  expect(PILL).toEqual({ done: '#132019', live: '#2A1D15', failed: '#24141A', needsYou: '#241C12', plan: '#10201E', agent: '#1C1726' })
+  expect(PILL).toEqual({ done: '#132019', live: '#2A1D15', failed: '#24141A', needsYou: '#241C12', plan: '#10201E', agent: '#1C1726', interrupted: '#1A1A21' })
   for (const v of [...Object.values(TOKEN), ...Object.values(TINT), ...Object.values(PILL), ...TRACE_STEPS]) {
     expect(v).toMatch(/^#[0-9A-F]{6}$/)
   }

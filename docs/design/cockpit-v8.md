@@ -89,14 +89,15 @@ Trace steps, the braille trace's colour at each of its levels (0 is the lowest c
 
 Pill backgrounds, one per state:
 
-| Pill          | Background |
-| ------------- | ---------- |
-| `✓ DONE`      | `#132019`  |
-| `● LIVE`      | `#2A1D15`  |
-| `× FAILED`    | `#24141A`  |
-| `! NEEDS YOU` | `#241C12`  |
-| `◇ PLAN`      | `#10201E`  |
-| `◇ AGENT`     | `#1C1726`  |
+| Pill            | Background |
+| --------------- | ---------- |
+| `✓ DONE`        | `#132019`  |
+| `● LIVE`        | `#2A1D15`  |
+| `× FAILED`      | `#24141A`  |
+| `! NEEDS YOU`   | `#241C12`  |
+| `◇ PLAN`        | `#10201E`  |
+| `◇ AGENT`       | `#1C1726`  |
+| `◼ INTERRUPTED` | `#1A1A21`  |
 
 Use only the hexes in this section.
 
@@ -498,7 +499,7 @@ The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
 
 A `paneCard` card with half-block edges:
 
-1. **Pill and range.** A pill (glyph and state word, bold, in its colour, on its pill background from section 2, with `▐` `▌` half-cell ends): `✓ DONE`, `● LIVE`, `× FAILED`, `! NEEDS YOU`, `◇ PLAN`, `◇ AGENT`. Then `TURN n` and the time range at the right.
+1. **Pill and range.** A pill (glyph and state word, bold, in its colour, on its pill background from section 2, with `▐` `▌` half-cell ends): `✓ DONE`, `● LIVE`, `× FAILED`, `! NEEDS YOU`, `◇ PLAN`, `◇ AGENT`, `◼ INTERRUPTED` (muted, for a turn the person stopped: a failure in it never makes it FAILED). Then `TURN n` and the time range at the right.
 2. **Summary.** One sentence, `textBright`: what the turn did, or what it is doing now.
 3. **Sparkline.** The turn's activity, one cell per bucket, `machine`; failed buckets in `err`. It always shows the whole turn: steps are bucketed per column (screen 08).
 4. **Stats.** Steps, then the counts that apply (`1 fixed`, `2 still failing`, `1 open`, `1 waiting`, `1 blocked`, `3 agents`, `3 files`), 4 cells apart, in `dim` with the numbers in `text`; the duration at the right.

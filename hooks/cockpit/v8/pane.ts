@@ -101,7 +101,8 @@ const PILL_WORD: Record<PillState, [string, string, string]> = {
   failed: [GLYPH.fail, 'FAILED', TOKEN.err],
   needsYou: [GLYPH.needs, 'NEEDS YOU', TOKEN.warn],
   plan: [GLYPH.agent, 'PLAN', TOKEN.machine],
-  agent: [GLYPH.agent, 'AGENT', TOKEN.agent]
+  agent: [GLYPH.agent, 'AGENT', TOKEN.agent],
+  interrupted: [GLYPH.interrupted, 'INTERRUPTED', TOKEN.muted]
 }
 
 /** A state pill (8.2): the glyph and state word, bold, on the pill's background, with half-cell ends `▐` `▌`. */

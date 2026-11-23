@@ -46,7 +46,7 @@ export const TINT = {
 } as const
 
 /** A pill's state: the word it carries and the background it sits on (section 2). */
-export type PillState = 'done' | 'live' | 'failed' | 'needsYou' | 'plan' | 'agent'
+export type PillState = 'done' | 'live' | 'failed' | 'needsYou' | 'plan' | 'agent' | 'interrupted'
 
 /** The pill backgrounds, one per state (section 2). */
 export const PILL: Record<PillState, string> = {
@@ -55,5 +55,6 @@ export const PILL: Record<PillState, string> = {
   failed: '#24141A',
   needsYou: '#241C12',
   plan: '#10201E',
-  agent: '#1C1726'
+  agent: '#1C1726',
+  interrupted: '#1A1A21'
 }

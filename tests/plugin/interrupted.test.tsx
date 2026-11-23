@@ -54,8 +54,11 @@ for (const end of ['aborted', 'none'] as const) {
     const clock = { now: T0 }
     await docked($, on, clock)
     await turn($, clock, 11, end)
-    // Before turn 12 starts nothing says turn 11 was cut: no row is drawn that would have to change.
-    expect((await paneRows($)).some(r => r.includes('INTERRUPTED'))).toBe(false)
+    // Before turn 12 starts there is no line for turn 11 above the ruler. Ended aborted, turn 11's own head says
+    // ◼ INTERRUPTED; one that never ended is still the live turn.
+    const before = await paneRows($)
+    expect(before.some(r => CUT.test(r))).toBe(false)
+    if (end === 'aborted') expect(before).toContainEqual(expect.stringMatching(/^ {2}▐ ◼ INTERRUPTED ▌  TURN 11 /))
 
     clock.now += 30_000
     await turn($, clock, 12, 'done')

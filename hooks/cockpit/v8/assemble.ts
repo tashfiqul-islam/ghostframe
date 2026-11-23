@@ -56,6 +56,8 @@ type Shown = {
   startedAt: number | null
   durationMs: number
   isLive: boolean
+  /** The turn ended interrupted: its head says so, never FAILED (8.2). */
+  isCut: boolean
   files: TurnWork['files']
   sources: TurnWork['sources']
   cited: TurnWork['cited']
@@ -71,6 +73,7 @@ function shownOf(i: PaneInput): Shown {
       startedAt: p.startedAt,
       durationMs: p.durationMs,
       isLive: false,
+      isCut: p.last?.state === 'interrupted',
       files: p.files,
       sources: p.sources,
       cited: p.cited
@@ -86,6 +89,7 @@ function shownOf(i: PaneInput): Shown {
     startedAt: log.startedAt,
     durationMs,
     isLive,
+    isCut: !isLive && log.last?.state === 'interrupted',
     files: i.work.files,
     sources: i.work.sources,
     cited: i.work.cited
@@ -121,7 +125,18 @@ function headOf(i: PaneInput, shown: Shown): Head {
   const counts = failureCounts(steps)
   const asked = steps.some(s => s.isRunning && i.log.asking.includes(s.id))
   const planned = steps.some(s => s.kind === 'plan' && s.subject === 'plan for review')
-  const state: Head['state'] = shown.isLive ? (asked ? 'needsYou' : 'live') : counts.open.length > 0 ? 'failed' : planned ? 'plan' : 'done'
+  // An interrupted turn is that, whatever its steps said: a failure in it never makes its head FAILED (8.2).
+  const state: Head['state'] = shown.isLive
+    ? asked
+      ? 'needsYou'
+      : 'live'
+    : shown.isCut
+      ? 'interrupted'
+      : counts.open.length > 0
+        ? 'failed'
+        : planned
+          ? 'plan'
+          : 'done'
   const start = shown.startedAt ?? i.now
   const end = shown.isLive ? undefined : start + shown.durationMs
   const times = steps.map(s => s.clock)

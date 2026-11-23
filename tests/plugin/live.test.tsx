@@ -180,3 +180,13 @@ test('12, 17. the focused pane: no `1: 2: …` hotkey column; the hint row is th
   expect(lines[hint - 1]).toBe(' ')
   await pane.unmount()
 })
+
+test('16. turn 8, interrupted: the head`s pill is ◼ INTERRUPTED, never FAILED; its search is one row and fails nothing', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 8, 200)
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}▐ ◼ INTERRUPTED ▌  TURN 1 /))
+  expect(rows.some(r => /× FAILED/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ search "width\\\.test" .* no matches *$/))
+})
