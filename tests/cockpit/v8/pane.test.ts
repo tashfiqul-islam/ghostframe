@@ -92,3 +92,7 @@ test('8.3: folding from the top, never the live group or an open failure; the fo
   ])
   expect(shown(timelineRows(folded.slice(0, 1), 40_000, 72, true))[0]).toBe('  ┊ Earlier work               ╸                  ┊           214 steps')
 })
+
+test('8.3: a title drops the answer`s inline markers, as 7.4 does (live check, step 7)', () => {
+  expect(titleOf('Repo tiny: `src/width.ts` and one **test** file. Launching three audits.')).toBe('Repo tiny: src/width.ts and one test file')
+})

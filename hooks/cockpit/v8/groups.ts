@@ -13,10 +13,12 @@ export type TimedStep = { step: LogStep; start: number; end: number | undefined 
 /** A working sentence and the index of the first step after it. */
 export type Sentence = { text: string; at: number }
 
-/** A sentence as a group's title (8.3): its first sentence, without its closing stop. */
+/** A sentence as a group's title (8.3): its first sentence, without its closing stop or the inline markers 7.4 drops. */
 export function titleOf(text: string): string {
   const line =
     text
+      .replace(/`([^`\n]*)`/g, '$1')
+      .replace(/\*\*([^*\n]+)\*\*/g, '$1')
       .split('\n')
       .find(l => l.trim().length > 0)
       ?.trim() ?? ''
