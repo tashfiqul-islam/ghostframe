@@ -1,7 +1,7 @@
 // Under a standalone row (`ToolResult`): outcome cards, a new file's diff card, the plan line, the task list.
 import type { On } from 'claude-code'
 
-import { isUnfoldedResult } from '../../../cockpit/left'
+import { isQuietRow, isUnfoldedResult } from '../../../cockpit/left'
 import { mcpName } from '../../../shared/calls/describe'
 import { isObject } from '../../../shared/calls/fields'
 import { remember } from '../../../shared/held'
@@ -99,6 +99,10 @@ export function registerToolResult(on: On): void {
     if (e.surface !== 'terminal' || e.props.isExpanded || lay === undefined || width === undefined) {
       return next(quiet())
     }
+
+    // Cockpit on: the call's row is Cockpit's (a pane step, or fallback's failure rows), so its result row draws nothing;
+    // an outcome card here would sit off the spine, in the look Cockpit replaces.
+    if (isQuietRow(e)) return $.ui.resolve(e).Box({})
 
     const ui = $.ui.resolve(e)
     const { Box } = ui
