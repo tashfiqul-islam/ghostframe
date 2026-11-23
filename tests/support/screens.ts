@@ -1926,7 +1926,7 @@ const SCREENS: Record<string, string[][]> = {
       "  9 steps    6 files                                                38s",
       " ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
       "",
-      "  TURN 11   ◼ INTERRUPTED after 3 steps · 2 files renamed      11:02:05",
+      "  TURN 11   ◼ INTERRUPTED after 3 steps · 2 files changed      11:02:05",
       "",
       "                               11:02:41    11:03:19",
       "                               ┬────┬────┬────┬───┬",

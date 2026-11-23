@@ -94,6 +94,9 @@ export type LogStep = {
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
 export type LastTurn = { state: 'done' | 'failed' | 'interrupted'; story: string; wait: string; durationMs: number; endedAt: number | null }
 
+/** An interrupted turn as the next one's pane names it (screen 06). */
+export type CutTurn = { turnNo: number; steps: number; files: number; startedAt: number | null }
+
 /** The steps of the most recent earlier turn that had any, shown while a turn has none (`[ STEPS · TURN n ]`). */
 export type PrevSteps = { turnNo: number; steps: LogStep[]; dropped: number }
 
@@ -124,6 +127,12 @@ export type StepLog = {
   asking: string[]
   last: LastTurn | null
   prev: PrevSteps | null
+  /**
+   * The typed turn before this one, when it was interrupted (spec 8.3, screen 06): its number, its steps, the files it
+   * changed and its start (wall clock, ms). Known only once this turn starts: Esc sends nothing a row could draw
+   * from, and an interrupted turn raises no TurnDuration. Absent when the turn before ended as it should.
+   */
+  cut?: CutTurn
   /**
    * The files agents changed and the pages they read since the last receipt (phase 11, B3), as their steps' subjects:
    * the next receipt counts them beside the main loop's own, then they clear. Absent before phase 11.

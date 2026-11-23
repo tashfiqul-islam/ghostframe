@@ -13,7 +13,7 @@ import { foldGroups, groupsOf, paneResult } from './groups'
 import type { TimedStep } from './groups'
 import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from './pane'
 import type { AgentBar, Group, Head, Stat } from './pane'
-import { agentHead, agentsView, allStepsView, diffView, filesView, pinnedHead, sourcesView, todoView } from './views'
+import { agentHead, agentsView, allStepsView, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
 import type { StepRow } from './views'
 
 /** What the pane reads to draw (8). */
@@ -545,8 +545,22 @@ export function assemblePane(i: PaneInput): Pane {
             i.width
           )
         : headCard(headOf(i, shown), i.width)
+    // The turn before the live one, interrupted (screen 06): one line above the ruler, as long as this turn is shown.
+    const cut = i.pinned === undefined && i.viewed === undefined ? i.log.cut : undefined
+    const cutRows =
+      cut === undefined
+        ? []
+        : [
+            interruptedRow(
+              cut.turnNo,
+              `after ${count(cut.steps, 'step')}${cut.files > 0 ? ` · ${count(cut.files, 'file')} changed` : ''}`,
+              cut.startedAt === null ? '' : clockTime(cut.startedAt),
+              i.width
+            ),
+            []
+          ]
 
-    body = [...plainLines([...head, []]), ...timeline(i, shown, i.rows - 3 - head.length - 4)]
+    body = [...plainLines([...head, [], ...cutRows]), ...timeline(i, shown, i.rows - 3 - head.length - 4 - cutRows.length)]
   }
 
   const note: Part[] = i.note === undefined ? [] : [{ t: `  ${i.note}`, color: TOKEN.dim }]

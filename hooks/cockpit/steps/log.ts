@@ -21,6 +21,9 @@ export type StepEnd = StepStart & { outcome: Outcome; blockedBy?: string | undef
 // Move the log to $.store when history lands (phase 8).
 const STEPS_MAX = 5_000
 
+// The kinds whose steps change a file.
+const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
+
 /** An empty log for a turn that started at `startedAt`; unknown (null), the turn's first step starts its clock. */
 export function newLog(turn: string | null, startedAt: number | null): StepLog {
   return {
@@ -49,9 +52,20 @@ export function newLog(turn: string | null, startedAt: number | null): StepLog {
  */
 export function newTurn(log: StepLog, turn: string, startedAt: number | null): StepLog {
   const prev = log.steps.length > 0 ? { turnNo: log.turnNo, steps: log.steps, dropped: log.dropped } : log.prev
+  // The turn before was interrupted (screen 06): it ended aborted, or it never ended before this prompt came.
+  const isCut = log.turnNo > 0 && (log.last?.state === 'interrupted' || log.isTurnRunning)
+  const files = new Set(log.steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && s.state === undefined).map(s => s.subject))
+  const cut = isCut ? { cut: { turnNo: log.turnNo, steps: log.steps.length + log.dropped, files: files.size, startedAt: log.startedAt } } : {}
 
   // Agents' work no receipt has counted yet (a background agent's, between turns) goes to this turn's first receipt.
-  return { ...newLog(turn, startedAt), turnNo: log.turnNo + 1, isTurnRunning: true, prev, ...(log.agentWork === undefined ? {} : { agentWork: log.agentWork }) }
+  return {
+    ...newLog(turn, startedAt),
+    turnNo: log.turnNo + 1,
+    isTurnRunning: true,
+    prev,
+    ...cut,
+    ...(log.agentWork === undefined ? {} : { agentWork: log.agentWork })
+  }
 }
 
 /**
@@ -368,8 +382,6 @@ export function endTurn(log: StepLog, engineMs: number, isAborted = false, ended
 
   return { ...log, steps, segmentMs, workedMs, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
 }
-
-const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
 /** A page as a receipt counts it: the fetch's host and path, as `[ SOURCES ]` keeps one row per page. */
 const pageOf = (subject: string) => subject.toLowerCase().replace(/^www\./, '')

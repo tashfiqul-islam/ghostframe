@@ -131,7 +131,7 @@ test('9.4: a pinned turn under the live one on one line (screen 09); an interrup
   )
 
   expect(shown(rows)).toEqual(want('09'))
-  expect(shown([interruptedRow(11, 'after 3 steps · 2 files renamed', '11:02:05', P)])).toEqual([want('06')[10]])
+  expect(shown([interruptedRow(11, 'after 3 steps · 2 files changed', '11:02:05', P)])).toEqual([want('06')[10]])
 })
 
 test('8.5: the change bar is 5 cells, ok and err in proportion to the largest change, the rest dim', () => {

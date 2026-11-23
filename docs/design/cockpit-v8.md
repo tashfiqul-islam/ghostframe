@@ -496,7 +496,7 @@ A `paneCard` card with half-block edges:
 4. **Stats.** Steps, then the counts that apply (`1 fixed`, `2 still failing`, `1 open`, `1 waiting`, `1 blocked`, `3 agents`, `3 files`), 4 cells apart, in `dim` with the numbers in `text`; the duration at the right.
 
 - **Pinned** (screen 09): the live turn shrinks to one line on top, `● LIVE  TURN 8  running · 4 steps  2m 10s`, and the card below reads `PINNED  TURN 7`.
-- **An interrupted turn** before the shown one: one line under the card, `TURN 11   ◼ INTERRUPTED after 3 steps · 2 files renamed   11:02:05`.
+- **An interrupted turn** before the shown one: one line under the card, `TURN 11   ◼ INTERRUPTED after 3 steps · 2 files changed   11:02:05`, the clock its start. It draws once the next turn starts, from what the step log kept: the turn before ended aborted, or never ended before the next prompt. While the interrupted turn is the live one nothing draws, since Esc sends nothing a row could draw from.
 
 ### 8.3 The timeline
 
@@ -1216,7 +1216,7 @@ The pane (72 columns):
   9 steps    6 files                                                38s
  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
 
-  TURN 11   ◼ INTERRUPTED after 3 steps · 2 files renamed      11:02:05
+  TURN 11   ◼ INTERRUPTED after 3 steps · 2 files changed      11:02:05
 
                                11:02:41    11:03:19
                                ┬────┬────┬────┬───┬
@@ -3519,7 +3519,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **ctrl+o uses the narrow text column under 110 columns** (6.1) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
 - **No output frame in ctrl+o.** A step line carries its result word and, for an edit, its diff card (7.17); a command's output is in the step's detail in the pane, not repeated on the left.
 - **The Files tab opens no hunk in place.** Enter on a file opens the full diff view (8.7, screen 28); screen 23's hunk under a Files row is drawn by its renderer and tested, but the live pane goes to the full diff, since the pane draws whole rows and the engine gives no in-place expansion.
-- **No interrupted line in the live pane.** The `◼ interrupted` row has its renderer and test, but the engine sends no event between Esc and the turn's end that a pane row could draw from; the receipt's state says it once the turn ends.
+- **The interrupted line draws when the next turn starts** (8.3, screen 06). Esc sends no event a row could draw from, and an interrupted turn raises no TurnDuration; but when the next prompt starts a turn, the step log knows the one before ended aborted or never ended, and keeps its number, steps, files and start for the pane. Its summary says `n files changed`, not the canvas's `renamed`: the step log knows a file changed, not how.
 - **`/steps n all` prints at most 20 rows**, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
 - **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.
 - **The pinned head's state pill** is the live turn's (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
