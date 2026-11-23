@@ -5,7 +5,7 @@ import { num, obj, s } from '../calls/fields'
 import { patchCounts } from '../calls/results'
 import { isShipCommand, parseShip, shellText } from '../calls/ships'
 import { clean, parseTests } from '../calls/tests'
-import { vw } from '../text'
+import { widthOf } from './width'
 import { stripCd } from './command'
 import { changeCount, count } from './format'
 import { cutTitle } from './paths'
@@ -16,6 +16,9 @@ export const KIND_CELLS = 6
 export const RESULT_CELLS = 14
 
 const isShell = (tool: string) => tool === 'Bash' || tool === 'PowerShell'
+/** A shell call's whole command, every line of it: what a commit in a joined command or a here-string is found in. */
+export const wholeCommand = (input: unknown): string => s(obj(input)?.['command']) ?? ''
+
 /** A shell call's command: its first line, its `cd` prefix stripped (13.4). */
 export const commandOf = (input: unknown): string => stripCd((s(obj(input)?.['command']) ?? '').split('\n')[0]?.trim() ?? '').command
 
@@ -151,7 +154,7 @@ function shellWord(cmd: string, out: string): ResultWord | undefined {
     return word(text.length === 0 ? 'empty' : count(text.filter(l => !/^total \d+$/.test(l)).length, ['entry', 'entries']))
 
   // One short line of output is its own result: `bun --version` prints `1.4.4`.
-  if (text.length === 1 && vw(text[0] ?? '') <= RESULT_CELLS) return word(text[0] ?? '')
+  if (text.length === 1 && widthOf(text[0] ?? '') <= RESULT_CELLS) return word(text[0] ?? '')
 
   return undefined
 }

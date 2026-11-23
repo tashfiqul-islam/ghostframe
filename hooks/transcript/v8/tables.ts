@@ -4,7 +4,7 @@ import { bottomEdge, cardRow, PAD, topEdge } from '../../shared/look/card'
 import { count } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TINT, TOKEN } from '../../shared/look/palette'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 import { inline } from './inline'
 
 /** A pipe row's cells, trimmed; the outer pipes dropped. */
@@ -31,6 +31,9 @@ function cellParts(text: string): Part[] {
   return [{ t: `${isOk ? GLYPH.ok : GLYPH.fail} `, color: isOk ? TOKEN.ok : TOKEN.err }, ...inline(m[2] ?? '', TOKEN.text)]
 }
 
+/** The cells a cell's parts take once drawn. */
+const shownWidth = (parts: readonly Part[]) => parts.reduce((n, p) => n + widthOf(p.t), 0)
+
 /** A table row's colour (7.6): every second row on the zebra tint. */
 const zebra = (i: number) => (i % 2 === 0 ? TOKEN.code : TINT.zebra)
 
@@ -47,12 +50,15 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
   const rows = lines.slice(2).map(cellsOf)
   const inner = width - PAD * 2
   const cols = header.length
-  const widths = header.map((h, c) => Math.max(vw(h), ...rows.map(r => vw(r[c] ?? ''))))
+  // Cells are measured as drawn: a header's `code` and `**bold**` lose their markers like a body cell's do.
+  const headParts = header.map(h => inline(h, TOKEN.muted).map(p => ({ ...p, bold: true })))
+  const bodyParts = rows.map(r => header.map((_, c) => cellParts(r[c] ?? '')))
+  const widths = header.map((_, c) => Math.max(shownWidth(headParts[c] ?? []), ...bodyParts.map(r => shownWidth(r[c] ?? []))))
   const numeric = header.map((_, c) => rows.length > 0 && rows.every(r => NUMERIC.test(r[c] ?? '')))
   const boxes = widths.map((w, c) => (c === 0 ? Math.max(w + GAP, Math.ceil(inner / 3)) : c === cols - 1 ? w : w + GAP))
   const lay = (cells: readonly Part[][], color: string): Part[] =>
     cells.flatMap((parts, c) => {
-      const w = parts.reduce((n, p) => n + vw(p.t), 0)
+      const w = parts.reduce((n, p) => n + widthOf(p.t), 0)
       const box = boxes[c] ?? 0
       const content = c === cols - 1 ? box : c === 0 ? box : box - GAP
       const fill = { t: ' '.repeat(Math.max(0, content - w)), color }
@@ -60,24 +66,8 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
 
       return numeric[c] === true ? [fill, ...parts, ...gap] : [...parts, ...(c === cols - 1 ? [] : [fill]), ...gap]
     })
-  const head = cardRow(
-    lay(
-      header.map(h => [{ t: h, color: TOKEN.muted, bold: true }]),
-      TOKEN.muted
-    ),
-    TOKEN.codeHead,
-    width
-  )
-  const body = rows.map((r, i) =>
-    cardRow(
-      lay(
-        header.map((_, c) => cellParts(r[c] ?? '')),
-        TOKEN.text
-      ),
-      zebra(i),
-      width
-    )
-  )
+  const head = cardRow(lay(headParts, TOKEN.muted), TOKEN.codeHead, width)
+  const body = bodyParts.map((r, i) => cardRow(lay(r, TOKEN.text), zebra(i), width))
 
   return [topEdge(TOKEN.codeHead, width), head, topEdge(TOKEN.code, width, TOKEN.codeHead), ...body, bottomEdge(zebra(Math.max(0, rows.length - 1)), width)]
 }

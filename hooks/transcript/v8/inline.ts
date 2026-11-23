@@ -15,9 +15,10 @@ export function inline(text: string, color: string): Part[] {
     if (m.index > at) out.push({ t: text.slice(at, m.index), color })
 
     if (m[1] !== undefined) out.push({ t: m[1], color: TOKEN.textBright })
-    else if (m[2] !== undefined) out.push({ t: m[2], color, bold: true })
+    // Bold may hold code or a link (`**`https://…`**`): its inside is parsed too, then made bold.
+    else if (m[2] !== undefined) out.push(...inline(m[2], color).map(p => ({ ...p, bold: true })))
     else if (m[3] !== undefined) out.push({ t: `[${m[3]}]`, color: TOKEN.machine })
-    else out.push({ t: m[4] ?? '', color })
+    else out.push(...inline(m[4] ?? '', color))
 
     at = m.index + m[0].length
   }

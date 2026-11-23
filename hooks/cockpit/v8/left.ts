@@ -10,7 +10,7 @@ import { TINT, TOKEN } from '../../shared/look/palette'
 import { cutCommand, cutPath, cutTitle, cutUrl, splitPath } from '../../shared/look/paths'
 import { NO_LABEL, NO_SPINE, SPINE, spineRow } from '../../shared/look/spine'
 import { trace } from '../../shared/look/trace'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 import { moreParts } from './events'
 
 /** A receipt's or worked node's facts (7.12, 7.13), on the step log's one clock (13.9). */
@@ -56,10 +56,10 @@ function receiptFields(c: TurnCounts): [string, number][] {
 
 /** A node row: label, glyph, word, trace, counts; the counts drop by rank until the row fits. */
 function nodeRow(label: string, glyph: Part, word: Part, levels: readonly number[], fields: [string, number][], width: number): Part[] {
-  const lead = vw(word.t) + 3 + levels.length + 3
+  const lead = widthOf(word.t) + 3 + levels.length + 3
   let kept = fields
 
-  while (lead + vw(kept.map(([t]) => t).join(' · ')) > width && kept.some(([, r]) => r > 0)) {
+  while (lead + widthOf(kept.map(([t]) => t).join(' · ')) > width && kept.some(([, r]) => r > 0)) {
     const top = Math.max(...kept.map(([, r]) => r))
 
     kept = kept.filter(([, r]) => r !== top)
@@ -135,7 +135,7 @@ export function liveRows(live: Live, width: number): Part[][] {
     ...(live.agents > 0 ? [dim('   '), { t: GLYPH.agent.repeat(live.agents), color: TOKEN.agent }] : []),
     ...(live.steps > 0 ? [dim('   '), dim(count(live.steps, 'step'))] : [])
   ]
-  const room = width - tail.reduce((n, p) => n + vw(p.t), 0)
+  const room = width - tail.reduce((n, p) => n + widthOf(p.t), 0)
 
   return [
     spineRow(NO_LABEL, { t: GLYPH.folded, color: TOKEN.spine }, []),
@@ -156,7 +156,7 @@ export function liveRows(live: Live, width: number): Part[][] {
  * @returns the row
  */
 export function branchRow(kind: string, subject: string, state: string, isLast: boolean, width: number): Part[] {
-  const room = width - 2 - 7 - 3 - vw(state)
+  const room = width - 2 - 7 - 3 - widthOf(state)
 
   return spineRow(NO_LABEL, { t: isLast ? GLYPH.last : GLYPH.branch, color: TOKEN.spine }, [
     { t: `${GLYPH.current} `, color: TOKEN.accent },
@@ -213,15 +213,15 @@ export function subjectParts(kind: string, subject: string, cells: number): Part
  */
 export function stepLineRow(s: StepLine, width = 86): Part[] {
   const RESULT_END = width - TIME_CELLS
-  const room = RESULT_END - KIND_CELLS - vw(s.result) - 2
+  const room = RESULT_END - KIND_CELLS - widthOf(s.result) - 2
   const subject = subjectParts(s.kind, s.subject, room)
-  const used = KIND_CELLS + subject.reduce((n, p) => n + vw(p.t), 0)
+  const used = KIND_CELLS + subject.reduce((n, p) => n + widthOf(p.t), 0)
   const time = s.ms === undefined ? '' : duration(s.ms)
 
   return spineRow(NO_LABEL, NO_SPINE, [
     { t: s.kind.padEnd(KIND_CELLS), color: TOKEN.muted },
     ...subject,
-    dim(' '.repeat(Math.max(1, RESULT_END - used - vw(s.result)))),
+    dim(' '.repeat(Math.max(1, RESULT_END - used - widthOf(s.result)))),
     { t: s.result, color: TONE[s.tone] },
     { t: time.padStart(TIME_CELLS), color: TOKEN.machineDim }
   ])
@@ -270,7 +270,7 @@ export function failureCard(open: number, target: string, failures: readonly Car
     const line = /(:\d+(?::\d+)?)$/.exec(f.where)?.[1] ?? ''
     const where = f.where.slice(0, f.where.length - line.length)
     // The room left of the result (13.5): a test's path is cut from its middle folders, a step's command from its middle.
-    const room = width - 2 * PAD - vw(`${GLYPH.fail} `) - vw(line) - (f.said.length > 0 ? vw(f.said) + 1 : 0)
+    const room = width - 2 * PAD - widthOf(`${GLYPH.fail} `) - widthOf(line) - (f.said.length > 0 ? widthOf(f.said) + 1 : 0)
     const isPath = !/\s/.test(where)
     const { folder, file } = isPath ? splitPath(cutPath(where, room)) : { folder: '', file: cutCommand(where, room) }
 

@@ -5,7 +5,7 @@ import type { Part } from '../../shared/parts'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
 import { noteCard, tableCard } from './tables'
@@ -22,7 +22,7 @@ export function wrapParts(parts: readonly Part[], width: number): Part[][] {
   for (const w of words) {
     const bare = w.t.trimEnd()
 
-    if (used > 0 && used + vw(bare) > width) {
+    if (used > 0 && used + widthOf(bare) > width) {
       const row = rows.at(-1) ?? []
       const last = row.at(-1)
 
@@ -32,7 +32,7 @@ export function wrapParts(parts: readonly Part[], width: number): Part[][] {
     }
 
     rows.at(-1)?.push(w)
-    used += vw(w.t)
+    used += widthOf(w.t)
   }
 
   return rows.map(r => r.filter(p => p.t.length > 0))
@@ -150,14 +150,14 @@ export function answerRows(text: string, ctx: AnswerContext): Part[][] {
       const task = TASK.exec(item)
       const body = task === null ? inline(item, TOKEN.text) : [taskMark(task[1] ?? ' '), ...inline(item.slice(task[0].length), TOKEN.text)]
       const indent = depth * 5
-      const lead = vw(mark.t) + 2
+      const lead = widthOf(mark.t) + 2
       const rows = wrapParts(body, ctx.width - indent - lead)
 
       rows.forEach((r, k) =>
         out.push(
           onSpine([
             { t: ' '.repeat(indent), color: TOKEN.dim },
-            k === 0 ? mark : { t: ' '.repeat(vw(mark.t)), color: TOKEN.dim },
+            k === 0 ? mark : { t: ' '.repeat(widthOf(mark.t)), color: TOKEN.dim },
             { t: '  ', color: TOKEN.dim },
             ...r
           ])
@@ -254,7 +254,7 @@ export function footnoteRows(notes: readonly Footnote[], width: number): Part[][
     pair.forEach((f, j) => {
       const t = `[${f.n}] ${label(f)}`
 
-      if (j > 0) parts.push({ t: ' '.repeat(Math.max(3, FOOTNOTE_CELLS - vw(`[${pair[0]?.n ?? 0}] ${label(pair[0] ?? f)}`))), color: TOKEN.dim })
+      if (j > 0) parts.push({ t: ' '.repeat(Math.max(3, FOOTNOTE_CELLS - widthOf(`[${pair[0]?.n ?? 0}] ${label(pair[0] ?? f)}`))), color: TOKEN.dim })
       parts.push({ t: `[${f.n}]`, color: TOKEN.machine }, { t: t.slice(`[${f.n}]`.length), color: TOKEN.link })
     })
 
@@ -270,9 +270,9 @@ function fitWidth(parts: readonly Part[], width: number): Part[] {
   let used = 0
 
   for (const p of parts) {
-    if (used + vw(p.t) <= width) {
+    if (used + widthOf(p.t) <= width) {
       out.push(p)
-      used += vw(p.t)
+      used += widthOf(p.t)
     }
   }
 

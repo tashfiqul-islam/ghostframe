@@ -316,7 +316,15 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
-  const rows = [...shipEventRows(calls, id => steps.find(s => s.id === id)?.clock, width), ...refusalRows(steps, [p.tool_use_id], width)]
+  const rows = [
+    ...shipEventRows(
+      calls,
+      id => steps.find(s => s.id === id)?.clock,
+      width,
+      id => steps.find(s => s.id === id)?.commit
+    ),
+    ...refusalRows(steps, [p.tool_use_id], width)
+  ]
 
   return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }
@@ -449,7 +457,7 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
-  const rows = [...shipEventRows(e.props.calls, clockOf, width), ...refusalRows(steps, ids, width)]
+  const rows = [...shipEventRows(e.props.calls, clockOf, width, id => steps.find(s => s.id === id)?.commit), ...refusalRows(steps, ids, width)]
 
   return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }

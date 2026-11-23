@@ -9,7 +9,7 @@ import { cutTitle } from '../../shared/look/paths'
 import { NO_LABEL, SPINE, spineRow } from '../../shared/look/spine'
 import type { Label } from '../../shared/look/spine'
 import { wrapWords } from '../../shared/look/wrap'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 
 /** The gap between an event row's pieces (7.10). */
 const GAP = '   '
@@ -22,17 +22,17 @@ const word = (t: string, color: string): Part => ({ t, color, bold: true })
 
 /** Fits the detail into what the text column leaves after the lead, cut at its end. */
 function fitted(lead: readonly Part[], detail: readonly Part[], width: number): Part[] {
-  const room = width - lead.reduce((n, p) => n + vw(p.t), 0)
+  const room = width - lead.reduce((n, p) => n + widthOf(p.t), 0)
   const out: Part[] = []
   let used = 0
 
   for (const p of detail) {
     if (used >= room) break
 
-    const t = vw(p.t) <= room - used ? p.t : cutTitle(p.t, room - used)
+    const t = widthOf(p.t) <= room - used ? p.t : cutTitle(p.t, room - used)
 
     out.push({ ...p, t })
-    used += vw(t)
+    used += widthOf(t)
   }
 
   return [...lead, ...out]
@@ -94,7 +94,7 @@ export function failureRow(title: string, result: string, ms: number | undefined
     { t: result, color: TOKEN.err },
     ...(ms === undefined ? [] : [dim(GAP), { t: duration(ms), color: TOKEN.machineDim }])
   ]
-  const room = width - tail.reduce((n, p) => n + vw(p.t), 0)
+  const room = width - tail.reduce((n, p) => n + widthOf(p.t), 0)
 
   return spineRow(atLabel(at), glyph(GLYPH.fail, TOKEN.err), [{ t: cutTitle(title, Math.max(4, room)), color: TOKEN.text }, ...tail])
 }

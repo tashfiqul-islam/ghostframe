@@ -29,6 +29,8 @@ import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
+import { GIT_COMMIT } from '../shared/calls/describe'
+import { parseShip, shellText } from '../shared/calls/ships'
 import { isOn, noticeSink } from './switch'
 import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
 
@@ -184,7 +186,8 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
 export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: Outcome | undefined, at: number, cwd?: string): Promise<void> {
   if (!isOn()) return
 
-  const ran = outcome ?? { isError: true as const, text: 'failed' }
+  const got = outcome ?? { isError: true as const, text: 'failed' }
+  const ran = await withCommit($, e, got, cwd)
   const blockedBy = blocks.get(e.tool_use_id)
   blocks.delete(e.tool_use_id)
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
@@ -192,6 +195,35 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy }))
   await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
+}
+
+/**
+ * A `git commit` that succeeded but printed no `[branch sha] subject` line (`-q`, or its output piped away): the
+ * commit it made is HEAD now, read from Git, so the step, its `↗ committed` row and the receipt name it (7.10).
+ * @param $ the engine interface
+ * @param e the call
+ * @param ran what it returned
+ * @param cwd the session's folder, where Git is asked
+ * @returns the outcome, with the commit when it was read
+ */
+async function withCommit($: EngineInterface, e: ToolCallInput, ran: Outcome, cwd: string | undefined): Promise<Outcome> {
+  const command: unknown = Reflect.get(e, 'command')
+  const isShell = e.tool === 'Bash' || e.tool === 'PowerShell'
+
+  if (!isShell || ran.isError === true || ran.deny !== undefined || typeof command !== 'string' || !GIT_COMMIT.test(command)) return ran
+  if (parseShip(e.tool_use_id, command, shellText(ran.result) || (ran.text ?? ''))?.commit !== undefined) return ran
+
+  try {
+    const head = await $.process.run(['git', 'log', '-1', '--format=%h%x09%s'], cwd === undefined ? {} : { cwd })
+    const [sha = '', subject = ''] = head.stdout.trim().split('\t')
+
+    return head.exitCode === 0 && /^[0-9a-f]{7,40}$/.test(sha) ? { ...ran, commit: { sha: sha.slice(0, 7), subject } } : ran
+  } catch (error: unknown) {
+    // Git could not be asked (no repository, no Git): the step settles as its output says, with no hash.
+    $.ui.log(`cockpit: commit not read from Git: ${String(error)}`, noticeSink())
+
+    return ran
+  }
 }
 
 /**

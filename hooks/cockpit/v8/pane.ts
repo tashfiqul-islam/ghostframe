@@ -8,10 +8,10 @@ import { GLYPH } from '../../shared/look/glyphs'
 import { PILL, TOKEN } from '../../shared/look/palette'
 import { cutCommand, cutTitle } from '../../shared/look/paths'
 import { sparkline } from '../../shared/look/trace'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 
-/** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
-const widthOf = (parts: readonly Part[]) => parts.reduce((n, p) => n + vw(p.t), 0)
+/** The cells a row's parts take. */
+const partsWidth = (parts: readonly Part[]) => parts.reduce((n, p) => n + widthOf(p.t), 0)
 
 /** Parts padded with spaces to `width` cells, or cut there. */
 export function fit(parts: readonly Part[], width: number): Part[] {
@@ -21,10 +21,10 @@ export function fit(parts: readonly Part[], width: number): Part[] {
   for (const p of parts) {
     if (used >= width) break
 
-    const t = used + vw(p.t) <= width ? p.t : cutTitle(p.t, width - used)
+    const t = used + widthOf(p.t) <= width ? p.t : cutTitle(p.t, width - used)
 
     out.push({ ...p, t })
-    used += vw(t)
+    used += widthOf(t)
   }
 
   return used < width ? [...out, sp(width - used)] : out
@@ -32,7 +32,7 @@ export function fit(parts: readonly Part[], width: number): Part[] {
 
 /** `left` with `right` held at the row's right end, exactly `width` cells. */
 export function spread(left: readonly Part[], right: readonly Part[], width: number): Part[] {
-  const room = width - widthOf(right)
+  const room = width - partsWidth(right)
 
   return [...fit(left, room), ...right]
 }
@@ -72,7 +72,7 @@ export function tabRows(active: Tab, counts: TabCounts): Part[][] {
     }
 
     top.push(isActive ? { t: label, color: TOKEN.textBright, bold: true } : { t: label, color: TOKEN.dim })
-    under.push(isActive ? { t: GLYPH.bar.repeat(vw(label)), color: TOKEN.accent } : { t: GLYPH.rule.repeat(vw(label)), color: TOKEN.hairline })
+    under.push(isActive ? { t: GLYPH.bar.repeat(widthOf(label)), color: TOKEN.accent } : { t: GLYPH.rule.repeat(widthOf(label)), color: TOKEN.hairline })
   })
 
   return [top, under]
@@ -210,7 +210,7 @@ export function rulerRows(from: string, to: string, width: number): Part[][] {
   const ticks = Array.from({ length: cells }, (_, i) => (i % 5 === 0 || i === cells - 1 ? GLYPH.tick : GLYPH.rule)).join('')
 
   return [
-    [sp(31), { t: from, color: TOKEN.dim }, sp(cells - vw(from) - vw(to)), { t: to, color: TOKEN.dim }],
+    [sp(31), { t: from, color: TOKEN.dim }, sp(cells - widthOf(from) - widthOf(to)), { t: to, color: TOKEN.dim }],
     [sp(31), { t: ticks, color: TOKEN.hairline }]
   ]
 }
@@ -263,7 +263,7 @@ function gridRow(glyph: Part, title: readonly Part[], trackParts: readonly Part[
   const { result: resultCells } = columns(width)
   const r = { ...result, t: cutTitle(result.t, resultCells) }
 
-  return [sp(2), glyph, sp(1), ...fit(title, 25), sp(2), ...trackParts, sp(resultCells - vw(r.t)), r, sp(width - 51 - resultCells)]
+  return [sp(2), glyph, sp(1), ...fit(title, 25), sp(2), ...trackParts, sp(resultCells - widthOf(r.t)), r, sp(width - 51 - resultCells)]
 }
 
 const SUB_GLYPH: Record<SubStep['glyph'], Part> = {

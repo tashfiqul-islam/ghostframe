@@ -89,6 +89,8 @@ export type LogStep = {
    */
   state?: 'blocked' | 'denied'
   why?: string
+  /** What a commit step committed (spec 7.10): its short hash and subject, read from Git when its output had none. */
+  commit?: { sha: string; subject: string }
 }
 
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */

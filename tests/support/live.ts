@@ -14,6 +14,9 @@ type Call = { id: string; tool: string; input: Record<string, unknown>; at: numb
 /** A fixture's value as text: its string, else the fallback the call names. */
 const str = (v: unknown, otherwise: string): string => (typeof v === 'string' ? v : otherwise)
 
+/** HEAD after turn 1's `git commit -q`, as `git log -1 --format=%h%x09%s` prints it. */
+export const HEAD = '3c32406	fix: count width by grapheme cluster, not UTF-16 code unit'
+
 const calls = Object.values(TURNS).flatMap(t => t.events.filter((e): e is LiveEvent & Call => e.k === 'call'))
 const agentOf = (description: string) => AGENTS.find(a => a.meta['description'] === description)
 // A hook's refusal reaches the call as its error text: `PreToolUse:PowerShell hook error: [<command>]: <message>`.
@@ -63,6 +66,22 @@ export function liveEngine(on: On, clock: Clock, placed: boolean): void {
   on('agent.spawn', (_, e) => ({ model: 'opus', agentId: agentOf(e.description)?.agentId ?? `ag-${e.description}` }))
   on('agent.report', (_, e) => ({ text: e.text }))
   on('command.run', () => ({ text: 'the engine`s command' }))
+  // Git, as the session's repo answered: HEAD after turn 1's commit; no work tree otherwise.
+  on('process.run', (_, e) => {
+    const argv = (e as { argv?: readonly string[] }).argv ?? []
+
+    return {
+      value:
+        argv[1] === 'log'
+          ? {
+              exitCode: 0,
+              stdout: `${HEAD}
+`,
+              stderr: ''
+            }
+          : { exitCode: 128, stdout: '', stderr: 'not a git repository' }
+    } as never
+  })
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('tool.check', (_, e) => {
     const c = calls.find(k => k.id === (e as { tool_use_id?: string }).tool_use_id)

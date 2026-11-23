@@ -6,8 +6,10 @@ import { GLYPH } from '../../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import { spineOnly } from '../../../hooks/shared/look/spine'
 import { answerRows } from '../../../hooks/transcript/v8/markdown'
-import { planCard } from '../../../hooks/transcript/v8/tables'
+import { planCard, tableCard } from '../../../hooks/transcript/v8/tables'
 import { agentHeader, messageCard, thoughtRow, turnHeader } from '../../../hooks/transcript/v8/turn'
+import { widthOf } from '../../../hooks/shared/look/width'
+import { blocksOf } from '../../support/live'
 import { screen, shown } from '../../support/screens'
 import { at, counts, TRACE_7, W } from '../../support/v8left'
 
@@ -102,4 +104,31 @@ test('7.4: every markdown element (screen 18): headings with dim markers, number
   expect(rows.flat().find(p => p.t === '[x] ')?.color).toBe(TOKEN.ok)
   expect(rows.flat().find(p => p.t === '[ ')?.color).toBe(TOKEN.dim)
   expect(rows.flat().find(p => p.t === '[1]')?.color).toBe(TOKEN.machine)
+})
+
+test('7.4: code inside bold drops its backticks and is bright and bold (the live session`s turn 5)', () => {
+  const rows = answerRows('- **`https://bun.sh/docs/cli/test`:** the fetch worked', { width: W, hasLead: false })
+  const row = rows.flat()
+
+  expect(shown(rows).join('\n')).not.toMatch(/[`*]/)
+  expect(row.find(p => p.t === 'https://bun.sh/docs/cli/test')).toMatchObject({ color: TOKEN.textBright, bold: true })
+})
+
+test('7.6: the live session`s turn 7 table: no backticks in the header; every cell column starts at the same cell', () => {
+  const [, table] = blocksOf(7, 'text')
+  const lines = (table ?? '').split('\n').filter(l => l.startsWith('|'))
+  const rows = tableCard(lines, W)
+  const texts = shown(rows)
+    .slice(1, -1)
+    .filter(r => !/[▄▀]/.test(r))
+
+  expect(texts[0]).toMatch(/Input +width returns +Terminal shows +Severity/)
+  // Each row is exactly the card's width, and the third column starts at the same cell on every row.
+  for (const r of shown(rows)) expect(widthOf(r.trimEnd())).toBeLessThanOrEqual(16 + W)
+  const starts = texts.map(r => {
+    const i = r.search(/ (1|2|3|usually 2|Terminal shows) +(bug|risk|Severity)\s*$/)
+
+    return widthOf(r.slice(0, i))
+  })
+  expect(new Set(starts).size).toBe(1)
 })

@@ -1,6 +1,6 @@
 // The one path formatter (spec 13.2, 5.4): forward slashes, project-relative inside the project, `~/` under the home
 // folder outside it, absolute otherwise; and the cut from the middle that keeps the file name (13.5).
-import { vw } from '../text'
+import { widthOf } from './width'
 
 const slashes = (p: string) => p.replace(/\\/g, '/')
 const trimEnd = (p: string) => (p.length > 1 ? p.replace(/\/+$/, '') : p)
@@ -58,7 +58,7 @@ function headOf(s: string, n: number): string {
   let w = 0
 
   for (const ch of s) {
-    const cw = vw(ch)
+    const cw = widthOf(ch)
 
     if (w + cw > n) break
     out += ch
@@ -75,7 +75,7 @@ function tailOf(s: string, n: number): string {
   let w = 0
 
   for (let i = chars.length - 1; i >= 0; i--) {
-    const cw = vw(chars[i] ?? '')
+    const cw = widthOf(chars[i] ?? '')
 
     if (w + cw > n) break
     out = (chars[i] ?? '') + out
@@ -101,12 +101,12 @@ function middle(s: string, n: number): string {
 function keepEnds(first: string, between: readonly string[], last: string, sep: string, n: number): string | undefined {
   let tail = last
 
-  if (vw(`${first}${sep}…${sep}${tail}`) > n) return undefined
+  if (widthOf(`${first}${sep}…${sep}${tail}`) > n) return undefined
 
   for (let i = between.length - 1; i >= 0; i--) {
     const next = `${between[i] ?? ''}${sep}${tail}`
 
-    if (vw(`${first}${sep}…${sep}${next}`) > n) break
+    if (widthOf(`${first}${sep}…${sep}${next}`) > n) break
     tail = next
   }
 
@@ -120,7 +120,7 @@ function keepEnds(first: string, between: readonly string[], last: string, sep: 
  * @returns the path, at most `n` cells
  */
 export function cutPath(p: string, n: number): string {
-  if (vw(p) <= n) return p
+  if (widthOf(p) <= n) return p
 
   const parts = p.split('/')
   const file = parts.at(-1) ?? p
@@ -134,7 +134,7 @@ export function cutPath(p: string, n: number): string {
     if (kept !== undefined) return kept
   }
 
-  return vw(`…/${file}`) <= n && parts.length > 1 ? `…/${file}` : middle(p, n)
+  return widthOf(`…/${file}`) <= n && parts.length > 1 ? `…/${file}` : middle(p, n)
 }
 
 /**
@@ -144,7 +144,7 @@ export function cutPath(p: string, n: number): string {
  * @returns the URL, at most `n` cells
  */
 export function cutUrl(url: string, n: number): string {
-  if (vw(url) <= n) return url
+  if (widthOf(url) <= n) return url
 
   const m = /^([a-z][a-z0-9+.-]*:\/\/)?([^/]*)(\/.*)?$/i.exec(url)
   const host = `${m?.[1] ?? ''}${m?.[2] ?? url}`
@@ -168,7 +168,7 @@ export function cutUrl(url: string, n: number): string {
  * @returns the command, at most `n` cells
  */
 export function cutCommand(cmd: string, n: number): string {
-  if (vw(cmd) <= n) return cmd
+  if (widthOf(cmd) <= n) return cmd
 
   const words = cmd.split(/\s+/).filter(w => w.length > 0)
   const lead = words.length > 2 && !(words[1] ?? '').startsWith('-') ? 2 : 1
@@ -189,7 +189,7 @@ export function cutCommand(cmd: string, n: number): string {
  * @returns the title, at most `n` cells
  */
 export function cutTitle(t: string, n: number): string {
-  if (vw(t) <= n) return t
+  if (widthOf(t) <= n) return t
   if (n <= 1) return n === 1 ? '…' : ''
 
   return `${headOf(t, n - 1)}…`

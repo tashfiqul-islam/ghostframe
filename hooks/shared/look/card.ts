@@ -1,7 +1,7 @@
 // Cards on the left (spec 1.6, 7.2, 7.5 to 7.9): surfaces across the text column with soft half-cell top and bottom
 // edges (`▄` `▀`) in the card's own colour, and a 2-cell inner pad.
 import type { Part } from '../parts'
-import { vw } from '../text'
+import { widthOf } from './width'
 import { GLYPH } from './glyphs'
 import { TOKEN } from './palette'
 import { NO_LABEL, SPINE, spineRow } from './spine'
@@ -44,7 +44,7 @@ export function bottomEdge(color: string, width: number): Part[] {
  */
 export function cardRow(parts: readonly Part[], bg: string, width: number, label: Label = NO_LABEL, right: readonly Part[] = []): Part[] {
   const inner = width - PAD * 2
-  const rightW = right.reduce((n, p) => n + vw(p.t), 0)
+  const rightW = right.reduce((n, p) => n + widthOf(p.t), 0)
   // With nothing held at the right, a row may run into the right pad (screen 01's note ends on the card's last cell).
   const room = rightW > 0 ? inner - rightW - 1 : inner + PAD
   const kept: Part[] = []
@@ -57,12 +57,12 @@ export function cardRow(parts: readonly Part[], bg: string, width: number, label
     let t = ''
 
     for (const ch of chars) {
-      if (used + vw(t + ch) > room) break
+      if (used + widthOf(t + ch) > room) break
       t += ch
     }
 
     kept.push({ ...p, t, bg: p.bg ?? bg })
-    used += vw(t)
+    used += widthOf(t)
   }
 
   const gap = inner + PAD - used - rightW - (rightW > 0 ? PAD : 0)

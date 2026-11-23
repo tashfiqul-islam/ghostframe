@@ -12,7 +12,14 @@ import { outcomeOf, plural } from './results'
 export type StepStart = { id: string; tool: string; input: unknown; at: number }
 
 /** What the call came back with, as `tool.call`'s `next(e)` resolves (a deny, an error, or the tool's record). */
-export type Outcome = { result?: unknown; text?: string | undefined; isError?: true | undefined; deny?: string | undefined }
+export type Outcome = {
+  result?: unknown
+  text?: string | undefined
+  isError?: true | undefined
+  deny?: string | undefined
+  /** The commit a `git commit` step made, when Cockpit read it from Git (its output had no `[branch sha]` line). */
+  commit?: { sha: string; subject: string } | undefined
+}
 
 /** A call as it ends; `blockedBy`, what refused it before it ran (a hook, a rule, the ceiling), when one did (13.7). */
 export type StepEnd = StepStart & { outcome: Outcome; blockedBy?: string | undefined }
@@ -287,7 +294,7 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
   const { result, mark } = outcomeOf(row.kind, end.tool, end.input, end.outcome, isFix)
 
   // The step is answered; the model is called again: `[ NOW ]` says `waiting` from here.
-  return settled({ ...row, result, mark, isRunning: false, clock })
+  return settled({ ...row, result, mark, isRunning: false, clock, ...(end.outcome.commit === undefined ? {} : { commit: end.outcome.commit }) })
 }
 
 /** Whether an Agent call's record says it only launched its agent, which runs on in the background. */

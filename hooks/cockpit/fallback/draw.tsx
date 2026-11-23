@@ -75,7 +75,10 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
 
     const ms = c.tool_use_id === undefined ? undefined : (view.details.find(d => d.id === c.tool_use_id)?.ms ?? undefined)
 
-    return [...shipEventRows([c], clockOf, width), ...(failure === undefined ? [] : failureRows(failure, width, ms))]
+    return [
+      ...shipEventRows([c], clockOf, width, id => view.steps.find(s => s.id === id)?.commit),
+      ...(failure === undefined ? [] : failureRows(failure, width, ms))
+    ]
   })
   const all = [...(capsule === undefined ? [] : [capsuleRow(capsule, width)]), ...rows]
 

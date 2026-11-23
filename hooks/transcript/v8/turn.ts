@@ -9,7 +9,7 @@ import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
 import { THOUGHT_LEVELS, trace } from '../../shared/look/trace'
 import { wrapWords } from '../../shared/look/wrap'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 
 /** The label state words of amendment 12, in v8's capitals (7.1). */
 const AFTER: Record<TurnAfter, string> = { resume: 'RESUMED', compact: 'AFTER COMPACT', rewind: 'AFTER REWIND' }
@@ -39,7 +39,7 @@ export function turnHeader(h: Header, width: number): Part[] {
     ...(h.turnNo === undefined ? [] : [{ t: ` ${h.turnNo}`, color: TOKEN.textBright, bold: true }]),
     ...(tail.length > 0 ? [{ t: ` · ${tail.join(' · ')}`, color: TOKEN.machine, bold: true }] : [])
   ]
-  const used = label.reduce((n, p) => n + vw(p.t), 0)
+  const used = label.reduce((n, p) => n + widthOf(p.t), 0)
 
   return spineRow(
     h.at === undefined ? NO_LABEL : { t: clockTime(h.at), color: TOKEN.machine },
@@ -61,7 +61,7 @@ export function agentHeader(at: number, name: string, width: number): Part[] {
   return spineRow({ t: clockTime(at), color: TOKEN.machine }, { t: GLYPH.agent, color: TOKEN.agent }, [
     { t, color: TOKEN.agent, bold: true },
     { t: '  ', color: TOKEN.hairline },
-    { t: GLYPH.rule.repeat(Math.max(1, width - vw(t) - 2)), color: TOKEN.hairline }
+    { t: GLYPH.rule.repeat(Math.max(1, width - widthOf(t) - 2)), color: TOKEN.hairline }
   ])
 }
 

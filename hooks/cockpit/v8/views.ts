@@ -7,7 +7,7 @@ import { count, duration } from '../../shared/look/format'
 import { GLYPH, superscript } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { cutPath, cutTitle, splitPath } from '../../shared/look/paths'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 import { drawerRows, fit, keyParts, paneCard, pill, selected, spread } from './pane'
 
 /** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
@@ -188,7 +188,7 @@ function wrapHard(text: string, room: number): string[] {
   const out: string[] = []
   let rest = text
 
-  while (vw(rest) > room) {
+  while (widthOf(rest) > room) {
     const at = rest.lastIndexOf(' ', room)
     const cut = at > room / 2 ? at + 1 : room
 
@@ -414,7 +414,7 @@ const STEP_GLYPH: Record<StepRow['glyph'], Part> = {
 /** A step row (8.11): glyph, kind (7 cells), subject, the result ending at the 63rd cell, the step's own time. */
 export function stepRow(s: StepRow, width: number): Part[] {
   const time = s.ms === undefined ? '' : duration(s.ms)
-  const subjectRoom = width - 11 - 8 - 2 - vw(s.result)
+  const subjectRoom = width - 11 - 8 - 2 - widthOf(s.result)
   const subject =
     s.kind === 'read' || s.kind === 'edit' || s.kind === 'write'
       ? pathParts(s.subject, subjectRoom)

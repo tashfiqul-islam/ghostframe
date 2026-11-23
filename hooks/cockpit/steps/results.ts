@@ -5,7 +5,7 @@ import { firstErrorLine, resultOf } from '../../shared/calls/results'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
 import { RESULT_CELLS } from '../../shared/look/words'
-import { vw } from '../../shared/text'
+import { widthOf } from '../../shared/look/width'
 import { command, firstLine, int, isShell, rec } from './kinds'
 import type { Outcome } from './log'
 
@@ -108,7 +108,7 @@ function failure(kind: string, tool: string, outcome: Outcome): { result: string
   // At most 14 cells (13.6): a longer line is no result, so the step just failed.
   const line = firstErrorLine(said)
 
-  return { result: line.length > 0 && vw(line) <= RESULT_CELLS ? line : 'failed', mark: '✕' }
+  return { result: line.length > 0 && widthOf(line) <= RESULT_CELLS ? line : 'failed', mark: '✕' }
 }
 
 /** A finished call's result and mark; `fixes` says a failed step with the same key is still open. */
@@ -126,7 +126,12 @@ export function outcomeOf(kind: string, tool: string, input: unknown, outcome: O
 
   if (isShell(tool)) {
     const cmd = command(input)
-    const ship = isShipCommand(cmd) ? parseShip('', cmd, shellText(out)) : undefined
+    // The whole command, every line: a commit in a joined command or after a here-string's first line is still one.
+    const whole = typeof rec(input)['command'] === 'string' ? String(rec(input)['command']) : cmd
+    const ship = isShipCommand(whole) ? parseShip('', whole, shellText(out)) : undefined
+
+    if (outcome.commit !== undefined && ship?.commit === undefined && ship?.push === undefined && ship?.pr === undefined)
+      return { result: outcome.commit.sha, mark: '±' }
 
     if (ship?.pr !== undefined) return { result: `PR #${ship.pr.n}`, mark: '↗' }
     if (ship?.push !== undefined) return { result: ship.push.to, mark: '↗' }

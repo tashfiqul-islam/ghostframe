@@ -1,6 +1,6 @@
 // Word wrapping for the left's text column (spec 6.1): prose wraps at the column's width, by words; a word longer than
 // the row is broken where it must be.
-import { vw } from '../text'
+import { widthOf } from './width'
 
 /**
  * Text broken into rows of at most `width` cells, by words.
@@ -18,7 +18,7 @@ export function wrapWords(text: string, width: number): string[] {
     for (const word of line.split(/ +/).filter(w => w.length > 0)) {
       let w = word
 
-      while (vw(w) > room) {
+      while (widthOf(w) > room) {
         if (row.length > 0) {
           out.push(row)
           row = ''
@@ -28,7 +28,7 @@ export function wrapWords(text: string, width: number): string[] {
         let head = ''
 
         for (const ch of chars) {
-          if (vw(head + ch) > room) break
+          if (widthOf(head + ch) > room) break
           head += ch
         }
 
@@ -37,7 +37,7 @@ export function wrapWords(text: string, width: number): string[] {
       }
 
       if (row.length === 0) row = w
-      else if (vw(row) + 1 + vw(w) <= room) row += ` ${w}`
+      else if (widthOf(row) + 1 + widthOf(w) <= room) row += ` ${w}`
       else {
         out.push(row)
         row = w

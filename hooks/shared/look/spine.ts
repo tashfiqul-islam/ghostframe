@@ -1,7 +1,7 @@
 // The left's grid (spec 6.1): `| 2 margin | 10 label, right-aligned | 1 | spine | 2 | text column 86 |`. Every row
 // Cockpit draws on the left is built here, so the label, the spine and the text column line up on every row.
 import type { Part } from '../parts'
-import { vw } from '../text'
+import { widthOf } from './width'
 import { GLYPH } from './glyphs'
 import { TOKEN } from './palette'
 
@@ -53,7 +53,7 @@ export function spineRow(label: Label, glyph: Part, body: readonly Part[]): Part
   const t = label.t.length > LABEL_CELLS ? label.t.slice(0, LABEL_CELLS) : label.t
 
   return [
-    { t: ' '.repeat(2 + LABEL_CELLS - vw(t)), color: TOKEN.dim },
+    { t: ' '.repeat(2 + LABEL_CELLS - widthOf(t)), color: TOKEN.dim },
     ...(t.length > 0 ? [{ t, color: label.color }] : []),
     { t: ' ', color: TOKEN.dim },
     glyph,
