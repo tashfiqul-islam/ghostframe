@@ -27,6 +27,18 @@ function add(pages: readonly SourcePage[], page: SourcePage): SourcePage[] {
 }
 
 /**
+ * The title a fetch returned (8.7): the `Title:` line of its result (`**Title:** Test runner`), its markdown dropped;
+ * '' when it gave none.
+ * @param result the fetch's result text
+ * @returns the title
+ */
+export function fetchedTitle(result: string): string {
+  const line = /^\s*(?:\*\*)?Title:(?:\*\*)?\s*(.+)$/im.exec(result)?.[1] ?? ''
+
+  return line.replace(/\*\*|__|`/g, '').trim()
+}
+
+/**
  * A web call ended: the pages it leaves. A fetch adds its page with its status (an error's code, or `failed`); a
  * search adds nothing, but its results name the pages it found, which titles a page already read.
  * @param pages the pages before the call
@@ -54,7 +66,7 @@ export function noteSources(
     const said = /\b([1-5]\d\d)\b/.exec(outcome.text ?? '')?.[1]
     const status = code !== undefined ? String(code) : outcome.isError === true ? (said ?? 'failed') : ''
 
-    return add(pages, { url, title: '', status, ...(isAgent ? { isAgent: true as const } : {}) })
+    return add(pages, { url, title: fetchedTitle(s(o?.['result']) ?? ''), status, ...(isAgent ? { isAgent: true as const } : {}) })
   }
 
   if (tool === 'WebSearch') {

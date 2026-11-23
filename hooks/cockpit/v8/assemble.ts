@@ -1,5 +1,6 @@
 // The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the v8 views,
 // each openable row under its id, and the keys the view offers. Pure: cockpit/pane.tsx reads the state and draws this.
+import { sourceLabel } from '../../shared/url'
 import { decisive as decisiveLines } from '../fallback/events'
 import { urlHost } from '../../shared/url'
 import type { FlowStamp, LogStep, RosterAgent, StepDetail, StepLog, TurnRecord, TurnWork } from '../../../types'
@@ -68,6 +69,18 @@ type Shown = {
 
 // No turn yet (a fresh session): no head card, since there is no turn, state or time to give it (8.3's empty state).
 const isBeforeFirstTurn = (shown: Shown): boolean => shown.turnNo === 0 && shown.startedAt === null && shown.steps.length === 0
+
+/** Claude's own title for a cited page, when it wrote one; else the page's host and path. */
+const linkTitle = (cited: string | undefined, url: string): string =>
+  cited !== undefined && cited.length > 0 && cited !== sourceLabel(url) ? cited : hostPath(url)
+
+/** A URL's host and path, without the scheme or a trailing slash: `example.com/missing-page`. */
+const hostPath = (url: string): string =>
+  url
+    .replace(/^[a-z]+:\/\//i, '')
+    .replace(/^www\./, '')
+    .replace(/[?#].*$/, '')
+    .replace(/\/$/, '')
 
 function shownOf(i: PaneInput): Shown {
   const p = i.pinned
@@ -543,7 +556,9 @@ export function assemblePane(i: PaneInput): Pane {
         // A fetch names an absolute URL; one the parser cannot read is shown as Claude wrote it.
         host: urlHost(p.url) ?? p.url,
         // A page with no title of its own takes the one the answer's link gave it.
-        title: p.title.length > 0 ? p.title : (shown.cited.find(c => c.url === p.url)?.title ?? ''),
+        // The fetch's own title (8.7), else Claude's own link text for it, else the page's host and path; never the
+        // label the transcript makes up for a bare URL (`bun.sh · test`).
+        title: p.title.length > 0 ? p.title : linkTitle(shown.cited.find(c => c.url === p.url)?.title, p.url),
         status: p.status,
         url: p.url
       })),

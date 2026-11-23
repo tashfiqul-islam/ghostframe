@@ -44,3 +44,19 @@ test('an agent`s fetch joins the pages marked as the agent`s; a failed one keeps
     { url: 'https://example.com/b', title: '', status: '404', isAgent: true }
   ])
 })
+
+test('4. a fetched page`s title is the one its fetch returned (`**Title:** Test runner`), markdown dropped', () => {
+  const result = { code: 200, url: 'https://bun.sh/docs/cli/test', result: '**Title:** Test runner\n\n**Summary:** `bun test` is Bun`s runner.' }
+  const pages = noteSources([], 'WebFetch', { url: 'https://bun.sh/docs/cli/test' }, { result })
+
+  expect(pages[0]?.title).toBe('Test runner')
+  // A fetch that returned no title keeps none: the pane falls back to the host and path.
+  expect(
+    noteSources(
+      [],
+      'WebFetch',
+      { url: 'https://example.com/missing-page' },
+      { result: { code: 404, url: 'https://example.com/missing-page', result: 'Not Found' } }
+    )[0]?.title
+  ).toBe('')
+})

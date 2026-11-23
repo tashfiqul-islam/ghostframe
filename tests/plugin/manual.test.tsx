@@ -115,3 +115,17 @@ test('16. turn 6`s three agents, started from one message 2.5 s apart: `launched
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}launched together at \d\d:\d\d:\d\d *$/))
   expect(rows.some(r => /one by one/.test(r))).toBe(false)
 })
+
+test('4. turn 5`s Sources: `Test runner` for bun.sh, the fetch`s own title; the 404 with none reads its host and path', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 5)
+  const pane = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await pane.press({ key: 'key-3' })
+  await pane.redraw()
+  const rows = (await pane.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
+  await pane.unmount()
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}. bun\.sh {3}Test runner +200 *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}. example\.com {3}example\.com\/missing-page +404 *$/))
+  expect(rows.some(r => /bun\.sh · test/.test(r))).toBe(false)
+})

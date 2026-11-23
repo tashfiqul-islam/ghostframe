@@ -584,6 +584,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 ```
 
 - The summary: pages read, cited, failed (err).
+- A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`), cut from the end; else Claude's own link text for it; else its host and path (`example.com/missing-page`), never a label made up from the URL.
 - Cited pages first, with the footnote number the answer uses (`¹`–`⁴` in `machine`). Uncited pages follow with `·`. Host in `machine`, title in `text`, status at the right: `200` dim, a failure in `err` bold.
 - URLs dim under each row; `u` hides or shows them.
 - The numbers in the answer and in Sources are the same numbers. Cited pages re-sort to answer order at turn end only.
