@@ -29,7 +29,7 @@ import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
-import { isOn } from './switch'
+import { isOn, noticeSink } from './switch'
 import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
@@ -112,7 +112,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
     // A `/tui` switch is old news too; a note that cannot be cleared costs a repeat of it after a reload, nothing more.
-    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`, { to: 'debug' }))
+    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`, noticeSink()))
   }
 
   lastMode = undefined
@@ -132,7 +132,7 @@ async function settleUnreported($: EngineInterface, now: number): Promise<void> 
     const listed = await $.agent.list()
     await update($, roster, list => reconcile(list, listed, now))
   } catch (error: unknown) {
-    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`, noticeSink())
   }
 }
 
@@ -307,7 +307,7 @@ async function keepTurn($: EngineInterface): Promise<void> {
     )
     await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
   } catch (error: unknown) {
-    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, noticeSink())
   }
 }
 

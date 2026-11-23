@@ -1,5 +1,6 @@
 // What a typed turn worked on, for `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]` (spec E.41 to E.43), kept in $.state.
 // hooks/cockpit/log.ts calls these as the main loop's calls end and its turns start.
+import { noticeSink } from './switch'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
@@ -123,7 +124,7 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
     return { root, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
     copy = null
-    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, noticeSink())
 
     return undefined
   }
@@ -252,7 +253,7 @@ export async function workDiff($: EngineInterface, path: string): Promise<string
 
     return [`@@ -0,0 +1,${lines.length} @@`, ...lines.map(l => `+${l}`)].slice(0, DIFF_MAX)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`, noticeSink())
 
     return []
   }

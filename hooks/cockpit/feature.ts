@@ -10,7 +10,7 @@ import { logAgentEnd, logAgentStart, logSessionStart } from './log'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
 import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
-import { isEnvSet, isOn, setEnvOn, setOptionOn } from './switch'
+import { isEnvSet, isOn, noticeSink, setEnvOn, setOptionOn } from './switch'
 
 type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 
@@ -35,7 +35,7 @@ export async function startCockpit($: EngineInterface, e: SessionStart): Promise
   try {
     await logSessionStart($)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: history not restored: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: history not restored: ${String(error)}`, noticeSink())
   }
 
   if (isOn() && e.isInteractive && e.surface === 'terminal') {
@@ -75,7 +75,7 @@ function registerAgents(on: On): void {
       try {
         await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, called, isBackground: e.background })
       } catch (error: unknown) {
-        $.ui.log(`cockpit: agent row failed: ${String(error)}`, { to: 'debug' })
+        $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
       }
     }
 
@@ -88,7 +88,7 @@ function registerAgents(on: On): void {
     try {
       await logAgentEnd($, { id: e.agentId, status: e.status, text: e.text })
     } catch (error: unknown) {
-      $.ui.log(`cockpit: agent row failed: ${String(error)}`, { to: 'debug' })
+      $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
     }
 
     return reported

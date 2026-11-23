@@ -11,7 +11,7 @@ import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
 import { readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
-import { OFF_NOTE, isOn, readEnvOnce } from './switch'
+import { isOn, noticeSink, OFF_NOTE, readEnvOnce } from './switch'
 import { readWork } from './work'
 import { PANE, STEPS, docked } from './mode'
 import { readHistory, readPin, storedTurnCount } from './history/store'
@@ -250,7 +250,7 @@ export function markStartSeated(): void {
  * @param error what the engine answered
  */
 export function logSeatError($: EngineInterface, error: unknown): void {
-  $.ui.log(`cockpit: seat change failed: ${String(error)}`, { to: 'debug' })
+  $.ui.log(`cockpit: seat change failed: ${String(error)}`, noticeSink())
 }
 
 /**
@@ -382,7 +382,7 @@ export function registerPane(on: On): void {
 
     const notice = isOn()
       ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
-          $.ui.log(`cockpit: /tui note not read: ${String(error)}`, { to: 'debug' })
+          $.ui.log(`cockpit: /tui note not read: ${String(error)}`, noticeSink())
 
           return undefined
         })

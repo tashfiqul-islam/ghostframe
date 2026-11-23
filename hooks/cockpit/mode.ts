@@ -1,6 +1,7 @@
 // Whether the left is quiet (phase 4) for the turn running now: Cockpit on, its pane docked, and its tab the one
 // shown. Another pane in the dock (the engine's Diff view, say) hides Cockpit's tab: the turns that start then draw
 // the full view on the left. Read by left.tsx, set by pane.tsx (the seat) and log.ts (each turn's start).
+import { noticeSink } from './switch'
 import type { EngineInterface } from 'claude-code'
 
 /** Cockpit's pane id: its `$.ui.open` id and its `Pane` render's `requestId`. */
@@ -68,6 +69,6 @@ export async function noteShown($: EngineInterface): Promise<void> {
     // the pane comes back (live: `/tui classic`, a turn, `/tui fullscreen` drew both turns unquiet).
     isShownAtTurn = pane?.isPlaced !== true || pane.isShown
   } catch (error: unknown) {
-    $.ui.log(`cockpit: pane list unavailable: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: pane list unavailable: ${String(error)}`, noticeSink())
   }
 }

@@ -1,6 +1,7 @@
 // History (spec E.45): every typed turn's record, in $.state for the session (it survives a plugin reload) and in
 // $.store under `history:<session id>` (it survives a resume), fitted to the store's budget with the other sessions'
 // histories; and the pinned turn the pane shows instead of the live one.
+import { noticeSink } from '../switch'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
@@ -212,7 +213,7 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
   try {
     kept = await write($, all)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, { to: 'debug' })
+    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, noticeSink())
     await readStore($)
     kept = await write($, all)
   }
