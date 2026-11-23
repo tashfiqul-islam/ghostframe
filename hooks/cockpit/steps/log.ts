@@ -169,19 +169,12 @@ export function failureCounts(steps: readonly LogStep[], from = 0): { failed: st
   return { failed: [...failed], open: [...open] }
 }
 
-/** What the person typed when they refused a permission (13.8), as the engine's denial quotes it; '' when it does not. */
-export function deniedReason(text: string): string {
-  const m = /(?:said|feedback|reason)\s*:\s*["“]?([^\n"”]+)["”]?/i.exec(text)
-
-  return m?.[1]?.trim() ?? ''
-}
-
 /** How a refused call is told apart (13.7, 13.8): the person's refusal is a denial; any other refusal is a block. */
 function refusal(end: StepEnd): { state: 'blocked' | 'denied'; why: string } | undefined {
   const said = end.outcome.deny ?? end.outcome.text ?? ''
 
   if (end.blockedBy !== undefined) return { state: 'blocked', why: end.blockedBy }
-  if (DENIED.test(said)) return { state: 'denied', why: deniedReason(said) }
+  if (DENIED.test(said)) return { state: 'denied', why: '' }
   if (end.outcome.deny === undefined) return undefined
 
   const by = /classifier|auto[- ]mode/i.test(said) ? 'by the classifier' : /sandbox/i.test(said) ? 'by the sandbox' : 'by a policy'

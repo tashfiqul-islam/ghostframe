@@ -391,8 +391,8 @@ function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[
 }
 
 /**
- * Refused steps among a site's calls (13.7, 13.8): ⊘ BLOCKED with what refused them, ▍ DENIED with the person's
- * words, at the time into the turn at which they settled.
+ * Refused steps among a site's calls (13.7, 13.8): ⊘ BLOCKED with what refused them, ▍ DENIED with the command,
+ * at the time into the turn at which they settled.
  * @param steps the turn's steps
  * @param ids the site's call ids
  * @param width the text column's cells
@@ -401,7 +401,7 @@ function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[
 function refusalRows(steps: readonly LogStep[], ids: readonly string[], width: number): Part[][] {
   return steps
     .filter(s => ids.includes(s.id) && !s.isRunning && s.state !== undefined)
-    .map(s => (s.state === 'blocked' ? blockedRow(s.clock, s.why ?? '', width) : deniedRow(s.clock, s.kind, s.subject, s.why ?? '', width)))
+    .map(s => (s.state === 'blocked' ? blockedRow(s.clock, s.why ?? '', width) : deniedRow(s.clock, s.kind, s.subject, width)))
 }
 
 /**

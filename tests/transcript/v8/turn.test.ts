@@ -27,10 +27,11 @@ test('7.1, 7.2: an agent`s header in its colour, its brief from main (screen 27)
 
   expect(shown([head])).toEqual([screen('27')[0]])
   expect(head.find(p => p.t === GLYPH.agent)?.color).toBe(TOKEN.agent)
-  expect(shown(messageCard('Check whether the width tests fail only because of the Bun version.', 'toAgent', W))[1]).toBe(
-    '   from main │    › Check whether the width tests fail only because of the Bun version.'
+  // The brief wraps inside its card at 86 cells, `from main` on its first row.
+  expect(shown(messageCard('Check whether the width tests fail only because of the Bun version. Run them twice and report.', 'toAgent', W))).toEqual(
+    screen('27').slice(1, 5)
   )
-  expect(shown([stepNodeRow(6_000, true, 'shell', 'bun test hooks/width', '14 pass', W)])).toEqual([screen('27')[7]])
+  expect(shown([stepNodeRow(6_000, true, 'shell', 'bun test hooks/width', '14 pass', W)])).toEqual([screen('27')[8]])
 })
 
 test('7.2: an added message carries its clock and `added`; a queued one `QUEUED` and when it sends (screens 02, 14)', () => {
@@ -94,7 +95,7 @@ test('7.4: every markdown element (screen 18): headings with dim markers, number
   ].join('\n')
   const rows = answerRows(md, { width: W, hasLead: false })
 
-  expect(shown(rows)).toEqual(screen('18').slice(9, 25))
+  expect(shown(rows)).toEqual(screen('18').slice(10, 26))
   expect(rows[0]?.find(p => p.t === '## ')?.color).toBe(TOKEN.dim)
   expect(rows.flat().find(p => p.t === '1')?.color).toBe(TOKEN.machine)
   expect(rows.flat().find(p => p.t === '▏ ')?.color).toBe(TOKEN.machine)

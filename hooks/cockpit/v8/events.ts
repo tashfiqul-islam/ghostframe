@@ -60,17 +60,19 @@ export function blockedRow(at: number | undefined, why: string, width: number): 
 }
 
 /**
- * A permission the person refused (13.8): `▍  DENIED   shell rm -rf dist · "keep the build output"`. Their reason, in
- * quotes, when they typed one. Neither a failure nor a block.
+ * A permission the person refused (13.8): `▍  DENIED   shell rm -rf dist`. Neither a failure nor a block. The
+ * plugin gets no reason with a denial, so the row names the command alone.
  * @param at its time into the turn
  * @param kind the step's kind word
  * @param subject what it would have run
- * @param reason what the person typed, '' for nothing
  * @param width the text column's cells
  * @returns the row
  */
-export function deniedRow(at: number | undefined, kind: string, subject: string, reason: string, width: number): Part[] {
-  const detail = [{ t: `${kind} `, color: TOKEN.muted }, { t: subject, color: TOKEN.textBright }, ...(reason.length > 0 ? [dim(` · "${reason}"`)] : [])]
+export function deniedRow(at: number | undefined, kind: string, subject: string, width: number): Part[] {
+  const detail = [
+    { t: `${kind} `, color: TOKEN.muted },
+    { t: subject, color: TOKEN.textBright }
+  ]
 
   return spineRow(atLabel(at), glyph(GLYPH.denied, TOKEN.err), fitted([word('DENIED', TOKEN.err), dim(GAP)], detail, width))
 }

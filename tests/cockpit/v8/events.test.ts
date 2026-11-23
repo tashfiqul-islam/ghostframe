@@ -14,12 +14,11 @@ test('13.7: the ⊘ BLOCKED row and its └ line, as screen 13 draws them', () =
   expect(row.find(p => p.t === 'BLOCKED')).toMatchObject({ color: TOKEN.warn, bold: true })
 })
 
-test('13.8: the ▍ DENIED row, the person`s reason in quotes, err not warn', () => {
-  const row = deniedRow(41_000, 'shell', 'rm -rf dist', 'keep the build output', 86)
+test('13.8: the ▍ DENIED row names the command, err not warn', () => {
+  const row = deniedRow(41_000, 'shell', 'rm -rf dist', 86)
 
-  expect(rowText(row)).toBe('         41s ▍  DENIED   shell rm -rf dist · "keep the build output"')
+  expect(rowText(row)).toBe('         41s ▍  DENIED   shell rm -rf dist')
   expect(row.find(p => p.t === GLYPH.denied)?.color).toBe(TOKEN.err)
-  expect(rowText(deniedRow(41_000, 'shell', 'rm -rf dist', '', 86))).toBe('         41s ▍  DENIED   shell rm -rf dist')
 })
 
 test('13.1: a failure node, as screen 31 draws it; at most 3 rows, the third `+ n more · /steps n`', () => {

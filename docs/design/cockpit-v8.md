@@ -629,7 +629,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
 ### 8.12 Key hints and the wordmark
 
 ```text
-  tab move    enter open    1–5 tabs    ? keys       ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
 The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view; the version is read from the plugin manifest (`dev` before a release).
@@ -691,7 +691,6 @@ All single-letter and digit keys are hotkey Buttons that fire only while the pan
 | `b`     | full diff                       | back                                              |
 | `u`     | sources                         | hide / show URLs                                  |
 | `m`     | agent in view                   | back to main                                      |
-| `?`     | any                             | the key list                                      |
 
 ## 10. What the engine owns
 
@@ -838,7 +837,7 @@ Board `S02Live` · the spinner row while Claude writes · an added message · ag
 - **DATA** Spinner site for the live line; agent.spawn / agent.report / AgentRow for agents; ‘added’ = a queued prompt the engine folded into the turn (amendment 12).
 - **ENGINE** While the model writes, only the spinner row shows; each text block arrives complete (correction E).
 - **RULES** Amber only on live things. Key hints appear only while the pane has the keyboard.
-- **KEYS** tab move · enter open · 1–5 tabs (1 timeline · 2 files · 3 sources · 4 todo · 5 agents) · ? keys. Tab keys work only while the pane has the keyboard (amendment 7).
+- **KEYS** tab move · enter open · 1–5 tabs (1 timeline · 2 files · 3 sources · 4 todo · 5 agents). Tab keys work only while the pane has the keyboard (amendment 7).
 
 The left (127 columns):
 
@@ -852,15 +851,15 @@ The left (127 columns):
              │
           6s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in parallel
-             │  before changing anything.
+             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in
+             │  parallel before changing anything.
              │
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
     10:26:31 │    ↳ also check whether the lockfile pins bun anywhere                          added
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from it.
-             │  I’ll point setup-bun at it and add a guard so the two can’t drift again.
+             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from
+             │  it. I’ll point setup-bun at it and add a guard so the two can’t drift again.
              │
              │
              │
@@ -920,7 +919,7 @@ The pane (72 columns):
 
 
 
-  tab move    enter open    1–5 tabs    ? keys       ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
 #### 12.3 · A failed turn, step opened
@@ -943,8 +942,8 @@ The left (127 columns):
              │
           4s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  I couldn’t finish this. Two tests depend on a POSIX locale that Windows runners don’t set,
-             │  so width("e\u0301") still splits the accent there.
+             │  I couldn’t finish this. Two tests depend on a POSIX locale that Windows runners don’t
+             │  set, so width("e\u0301") still splits the accent there.
              │
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
              │    × 2 still failing                                                   windows-latest
@@ -997,7 +996,7 @@ The pane (72 columns):
 
 
 
-  tab move    enter open    1–5 tabs    ? keys       ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
 #### 12.4 · Needs you: a permission prompt
@@ -1198,7 +1197,8 @@ The left (127 columns):
              │
           2s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  Renamed the 3 files in tests/width/ and updated their imports. The other 11 are untouched.
+             │  Renamed the 3 files in tests/width/ and updated their imports. The other 11 are
+             │  untouched.
              │
          38s ✓  DONE   ⣀⣤⣴⣶⣿⣶⣤⣴⣿⣷⣤⣀   9 steps · 6 files
 ```
@@ -1599,7 +1599,7 @@ The left (127 columns):
              │
              │
       3m 31s !  WAITING   rate limited · resumes at 14:05 · or /model to switch
-             │  └ Opus usage limit reached for this 5-hour window. Your work is kept; Claude continues on its own.
+             │  └ Opus usage limit reached for this 5-hour window. Your work is kept; Claude continue…
 ```
 
 The pane (72 columns):
@@ -2052,8 +2052,8 @@ The left (127 columns):
              │    ❯ what’s the difference between bun.lock and bun.lockb?
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-             │  bun.lock is the text lockfile Bun writes by default since 1.2; bun.lockb is the older binary one.
-             │  Commit the text one: it diffs and merges like any other file.
+             │  bun.lock is the text lockfile Bun writes by default since 1.2; bun.lockb is the older
+             │  binary one. Commit the text one: it diffs and merges like any other file.
              │
           4s ✓  DONE   ⣀⣤⣀   no steps
 ```
@@ -2118,7 +2118,8 @@ The left (127 columns):
              │
           7s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  The pane never shrinks below 72 columns; it leaves instead, and the left takes over its job.
+             │  The pane never shrinks below 72 columns; it leaves instead, and the left takes over
+             │  its job.
              │
              │  ## The rule
              │  1  At 144 columns or more the pane docks on its own.
@@ -2273,9 +2274,10 @@ The left (127 columns):
              │
           8s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  Bun 1.4.1 bundled ICU 74, which splits some combining sequences; 1.4.2 moved to ICU 76 [1][4].
-             │  The Unicode rule for extended grapheme clusters keeps a base and its marks together [3],
-             │  so 1.4.2 is the correct behaviour. setup-bun can pin the version from a file [2].
+             │  Bun 1.4.1 bundled ICU 74, which splits some combining sequences; 1.4.2 moved to ICU 76
+             │  [1][4]. The Unicode rule for extended grapheme clusters keeps a base and its marks
+             │  together [3], so 1.4.2 is the correct behaviour. setup-bun can pin the version from a
+             │  file [2].
              │
              │  [1] bun.sh/blog/bun-v1.4.2   [2] github.com/oven-sh/setup-bun
              │  [3] unicode.org/reports/tr29   [4] github.com/unicode-org/icu/releases
@@ -2340,7 +2342,8 @@ The left (127 columns):
 
     16:02:00 ◆  TURN 22  ─────────────────────────────────────────────────────────────────────────────
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-             │    ❯ check the deploy preview in the browser and file a Linear issue for anything broken
+             │    ❯ check the deploy preview in the browser and file a Linear issue for anything
+             │      broken
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
           5s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
@@ -2656,15 +2659,15 @@ The left (127 columns):
              │
           6s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in parallel
-             │  before changing anything.
+             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in
+             │  parallel before changing anything.
              │
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
     10:26:31 │    ↳ also check whether the lockfile pins bun anywhere                          added
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from it.
-             │  I’ll point setup-bun at it and add a guard so the two can’t drift again.
+             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from
+             │  it. I’ll point setup-bun at it and add a guard so the two can’t drift again.
              │
              │
              │
@@ -2748,15 +2751,15 @@ The left (127 columns):
              │
           6s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
              │
-             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in parallel
-             │  before changing anything.
+             │  CI is on Bun 1.4.1 and you are on 1.4.4. I’m auditing tests, CI and dependencies in
+             │  parallel before changing anything.
              │
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
     10:26:31 │    ↳ also check whether the lockfile pins bun anywhere                          added
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from it.
-             │  I’ll point setup-bun at it and add a guard so the two can’t drift again.
+             │  The lockfile has no Bun pin either; mise.toml is the only one, so CI should read from
+             │  it. I’ll point setup-bun at it and add a guard so the two can’t drift again.
              │
              │
              │
@@ -2834,7 +2837,8 @@ The left (127 columns):
 ```text
     10:25:20 ◇  AGENT Audit tests  ───────────────────────────────────────────────────────────────────
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-   from main │    › Check whether the width tests fail only because of the Bun version. Run them twice and report.
+   from main │    › Check whether the width tests fail only because of the Bun version. Run them
+             │      twice and report.
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
              │  Running the width tests on the pinned Bun first.
@@ -3459,7 +3463,7 @@ Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail l
 
 ### 13.8 `DENIED`
 
-When the person refuses a permission, the step is **denied**: a row on the left `▍  DENIED   shell rm -rf dist · "keep the build output"` (`▍` and `DENIED` in err, the reason the person typed in quotes), the result `denied` in the pane. A denial is the person's decision, not a failure, and is counted as neither. (Not drawn on the canvas; the row follows v7 E.5.)
+When the person refuses a permission, the step is **denied**: a row on the left `▍  DENIED   shell rm -rf dist` (`▍` and `DENIED` in err, then the step's kind and command), the result `denied` in the pane. The plugin gets no reason with a denial, so the row names none. A denial is the person's decision, not a failure, and is counted as neither. (Not drawn on the canvas; the row follows v7 E.5.)
 
 ### 13.9 One clock
 
@@ -3473,7 +3477,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **One short line is its own result.** 13.6 lists `bun --version` → `1.4.4`; generalised as "a command whose output is one line of at most 14 cells shows that line". Any other output with no rule in 13.6 reads `done` (exit 0) or `exit n`.
 - **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the v7 rule). The project root is checked first, so a project under the home folder never gets a `~`.
 - **Negative answers read the exit code.** The engine hands an errored shell call back as one text, without stderr apart from stdout. So exit 1 of `grep`, `rg`, `diff`, `cmp`, `test`, `[` and `git diff --exit-code` / `--quiet` is the answer; exit 2 and up are those tools' own errors. When an outcome does carry `stderr`, a non-empty one makes it a failure. `test` and `[` read `no match`, since 13.1 offers only `no match` and `differs`.
-- **Blocked against denied.** A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text; the person's typed reason is read after `said:`, which also needs a live check.
+- **Blocked against denied.** A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
 - **The hook's script name.** The verdict names the hook event (`PreToolUse`) and the reason, never the script, so screen 13's `guard-main.sh` shows only when the hook's reason says it.
 - **What Claude did instead.** The `└` line under `⊘ BLOCKED` needs what Claude did next, which is not known when the row first draws, and rows never change. It is drawn only when already known; live it is not, so screen 13's `└ Claude switched to a branch instead.` does not draw.
 - **One clock is the engine turn's.** The receipt, the pane head and the live line all read the step log's own start and end of the engine turn (`segmentStart` to its end). For a typed turn, that is the prompt to the end. A report turn an agent started has its own receipt with its own time, so a typed turn still never shows two times for one receipt.
@@ -3494,10 +3498,10 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **The failure card's rows.** A failing test's path and line and its expected and received values come from the test output kept in the step's detail; a failure with none listed shows the step's subject and result. `→ Next:` is drawn only when Claude's answer gives the next action: nothing in the engine says it apart from the prose.
 - **`c copy` on the left.** A left row can't hold a hotkey without taking the key from the prompt, so the code card's head strip is a Button: a click copies the block, and `/copy code n` does the same by key (amendment 11).
 - **Docked failures.** 13.1 draws failures on the left as the failure card when docked and as failure rows in fallback; screen 08's docked `× Batch 6 tests` event row is not drawn docked (not a screen test here).
-- **Canvas rows past the text column.** Screens 02, 03, 18 and 27 hold rows longer than 86 cells. The renderers wrap at 86 (6.1); screen 03's test compares its two wrapped rows with the 86-cell version, the rest exactly.
+- **Canvas rows past the text column were corrected** (6.1, section 12). Screens 02, 03, 06, 11, 17, 18, 20, 21, 25, 26 and 27 drew rows longer than the 86-cell text column: answer paragraphs, a prompt card, an agent's brief and a WAITING detail line. Section 12 now shows them as the renderers draw them: paragraphs and cards wrap at 86 cells, and the one-line detail is cut with `…`. Screen 03's test compares every row.
 - **The pane's geometry, as measured.** Pane cards run from the second cell to the last but one, content from the third; the drawer from the fifth, content from the seventh, its right-hand facts ending 4 cells before the drawer's edge (screens 03, 04). A selected row is `▐` in accent at the first cell and `surface` across the width.
 - **The now-line shows only on a LIVE turn.** 9.2 and 8.3 say "while the turn is live"; screen 04 (NEEDS YOU) draws none, screens 02, 08, 14 and 15 (LIVE) do. It fills the empty track cells at the current time; a bar over that cell hides it.
-- **The wordmark's column.** Every pane puts `ghostframe v…` on its last row ending on the last cell but one; screens 02 and 03 draw it one cell further left when the four focused keys are shown. The renderer keeps it in one place; screen 03's hint row is tested at that place.
+- **The wordmark's column was corrected** (8.12, screens 02, 03). Every pane ends `ghostframe v…` on the last cell but one; screens 02 and 03 drew it one cell further left beside `? keys`. Their hint rows now sit on the same grid as every other screen.
 - **The wordmark's version.** Read once at session start from `.claude-plugin/plugin.json` under `$.plugin.root` with `$.fs.read`, as the engine documents; `dev` when the manifest has none or cannot be read. The manifest says `0.2.0`, so live the pane reads `ghostframe v0.2.0`; the screen tests feed the canvas's `0.1.0`.
 - **Group titles.** A group's title is its working sentence's first sentence without its closing stop, cut at the end to 25 cells (13.5). The canvas's titles are shorter rewrites (`Reproducing the failure first.` drawn as `Reproducing the failure`); Cockpit does not rewrite Claude's words. Steps before Claude's first sentence form a group titled by the first step's kind and subject.
 - **Bars on the screens.** The screen tests read each bar off the screen's track cells as a span on a 40-second turn (one second per half cell), since the canvas gives no step times.
@@ -3506,7 +3510,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Screen 24 has no wordmark.** Every other pane draws one and 8.12 says every view does; screen 24's last row is keys alone. The renderer draws the wordmark on every view; screen 24's test draws its hint row as the canvas does, through the same key renderer.
 - **An agent in view draws no now-line** (screen 27): its timeline is the agent's, not the live turn's.
 - **The change bar** is 5 cells: lit in proportion to the file's change against the turn's largest, split ok and err by its additions and removals, the rest dim.
-- **No `? keys` hint.** The engine takes a hotkey only from `a` to `z` and `0` to `9`; a `?` hotkey throws inside the pane's render and the engine draws its own pane instead. The hint rows drop `? keys`; every other key in 9.5 works as specified.
+- **`? keys` was removed** (8.12, 9.5, screens 02 and 03). The engine takes a hotkey only from `a` to `z` and `0` to `9`; a `?` hotkey throws inside the pane's render and the engine draws its own pane instead. Every other key in 9.5 works as specified.
 - **The hint row is drawn as text.** The keys themselves are hotkey Buttons with nothing of their own to draw, bound only while the pane holds the keyboard (amendment 7), so the hint row keeps the canvas's exact cells.
 - **The pane comes back to the Timeline tab when it loses focus.** The tab, the open drawer and the URL toggle are view state; losing focus resets the view (amendment 7), and the tab with it, so an unfocused pane always shows the live turn's timeline.
 - **`m` is bound only while an agent is in view.** It answers with `$.ui.view`, which the engine allows only while an agent's conversation is shown; bound everywhere, it called the engine on every press.
@@ -3529,4 +3533,4 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **The `/copy` phrasing** follows 7.14: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
 - **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
 - **Engine notices are drawn as `●` rows** (7.15) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
-- **What the engine does not give.** The classifier's text for a blocked step and the person's reason for a denial are not in any event the plugin receives; a blocked step names the hook that blocked it and a denied one says `denied` alone.
+- **What the engine does not give.** The classifier's text for a blocked step is not in any event the plugin receives, so a blocked step names what refused it (`by the classifier`, `by a hook · <event> · <reason>`). A denial carries no reason the plugin can rely on, so `DENIED` names the command alone (13.8); the quoted reason 13.8 once showed was removed.

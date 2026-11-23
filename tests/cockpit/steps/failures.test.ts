@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { failureKey, fixes, keyOf, keyText, negativeAnswer } from '../../../hooks/cockpit/steps/failures'
-import { deniedReason, endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 const PROJECT = 'D:\\Projects\\ghostframe'
@@ -144,11 +144,10 @@ test('13.7, 13.8: a check`s refusal is blocked, the person`s is denied; neither 
     ['blocked', 'blocked', '']
   ])
   expect(log.steps[0]?.why).toBe('by a hook · PreToolUse · commits to main are not allowed')
-  expect(log.steps[1]?.why).toBe('keep the build output')
+  // A denial names no reason (13.8): whatever its text says, none is kept.
+  expect(log.steps[1]?.why).toBe('')
   expect(log.steps[2]?.why).toBe('by the classifier · The auto mode classifier refused this command')
   expect(receiptOf(endTurn(log, 0, false, 100))).toMatchObject({ failures: 0, blocked: 2, state: 'done' })
-  expect(deniedReason('The user said: "keep it"')).toBe('keep it')
-  expect(deniedReason('Permission to use Bash has been denied')).toBe('')
 })
 
 test('13.9: one clock: the receipt and the pane head read the same time, from the turn`s own start and end', () => {

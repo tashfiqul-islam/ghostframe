@@ -31,15 +31,8 @@ test('screen 01, the left: the finished turn 7, every row', () => {
   expect(rows.flat().some(p => p.bg === TINT.zebra)).toBe(true)
 })
 
-test('screen 03, the left from turn 8: the failure card and FAILED; the canvas`s 90-cell row wraps at 86', () => {
-  const got = shown(screen03())
-  const want = screen('03').slice(2)
-
-  expect([...got.slice(0, 7), ...got.slice(9)]).toEqual([...want.slice(0, 7), ...want.slice(9)])
-  expect(got.slice(7, 9)).toEqual([
-    '             │  I couldn’t finish this. Two tests depend on a POSIX locale that Windows runners don’t',
-    '             │  set, so width("e\\u0301") still splits the accent there.'
-  ])
+test('screen 03, the left from turn 8: the failure card and FAILED, the answer wrapped at 86', () => {
+  expect(shown(screen03())).toEqual(screen('03').slice(2))
   expect(find(screen03(), 'FAILED')).toMatchObject({ color: TOKEN.err, bold: true })
   expect(
     screen03()
@@ -117,13 +110,10 @@ test('screen 01, the pane: tabs, the DONE head card, the ruler, turn 7`s groups 
   expect(find(rows, 'ghostframe')?.color).toBe(TOKEN.wordmark)
 })
 
-test('screen 03, the pane: FAILED, the selected failed group`s drawer in place; the hint row as every other screen', () => {
+test('screen 03, the pane: FAILED, the selected failed group`s drawer in place, the hint row on the grid', () => {
   const { rows, want } = pane('03', pane03)
-  const got = shown(rows)
 
-  expect(got.slice(0, -1)).toEqual(want.slice(0, -1))
-  // The canvas draws this one hint row with the wordmark a cell left of every other screen`s (section 14).
-  expect(got.at(-1)).toBe('  tab move    enter open    1–5 tabs    ? keys        ghostframe v0.1.0')
+  expect(shown(rows)).toEqual(want)
   expect(rows[14]?.[0]).toMatchObject({ t: '▐', color: TOKEN.accent, bg: TOKEN.surface })
   expect(find(rows, 'tab')?.color).toBe(TOKEN.accent)
 })

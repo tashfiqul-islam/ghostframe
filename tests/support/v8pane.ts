@@ -131,8 +131,7 @@ export function pane03(rows: number): Part[][] {
   const keys: [string, string][] = [
     ['tab', 'move'],
     ['enter', 'open'],
-    ['1–5', 'tabs'],
-    ['?', 'keys']
+    ['1–5', 'tabs']
   ]
 
   return framed(
