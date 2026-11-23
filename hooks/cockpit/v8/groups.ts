@@ -3,7 +3,8 @@
 import type { LogStep } from '../../../types'
 import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
-import { isOpen, isShipMark, isTurnFailure } from '../steps/log'
+import { fixes, keyOf } from '../steps/failures'
+import { isFailedMark, isOpen, isShipMark, isTurnFailure } from '../steps/log'
 import type { Group, GroupGlyph } from './pane'
 import type { Tone } from '../../shared/look/bits'
 
@@ -46,7 +47,20 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
   // of its own: a main-loop step after it is Claude's, never its agents', so it starts the next group.
   const bySentence = sentences.length === 0 ? steps.map((_, i) => i) : sentences.map(s => s.at)
   const byLaunch = steps.flatMap((s, i) => (s.step.kind === 'agent' ? [i, i + 1] : []))
-  const cuts = [...new Set([0, ...bySentence, ...byLaunch].filter(at => at >= 0 && at < steps.length))].toSorted((a, b) => a - b)
+  // A step that fixes an earlier failure is its own ✓ row, under the failure's × (8.3, 9.2), whatever sentence holds it.
+  const isFix = (i: number) => {
+    const s = steps[i]?.step
+
+    return (
+      s !== undefined &&
+      !s.isRunning &&
+      !isFailedMark(s) &&
+      s.state === undefined &&
+      all.slice(0, i).some(t => isTurnFailure(t) && fixes(keyOf(s.key), keyOf(t.key)))
+    )
+  }
+  const byFix = steps.flatMap((_, i) => (isFix(i) ? [i, i + 1] : []))
+  const cuts = [...new Set([0, ...bySentence, ...byLaunch, ...byFix].filter(at => at >= 0 && at < steps.length))].toSorted((a, b) => a - b)
 
   return cuts.flatMap((from, k): Group[] => {
     const to = cuts[k + 1] ?? steps.length

@@ -96,3 +96,25 @@ test('8.3: folding from the top, never the live group or an open failure; the fo
 test('8.3: a title drops the answer`s inline markers, as 7.4 does (live check, step 7)', () => {
   expect(titleOf('Repo tiny: `src/width.ts` and one **test** file. Launching three audits.')).toBe('Repo tiny: src/width.ts and one test file')
 })
+
+test('5. with a working sentence, the passing rerun of a failure is its own ✓ row, not inside the next group (live, step 1)', () => {
+  const step = (id: string, kind: string, subject: string, result: string, mark: '✕' | '✓' | '' | '±', at: number) => ({
+    step: { id, kind, subject, key: kind === 'test' ? 'bun · test ·' : `${kind} · · src/width.ts`, result, mark, isRunning: false, clock: at },
+    start: at,
+    end: at + 500
+  })
+  const steps = [
+    step('t1', 'test', 'bun test', '2 of 3 fail', '✕', 0),
+    step('w1', 'write', 'src/width.ts', '+2 −2', '', 1_000),
+    step('t2', 'test', 'bun test', '3 pass', '✓', 2_000),
+    step('c1', 'shell', 'git commit -m "fix"', 'e59cf61', '±', 3_000)
+  ]
+  const groups = groupsOf(steps, [{ text: 'Bun built-in matches all three. Fixing.', at: 1 }], 4_000)
+
+  expect(groups.map(g => [g.glyph, g.result])).toEqual([
+    ['failed', '2 of 3'],
+    ['ok', '+2 −2'],
+    ['ok', '3 pass'],
+    ['shipped', 'e59cf61']
+  ])
+})
