@@ -41,12 +41,11 @@ test('screen 03, the left from turn 8: the failure card and FAILED, the answer w
   ).toBe(true)
 })
 
-test('screen 04, the left from turn 9 to its NEEDS YOU row (the dialog below is the engine`s)', () => {
+test('screen 04, the left from turn 9 to the engine`s dialog: no NEEDS YOU row of its own (decision B)', () => {
   const rows = screen04()
 
   expect(shown(rows)).toEqual(screen('04').slice(2, 2 + rows.length))
-  expect(find(rows, 'NEEDS YOU')).toMatchObject({ color: TOKEN.warn, bold: true })
-  expect(find(rows, '41s')?.color).toBe(TOKEN.warn)
+  expect(find(rows, 'NEEDS YOU')).toBeUndefined()
   expect(find(rows, GLYPH.turn)?.color).toBe(TOKEN.accent)
 })
 

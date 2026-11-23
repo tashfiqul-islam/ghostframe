@@ -8,6 +8,7 @@ import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-c
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
+import { registerBand } from './band'
 import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
 import { isEnvSet, isOn, noticeSink, setEnvOn, setOptionOn } from './switch'
@@ -104,5 +105,6 @@ export function registerCockpit(on: On, options: PluginOptions): void {
   setOptionOn(options['cockpit'] === true)
 
   registerPane(on)
+  registerBand(on)
   registerAgents(on)
 }

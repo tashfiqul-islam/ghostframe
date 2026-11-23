@@ -1,6 +1,6 @@
 // The left of the Cockpit v8 screens, built from the data each screen shows: the screen tests compare these rows with
 // the spec's section 12. Pure: no engine, so a script can print them too.
-import { blockedRow, detailRow, failureRow, needsYouRow, noticeRow, sentenceRows, shippedRow } from '../../hooks/cockpit/v8/events'
+import { blockedRow, detailRow, failureRow, noticeRow, sentenceRows, shippedRow } from '../../hooks/cockpit/v8/events'
 import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, stepLineRow, stepsAllRows, workedRow } from '../../hooks/cockpit/v8/left'
 import type { StepLine, TurnCounts } from '../../hooks/cockpit/v8/left'
 import { NO_SPINE, spineOnly } from '../../hooks/shared/look/spine'
@@ -128,9 +128,9 @@ export function screen04(): Part[][] {
     spineOnly(),
     thoughtRow(3_000),
     spineOnly(),
+    // The engine's dialog follows (decision B): the left draws no NEEDS YOU row of its own.
     ...answerRows('I’ll remove dist/ and rebuild. Removing it needs your permission.', { width: W, hasLead: true }),
-    spineOnly(),
-    needsYouRow(41_000, { kind: 'shell', subject: 'rm -rf dist' }, W)
+    spineOnly()
   ]
 }
 

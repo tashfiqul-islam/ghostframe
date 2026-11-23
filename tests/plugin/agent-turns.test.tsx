@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { TOKEN } from '../../hooks/shared/look/palette'
 import { ON, PANE, T0, VIEW } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
@@ -338,4 +339,36 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
   await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 't2', reason: 'answer' })
   expect(await receiptsUnder($, 'You are welcome.')).toEqual([expect.stringMatching(/✓  DONE/)])
   await docked.unmount()
+})
+
+const BAND = {
+  plugin: 'ghostframe',
+  surface: 'terminal',
+  component: 'AbovePrompt',
+  requestId: 'band',
+  viewport: { columns: 100, rows: 40, isFullscreen: true },
+  props: { hasSurvey: false, isCollapsed: false, isWorking: false, maxRows: 10 }
+} as never
+
+test('A. no pane docked: the band above the prompt says `◇◇◇  Waiting on 3 agents`, its count in place; docked, it draws nothing', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const band = async () => {
+    const ui = await $.ui.mount(BAND)
+    const texts = (await ui.findAll({ type: 'Text' })).map(t => ({ text: t.text, color: t.props['color'] }))
+    await ui.unmount()
+
+    return texts.filter(t => t.text.trim().length > 0)
+  }
+
+  await run($, clock, 1)
+  expect((await band()).map(t => t.text)).toContainEqual('◇◇◇  Waiting on 3 agents')
+  expect((await band()).find(t => t.text === '◇◇◇  Waiting on 3 agents')?.color).toBe(TOKEN.agent)
+
+  await report($, 'ag-Read seat', '43 lines')
+  expect((await band()).map(t => t.text)).toContainEqual('◇◇  Waiting on 2 agents')
+
+  // Docked, the pane head says it; the band is left to the engine.
+  await (await $.ui.mount(PANE)).unmount()
+  expect((await band()).some(t => /Waiting on/.test(t.text))).toBe(false)
 })

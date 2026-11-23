@@ -193,7 +193,7 @@ Durations are `machineDim`. A live elapsed time in a label is `accent`, and `war
 | `DONE`        | ok      | receipt, pane pill                       |
 | `FAILED`      | err     | receipt, pane pill                       |
 | `LIVE`        | accent  | pane pill                                |
-| `NEEDS YOU`   | warn    | the left's waiting row, pane pill        |
+| `NEEDS YOU`   | warn    | pane pill                                |
 | `WAITING`     | warn    | rate limit, API retry                    |
 | `BLOCKED`     | warn    | `⊘` rows                                 |
 | `DENIED`      | err     | you refused a permission                 |
@@ -400,7 +400,6 @@ One row each, on the spine, label = the duration into the turn at which it happe
 ```text
      38m 10s ×  Batch 6 tests   3 of 412 fail
              │  └ hooks/ledger.test.tsx:88 · claim() returned the old turn
-         41s !  NEEDS YOU   shell  rm -rf dist
       3m 31s !  WAITING   rate limited · resumes at 14:05 · or /model to switch
       1m 02s !  WAITING   API overloaded · retrying in 8s · attempt 2 of 10
          12s ⊘  BLOCKED   by a hook · PreToolUse · guard-main.sh · commits to main are not allowed
@@ -431,6 +430,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 
 - The last row of a live turn. Label: the turn's elapsed time (accent). The spinner glyph (accent), Claude's current working sentence, `◇` per running agent (agent colour), the step count (dim). The spine above it becomes `┊`.
 - Drawn at the `Spinner` site. While Claude writes text, this is all that shows (correction E).
+- **Waiting on agents** (Claude answered, background agents still run): the engine draws no spinner row then, so the left stays quiet. Docked, the pane head says `Waiting on n agents`; with no pane docked, one line in the band above the prompt does: `◇◇◇  Waiting on 3 agents` in the agent colour, a `◇` per running agent, its count updating in place.
 
 ### 7.12 The receipt
 
@@ -440,7 +440,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 ```
 
 - Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim, in the order the screens draw them: steps, fixed, still failing, files, blocked (screen 13), sources (`n sources, m cited` when not every one is cited), `n agents`, `n browser` and `n mcp`, then `↗` and the commit hash or PR.
-- **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the live line says `Waiting on n agents` with a `◇` per agent, and the pane head's summary says the same. The receipt draws once, under the answer of the turn's last engine turn that ends with no agent running, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
+- **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the pane head's summary says `Waiting on n agents`, or with no pane docked the band above the prompt (7.11). The receipt draws once, under the answer of the turn's last engine turn that ends with no agent running, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
 - Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
@@ -642,7 +642,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
   tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
-The last row of the pane. Keys in accent, actions in dim, 4 cells apart, and at least 4 cells before the wordmark: hints that do not fit drop whole from the end, never cut (screen 26 drops `1 timeline`). They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
+The pane's second-to-last row: the engine keeps the dock's last row (section 14). Keys in accent, actions in dim, 4 cells apart, and at least 4 cells before the wordmark: hints that do not fit drop whole from the end, never cut (screen 26 drops `1 timeline`). They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
 
 ### 8.13 The inline inspector
 
@@ -675,11 +675,12 @@ Switching follows amendment 10: an unasked pane leaves at once below 144, and re
 
 - The left shows the turn header, your message, any answer blocks as they arrive whole, event rows as they happen, and the live line at the bottom.
 - The pane follows the live turn. The head says `● LIVE`, the now-line moves, and the live group's bar grows.
+- While background agents still run after the answer the turn stays live (the pill `● LIVE`) until its receipt draws; with no pane docked the band above the prompt says `◇◇◇  Waiting on 3 agents` (7.11).
 - Rows already drawn never change. A failure row stays `×` after a later fix; the fix shows as its own row in the pane and as `1 fixed` in the receipt.
 
 ### 9.3 Waits
 
-- **NEEDS YOU** (permission, question): the left's last row is `! NEEDS YOU` with what it waits on. The engine draws the dialog or card in the left region (correction C). The pane's pill is `! NEEDS YOU` and the waiting group is selected with a one-line drawer.
+- **NEEDS YOU** (permission, question): the engine draws the dialog or card in the left region (correction C), its own signal; the left draws no row of its own for it. The pane's pill is `! NEEDS YOU` and the waiting group is selected with a one-line drawer.
 - **WAITING** (rate limit, API retry): a pause, not a failure. The turn continues by itself. The pane stays `● LIVE` for a retry and shows `! NEEDS YOU` for a rate limit (you can `/model` to switch).
 
 ### 9.4 Pins
@@ -1013,7 +1014,7 @@ The pane (72 columns):
 
 Board `S04NeedsYou` · the engine’s dialog takes the left only · the status line hides · the pane keeps its rows
 
-- **SHOWS** The engine’s dialog at the bottom of the left region; the left’s last row ‘! NEEDS YOU · shell rm -rf dist’. Pane: NEEDS YOU pill in warn, the waiting step selected with a one-line drawer.
+- **SHOWS** The engine’s dialog at the bottom of the left region; no row of the left’s own for it. Pane: NEEDS YOU pill in warn, the waiting step selected with a one-line drawer.
 - **DATA** The pending tool.call; the dialog and its choices are the engine’s.
 - **ENGINE** Dialog is drawn by Claude Code in the left region only; the status line hides; the pane grows to the bottom and its existing rows must not move (correction C).
 - **RULES** Warn colour only for NEEDS YOU and WAITING. No sound or flash.
@@ -1032,7 +1033,7 @@ The left (127 columns):
              │
              │  I’ll remove dist/ and rebuild. Removing it needs your permission.
              │
-         41s !  NEEDS YOU   shell  rm -rf dist
+
 
 
 
@@ -1656,7 +1657,7 @@ The pane (72 columns):
 
 Board `S12Question` · the engine’s question card sits in the left region · the pane says what it is waiting for
 
-- **SHOWS** The engine’s question card in the left region, options with descriptions; the spine’s last row ‘! NEEDS YOU · 1 question to answer’. Pane: NEEDS YOU with ‘Asking you’ selected.
+- **SHOWS** The engine’s question card in the left region, options with descriptions; no row of the left’s own for it. Pane: NEEDS YOU with ‘Asking you’ selected.
 - **DATA** The AskUserQuestion call; the card is the engine’s (v7 E.16).
 - **ENGINE** Card drawn by Claude Code (AskUserQuestion), left region only; status line hidden (correction C).
 - **RULES** Cockpit never duplicates the options; it only says what is pending.
@@ -1675,7 +1676,7 @@ The left (127 columns):
              │
              │  Two ways to version releases fit this repo. I need you to pick one.
              │
-         22s !  NEEDS YOU   1 question to answer
+
 
 
 
@@ -3527,7 +3528,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **No output frame in ctrl+o** (section 10). A step line carries its result word and, for an edit, its diff card (7.5); a command's output is in the step's detail in the pane, not repeated on the left.
 - **The selected file is the one under the focus ring** (8.5). The pane has no selection of its own; the engine raises `ui.focus` with the row's key each time the ring moves, so the Files tab draws the first hunk under the file the ring is on, and Enter still opens the full diff.
 - **The row under the focus ring is the selected row, on every view** (6.2, live check step 2). The engine marks the focused `plain` Button only by inverting its cells, and has no other focus style, so the ringed row is drawn with each part's colours swapped: inverted, it shows 6.2's look, its text in its own colours on the `selected` tint and `▐` in accent. The tabs' and views' keys are hotkey Buttons in a Box that is not displayed (8.12), and the engine keeps every Button in the ring, so Tab would stop on a key nobody can see; the `ui.focus` hook moves the ring past them onto a row instead (forward from the last row to the first, otherwise to the last). A view switch (a tab key, `b`, `s`) leaves the ring on an element the new view does not draw, and the engine then marks that view's first row without raising `ui.focus`; Cockpit moves the ring there itself with `$.ui.focus` just after the draw (50 ms, so the row is on screen), and since its own move raises no `ui.focus` it hears, it notes the ring and redraws once the move resolves.
-- **The hint row sits one row above the dock's bottom** (8.12, not as specified). The engine gives the pane `scroll.bodyRows` rows (42 at 200 × 50) and keeps the dock's last row (the 43rd under its close mark) to itself; a tree taller than `bodyRows` scrolls, so the hint row and the wordmark are the body's last row, the dock's last but one.
+- **The hint row sits one row above the dock's bottom** (8.12, the owner's decision C). The engine gives the pane `scroll.bodyRows` rows (42 at 200 × 50) and keeps the dock's last row (the 43rd under its close mark) to itself; a tree taller than `bodyRows` scrolls, so the hint row and the wordmark are the body's last row, the dock's last but one.
 - **The interrupted line draws when the next turn starts** (8.3, screen 06). Esc sends no event a row could draw from, and an interrupted turn raises no TurnDuration; but when the next prompt starts a turn, the step log knows the one before ended aborted or never ended, and keeps its number, steps, files and start for the pane. Its summary says `n files changed`, not the canvas's `renamed`: the step log knows a file changed, not how.
 - **The `◆` keeps its first colour** (7.1). 7.1 said accent while the turn is live and `spine` once finished, which would change a drawn row when its turn ends. The header now keeps the colour it first drew with; one drawn after the turn ended is `spine`.
 - **`/steps n all` prints at most 20 rows** (7.15). 7.15 set no limit; it now stops at 20, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
@@ -3546,4 +3547,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Step marks stay glyphs in the stored step log.** A settled step's `mark` is `✕`, `✓`, `±` or `↗`, as v7 stored it in history and the store budget counts; renaming them would break every kept turn. Code tests a mark by name (`isFailedMark`, `isShipMark`), and only `shared/look/glyphs.ts` draws a glyph.
 - **Renderers built and tested but not yet drawn live.** The agent conversation's header and its steps on the spine (7.1, screen 27: `agentHeader`, `stepNodeRow`), the plan card and its PLAN node (7.9, screen 05: `planCard`, `planRow`) and the `✓ CI passed` row (7.10, screen 19: `passedRow`) draw their screens' rows in the screen tests, but no render site calls them yet: the engine's agent view, the plan tools and a CI run's checks each need a site this phase did not wire. Until then those rows are the engine's own.
 - **A subject's paths read as 13.2 shows them** (13.2, 13.4, 13.8). A path argument in a command's subject goes through the one path formatter (`Remove-Item src/width.test.ts`, not `-LiteralPath 'D:\Projects\cockpit-live\src\width.test.ts'`); PowerShell's `-LiteralPath` and `-Path` names before a path and `-Confirm:$false`, which only answers a prompt, are left out. A commit step is named after its commit statement, its message's first line in place of a here-string. A denied step's timeline row is `▍` in err with the result `denied`.
+- **Waiting on agents, by mode** (7.11, 9.2, the owner's decision A). The engine draws no spinner row while only background agents run, so the left has no live line to say it. Docked, the pane head says `Waiting on n agents` and the left stays quiet; with no pane docked, the band above the prompt (`AbovePrompt`) draws `◇◇◇  Waiting on 3 agents`.
+- **No NEEDS YOU row on the left** (9.3, screens 04 and 12, the owner's decision B). The engine draws no spinner row while its dialog or question card is up; the dialog is its own signal and the pane's pill says NEEDS YOU.
+- **The receipt can draw before a late report's answer** (7.12, not fixed). When every agent has finished but one's report reaches Claude as its own engine turn after an engine turn already ended (the manual run's turn 6), the receipt draws under that earlier answer. The engine gives no event that a finished agent's report is still to be delivered, and holding the receipt until a notification arrives would hold it forever for an agent whose report never comes as one.
 - **What the engine does not give.** The classifier's text for a blocked step is not in any event the plugin receives, so a blocked step names what refused it (`by the classifier`, `by a hook · <script> · <message>`). A denial carries no reason the plugin can rely on, so `DENIED` names the command alone (13.8); the quoted reason 13.8 once showed was removed.

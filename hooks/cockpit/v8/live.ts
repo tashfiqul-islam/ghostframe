@@ -5,9 +5,8 @@ import { waitingOn } from '../agents/roster'
 import type { RosterAgent, StepLog, TodoItem } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { textCells } from '../../shared/look/spine'
-import { needsYouRow, waitingRow } from './events'
+import { waitingRow } from './events'
 import { branchRow, liveRows } from './left'
-import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
 
 /** A pause the engine's spinner names (rate limit, API retry), which the live line says as `WAITING` (7.10). */
@@ -40,23 +39,18 @@ export function liveArea(
   const elapsed = log.startedAt === null ? 0 : Math.max(0, now - log.startedAt)
   const asked = log.steps.find(s => s.isRunning && log.asking.includes(s.id))
 
-  if (asked !== undefined) return [needsYouRow(elapsed, { kind: asked.kind, subject: asked.subject }, width)]
+  // The engine's dialog is its own signal, and the pane's pill says NEEDS YOU: the left draws no row of its own (9.3).
+  if (asked !== undefined) return []
   // WAITING is for the API alone: a rate limit or a retry (7.10).
   if (message !== undefined && message !== null && PAUSE.test(message)) return [waitingRow(elapsed, [{ t: message, color: TOKEN.dim }], width)]
 
   const running = roster.filter(a => a.state === 'running' && a.parent === null).length
   const steps = log.steps.length + log.dropped
   // Claude answered and its background agents still run: the turn is not over, and its receipt waits for them (7.12).
-  // Counted as the receipt counts them (`waitingOn`): the background agents still running.
-  const waiting = waitingOn(roster)
-  const isWaitingOnAgents = !log.isTurnRunning && waiting > 0
-  const said = isWaitingOnAgents
-    ? `Waiting on ${count(waiting, 'agent')}`
-    : log.said.length > 0
-      ? log.said.replace(/[.!?…:]+$/, '')
-      : steps === 0
-        ? 'Thinking'
-        : 'Working'
+  // The left stays quiet: docked the pane head says so, with no pane the band above the prompt does (7.11).
+  if (!log.isTurnRunning && waitingOn(roster) > 0) return []
+
+  const said = log.said.length > 0 ? log.said.replace(/[.!?…:]+$/, '') : steps === 0 ? 'Thinking' : 'Working'
   const rows = liveRows({ elapsedMs: elapsed, frame, sentence: said, agents: running, steps }, width)
 
   if (!isFallback) return rows
