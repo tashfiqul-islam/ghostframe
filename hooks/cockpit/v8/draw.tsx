@@ -6,12 +6,15 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { drawRow } from '../draw'
 import type { Line } from '../line'
-import { openRow, pressKey, ringNow } from '../keys/view'
+import { noteRing, openRow, pressKey, ringNow } from '../keys/view'
 import { GLYPH } from '../../shared/look/glyphs'
 import { selected, underRing } from './pane'
 
 /** Every hotkey of the focused pane (9.5): drawn in every view, so each works wherever the spec says it does. */
 const ALL_KEYS = ['1', '2', '3', '4', '5', 's', 'c', 'p', 'n', 'l', 'b', 'u', 'm']
+
+// How long after a draw the ring moves onto its first row: past the drawing, so its rows are there to land on.
+const RING_MOVE_MS = 50
 
 // The rows' ids as last drawn, in order: where the ring goes instead of a hidden key Button (`ringPastKeys`).
 let rowIds: readonly string[] = []
@@ -25,6 +28,37 @@ let rowIds: readonly string[] = []
  */
 export function ringPastKeys(was: string | undefined): string | undefined {
   return was !== undefined && was === rowIds.at(-1) ? rowIds[0] : rowIds.at(-1)
+}
+
+/**
+ * Where to move the ring after a draw: a view switch (a tab, `b`, `s`) leaves it on an element this view does not
+ * draw, and the engine then marks the view's first row without raising `ui.focus`, so Cockpit could not draw that row
+ * as selected. Moving the ring there itself raises `ui.focus`, and the row it marks is the row drawn selected.
+ * @param ring the element the ring was last on
+ * @param ids the drawn rows' ids, in order
+ * @returns the row to move the ring to, or undefined when it is on a drawn row (or nowhere, or the view has none)
+ */
+export function ringMoveOf(ring: string | undefined, ids: readonly string[]): string | undefined {
+  return ring === undefined || ids.length === 0 || ids.includes(ring) ? undefined : ids[0]
+}
+
+/**
+ * Moves the ring onto a row. `{}` means it is there; Cockpit's own move raises no `ui.focus` this plugin hears, so it
+ * notes the ring itself and redraws, so the row the engine marks draws selected now, not at the next event.
+ * @param $ the engine interface
+ * @param requestId the pane's id
+ * @param key the row's id
+ */
+async function moveRing($: EngineInterface, requestId: string, key: string): Promise<void> {
+  const moved = await $.ui.focus({ requestId, key })
+
+  if (moved.deny !== undefined) {
+    $.ui.log(`cockpit: ring not moved to ${key}: ${moved.deny}`, { to: 'debug' })
+
+    return
+  }
+  noteRing(key)
+  $.ui.invalidate('ui.render')
 }
 
 /** Whether an element is one of the hidden key Buttons. */
@@ -45,6 +79,15 @@ export function drawPaneV8($: EngineInterface, e: RenderInput<'Pane'>, lines: re
   const ring = isFocused ? ringNow() : undefined
 
   rowIds = lines.flatMap(l => (l.id === undefined ? [] : [l.id]))
+  const first = ringMoveOf(ring, rowIds)
+
+  // Once this drawing is on screen: a focus from inside the drawing that brings the row cannot wait on itself.
+  if (first !== undefined)
+    $.clock.after(
+      RING_MOVE_MS,
+      () => void moveRing($, e.requestId, first).catch((error: unknown) => $.ui.log(`cockpit: ring not moved to ${first}: ${String(error)}`, { to: 'debug' }))
+    )
+
   const body = lines.slice(0, -1).map((l, i) =>
     l.id === undefined ? (
       drawRow(ui, l.parts, `row:${i}`)

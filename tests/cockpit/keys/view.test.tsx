@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
+import { ringMoveOf } from '../../../hooks/cockpit/v8/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
@@ -543,4 +544,12 @@ test('6.2: the row under the ring draws selected; Tab passes over the hidden key
   await ring('key-u')
   expect(await selectedRows()).toEqual([expect.stringContaining('hooks/shared/text.ts')])
   await ui.unmount()
+})
+
+test('6.2: a view without the ringed element moves the ring onto its first row (live check, step 6)', () => {
+  // The engine marks the new view's first row without raising `ui.focus`; Cockpit moves the ring there itself.
+  expect(ringMoveOf('step:b1', ['file:a.ts', 'file:b.ts'])).toBe('file:a.ts')
+  expect(ringMoveOf('file:b.ts', ['file:a.ts', 'file:b.ts'])).toBeUndefined()
+  expect(ringMoveOf(undefined, ['file:a.ts'])).toBeUndefined()
+  expect(ringMoveOf('step:b1', [])).toBeUndefined()
 })
