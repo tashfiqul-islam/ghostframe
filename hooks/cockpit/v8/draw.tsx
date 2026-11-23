@@ -6,10 +6,29 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { drawRow } from '../draw'
 import type { Line } from '../line'
-import { openRow, pressKey } from '../keys/view'
+import { openRow, pressKey, ringNow } from '../keys/view'
+import { GLYPH } from '../../shared/look/glyphs'
+import { selected, underRing } from './pane'
 
 /** Every hotkey of the focused pane (9.5): drawn in every view, so each works wherever the spec says it does. */
 const ALL_KEYS = ['1', '2', '3', '4', '5', 's', 'c', 'p', 'n', 'l', 'b', 'u', 'm']
+
+// The rows' ids as last drawn, in order: where the ring goes instead of a hidden key Button (`ringPastKeys`).
+let rowIds: readonly string[] = []
+
+/**
+ * Where the focus ring goes when Tab would land on a hidden key Button: the engine has no way to leave a Button out
+ * of the ring, and a stop on a key nobody can see looks like the ring vanished. Forward from the last row it wraps
+ * to the first; otherwise (backward from the first row, or from the engine's own stops) it lands on the last row.
+ * @param was the element the ring was on
+ * @returns the row to land on, or undefined when the view has no rows
+ */
+export function ringPastKeys(was: string | undefined): string | undefined {
+  return was !== undefined && was === rowIds.at(-1) ? rowIds[0] : rowIds.at(-1)
+}
+
+/** Whether an element is one of the hidden key Buttons. */
+export const isKeyElement = (element: string | undefined): boolean => element?.startsWith('key-') === true
 
 /**
  * The pane's tree.
@@ -23,13 +42,18 @@ export function drawPaneV8($: EngineInterface, e: RenderInput<'Pane'>, lines: re
   const ui = $.ui.resolve(e)
   const { Box, Text, Button } = ui
   const isFocused = e.props.isFocused
+  const ring = isFocused ? ringNow() : undefined
+
+  rowIds = lines.flatMap(l => (l.id === undefined ? [] : [l.id]))
   const body = lines.slice(0, -1).map((l, i) =>
     l.id === undefined ? (
       drawRow(ui, l.parts, `row:${i}`)
     ) : (
       // The press's promise is returned: an agent's row calls `$.ui.view`, allowed only while it answers the press.
+      // The row under the ring is the selected row (6.2), unless its view already drew it so (the Files tab's file),
+      // drawn for the engine's inversion of the focused Button.
       <Button key={l.id} plain onPress={async () => openRow($, l.id ?? '')}>
-        {drawRow(ui, l.parts, `text:${i}`)}
+        {drawRow(ui, l.id === ring ? underRing(l.parts[0]?.t === GLYPH.pillStart ? l.parts : selected(l.parts)) : l.parts, `text:${i}`)}
       </Button>
     )
   )

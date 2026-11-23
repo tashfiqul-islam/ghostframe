@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
+import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 
@@ -502,5 +503,44 @@ test('8.5: on the Files tab the file under the ring opens its first hunk in plac
   await ui.press({ key: 'key-b' })
   await ring('nothing')
   expect((await rows()).some(t => t.includes('@@'))).toBe(false)
+  await ui.unmount()
+})
+
+test('6.2: the row under the ring draws selected; Tab passes over the hidden keys onto a row (live check, step 2)', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  await aTurn($)
+  const ui = await $.ui.mount(pane(true))
+  const ring = (element: string) => $.ui.focus({ component: 'Pane', requestId: 'cockpit', plugin: 'ghostframe', element, origin: { kind: 'person' } } as never)
+  const selectedRows = async () => {
+    await ui.redraw()
+
+    return (await texts(ui)).filter(t => t.startsWith('▐ '))
+  }
+  const ids = (await ui.findAll({ type: 'Button' })).flatMap(b => {
+    const key = (b.props as { key?: string }).key
+
+    return key?.startsWith('step:') === true ? [key] : []
+  })
+  expect(ids).toEqual(['step:r1', 'step:b1', 'step:e1'])
+  expect(await selectedRows()).toEqual([])
+
+  // The ring on a row: that row, and only it, is the selected row (`▐` and the tint, 6.2).
+  await ring('step:b1')
+  const one = await selectedRows()
+  expect(one).toHaveLength(1)
+  expect(one[0]).toContain('bun test')
+  // Drawn for the engine's inversion of the focused Button: inverted, `▐` is accent on the tint, the text its own colour.
+  // (The head pill's `▐` is the other one.)
+  const bars = (await ui.findAll({ type: 'Text' })).filter(t => t.text === '▐').map(t => t.props)
+  expect(bars).toContainEqual(expect.objectContaining({ color: TINT.selected, backgroundColor: TOKEN.accent }))
+
+  // Tab from the last row onto a hidden key Button lands on the first row; from the first row back, on the last.
+  await ring('step:e1')
+  expect((await selectedRows())[0]).toContain('hooks/shared/text.ts')
+  await ring('key-1')
+  expect(await selectedRows()).toEqual([expect.stringContaining('tests/width.test.tsx')])
+  await ring('key-u')
+  expect(await selectedRows()).toEqual([expect.stringContaining('hooks/shared/text.ts')])
   await ui.unmount()
 })

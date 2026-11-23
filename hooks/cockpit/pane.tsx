@@ -5,7 +5,7 @@ import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 import { readDetails } from './keys/details'
 import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
 import { assemblePane, firstHunk } from './v8/assemble'
-import { drawPaneV8 } from './v8/draw'
+import { drawPaneV8, isKeyElement, ringPastKeys } from './v8/draw'
 import { INSPECTOR_KEYS, inspectorRows } from './v8/views'
 import { pluginVersion } from './version'
 import { readFlow } from '../shared/flow'
@@ -355,14 +355,21 @@ export function registerPane(on: On): void {
     return said === undefined ? next(e) : answered($, 'copy', e.args, said.text, said.isOk)
   })
 
-  // The focus ring moved in the pane: `c` copies what it is on.
-  // On the Files tab a file row under the ring opens its first hunk in place (8.5), so a move onto or off one redraws.
+  // The focus ring moved in the pane: `c` copies what it is on, and the row under it is the selected row (6.2), so a
+  // move redraws; on the Files tab that row also opens its file's first hunk in place (8.5). A hidden key Button is
+  // never a stop: the ring goes on to a row instead.
   on('ui.focus', ($, e, next) => {
     if (e.component === 'Pane' && e.requestId === PANE) {
       const was = ringNow()
-      noteRing(e.element)
+      const past = isKeyElement(e.element) ? ringPastKeys(was) : undefined
 
-      if (tabNow() === 'files' && was !== e.element && [was, e.element].some(k => k?.startsWith('file:') === true)) $.ui.invalidate('ui.render')
+      if (isKeyElement(e.element) && past === undefined) return {}
+      const element = past ?? e.element
+
+      noteRing(element)
+      if (was !== element) $.ui.invalidate('ui.render')
+
+      return past === undefined ? next(e) : next({ ...e, element: past })
     }
 
     return next(e)

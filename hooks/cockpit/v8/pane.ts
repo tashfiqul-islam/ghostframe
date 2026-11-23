@@ -262,6 +262,17 @@ export function selected(row: readonly Part[]): Part[] {
   return [{ t: GLYPH.pillStart, color: TOKEN.accent, bg: TINT.selected }, ...rest.map(p => ({ ...p, bg: TINT.selected }))]
 }
 
+/**
+ * The selected row as drawn under the focus ring. The engine inverts every cell of the focused Button (a `plain` one
+ * has no other focus style), so the row is drawn with each part's colours swapped and the inversion shows 6.2's look:
+ * the text in its own colours on the `selected` tint, `▐` in accent.
+ * @param row the selected row (`selected`)
+ * @returns the row to draw inside the focused Button
+ */
+export function underRing(row: readonly Part[]): Part[] {
+  return row.map(p => ({ ...p, color: p.bg ?? TINT.selected, bg: p.color }))
+}
+
 /** A row on the pane's grid (6.2): select, glyph, title, the track, the result. */
 function gridRow(glyph: Part, title: readonly Part[], trackParts: readonly Part[], result: Part, width: number): Part[] {
   const { result: resultCells } = columns(width)
