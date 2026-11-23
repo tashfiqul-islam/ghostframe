@@ -154,8 +154,9 @@ export function fixes(later: FailureKey, failed: FailureKey): boolean {
 // How the engine words a hook's refusal: `PreToolUse:PowerShell hook error: [<command it ran>]: <its message>`.
 const HOOK_ERROR = /hook error: \[([^\]]*)\]:\s*([^\r\n]*)/
 
-// The cmdlets a pipeline ends in only to shape what it prints: not what the step did.
-const FORMATTER = /^(?:Out-String|Out-Null|Out-Host|Select-Object|Format-\w+|Tee-Object)\b/i
+// The commands a pipeline ends in only to shape what it prints, not what the step did: PowerShell's formatting
+// cmdlets, and a shell's `head`, `tail`, `tee`, `cat`, `less` and `more`.
+const FORMATTER = /^(?:Out-String|Out-Null|Out-Host|Select-Object|Format-\w+|Tee-Object|head|tail|tee|cat|less|more)\b/i
 // A redirection and the file it writes to: `2>&1`, `*> $env:TEMP\g.txt`, `> "out.txt"`.
 const REDIRECTION = /\s+[0-9*]?>>?(?:&[0-9]|\s*(?:"[^"]*"|'[^']*'|[^\s;|&]+))/g
 
@@ -177,6 +178,31 @@ export function subjectCommand(command: string, shell: 'pwsh' | 'bash'): string 
   while (pipeline.length > 1 && FORMATTER.test(pipeline.at(-1) ?? '')) pipeline.pop()
 
   return pipeline.join(' | ').replace(REDIRECTION, '').trim()
+}
+
+// A statement that commits: `git`, its global options (`-C dir`, `--git-dir=…`), then `commit`.
+const COMMIT = /^git((?:\s+-C\s+(?:"[^"]*"|'[^']*'|\S+)|\s+--?[\w-]+(?:=\S+)?)*)\s+commit\b/
+
+/**
+ * Whether a command commits (7.10), and where: one of its statements (not a word inside an `echo`, not a
+ * `--dry-run`) runs `git … commit`, in the folder its `cd` prefix or its `git -C` names.
+ * @param command the whole command, every line of it
+ * @returns the folder it commits in (undefined for the session's own), or undefined when it does not commit
+ */
+export function commitIn(command: string): { dir: string | undefined } | undefined {
+  const { command: rest, dir } = stripCd(command)
+
+  for (const statement of statementsOf(rest, false)) {
+    const m = COMMIT.exec(statement.replace(PS_ASSIGNMENT, '').trim())
+
+    if (m === null || /\s--dry-run\b/.test(statement)) continue
+
+    const C = /-C\s+("[^"]*"|'[^']*'|\S+)/.exec(m[1] ?? '')?.[1]?.replace(/^["']|["']$/g, '')
+
+    return { dir: C ?? dir }
+  }
+
+  return undefined
 }
 
 /**

@@ -548,25 +548,37 @@ export function assemblePane(i: PaneInput): Pane {
         return {
           name: a.name,
           isFailed: a.state === 'failed',
+          isRunning,
           open,
           steps: a.steps,
           ms: (a.endedAt ?? i.now) - a.startedAt,
-          step: {
-            glyph: isRunning ? 'current' : a.state === 'failed' ? 'failed' : 'ok',
-            kind: a.kind,
-            subject: a.subject,
-            state: isRunning ? 'running' : a.state === 'failed' ? 'stopped' : 'done',
-            tone: isRunning ? 'accent' : a.state === 'failed' ? 'err' : 'dim'
-          }
+          // Nothing under an agent until its first step (8.9).
+          step:
+            a.kind.length === 0
+              ? undefined
+              : {
+                  glyph: isRunning ? 'current' : a.state === 'failed' ? 'failed' : 'ok',
+                  kind: a.kind,
+                  subject: a.subject,
+                  state: isRunning ? 'running' : a.state === 'failed' ? 'stopped' : 'done',
+                  tone: isRunning ? 'accent' : a.state === 'failed' ? 'err' : 'dim'
+                }
         }
       }),
       together && first !== undefined ? clockTime(first.startedAt) : '',
       i.width
     )
 
+    // Each agent draws a blank row, its own row (which opens it) and its step row, when it has a step yet (8.9).
+    const ids = mains.flatMap(a => [undefined, `agent:${a.id}`, ...(a.kind.length > 0 ? [undefined] : [])])
+
     body = [
       ...plainLines(rows.slice(0, 4)),
-      ...rows.slice(4).map((parts, k) => (k % 3 === 1 ? { parts, id: `agent:${mains[Math.floor(k / 3)]?.id ?? ''}` } : { parts }))
+      ...rows.slice(4).map((parts, k) => {
+        const id = ids[k]
+
+        return id === undefined ? { parts } : { parts, id }
+      })
     ]
   } else {
     const head =

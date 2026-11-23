@@ -1,6 +1,7 @@
 // Cockpit's part of the left (spec E.1, E.3, E.5, E.32, E.33, E.47): docked, the quiet transcript's `↗` rows and
 // receipts and the one-row live area; in fallback (Cockpit on, no pane docked), the same quiet transcript with a
 // capsule per stretch of work and a row per failure, and the whole live area (fallback/).
+import type { LogStep, StepLog } from '../../types'
 import { runOf } from './commands'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
@@ -316,14 +317,15 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
+  // In the order fallback draws them, so a mode switch keeps them where they were: instead, `↗`, ⊘ and ▍.
   const rows = [
+    ...insteadRows(turnOf(log, [p.tool_use_id]), [p.tool_use_id], width),
     ...shipEventRows(
       calls,
       id => steps.find(s => s.id === id)?.clock,
       width,
       id => steps.find(s => s.id === id)?.commit
     ),
-    ...insteadRows(steps, [p.tool_use_id], width),
     ...refusalRows(steps, [p.tool_use_id], width)
   ]
 
@@ -395,6 +397,16 @@ function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[
 }
 
 /**
+ * The steps of the one turn that holds a site's calls: the live log's or the turn before's, never both, so a step's
+ * neighbour is always of its own turn (a `└ instead` line never points into another turn).
+ */
+function turnOf(log: StepLog, ids: readonly string[]): readonly LogStep[] {
+  const has = (steps: readonly LogStep[]) => steps.some(s => ids.includes(s.id) || s.calls?.some(c => ids.includes(c)) === true)
+
+  return has(log.steps) ? log.steps : (log.prev?.steps ?? [])
+}
+
+/**
  * A receipt's tree: the rows above it, the rows above it, then the receipt itself as a Button: a click pins its turn
  * in the pane (E.45; probe 25: a Button there is pressed by a click).
  * @param $ the engine interface
@@ -445,8 +457,8 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
   const rows = [
+    ...insteadRows(turnOf(log, ids), ids, width),
     ...shipEventRows(e.props.calls, clockOf, width, id => steps.find(s => s.id === id)?.commit),
-    ...insteadRows(steps, ids, width),
     ...refusalRows(steps, ids, width)
   ]
 
@@ -622,7 +634,7 @@ const commandClocks = new Map<string, number>()
 export async function drawCommandOutput($: EngineInterface, e: RenderInput<'CommandOutput', 'terminal'>): Promise<RenderElement | undefined> {
   if (!isOn()) return undefined
 
-  const run = runOf(e.props.text, $.plugin.name)
+  const run = await runOf($, e.requestId, e.props.text, $.plugin.name)
 
   if (run === undefined) return undefined
 
@@ -640,7 +652,9 @@ export async function drawCommandOutput($: EngineInterface, e: RenderInput<'Comm
   const lines = Number.isInteger(steps) ? await stepsAllLines($, steps) : undefined
 
   if (lines !== undefined && lines.total > 0) {
-    return <ui.Box flexDirection="column">{drawRows(ui, [...stepsAllRows(clock, run.command, lines.total, lines.shown, leftCells(e)), spineOnly()])}</ui.Box>
+    return (
+      <ui.Box flexDirection="column">{drawRows(ui, [...stepsAllRows(clock, run.command, steps, lines.total, lines.shown, leftCells(e)), spineOnly()])}</ui.Box>
+    )
   }
 
   return <ui.Box flexDirection="column">{drawRows(ui, [slashOutputRow(clock, isOk, run.command, run.text), spineOnly()])}</ui.Box>

@@ -96,6 +96,11 @@ export type LogStep = {
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
 export type LastTurn = { state: 'done' | 'failed' | 'interrupted'; story: string; wait: string; durationMs: number; endedAt: number | null }
 
+/** Cockpit's own slash commands as they ran (spec 7.15). */
+export type CommandRuns = {
+  runs: { id: number; command: string; text: string; isOk: boolean }[]
+}
+
 /** An interrupted turn as the next one's pane names it (screen 06). */
 export type CutTurn = { turnNo: number; steps: number; files: number; startedAt: number | null }
 
@@ -324,6 +329,7 @@ declare module 'claude-code' {
       viewTick: Shaped<number>
       history: Shaped<TurnRecord[]>
       pin: Shaped<number | null>
+      commandRuns: Shaped<CommandRuns>
     }
   }
 }

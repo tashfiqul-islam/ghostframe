@@ -288,6 +288,8 @@ export function todoView(items: readonly TodoRow[], turnNo: number, width: numbe
 export type AgentRow = {
   name: string
   isFailed: boolean
+  /** Still running: counted in the head even before its first step, when no step row shows it. */
+  isRunning?: boolean
   open: number
   steps: number
   ms: number
@@ -304,7 +306,7 @@ export type AgentRow = {
  * @returns the rows
  */
 export function agentsView(agents: readonly AgentRow[], launchedAt: string, width: number): Part[][] {
-  const running = agents.filter(a => a.step?.glyph === 'current').length
+  const running = agents.filter(a => a.isRunning === true || a.step?.glyph === 'current').length
   const failed = agents.filter(a => a.isFailed).length
   const rows: Part[][] = [
     ...summary(

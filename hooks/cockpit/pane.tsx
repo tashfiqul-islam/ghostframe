@@ -286,7 +286,7 @@ export function registerPane(on: On): void {
 
       setDocked($, false)
 
-      return answered(PANE, e.args, 'Pane closed', true)
+      return answered($, PANE, e.args, 'Pane closed', true)
     }
 
     const { columns, isFullscreen } = e.presentation
@@ -298,8 +298,8 @@ export function registerPane(on: On): void {
 
     // `/cockpit` toggles (7.15): docked, it names the terminal's width, the one the person sees, not the pane's.
     return opened.isPlaced
-      ? answered(PANE, e.args, `Pane docked · ${columns} columns`, true)
-      : answered(PANE, e.args, `Pane not placed · ${opened.reason}`, false)
+      ? answered($, PANE, e.args, `Pane docked · ${columns} columns`, true)
+      : answered($, PANE, e.args, `Pane not placed · ${opened.reason}`, false)
   })
 
   // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
@@ -316,11 +316,11 @@ export function registerPane(on: On): void {
     if (words.at(-1) === 'all') {
       const n = words.length > 1 ? Number(words[0]) : (await readLog($)).turnNo
 
-      if (!Number.isInteger(n) || n < 1) return answered(STEPS, e.args, '/steps n all takes a turn number', false)
+      if (!Number.isInteger(n) || n < 1) return answered($, STEPS, e.args, '/steps n all takes a turn number', false)
 
-      const text = await stepsAllText($, n, e.presentation.columns)
+      const said = await stepsAllText($, n, e.presentation.columns)
 
-      return answered(STEPS, e.args, text, !/^(?:no step log|turn \d+ had no steps)/.test(text))
+      return answered($, STEPS, e.args, said.text, said.isOk)
     }
 
     const text = await pinFromCommand($, e.args)
@@ -330,7 +330,7 @@ export function registerPane(on: On): void {
 
     // Docked, the pane already shows it. An inline pane already open takes the open again: the same pane, focused.
     if (docked() || !isPinned) {
-      return answered(STEPS, e.args, text, isPinned)
+      return answered($, STEPS, e.args, text, isPinned)
     }
 
     const { columns, isFullscreen } = e.presentation
@@ -342,7 +342,7 @@ export function registerPane(on: On): void {
     paneBody = opened.isPlaced ? paneColumns(columns) : undefined
     if (opened.isPlaced) ownCloses = 0
 
-    return opened.isPlaced ? answered(STEPS, e.args, text, true) : answered(STEPS, e.args, `${text} · pane not placed · ${opened.reason}`, false)
+    return opened.isPlaced ? answered($, STEPS, e.args, text, true) : answered($, STEPS, e.args, `${text} · pane not placed · ${opened.reason}`, false)
   })
 
   // `/copy` stays the engine's (the last answer); Cockpit answers the forms it adds (E.24, G.78) and passes the rest on.
@@ -352,7 +352,7 @@ export function registerPane(on: On): void {
     const said = await copyFromCommand($, e.args, e.presentation.columns)
 
     // A copy that could not be made says so (`There is no code block 9 …`, `Not copied · …`): an error row (7.15).
-    return said === undefined ? next(e) : answered('copy', e.args, said, !/^(?:There is no|Not copied|no (?:step log|turn|diff) )/.test(said))
+    return said === undefined ? next(e) : answered($, 'copy', e.args, said.text, said.isOk)
   })
 
   // The focus ring moved in the pane: `c` copies what it is on.

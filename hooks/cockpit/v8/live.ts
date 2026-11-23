@@ -1,6 +1,7 @@
 // The left's live area (spec 7.11, 9.3, screens 02, 04, 31): the live line, or the `NEEDS YOU` row while the turn waits
 // on the person, or the `WAITING` row while it waits on the API; in fallback the running steps and the to-do in
 // progress as branches under it. Pure: cockpit/left.tsx draws what this returns.
+import { waitingOn } from '../agents/roster'
 import type { RosterAgent, StepLog, TodoItem } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { textCells } from '../../shared/look/spine'
@@ -46,9 +47,11 @@ export function liveArea(
   const running = roster.filter(a => a.state === 'running' && a.parent === null).length
   const steps = log.steps.length + log.dropped
   // Claude answered and its background agents still run: the turn is not over, and its receipt waits for them (7.12).
-  const isWaitingOnAgents = !log.isTurnRunning && running > 0
+  // Counted as the receipt counts them (`waitingOn`): the background agents still running.
+  const waiting = waitingOn(roster)
+  const isWaitingOnAgents = !log.isTurnRunning && waiting > 0
   const said = isWaitingOnAgents
-    ? `Waiting on ${count(running, 'agent')}`
+    ? `Waiting on ${count(waiting, 'agent')}`
     : log.said.length > 0
       ? log.said.replace(/[.!?…:]+$/, '')
       : steps === 0

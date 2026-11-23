@@ -184,7 +184,7 @@ const stepsOf = (...keys: string[]): StepLine[] => keys.flatMap(k => (STEPS_7[k]
 /** Screen 22's left from the first command: `/steps 7 all`, `/copy code 1`, `/copy code 9`, `/cockpit`. */
 export function screen22(): Part[][] {
   return [
-    ...stepsAllRows('16:31:02', '/steps 7 all', 23, stepsOf('red', 'version', 'agents', 'ci', 'runtime', 'green', 'push')),
+    ...stepsAllRows('16:31:02', '/steps 7 all', 7, 23, stepsOf('red', 'version', 'agents', 'ci', 'runtime', 'green', 'push')),
     spineOnly(),
     slashOutputRow('16:31:20', true, '/copy code 1', 'Copied code block 1 · 3 lines · yaml'),
     spineOnly(),

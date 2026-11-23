@@ -114,7 +114,7 @@ export const frameWidth = (columns: number): number => textCells(columns, false)
  * @param columns the terminal's columns
  * @returns the output text
  */
-export async function stepsAllText($: EngineInterface, turnNo: number, columns: number): Promise<string> {
+export async function stepsAllText($: EngineInterface, turnNo: number, columns: number): Promise<Said> {
   const lines = await stepsAllLines($, turnNo)
   const known = await knownTurns($)
   const width = frameWidth(columns)
@@ -122,11 +122,11 @@ export async function stepsAllText($: EngineInterface, turnNo: number, columns: 
   if (lines !== undefined && lines.total > 0) {
     const more = lines.total - lines.shown.length
 
-    return [...lines.shown.map(l => rowText(stepLineRow(l, width)).trimEnd()), ...(more > 0 ? [`… ${more} more`] : [])].join('\n')
+    return ok([...lines.shown.map(l => rowText(stepLineRow(l, width)).trimEnd()), ...(more > 0 ? [`… ${more} more`] : [])].join('\n'))
   }
 
   // A kept turn with nothing to print had no steps; only a turn Cockpit does not keep has no step log.
-  return known.includes(turnNo) ? `turn ${turnNo} had no steps` : `no step log for turn ${turnNo} · kept: ${span(known)}`
+  return no(known.includes(turnNo) ? `turn ${turnNo} had no steps` : `no step log for turn ${turnNo} · kept: ${span(known)}`)
 }
 
 /** The fenced code blocks of a Markdown text, each without the indent it was nested at. */
@@ -204,6 +204,12 @@ async function diffOf($: EngineInterface, path: string): Promise<{ diff: FileDif
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
+/** What a command answers, and whether it did what was asked: `isOk` false is the `×` row (7.15). */
+export type Said = { text: string; isOk: boolean }
+
+const ok = (text: string): Said => ({ text, isOk: true })
+const no = (text: string): Said => ({ text, isOk: false })
+
 /**
  * One `/copy` form Cockpit adds; undefined for anything else, which the engine's `/copy` answers.
  * @param $ the engine interface
@@ -211,7 +217,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
  * @param columns the terminal's columns
  * @returns the notice, or undefined
  */
-export async function copyFromCommand($: EngineInterface, args: string, columns: number): Promise<string | undefined> {
+export async function copyFromCommand($: EngineInterface, args: string, columns: number): Promise<Said | undefined> {
   const [form = '', ...rest] = args.trim().split(/\s+/)
   const arg = rest.join(' ')
   const n = Number(arg)
@@ -219,7 +225,7 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
   const copy = async (text: string, said: string) => {
     const done = await $.ui.copy({ text })
 
-    return done.isCopied ? `Copied ${said}` : `Not copied · ${done.reason}`
+    return done.isCopied ? ok(`Copied ${said}`) : no(`Not copied · ${done.reason}`)
   }
 
   if (form === 'code' || form === 'link') {
@@ -230,7 +236,7 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
     const has = all.length === 0 ? `the last answer has no ${what}s` : `the last answer has ${all.length}`
     const hit = isN ? all[n - 1] : undefined
 
-    if (hit === undefined) return `There is no ${what} ${arg.length > 0 ? arg : 'given'} · ${has}`
+    if (hit === undefined) return no(`There is no ${what} ${arg.length > 0 ? arg : 'given'} · ${has}`)
 
     const lang = form === 'code' ? (fenceWords(answer ?? '')[n - 1] ?? '') : ''
 
@@ -243,19 +249,19 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
   if (form === 'steps' || form === 'turn') {
     const known = await knownTurns($)
 
-    if (!isN || !known.includes(n)) return `no ${form === 'steps' ? 'step log' : 'turn'} ${arg.length > 0 ? arg : 'given'} · kept: ${span(known)}`
+    if (!isN || !known.includes(n)) return no(`no ${form === 'steps' ? 'step log' : 'turn'} ${arg.length > 0 ? arg : 'given'} · kept: ${span(known)}`)
 
     if (form === 'steps') {
       const rows = await turnRows($, n, frameWidth(columns))
 
       return rows.length > 0
         ? copy(rows.map(r => rowText(r).trimEnd()).join('\n'), `the steps of turn ${n} · ${plural(rows.length, 'row')}`)
-        : `turn ${n} had no steps`
+        : no(`turn ${n} had no steps`)
     }
 
     const text = await turnText($, n)
 
-    return text === undefined ? `turn ${n} kept no answer to copy` : copy(text, `turn ${n} · prompt and answer`)
+    return text === undefined ? no(`turn ${n} kept no answer to copy`) : copy(text, `turn ${n} · prompt and answer`)
   }
 
   if (form === 'diff') {
@@ -265,7 +271,7 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
       const list =
         known.length === 0 ? 'no file diffs kept' : `diffs kept for ${known.slice(0, 5).join(', ')}${known.length > 5 ? ` +${known.length - 5}` : ''}`
 
-      return `no diff for ${arg.length > 0 ? arg : 'a path'}${diff?.note === undefined ? '' : ` · ${diff.note}`} · ${list}`
+      return no(`no diff for ${arg.length > 0 ? arg : 'a path'}${diff?.note === undefined ? '' : ` · ${diff.note}`} · ${list}`)
     }
 
     const adds = diff.patch.filter(l => l.startsWith('+')).length

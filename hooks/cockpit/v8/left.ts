@@ -224,14 +224,14 @@ export function stepLineRow(s: StepLine, width = 86): Part[] {
  * result, own time; step rows only), and how many more there are, since the rest is in the scrollback.
  * @param clock when it ran
  * @param command the command as typed, `/steps 7 all`
+ * @param turnNo the turn it prints, the live one's for `/steps all`
  * @param total the turn's steps
  * @param shown the step rows printed
  * @param width the text column's cells
  * @returns the rows
  */
-export function stepsAllRows(clock: string, command: string, total: number, shown: readonly StepLine[], width = 86): Part[][] {
+export function stepsAllRows(clock: string, command: string, turnNo: number, total: number, shown: readonly StepLine[], width = 86): Part[][] {
   const more = total - shown.length
-  const turnNo = /\d+/.exec(command)?.[0] ?? ''
 
   return [
     slashOutputRow(clock, true, command, ''),

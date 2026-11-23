@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement, subjectCommand } from '../../../hooks/cockpit/steps/failures'
+import { commitIn, failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement, subjectCommand } from '../../../hooks/cockpit/steps/failures'
 import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
@@ -180,4 +180,15 @@ test('5.7, 13.4: a shell step`s subject is the statement its key comes from, wit
   // A pipe that does work stays.
   expect(subjectCommand('grep -rn width src | wc -l', 'bash')).toBe('grep -rn width src | wc -l')
   expect(subjectCommand('ls /nope1', 'bash')).toBe('ls /nope1')
+})
+
+test('7.10: a command commits only when one of its statements runs git commit, in the folder its cd or -C names', () => {
+  expect(commitIn("git add src/width.ts; git commit -q -m @'\nfix: width\n'@")).toEqual({ dir: undefined })
+  expect(commitIn('cd sub && git commit -m x')).toEqual({ dir: 'sub' })
+  expect(commitIn('git -C ../repo commit -am x')).toEqual({ dir: '../repo' })
+  expect(commitIn('echo "git commit later"')).toBeUndefined()
+  expect(commitIn('git commit --dry-run')).toBeUndefined()
+  expect(commitIn('git log --oneline -1')).toBeUndefined()
+  // A shell's own formatting pipes go too.
+  expect(subjectCommand('bun test 2>&1 | tail -20', 'bash')).toBe('bun test')
 })

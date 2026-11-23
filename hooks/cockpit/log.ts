@@ -29,9 +29,8 @@ import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
-import { hookWords, ruledStatement } from './steps/failures'
+import { commitIn, hookWords, ruledStatement } from './steps/failures'
 import { showPath } from '../shared/look/paths'
-import { GIT_COMMIT } from '../shared/calls/describe'
 import { parseShip, shellText } from '../shared/calls/ships'
 import { isOn, noticeSink } from './switch'
 import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
@@ -214,11 +213,16 @@ async function withCommit($: EngineInterface, e: ToolCallInput, ran: Outcome, cw
   const command: unknown = Reflect.get(e, 'command')
   const isShell = e.tool === 'Bash' || e.tool === 'PowerShell'
 
-  if (!isShell || ran.isError === true || ran.deny !== undefined || typeof command !== 'string' || !GIT_COMMIT.test(command)) return ran
+  const commits = !isShell || ran.isError === true || ran.deny !== undefined || typeof command !== 'string' ? undefined : commitIn(command)
+
+  if (commits === undefined || typeof command !== 'string') return ran
   if (parseShip(e.tool_use_id, command, shellText(ran.result) || (ran.text ?? ''))?.commit !== undefined) return ran
 
+  // Git is asked where the commit ran: the folder its `cd` or `git -C` named, from the session's folder.
+  const at = commits.dir === undefined ? cwd : /^(?:[A-Za-z]:|[/\\~])/.test(commits.dir) || cwd === undefined ? commits.dir : `${cwd}/${commits.dir}`
+
   try {
-    const head = await $.process.run(['git', 'log', '-1', '--format=%h%x09%s'], cwd === undefined ? {} : { cwd })
+    const head = await $.process.run(['git', 'log', '-1', '--format=%h%x09%s'], at === undefined ? {} : { cwd: at })
     const [sha = '', subject = ''] = head.stdout.trim().split('\t')
 
     return head.exitCode === 0 && /^[0-9a-f]{7,40}$/.test(sha) ? { ...ran, commit: { sha: sha.slice(0, 7), subject } } : ran
@@ -331,8 +335,12 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   const ended = await read($, stepLog)
 
   // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none, and the
-  // live line keeps saying what it waits on; the one that ends with none running writes the whole turn's.
-  if (waiting === 0) {
+  // live line keeps saying what it waits on; the first that ends with none running writes the whole turn's. A
+  // report turn after it (an agent that had finished before its report turn ran) writes no second one: the first is
+  // drawn, and a drawn row never moves to another answer.
+  const isWritten = (await read($, receipts)).some(r => r.turnNo === ended.turnNo)
+
+  if (waiting === 0 && !isWritten) {
     // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
     const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
     const receipt = { ...receiptOf(ended), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }

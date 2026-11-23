@@ -9,6 +9,7 @@ const FLAT = [0, 2, 0]
 
 /** A receipt as the v8 receipt row's counts. */
 export function receiptCounts(r: Receipt): TurnCounts {
+  // `waiting` is a receipt kept in history before phase 12 made one receipt per typed turn; none is written now.
   const state = r.state === 'failed' ? 'failed' : r.state === 'waiting' ? 'waiting' : 'done'
 
   return {
