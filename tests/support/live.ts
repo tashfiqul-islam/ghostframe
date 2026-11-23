@@ -65,6 +65,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean): void {
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.spawn', (_, e) => ({ model: 'opus', agentId: agentOf(e.description)?.agentId ?? `ag-${e.description}` }))
   on('agent.report', (_, e) => ({ text: e.text }))
+  on('session.messages', () => ({ value: [] }))
   on('command.run', () => ({ text: 'the engine`s command' }))
   // Git, as the session's repo answered: HEAD after turn 1's commit; no work tree otherwise.
   on('process.run', (_, e) => {

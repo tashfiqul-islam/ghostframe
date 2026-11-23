@@ -77,16 +77,16 @@ test('ctrl+o: a sentence Claude said while working is a `│` row with the turn 
   expect(await rowsOf($, site('AssistantMessage', 'm2-ed2', 200, { text: 'Next, Edit for turn 2.', isFirstOfReply: true }))).toEqual([])
 })
 
-test('/steps n all prints the same rows for one turn as the command`s output', ON, async ($, on) => {
+test('/steps n all prints the turn`s step rows only, no sentences and no diffs, as the command`s output', ON, async ($, on) => {
   fallbackEngine(on, { now: T })
   on('session.messages', () => ({ value: [] }))
   await mixedTurn($, { now: T }, 3)
 
   const out = await $.command.run({ command: 'steps', args: '1 all', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
   const lines = (out.text ?? '').split('\n')
-  expect(lines[0]).toBe('    09:00:00 │  Next, Bash for turn 3.')
-  expect(lines[1]).toMatch(/^ {16}shell {3}echo hi +hi +1s$/)
-  expect(lines.filter(l => /^ {16}\S/.test(l)).map(l => l.slice(16, 24).trim())).toEqual(['shell', 'edit', 'fetch', 'shell', 'agent'])
+  expect(lines[0]).toMatch(/^ {16}shell {3}echo hi +hi +1s$/)
+  // One row per step, nothing between them (7.15).
+  expect(lines.map(l => l.slice(16, 24).trim())).toEqual(['shell', 'edit', 'fetch', 'shell', 'agent'])
   expect(
     (await $.command.run({ command: 'steps', args: '9 all', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })).text
   ).toBe('no step log for turn 9 · kept: turn 1')

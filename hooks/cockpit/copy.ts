@@ -107,17 +107,23 @@ export async function turnRows($: EngineInterface, turnNo: number, width: number
 export const frameWidth = (columns: number): number => textCells(columns, false)
 
 /**
- * `/steps n all` (E.4): the turn's ctrl+o rows, as the command's output.
+ * `/steps n all` (7.15): the turn's step rows (kind, subject, result, own time) as the command's output, at most 20,
+ * then how many more. Step rows only: a diff is the pane's, not the list's.
  * @param $ the engine interface
  * @param turnNo the typed turn
  * @param columns the terminal's columns
  * @returns the output text
  */
 export async function stepsAllText($: EngineInterface, turnNo: number, columns: number): Promise<string> {
-  const rows = await turnRows($, turnNo, frameWidth(columns))
+  const lines = await stepsAllLines($, turnNo)
   const known = await knownTurns($)
+  const width = frameWidth(columns)
 
-  if (rows.length > 0) return rows.map(r => rowText(r).trimEnd()).join('\n')
+  if (lines !== undefined && lines.total > 0) {
+    const more = lines.total - lines.shown.length
+
+    return [...lines.shown.map(l => rowText(stepLineRow(l, width)).trimEnd()), ...(more > 0 ? [`… ${more} more`] : [])].join('\n')
+  }
 
   // A kept turn with nothing to print had no steps; only a turn Cockpit does not keep has no step log.
   return known.includes(turnNo) ? `turn ${turnNo} had no steps` : `no step log for turn ${turnNo} · kept: ${span(known)}`

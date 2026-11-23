@@ -106,7 +106,8 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   const presentation = { isFullscreen: true, columns: 120 }
   const first = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(opened).toEqual([{ id: 'cockpit', columns: 40 }])
-  expect(first.text).toBe('Pane docked at 40 columns')
+  // It toggles (7.15): it names the terminal's width, the one the person sees.
+  expect(first.text).toBe('Pane docked · 120 columns')
 
   const second = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(closed).toEqual(['cockpit'])

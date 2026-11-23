@@ -163,23 +163,20 @@ export function branchRow(kind: string, subject: string, state: string, isLast: 
 }
 
 /**
- * A slash command you ran (7.15): its clock, the `/` node in `machine`, the command.
+ * A slash command you ran and what it said (7.15), one row: its clock, `✓` or `×` for an ask it could not do, the
+ * command as typed in `machine`, then its words: `16:31:34 ×  /copy code 9   There is no code block 9 · …`. The
+ * engine's own echo of the command stands above it, so no `/` node repeats it.
  * @param clock when it ran, as a clock time
- * @param command the command as typed, `/copy code 1`
- * @returns the row
- */
-export function slashRow(clock: string, command: string): Part[] {
-  return spineRow({ t: clock, color: TOKEN.machine }, { t: GLYPH.slash, color: TOKEN.machine }, [{ t: command, color: TOKEN.machine }])
-}
-
-/**
- * A command's one quiet output row (7.15): `✓  Copied code block 1 · 3 lines · yaml`, or `×` for a wrong ask.
  * @param ok whether it did what was asked
- * @param text what it says
+ * @param command the command as typed, `/copy code 9`
+ * @param text what it says, '' for nothing more
  * @returns the row
  */
-export function slashOutputRow(ok: boolean, text: string): Part[] {
-  return spineRow(NO_LABEL, ok ? { t: GLYPH.ok, color: TOKEN.ok } : { t: GLYPH.fail, color: TOKEN.err }, [{ t: text, color: TOKEN.muted }])
+export function slashOutputRow(clock: string, ok: boolean, command: string, text: string): Part[] {
+  return spineRow({ t: clock, color: TOKEN.machine }, ok ? { t: GLYPH.ok, color: TOKEN.ok } : { t: GLYPH.fail, color: TOKEN.err }, [
+    { t: command, color: TOKEN.machine },
+    ...(text.length > 0 ? [dim('   '), { t: text, color: TOKEN.muted }] : [])
+  ])
 }
 
 /** One step as the left prints it (ctrl+o, `/steps n all`; screens 22, 30). */
@@ -223,23 +220,25 @@ export function stepLineRow(s: StepLine, width = 86): Part[] {
 }
 
 /**
- * `/steps n all` (7.15, screen 22): its node, the head `STEPS · TURN n · m steps`, the step rows, and how many more
- * there are, since the rest is in the scrollback.
+ * `/steps n all` (7.15, screen 22): its row, the head `STEPS · TURN n · m steps`, the step rows (kind, subject,
+ * result, own time; step rows only), and how many more there are, since the rest is in the scrollback.
  * @param clock when it ran
- * @param turnNo the turn
- * @param total its steps
+ * @param command the command as typed, `/steps 7 all`
+ * @param total the turn's steps
  * @param shown the step rows printed
+ * @param width the text column's cells
  * @returns the rows
  */
-export function stepsAllRows(clock: string, turnNo: number, total: number, shown: readonly StepLine[]): Part[][] {
+export function stepsAllRows(clock: string, command: string, total: number, shown: readonly StepLine[], width = 86): Part[][] {
   const more = total - shown.length
+  const turnNo = /\d+/.exec(command)?.[0] ?? ''
 
   return [
-    slashRow(clock, `/steps ${turnNo} all`),
+    slashOutputRow(clock, true, command, ''),
     spineRow(NO_LABEL, SPINE, []),
     spineRow(NO_LABEL, SPINE, [{ t: `STEPS · TURN ${turnNo} · ${count(total, 'step')}`, color: TOKEN.muted, bold: true }]),
-    ...shown.map(s => stepLineRow(s)),
-    ...(more > 0 ? [spineRow(NO_LABEL, SPINE, [dim(`… ${more} more · /steps ${turnNo} all is in your scrollback`)])] : [])
+    ...shown.map(s => stepLineRow(s, width)),
+    ...(more > 0 ? [spineRow(NO_LABEL, SPINE, [dim(`… ${more} more · ${command} is in your scrollback`)])] : [])
   ]
 }
 

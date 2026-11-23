@@ -465,14 +465,13 @@ The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
 ### 7.15 Slash commands
 
 ```text
-    16:31:20 /  /copy code 1
-             ✓  Copied code block 1 · 3 lines · yaml
-    16:31:34 /  /copy code 9
-             ×  There is no code block 9 · the last answer has 1
+    16:31:20 ✓  /copy code 1   Copied code block 1 · 3 lines · yaml
+    16:31:34 ×  /copy code 9   There is no code block 9 · the last answer has 1
 ```
 
-- The command as a `/` node (machine) with its clock. Its output is one quiet row (`✓` / `×`).
-- `/steps n all` prints at most 20 step rows (8.11's rows), so one command never floods the transcript. With more, it ends `… n more · /steps n all is in your scrollback`; the pane's every-step view shows the rest.
+- One row per command: its clock, `✓`, or `×` for an ask it could not do, the command as typed (machine), then what it says (muted). The engine echoes the command above the row (`> /copy`, without its arguments); no site hides that echo, so the row carries the whole command instead of a `/` node that would repeat it. The engine's `ghostframe:` prefix on a plugin's answer is not drawn.
+- `/cockpit` toggles the pane: `Pane docked · 200 columns` (the terminal's width) when it opens it, `Pane closed` when it closes it, `Pane not placed · <reason>` (`×`) when the engine would not place it.
+- `/steps n all` prints at most 20 step rows (8.11's rows: kind, subject, result, own time; never a diff), so one command never floods the transcript. With more, it ends `… n more · /steps n all is in your scrollback`; the pane's every-step view shows the rest.
 - `/copy` says `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, or `Not copied · <reason>`.
 - A wrong number always says what exists.
 
@@ -2411,7 +2410,7 @@ The pane (72 columns):
 
 Board `S22Slash` · commands get a / node in cyan · output is quiet, one line, and says what exists when a number is wrong
 
-- **SHOWS** Each command as a cyan / node with its clock; /steps 7 all prints the step rows (kind, subject, result, own duration) with ‘… 16 more’; /copy code 1 → ✓ one line; /copy code 9 → × ‘there is no code block 9 · the last answer has 1’; /cockpit → ✓.
+- **SHOWS** Each command as one row with its clock, ✓ or ×, the command as typed and what it says; /steps 7 all prints the step rows (kind, subject, result, own duration) with ‘… 16 more’; /copy code 1 → ✓ one line; /copy code 9 → × ‘there is no code block 9 · the last answer has 1’; /cockpit → ✓.
 - **DATA** Cockpit’s own slash commands (v7 E.24).
 - **RULES** Command output is one quiet line, except /steps n all. A wrong number always says what exists.
 
@@ -2420,7 +2419,7 @@ The left (127 columns):
 ```text
       2m 44s ✓  DONE   ⣀⣤⣴⣶⣿⣶⣤⣴⣿⣷⣤⣀   23 steps · 1 fixed · 3 files · width tests fixed
 
-    16:31:02 /  /steps 7 all
+    16:31:02 ✓  /steps 7 all
              │
              │  STEPS · TURN 7 · 23 steps
                 test    bun test hooks/width                                      2 of 14 fail      3s
@@ -2432,14 +2431,11 @@ The left (127 columns):
                 shell   git push                                                       a1f3c2e      2s
              │  … 16 more · /steps 7 all is in your scrollback
              │
-    16:31:20 /  /copy code 1
-             ✓  Copied code block 1 · 3 lines · yaml
+    16:31:20 ✓  /copy code 1   Copied code block 1 · 3 lines · yaml
              │
-    16:31:34 /  /copy code 9
-             ×  There is no code block 9 · the last answer has 1
+    16:31:34 ×  /copy code 9   There is no code block 9 · the last answer has 1
              │
-    16:31:50 /  /cockpit
-             ✓  Pane docked at 72 columns
+    16:31:50 ✓  /cockpit   Pane docked · 200 columns
 ```
 
 The pane (72 columns):
@@ -3546,6 +3542,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **The prompt's rows and the turn's stamp are found apart.** The prompt site draws the header and card from the message alone; which turn number it carries comes from the ledger's stamp, so a row drawn again keeps its number (the turn rule, amendment 10).
 - **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
 - **The `/copy` phrasing** follows 7.15: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
+- **Slash commands draw one row each** (7.15, screen 22). The engine echoes a command above its output (`> /copy`, without arguments) and no site hides the echo, so Cockpit's `/` node was a second copy of it. The output row now carries the clock, `✓` or `×`, the whole command as typed and the words. The engine hands the output row empty arguments and its own `ghostframe:` prefix, so Cockpit keeps each run it answered (cockpit/commands.ts) and draws from that.
 - **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
 - **Engine notices are drawn as `●` rows** (7.10) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
 - **Two more refusal names** (13.7): `by the sandbox` and `by a policy`. The engine's `deny` verdicts include the sandbox's and a permission mode's, which 13.7 did not name; each says which, rather than all reading `by the classifier`.

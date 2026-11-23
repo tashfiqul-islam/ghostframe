@@ -1,7 +1,7 @@
 // The left of the Cockpit v8 screens, built from the data each screen shows: the screen tests compare these rows with
 // the spec's section 12. Pure: no engine, so a script can print them too.
 import { blockedRow, detailRow, failureRow, needsYouRow, noticeRow, sentenceRows, shippedRow } from '../../hooks/cockpit/v8/events'
-import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, slashRow, stepLineRow, stepsAllRows, workedRow } from '../../hooks/cockpit/v8/left'
+import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, stepLineRow, stepsAllRows, workedRow } from '../../hooks/cockpit/v8/left'
 import type { StepLine, TurnCounts } from '../../hooks/cockpit/v8/left'
 import { NO_SPINE, spineOnly } from '../../hooks/shared/look/spine'
 import type { Part } from '../../hooks/shared/parts'
@@ -184,16 +184,13 @@ const stepsOf = (...keys: string[]): StepLine[] => keys.flatMap(k => (STEPS_7[k]
 /** Screen 22's left from the first command: `/steps 7 all`, `/copy code 1`, `/copy code 9`, `/cockpit`. */
 export function screen22(): Part[][] {
   return [
-    ...stepsAllRows('16:31:02', 7, 23, stepsOf('red', 'version', 'agents', 'ci', 'runtime', 'green', 'push')),
+    ...stepsAllRows('16:31:02', '/steps 7 all', 23, stepsOf('red', 'version', 'agents', 'ci', 'runtime', 'green', 'push')),
     spineOnly(),
-    slashRow('16:31:20', '/copy code 1'),
-    slashOutputRow(true, 'Copied code block 1 · 3 lines · yaml'),
+    slashOutputRow('16:31:20', true, '/copy code 1', 'Copied code block 1 · 3 lines · yaml'),
     spineOnly(),
-    slashRow('16:31:34', '/copy code 9'),
-    slashOutputRow(false, 'There is no code block 9 · the last answer has 1'),
+    slashOutputRow('16:31:34', false, '/copy code 9', 'There is no code block 9 · the last answer has 1'),
     spineOnly(),
-    slashRow('16:31:50', '/cockpit'),
-    slashOutputRow(true, 'Pane docked at 72 columns')
+    slashOutputRow('16:31:50', true, '/cockpit', 'Pane docked · 200 columns')
   ]
 }
 

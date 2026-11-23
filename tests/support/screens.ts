@@ -744,7 +744,7 @@ const SCREENS: Record<string, string[][]> = {
     [
       "      2m 44s ✓  DONE   ⣀⣤⣴⣶⣿⣶⣤⣴⣿⣷⣤⣀   23 steps · 1 fixed · 3 files · width tests fixed",
       "",
-      "    16:31:02 /  /steps 7 all",
+      "    16:31:02 ✓  /steps 7 all",
       "             │",
       "             │  STEPS · TURN 7 · 23 steps",
       "                test    bun test hooks/width                                      2 of 14 fail      3s",
@@ -756,14 +756,11 @@ const SCREENS: Record<string, string[][]> = {
       "                shell   git push                                                       a1f3c2e      2s",
       "             │  … 16 more · /steps 7 all is in your scrollback",
       "             │",
-      "    16:31:20 /  /copy code 1",
-      "             ✓  Copied code block 1 · 3 lines · yaml",
+      "    16:31:20 ✓  /copy code 1   Copied code block 1 · 3 lines · yaml",
       "             │",
-      "    16:31:34 /  /copy code 9",
-      "             ×  There is no code block 9 · the last answer has 1",
+      "    16:31:34 ×  /copy code 9   There is no code block 9 · the last answer has 1",
       "             │",
-      "    16:31:50 /  /cockpit",
-      "             ✓  Pane docked at 72 columns"
+      "    16:31:50 ✓  /cockpit   Pane docked · 200 columns"
     ],
     [
       "  TIMELINE   FILES 3   SOURCES 2   TODO 5/5   AGENTS 3",

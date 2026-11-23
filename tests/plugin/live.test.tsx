@@ -82,3 +82,28 @@ test('5, 6. turn 4: ⊘ BLOCKED names the hook`s script and its message; after /
   expect(after.some(r => /◇  worked/.test(r))).toBe(false)
   expect(after.join('\n')).not.toMatch(/hook error|pwsh -NoProfile/)
 })
+
+/** A command Cockpit answers, then its output row as the engine raises it: no arguments, its `ghostframe:` prefix. */
+async function commandRows($: Engine, command: string, args: string) {
+  const out = await $.command.run({ command, args, origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } })
+
+  return rowsOf($, site('CommandOutput', `out-${command}-${args}`, 127, { command, args: '', text: `ghostframe: ${out.text ?? ''}`, isErrored: false }))
+}
+
+test('7. after turn 4: one row per command, `×` for an error, the whole command, no `ghostframe:`; /steps n all is step rows', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 4, 200)
+  const copy = await commandRows($, 'copy', 'code 9')
+  const steps = await commandRows($, 'steps', '1 all')
+  const cockpit = await commandRows($, 'cockpit', '')
+
+  expect(copy).toEqual([
+    expect.stringMatching(/^ {4}\d\d:\d\d:\d\d ×  \/copy code 9 {3}There is no code block 9 · the last answer has /),
+    expect.stringMatching(/^ {13}│$/)
+  ])
+  expect(steps[0]).toMatch(/^ {4}\d\d:\d\d:\d\d ✓  \/steps 1 all$/)
+  expect(steps.join('\n')).not.toMatch(/ghostframe:|[▄▀]|\{ "name"/)
+  // `/cockpit` toggles: the pane was open, so it closes.
+  expect(cockpit[0]).toMatch(/✓  \/cockpit {3}Pane (closed|docked · 200 columns)$/)
+  for (const r of [...copy, ...steps, ...cockpit]) expect(r).not.toContain('ghostframe:')
+})

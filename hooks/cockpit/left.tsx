@@ -1,6 +1,7 @@
 // Cockpit's part of the left (spec E.1, E.3, E.5, E.32, E.33, E.47): docked, the quiet transcript's `↗` rows and
 // receipts and the one-row live area; in fallback (Cockpit on, no pane docked), the same quiet transcript with a
 // capsule per stretch of work and a row per failure, and the whole live area (fallback/).
+import { runOf } from './commands'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import type { Receipt, RosterAgent } from '../../types'
@@ -15,7 +16,7 @@ import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { FAILURE_ROWS } from './steps/log'
 import { insteadRows, moreRow, refusalRows } from './v8/events'
-import { failureCard, receiptRow, slashOutputRow, slashRow, stepsAllRows, workedRow } from './v8/left'
+import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from './v8/left'
 import { liveArea } from './v8/live'
 import { receiptCounts } from './v8/receipt'
 import { shipEventRows } from './v8/ships'
@@ -608,13 +609,12 @@ export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMe
 // reload draws a command again with the reload's time; fine, the clock is a label, not a record.
 const commandClocks = new Map<string, number>()
 
-/** Output that says the command could not do what was asked (7.15: `×`). */
-const REFUSED = /^(?:There is no|no |Not copied|nothing|turn \d+ had no|\S+ takes a)/i
-
 /**
- * A slash command's output while Cockpit is on (7.15): the command as a `/` node with its clock, then one quiet row,
- * `✓` or `×`; `/steps n all` prints the turn's step rows. Undefined for a command Cockpit leaves to the engine (an
- * output of several lines it did not write).
+ * A slash command's output while Cockpit is on (7.15): one row, its clock, `✓` or `×`, the whole command as typed and
+ * what it says; `/steps n all` then prints the turn's step rows under it. The engine echoes the command above the row
+ * (`> /copy`) and that echo has no site to hide, so the row carries the command rather than a `/` node repeating it.
+ * The run is Cockpit's own record (commands.ts): the row's props carry no arguments and the engine's `<plugin>: `
+ * prefix. Undefined for a command Cockpit did not answer, which the engine draws.
  * @param $ the engine interface
  * @param e the output's render
  * @returns the rows' tree, or undefined
@@ -622,12 +622,9 @@ const REFUSED = /^(?:There is no|no |Not copied|nothing|turn \d+ had no|\S+ take
 export async function drawCommandOutput($: EngineInterface, e: RenderInput<'CommandOutput', 'terminal'>): Promise<RenderElement | undefined> {
   if (!isOn()) return undefined
 
-  const p = e.props
-  const text = p.text.trim()
-  const words = p.args.trim().split(/\s+/)
-  const isStepsAll = p.command === 'steps' && words.at(-1) === 'all'
+  const run = runOf(e.props.text, $.plugin.name)
 
-  if (!isStepsAll && text.includes('\n')) return undefined
+  if (run === undefined) return undefined
 
   const at = commandClocks.get(e.requestId) ?? (await $.clock.now())
 
@@ -635,20 +632,18 @@ export async function drawCommandOutput($: EngineInterface, e: RenderInput<'Comm
 
   const ui = $.ui.resolve(e)
   const clock = clockTime(at)
-  const command = `/${p.command}${p.args.trim().length > 0 ? ` ${p.args.trim()}` : ''}`
+  const isOk = run.isOk && !e.props.isErrored
+  const words = run.command.split(/\s+/)
+  // `/steps n all`, or `/steps all` for the live turn.
+  const isAll = run.command.startsWith('/steps ') && words.at(-1) === 'all' && isOk
+  const steps = !isAll ? Number.NaN : words.length > 2 ? Number(words[1]) : (await readLog($)).turnNo
+  const lines = Number.isInteger(steps) ? await stepsAllLines($, steps) : undefined
 
-  if (isStepsAll) {
-    const n = words.length > 1 ? Number(words[0]) : (await readLog($)).turnNo
-    const lines = Number.isInteger(n) && n >= 1 ? await stepsAllLines($, n) : undefined
-
-    if (lines !== undefined && lines.total > 0) {
-      return <ui.Box flexDirection="column">{drawRows(ui, [...stepsAllRows(clock, n, lines.total, lines.shown), spineOnly()])}</ui.Box>
-    }
+  if (lines !== undefined && lines.total > 0) {
+    return <ui.Box flexDirection="column">{drawRows(ui, [...stepsAllRows(clock, run.command, lines.total, lines.shown, leftCells(e)), spineOnly()])}</ui.Box>
   }
 
-  const isOk = !p.isErrored && !REFUSED.test(text)
-
-  return <ui.Box flexDirection="column">{drawRows(ui, [slashRow(clock, command), slashOutputRow(isOk, text), spineOnly()])}</ui.Box>
+  return <ui.Box flexDirection="column">{drawRows(ui, [slashOutputRow(clock, isOk, run.command, run.text), spineOnly()])}</ui.Box>
 }
 
 /**
