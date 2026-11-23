@@ -1,5 +1,6 @@
 // The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the v8 views,
 // each openable row under its id, and the keys the view offers. Pure: cockpit/pane.tsx reads the state and draws this.
+import { decisive as decisiveLines } from '../fallback/events'
 import { urlHost } from '../../shared/url'
 import type { FlowStamp, LogStep, RosterAgent, StepDetail, StepLog, TurnRecord, TurnWork } from '../../../types'
 import { isNarrationAt } from '../../shared/flow'
@@ -229,7 +230,8 @@ function timeline(i: PaneInput, shown: Shown, room: number): Line[] {
   const span = Math.max(1, shown.durationMs)
   const decisive = new Map(
     i.details.flatMap(d =>
-      d.isFailed && d.excerpt.length > 0 ? [[d.id, d.excerpt.find(l => /expect|error|fail|:\d+/i.test(l)) ?? d.excerpt.at(-1) ?? ''] as const] : []
+      // Fallback's failure rows' own source (13.1): the decisive line, never the engine's `Error: Exit code n`.
+      d.isFailed && d.excerpt.length > 0 ? [[d.id, decisiveLines(d.excerpt, [])[0] ?? ''] as const] : []
     )
   )
   const groups = groupsOf(timed(steps, i.details, shown.startedAt), sentencesOf(i.flow, steps, turns), span, decisive).map(g => {
