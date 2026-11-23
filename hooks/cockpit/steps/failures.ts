@@ -21,8 +21,9 @@ const isFlag = (w: string) => w.startsWith('-')
 const isAssignment = (w: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(w)
 // A path: it has a separator or a dot, or names the home folder.
 const isPathLike = (w: string) => /[/\\]/.test(w) || /\.[A-Za-z0-9]+$/.test(w) || w.startsWith('~')
-// Where a command's words end: the next command after `&&`, `||`, `;` or a pipe is another step's business.
-const firstCommand = (cmd: string) => cmd.split(/\s*(?:&&|\|\||;|\|)\s*/)[0] ?? cmd
+// Where a command's words end: the next command after `&&`, `||`, `;` or a pipe is another step's business; one
+// inside quotes or brackets (`grep -E "a|b"`) joins nothing.
+const firstCommand = (cmd: string) => statementsOf(cmd)[0] ?? cmd
 // A PowerShell assignment's left side (`$t = `, `$env:LANG = `), stripped like `VAR=value` (section 14).
 const PS_ASSIGNMENT = /^\s*\$[A-Za-z_][\w:]*\s*[+-]?=\s*/
 // A redirection: `>`, `>>`, `2>`, `*>`, `2>&1`; on its own, the word after it is what it writes to.

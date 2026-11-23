@@ -27,6 +27,10 @@ test('13.1: a redirection is not a target, a folder option is not a subcommand; 
   expect(pwsh('bun run --cwd tools check *> $env:TEMP\\g.txt')).toBe('bun · run ·')
   expect(key('shell', 'bun run --cwd tools check > "$TEMP/g.txt" 2>&1')).toBe('bun · run ·')
   expect(key('shell', 'npm --prefix web audit')).toBe('npm · audit ·')
+  // A `|` or `;` inside quotes joins nothing, in bash as in PowerShell.
+  expect(key('shell', 'grep -E "a|b" src/a.ts')).toBe('grep · · src/a.ts')
+  expect(key('shell', `awk '{ print $1; print $2 }' src/a.ts | head`)).toBe('awk · · src/a.ts')
+  expect(negativeAnswer('grep -E "a|b" src/a.ts', 1, '')).toBe('no match')
   expect(fixes(keyOf('write · · hooks/a.ts'), keyOf('edit · · hooks/a.ts'))).toBe(true)
   expect(fixes(keyOf('edit · · hooks/a.ts'), keyOf('write · · hooks/a.ts'))).toBe(true)
   expect(fixes(keyOf('write · · hooks/b.ts'), keyOf('edit · · hooks/a.ts'))).toBe(false)
