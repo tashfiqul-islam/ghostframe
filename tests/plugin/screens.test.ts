@@ -5,7 +5,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { GLYPH } from '../../hooks/shared/look/glyphs'
-import { PILL, TINT, TOKEN, WORDMARK } from '../../hooks/shared/look/palette'
+import { PILL, TINT, TOKEN } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'
 import { screen, shown } from '../support/screens'
 import { screen01, screen03, screen04, screen13, screen16, screen22, screen30, screen31 } from '../support/v8left'
@@ -114,7 +114,7 @@ test('screen 01, the pane: tabs, the DONE head card, the ruler, turn 7`s groups 
   expect(find(rows, '┬────┬────┬────┬───┬')?.color).toBe(TOKEN.hairline)
   expect(rows[12]?.find(p => p.t === '━')?.color).toBe(TOKEN.err)
   expect(rows[14]?.find(p => p.t === '━')?.color).toBe(TOKEN.barDone)
-  expect(find(rows, 'ghostframe')?.color).toBe(WORDMARK.name)
+  expect(find(rows, 'ghostframe')?.color).toBe(TOKEN.wordmark)
 })
 
 test('screen 03, the pane: FAILED, the selected failed group`s drawer in place; the hint row as every other screen', () => {

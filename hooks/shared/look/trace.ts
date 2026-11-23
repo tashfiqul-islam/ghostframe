@@ -1,7 +1,7 @@
 // The braille trace (spec 7.3, 7.12) and the sparkline (8.2): a turn's activity, one cell per bucket.
 import type { Part } from '../parts'
 import { SPARK } from './glyphs'
-import { TOKEN, TRACE_LOW } from './palette'
+import { TOKEN, TRACE_STEPS } from './palette'
 
 // A level's cell, 0 to 6: rising (the cell before is lower or the same) and falling (the cell before is higher).
 const RISING = '⣀⣠⣤⣴⣶⣾⣿'
@@ -9,22 +9,8 @@ const FALLING = '⣀⣄⣤⣦⣶⣷⣿'
 /** The trace's top level. */
 export const TRACE_TOP = 6
 
-/** One channel of a `#RRGGBB` hex, 0 for red. */
-const ch = (hex: string, i: number) => Number.parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16)
-
-/** A colour between two `#RRGGBB` hexes, `t` of the way from `a` to `b`. */
-function mix(a: string, b: string, t: number): string {
-  const at = (i: number) =>
-    Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t)
-      .toString(16)
-      .padStart(2, '0')
-      .toUpperCase()
-
-  return `#${at(0)}${at(1)}${at(2)}`
-}
-
 /**
- * The braille trace (7.3, 7.12): one cell per level, from 0 to 6, coloured from `#2E3A39` at 0 to `machine` at 6.
+ * The braille trace (7.3, 7.12): one cell per level, from 0 to 6, coloured by its level (section 2's trace steps).
  * @param levels each bucket's level
  * @returns one part per cell
  */
@@ -33,7 +19,7 @@ export function trace(levels: readonly number[]): Part[] {
     const level = Math.max(0, Math.min(TRACE_TOP, Math.round(raw)))
     const isFalling = i > 0 && Math.round(levels[i - 1] ?? 0) > level
 
-    return { t: (isFalling ? FALLING : RISING)[level] ?? '⣀', color: mix(TRACE_LOW, TOKEN.machine, level / TRACE_TOP) }
+    return { t: (isFalling ? FALLING : RISING)[level] ?? '⣀', color: TRACE_STEPS[level] ?? TRACE_STEPS[0] }
   })
 }
 

@@ -41,29 +41,31 @@ The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the con
 
 Truecolor hex. Cockpit draws on the terminal's background; `bg` is the colour the canvas assumes for it.
 
-| Token        | Hex       | Used for                                                           |
-| ------------ | --------- | ------------------------------------------------------------------ |
-| `bg`         | `#0B0B0E` | base of both halves                                                |
-| `surface`    | `#14141B` | your message card, the selected row                                |
-| `code`       | `#0F0F14` | code, table and diff bodies                                        |
-| `codeHead`   | `#16161D` | label strip of code cards and table headers                        |
-| `pane`       | `#0D0E12` | pane background                                                    |
-| `paneCard`   | `#13141A` | pane head card, detail drawer                                      |
-| `hairline`   | `#1E1E26` | turn header rule, ruler ticks                                      |
-| `spine`      | `#24242E` | the turn spine, tree guides                                        |
-| `textBright` | `#ECECF1` | your words, lead sentences, file names, hashes, PR numbers         |
-| `text`       | `#B2B2BC` | answer prose, step subjects                                        |
-| `muted`      | `#7C7C88` | labels, kind words, narration in ctrl+o                            |
-| `dim`        | `#5E5E6A` | folders, meta, key actions                                         |
-| `accent`     | `#FAB387` | you and live: your message glyph, the live turn, the spinner, keys |
-| `machine`    | `#7EC8BE` | clock times, code language, NOTE, PLAN, slash commands             |
-| `machineDim` | `#4E7A75` | durations, results, counts                                         |
-| `ok`         | `#96D292` | `✓`, DONE, passing results, added lines                            |
-| `err`        | `#EC84A0` | `×`, FAILED, failing results, removed lines                        |
-| `warn`       | `#E8B98A` | `!`, NEEDS YOU, WAITING, `⊘` BLOCKED                               |
-| `agent`      | `#B4A0DE` | `◇` agents and their bars                                          |
-| `link`       | `#8FB8DE` | URLs, YAML keys                                                    |
-| `barDone`    | `#3F6E68` | gantt bars of finished work                                        |
+| Token             | Hex       | Used for                                                           |
+| ----------------- | --------- | ------------------------------------------------------------------ |
+| `bg`              | `#0B0B0E` | base of both halves                                                |
+| `surface`         | `#14141B` | your message card, the selected row                                |
+| `code`            | `#0F0F14` | code, table and diff bodies                                        |
+| `codeHead`        | `#16161D` | label strip of code cards and table headers                        |
+| `pane`            | `#0D0E12` | pane background                                                    |
+| `paneCard`        | `#13141A` | pane head card, detail drawer                                      |
+| `hairline`        | `#1E1E26` | turn header rule, ruler ticks                                      |
+| `spine`           | `#24242E` | the turn spine, tree guides                                        |
+| `textBright`      | `#ECECF1` | your words, lead sentences, file names, hashes, PR numbers         |
+| `text`            | `#B2B2BC` | answer prose, step subjects                                        |
+| `muted`           | `#7C7C88` | labels, kind words, narration in ctrl+o                            |
+| `dim`             | `#5E5E6A` | folders, meta, key actions                                         |
+| `accent`          | `#FAB387` | you and live: your message glyph, the live turn, the spinner, keys |
+| `machine`         | `#7EC8BE` | clock times, code language, NOTE, PLAN, slash commands             |
+| `machineDim`      | `#4E7A75` | durations, results, counts                                         |
+| `ok`              | `#96D292` | `✓`, DONE, passing results, added lines                            |
+| `err`             | `#EC84A0` | `×`, FAILED, failing results, removed lines                        |
+| `warn`            | `#E8B98A` | `!`, NEEDS YOU, WAITING, `⊘` BLOCKED                               |
+| `agent`           | `#B4A0DE` | `◇` agents and their bars                                          |
+| `link`            | `#8FB8DE` | URLs, YAML keys                                                    |
+| `barDone`         | `#3F6E68` | gantt bars of finished work                                        |
+| `wordmark`        | `#3A4846` | the pane's `ghostframe` wordmark                                   |
+| `wordmarkVersion` | `#56706B` | the wordmark's version                                             |
 
 Tints, drawn as cell backgrounds:
 
@@ -78,6 +80,12 @@ Tints, drawn as cell backgrounds:
 | `drawer`         | `#121219` | the pane's detail drawer and step output     |
 | `selected`       | `#1E1E26` | the selected pane row                        |
 | `dividerFocused` | `#2A2A34` | the divider while the pane has the keyboard  |
+
+Trace steps, the braille trace's colour at each of its levels (0 is the lowest cell, 6 the highest; 6 is `machine`):
+
+| Level | 0         | 1         | 2         | 3         | 4         | 5         | 6         |
+| ----- | --------- | --------- | --------- | --------- | --------- | --------- | --------- |
+| Hex   | `#2E3A39` | `#3B524F` | `#496965` | `#56817C` | `#639992` | `#71B0A8` | `#7EC8BE` |
 
 Pill backgrounds, one per state:
 
@@ -258,7 +266,7 @@ Counting from 0: select at 0, glyph at 2, title 4–28, track 31–50, result 51
 - **Indented rows** (agents under a group, sub-steps) put the tree guide `├ ` / `└ ` / `│ ` in the title's first two cells.
 - **Detail lines** start `└` under the glyph, with text under the title.
 - **The ruler** sits exactly over the track: `┬────┬────┬────┬───┬`, 20 cells, labels above its two ends.
-- **The divider** between the left and the pane is the engine's. It is `#0B0B0E` when the pane does not have the keyboard and brighter (`#2A2A34`) when it does.
+- **The divider** between the left and the pane is the engine's. It is `bg` when the pane does not have the keyboard and `dividerFocused` when it does.
 
 ### 6.3 Rows
 
@@ -300,7 +308,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
           6s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
 ```
 
-- Label: the thinking duration. Glyph `∴` (muted), `thought` (muted), a 15-cell braille trace from `#2E3A39` to `machine`, `ctrl+o` (accent) `expand` (dim).
+- Label: the thinking duration. Glyph `∴` (muted), `thought` (muted), a 15-cell braille trace in the trace steps (section 2), `ctrl+o` (accent) `expand` (dim).
 - The thinking text is never drawn, in ctrl+o too: only its duration is available.
 
 ### 7.4 The answer
@@ -424,7 +432,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
       3m 12s ×  FAILED   ⣀⣤⣶⣿⣷⣶⣿⣤⣀   12 steps · 2 still failing · 1 file
 ```
 
-- Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, `#2E3A39` → `machine`), then the counts in dim: steps, fixed, still failing, blocked, files, sources, `n agents`, `↗` and the commit hash or PR.
+- Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim: steps, fixed, still failing, blocked, files, sources, `n agents`, `↗` and the commit hash or PR.
 - Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
@@ -624,7 +632,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
   tab move    enter open    1–5 tabs    ? keys       ghostframe v0.1.0
 ```
 
-The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`#3A4846`) and the version (`#56706B`) sit at the right on every view; the version is read from the plugin manifest (`dev` before a release).
+The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view; the version is read from the plugin manifest (`dev` before a release).
 
 ### 8.13 The inline inspector
 
@@ -3459,8 +3467,8 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 
 ## 14. Build decisions (Phase 12)
 
-- **Two palettes.** `hooks/shared/look/palette.ts` holds every v8 hex; `hooks/shared/tokens.ts` keeps the transcript's Cockpit-off palette exactly as on main, since with Cockpit off every row must draw as before. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in v8's folders outside `shared/look/glyphs.ts`.
-- **Two more hexes than section 2.** The braille trace's low end `#2E3A39` (7.3, 7.12) and the wordmark's `#3A4846` / `#56706B` (8.12) live in the palette module beside the section 2 tables, so they are still in one place.
+- **One palette for Cockpit; the transcript's own stays for Cockpit off.** `hooks/shared/look/palette.ts` holds section 2 and is the only palette any Cockpit-on row draws from; no module of `cockpit/` or `transcript/v8/` imports another. `hooks/shared/tokens.ts` is not a Cockpit palette: it is main's transcript palette, kept unchanged because with Cockpit off every row must draw exactly as on main. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in v8's folders outside `shared/look/glyphs.ts`.
+- **Section 2 gained the colours the spec already drew with.** 7.3, 7.12 and 8.12 named three hexes section 2 did not list (the trace's low end `#2E3A39`, the wordmark's `#3A4846` and `#56706B`), and the trace's gradient from that low end to `machine` made five more at run time. They are now section 2's `wordmark` and `wordmarkVersion` tokens and its seven trace steps, fixed values rather than a computed blend, so every hex Cockpit draws is listed there.
 - **Kind words outside 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep v7's words `ask`, `plan`, `skill` (each within 6 cells): 5.6's list has no word for them, and inventing one would be worse than keeping the known one.
 - **One short line is its own result.** 13.6 lists `bun --version` → `1.4.4`; generalised as "a command whose output is one line of at most 14 cells shows that line". Any other output with no rule in 13.6 reads `done` (exit 0) or `exit n`.
 - **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the v7 rule). The project root is checked first, so a project under the home folder never gets a `~`.
@@ -3480,7 +3488,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Diff cards come from diff fences and step patches.** A fenced block with the `diff` word (its info naming the path) or one that is a unified diff draws as the diff card; ctrl+o draws the same card from the step's kept patch. The canvas's two gutters sit at 3 and 4 cells after the inner pad, which is what screen 01 measures.
 - **The note card.** A paragraph that starts `Note:` (or `**Note:**`) is the note card. 7.7 gives no source for it.
 - **Footnotes.** Two per row, the second at the 31st cell (screens 01, 23). Screen 20 puts them 3 cells apart; it is not a screen test here.
-- **The braille trace.** A trace's cells are levels 0 to 6, the cell rising or falling by the level before it (`⣠⣴⣾` up, `⣦⣷` down), coloured from `#2E3A39` to `machine`. Live, steps are bucketed over the turn's time; the screen tests feed each screen's levels, since the canvas's traces are drawn by hand. The thought row's trace is the same fixed shape on every screen: only the duration is known (7.3).
+- **The braille trace.** A trace's cells are levels 0 to 6, the cell rising or falling by the level before it (`⣠⣴⣾` up, `⣦⣷` down), coloured by section 2's trace steps. Live, steps are bucketed over the turn's time; the screen tests feed each screen's levels, since the canvas's traces are drawn by hand. The thought row's trace is the same fixed shape on every screen: only the duration is known (7.3).
 - **Receipt counts.** In the order the screens draw them: steps, fixed, still failing, files, blocked, sources (`n sources, m cited` when not every one is cited), agents, `n browser` and `n mcp`, then `↗` and what left the machine. Screen 13 puts `blocked` after `files`, which 7.12's list does not; the screens win.
 - **The worked node's counts.** 7.13 says they are the receipt's; screens 16 and 31 draw others (`23 steps · 3 agents · 1 fixed`, `7 steps · 6 shell · 1 edit`). The worked node draws steps, agents and fixes, and a turn with neither names its two largest step kinds.
 - **The failure card's rows.** A failing test's path and line and its expected and received values come from the test output kept in the step's detail; a failure with none listed shows the step's subject and result. `→ Next:` is drawn only when Claude's answer gives the next action: nothing in the engine says it apart from the prose.

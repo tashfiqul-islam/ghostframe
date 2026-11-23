@@ -24,8 +24,13 @@ export const TOKEN = {
   warn: '#E8B98A',
   agent: '#B4A0DE',
   link: '#8FB8DE',
-  barDone: '#3F6E68'
+  barDone: '#3F6E68',
+  wordmark: '#3A4846',
+  wordmarkVersion: '#56706B'
 } as const
+
+/** The braille trace's colour at each level, 0 to 6 (section 2): `#2E3A39` at the bottom, rising to `machine`. */
+export const TRACE_STEPS = ['#2E3A39', '#3B524F', '#496965', '#56817C', '#639992', '#71B0A8', '#7EC8BE'] as const
 
 /** The tints (section 2), drawn as cell backgrounds. */
 export const TINT = {
@@ -52,9 +57,3 @@ export const PILL: Record<PillState, string> = {
   plan: '#10201E',
   agent: '#1C1726'
 }
-
-/** The braille trace's two ends (7.3, 7.12): its lowest cells in this colour, its highest in `machine`. */
-export const TRACE_LOW = '#2E3A39'
-
-/** The wordmark's two colours (8.12): `ghostframe` and the version. */
-export const WORDMARK = { name: '#3A4846', version: '#56706B' } as const

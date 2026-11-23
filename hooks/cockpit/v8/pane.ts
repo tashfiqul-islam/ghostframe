@@ -3,7 +3,7 @@
 import type { Part } from '../../shared/parts'
 import type { PillState } from '../../shared/look/palette'
 import { GLYPH } from '../../shared/look/glyphs'
-import { PILL, TOKEN, WORDMARK } from '../../shared/look/palette'
+import { PILL, TOKEN } from '../../shared/look/palette'
 import { cutCommand, cutTitle } from '../../shared/look/paths'
 import { sparkline } from '../../shared/look/trace'
 import { vw } from '../../shared/text'
@@ -435,7 +435,11 @@ export function keyParts(keys: readonly (readonly [string, string])[], gap = 4):
  * @returns the row
  */
 export function hintRow(keys: readonly (readonly [string, string])[], version: string, width: number): Part[] {
-  const mark: Part[] = [{ t: 'ghostframe', color: WORDMARK.name }, { t: ` v${version}`.replace(/^ vdev$/, ' dev'), color: WORDMARK.version }, sp(width - 71)]
+  const mark: Part[] = [
+    { t: 'ghostframe', color: TOKEN.wordmark },
+    { t: ` v${version}`.replace(/^ vdev$/, ' dev'), color: TOKEN.wordmarkVersion },
+    sp(width - 71)
+  ]
 
   return spread([sp(2), ...keyParts(keys)], mark, width)
 }
