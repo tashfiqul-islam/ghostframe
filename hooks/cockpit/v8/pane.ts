@@ -30,6 +30,9 @@ export function fit(parts: readonly Part[], width: number): Part[] {
   return used < width ? [...out, sp(width - used)] : out
 }
 
+/** A row cut to `width` cells when it is wider; a narrower one is left as it is. */
+export const cutRow = (parts: readonly Part[], width: number): Part[] => (partsWidth(parts) > width ? fit(parts, width) : [...parts])
+
 /** `left` with `right` held at the row's right end, exactly `width` cells. */
 export function spread(left: readonly Part[], right: readonly Part[], width: number): Part[] {
   const room = width - partsWidth(right)
@@ -279,10 +282,14 @@ export function underRing(row: readonly Part[]): Part[] {
 /** A row on the pane's grid (6.2): select, glyph, title, the track, the result. */
 function gridRow(glyph: Part, title: readonly Part[], trackParts: readonly Part[], result: Part, width: number): Part[] {
   const { result: resultCells } = columns(width)
-  const r = { ...result, t: cutTitle(result.t, resultCells) }
+  // A result is at most 14 cells (5.7), right-aligned in its column; the row is never wider than the pane.
+  const r = { ...result, t: cutTitle(result.t, Math.min(RESULT_MAX, resultCells)) }
 
-  return [sp(2), glyph, sp(1), ...fit(title, 25), sp(2), ...trackParts, sp(resultCells - widthOf(r.t)), r, sp(width - 51 - resultCells)]
+  return fit([sp(2), glyph, sp(1), ...fit(title, 25), sp(2), ...trackParts, sp(resultCells - widthOf(r.t)), r, sp(width - 51 - resultCells)], width)
 }
+
+/** A result's most cells (5.7). */
+const RESULT_MAX = 14
 
 const SUB_GLYPH: Record<SubStep['glyph'], Part> = {
   current: { t: GLYPH.current, color: TOKEN.accent },
@@ -297,7 +304,7 @@ function subRow(s: SubStep, guide: string, width: number): Part[] {
   const head: Part[] = [sp(2), { t: guide, color: TOKEN.spine }, SUB_GLYPH[s.glyph], sp(1), { t: kindCell(s.kind), color: TOKEN.muted }]
   const subject = { t: s.kind === 'fetch' ? s.subject : cutCommand(s.subject, room), color: TOKEN.text }
 
-  return spread([...head, subject], [{ t: s.result, color: TONE[s.tone] }, sp(width - 51 - resultCells)], width)
+  return spread([...head, subject], [{ t: cutTitle(s.result, RESULT_MAX), color: TONE[s.tone] }, sp(width - 51 - resultCells)], width)
 }
 
 /**

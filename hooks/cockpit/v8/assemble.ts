@@ -13,7 +13,7 @@ import { failureCounts, isFailedMark, isOpen, isShipMark } from '../steps/log'
 import type { Tab, View } from '../keys/view'
 import { foldGroups, groupsOf, paneResult } from './groups'
 import type { TimedStep } from './groups'
-import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from './pane'
+import { cutRow, drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from './pane'
 import type { AgentBar, Group, Head, Stat } from './pane'
 import { agentHead, agentsView, allStepsView, countsOf, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
 import type { StepRow } from './views'
@@ -655,10 +655,12 @@ export function assemblePane(i: PaneInput): Pane {
   )
 
   return {
+    // No row is wider than the pane: a wider one wraps in the engine, its tail on the next row at column 0.
     lines: filled.map((parts, k): Line => {
       const id = lines[k]?.id
+      const row = cutRow(parts, i.width)
 
-      return id === undefined ? { parts } : { parts, id }
+      return id === undefined ? { parts: row } : { parts: row, id }
     }),
     keys
   }

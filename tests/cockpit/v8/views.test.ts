@@ -4,6 +4,7 @@ import { framed, hintRow, rulerRows, tabRows, timelineRows } from '../../../hook
 import type { Group } from '../../../hooks/cockpit/v8/pane'
 import { agentHead, changeBar, countsOf, diffView, filesView, interruptedRow, inspectorRows, pinnedHead } from '../../../hooks/cockpit/v8/views'
 import { TOKEN } from '../../../hooks/shared/look/palette'
+import { widthOf } from '../../../hooks/shared/look/width'
 import type { Part } from '../../../hooks/shared/parts'
 import { screen, shown } from '../../support/screens'
 import { barOf, GROUPS_7, P, pane24, pane25, pane26, SPAN, VERSION } from '../../support/v8pane'
@@ -209,4 +210,31 @@ test('17. an agent in view: its head`s state is ok-coloured when done, err when 
   expect(colourOf('done · 28s')).toBe(TOKEN.ok)
   expect(colourOf('failed · 9s')).toBe(TOKEN.err)
   expect(colourOf('running · 4s')).toBe(TOKEN.accent)
+})
+
+test('2. no timeline row is wider than the pane, and a result is cut to 14 cells (5.7), agents` rows too', () => {
+  const groups: Group[] = [
+    {
+      glyph: 'agent',
+      title: 'Package.json agent done and more words',
+      bar: { from: 0, to: 4_000, color: TOKEN.agent },
+      result: '7 exit 0 and a long tail',
+      tone: 'dim',
+      agents: [
+        {
+          name: 'Audit package.json',
+          bar: { from: 0, to: 2_000, color: TOKEN.agent },
+          result: 'reported a lot of things',
+          isFailed: false,
+          sub: { glyph: 'ok', kind: 'shell', subject: 'cat package.json', result: 'a very long result word', tone: 'dim' }
+        }
+      ]
+    }
+  ]
+
+  for (const row of shown(timelineRows(groups, SPAN, P, false))) {
+    expect(widthOf(row)).toBeLessThanOrEqual(P)
+    const result = row.slice(51).trim()
+    expect(widthOf(result)).toBeLessThanOrEqual(14)
+  }
 })
