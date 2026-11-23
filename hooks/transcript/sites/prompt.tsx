@@ -49,6 +49,22 @@ const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
  */
 type Opening = { kind: 'typed'; header: Header } | { kind: 'added' | 'queued'; at: number }
 
+// Whether each turn's header first drew while its turn ran, by its number and submit time (a new session numbers
+// from 1 again, never at the same time): a header drawn again keeps the `◆` colour it first drew with, so the row never
+// changes (7.1). A reload starts empty, and a finished turn then draws `spine`. One entry per typed turn.
+const firstDrawnLive = new Map<string, boolean>()
+
+/** A header's live colour: the one it first drew with, for a numbered turn; the turn's state now otherwise. */
+function liveAtFirstDraw(turnNo: number | undefined, at: number | undefined, isLiveNow: boolean): boolean {
+  if (turnNo === undefined || at === undefined) return isLiveNow
+
+  const key = `${turnNo}@${at}`
+  const kept = firstDrawnLive.get(key) ?? isLiveNow
+  firstDrawnLive.set(key, kept)
+
+  return kept
+}
+
 /**
  * What opens the prompt's row while Cockpit is on (7.1, 7.2, amendment 12): the prompt's stamp, found by the row the
  * engine draws it under (the same live and after a resume), else claimed as before. A prompt typed over a running
@@ -78,7 +94,7 @@ async function promptOpening($: EngineInterface, row: string, text: string): Pro
   const turnNo =
     stamp === undefined ? undefined : (stamp.turnNo ?? (log.startedAt === stamp.at ? log.turnNo : isPendingStart(stamp) ? log.turnNo + 1 : undefined))
   const prev = stamp === undefined ? undefined : list.slice(0, Math.max(0, list.indexOf(stamp))).findLast(p => p.over === undefined || p.turnNo !== undefined)
-  const isLive = log.isTurnRunning && turnNo === log.turnNo
+  const isLive = liveAtFirstDraw(turnNo, stamp?.at, log.isTurnRunning && turnNo === log.turnNo)
 
   return { kind: 'typed', header: { at: stamp?.at, turnNo, after: stamp?.after, day: stamp === undefined ? '' : dayWord(stamp.at, prev?.at), isLive } }
 }

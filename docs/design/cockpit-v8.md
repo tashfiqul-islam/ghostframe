@@ -284,7 +284,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
     10:14:02 ◆  TURN 7  ──────────────────────────────────────────────────────────────────────────────
 ```
 
-- Label: the prompt's submit time (`machine`). Spine: `◆` (accent while the turn is live, `spine` once finished). Two spaces, `TURN` (muted) and the number (textBright, bold), two spaces, a `hairline` rule to column 101, the text column’s end.
+- Label: the prompt's submit time (`machine`). Spine: `◆`, accent when the header first draws while its turn runs, `spine` when it first draws once the turn has ended; a header drawn again keeps the colour it first drew with. Two spaces, `TURN` (muted) and the number (textBright, bold), two spaces, a `hairline` rule to column 101, the text column’s end.
 - **Label states**, from amendment 12: `TURN 30 · AFTER COMPACT`, `TURN 31 · RESUMED` (the state word in `machine`, bold). The day follows the state: `TURN 31 · RESUMED · Tue`.
 - An agent's conversation opens with `◇  AGENT Audit tests` (agent colour) in place of the turn header (screen 27).
 - One blank row (`│`) follows.
@@ -3536,6 +3536,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **No output frame in ctrl+o** (section 10). A step line carries its result word and, for an edit, its diff card (7.5); a command's output is in the step's detail in the pane, not repeated on the left.
 - **The selected file is the one under the focus ring** (8.5). The pane has no selection of its own; the engine raises `ui.focus` with the row's key each time the ring moves, so the Files tab draws the first hunk under the file the ring is on, and Enter still opens the full diff.
 - **The interrupted line draws when the next turn starts** (8.3, screen 06). Esc sends no event a row could draw from, and an interrupted turn raises no TurnDuration; but when the next prompt starts a turn, the step log knows the one before ended aborted or never ended, and keeps its number, steps, files and start for the pane. Its summary says `n files changed`, not the canvas's `renamed`: the step log knows a file changed, not how.
+- **The `◆` keeps its first colour** (7.1). 7.1 said accent while the turn is live and `spine` once finished, which would change a drawn row when its turn ends. The header now keeps the colour it first drew with; one drawn after the turn ended is `spine`.
 - **`/steps n all` prints at most 20 rows** (7.15). 7.15 set no limit; it now stops at 20, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
 - **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.
 - **The pinned head's state pill** (8.2). 8.2 showed the top line as `● LIVE` only; it is the live turn's state (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.

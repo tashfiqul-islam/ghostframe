@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { turnHeader } from '../../../hooks/transcript/v8/turn'
+import { TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, T0 } from '../../support/cockpit'
 import { shown } from '../../support/screens'
 import type { Engine, On } from '../../support/engine'
@@ -180,4 +181,39 @@ test('Cockpit off: the v6 rule, as before', async ($, on) => {
   expect(rows[0]).toBe('+')
   expect(rows).toContain(' 10:26 ')
   expect(rows.some(r => r.includes('TURN'))).toBe(false)
+})
+
+test('7.1: a header drawn while its turn runs keeps its accent `◆` when drawn again after the turn ends', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, true)
+  await start($, true)
+  const glyph = async (row: string) => {
+    const ui = await $.ui.mount(prompt(row, 127, 'go'))
+    const found = (await ui.findAll({ type: 'Text' })).find(t => t.text === '◆')
+    await ui.unmount()
+
+    return found?.props['color']
+  }
+
+  await $.prompt.submit({ text: 'go', wait: false, origin: { kind: 'composer' } })
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'go' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'u1'
+  } as never)
+  await $.turn.start({ text: 'go', turnId: 'e1' })
+  const live = await glyph('u1')
+  clock.now += 5_000
+  await $.turn.complete({ answer: 'ok', durationMs: 5_000, isAborted: false, turnId: 'e1', reason: 'answer' })
+
+  expect(live).toBe(TOKEN.accent)
+  // Drawn again (a resize, a scroll back), the row is the same: it does not turn `spine` because the turn ended.
+  expect(await glyph('u1')).toBe(TOKEN.accent)
+
+  // A turn whose header first draws once it has ended is `spine`.
+  await typed($, clock, 'again', 'e2', 'u2')
+  const ui = await $.ui.mount(prompt('u2', 127, 'again'))
+  expect((await ui.findAll({ type: 'Text' })).find(t => t.text === '◆')?.props['color']).toBe(TOKEN.spine)
+  await ui.unmount()
 })
