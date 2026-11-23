@@ -30,6 +30,17 @@ export function commandOf(tool: string, input: unknown): string {
 
   if (named !== undefined) return tool === 'Grep' && s(i['path']) !== undefined ? `${named} in ${s(i['path'])}` : named
 
+  // An agent's launch: what it was asked to do, its description and its brief's first line (8.4), not its record.
+  if (tool === 'Agent' || tool === 'Task') {
+    const brief =
+      (s(i['prompt']) ?? '')
+        .split('\n')
+        .find(l => l.trim().length > 0)
+        ?.trim() ?? ''
+
+    return [s(i['description']) ?? '', brief].filter(x => x.length > 0).join(' · ')
+  }
+
   const rest = Object.fromEntries(Object.entries(i).filter(([k]) => k !== 'tool' && k !== 'tool_use_id' && k !== 'agentId'))
 
   return JSON.stringify(rest).slice(0, 2_000)

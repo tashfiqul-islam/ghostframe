@@ -286,7 +286,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 ```
 
 - Label: the prompt's submit time (`machine`). Spine: `◆`, accent when the header first draws while its turn runs, `spine` when it first draws once the turn has ended; a header drawn again keeps the colour it first drew with. Two spaces, `TURN` (muted) and the number (textBright, bold), two spaces, a `hairline` rule to column 101, the text column’s end.
-- **Label states**, from amendment 12: `TURN 30 · AFTER COMPACT`, `TURN 31 · RESUMED` (the state word in `machine`, bold). The day follows the state: `TURN 31 · RESUMED · Tue`.
+- **Label states**, from amendment 12: `TURN 30 · AFTER COMPACT`, `TURN 31 · RESUMED`, `TURN 7 · AFTER REWIND` (the state word in `machine`, bold). The day follows the state: `TURN 31 · RESUMED · Tue`. `AFTER REWIND` is detected, not told: when a typed turn starts, the previous typed prompt's row has left the conversation (`$.session.messages({ after: row })` no longer finds it), which is what rewinding does. A compaction or a resume noted since that prompt wins over it.
 - An agent's conversation opens with `◇  AGENT Audit tests` (agent colour) in place of the turn header (screen 27).
 - One blank row (`│`) follows.
 - Drawn at `UserMessage` with origin `composer`. The number and time come from the prompt's stamp in `$.store` (amendment 12).
@@ -613,7 +613,7 @@ A progress bar (ok for done, hairline for the rest), then the items in the order
       × shell npm audit --omit dev                              stopped
 ```
 
-- One row per agent: `◇` (or `×` when it ended failing), the name, its open failures `×n` in err, its steps and duration. Under it, its current or last step with its state.
+- One row per agent: `◇` (or `×` when it ended failing), the name, its open failures `×n` in err, its steps and duration. Under it, its current or last step with its state; nothing before its first step. Once it reports, `✓ reported · n steps` and `done`, never the report's own words. A launch's drawer names its agents' work: the description and the first line of the brief.
 - An agent's failed edit or command shows only here and on its bar, never as a main-loop failure (amendment 13).
 - **Keys:** `enter` opens the agent's conversation, `tab` moves, `1` timeline.
 
@@ -3544,6 +3544,8 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
 - **The `/copy` phrasing** follows 7.15: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
 - **Slash commands draw one row each** (7.15, screen 22). The engine echoes a command above its output (`> /copy`, without arguments) and no site hides the echo, so Cockpit's `/` node was a second copy of it. The output row now carries the clock, `✓` or `×`, the whole command as typed and the words. The engine hands the output row empty arguments and its own `ghostframe:` prefix, so Cockpit keeps each run it answered (cockpit/commands.ts) and draws from that.
+- **`AFTER REWIND` is a label state** (7.1). The ledger has drawn it since v7 when the previous typed prompt's row leaves the conversation; 7.1 did not list it. It is the engine's own record of a rewind, so it stays, and 7.1 now says how it is found.
+- **Agent rows say what is known** (8.9). A starting agent showed an invented `▸ start reading its brief`, a finished one its report's first line (a path, an escape), and the launch's drawer the call's JSON. An agent now shows nothing until its first step, `✓ reported · n steps` once done, and the drawer its description and brief.
 - **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
 - **Engine notices are drawn as `●` rows** (7.10) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
 - **Two more refusal names** (13.7): `by the sandbox` and `by a policy`. The engine's `deny` verdicts include the sandbox's and a permission mode's, which 13.7 did not name; each says which, rather than all reading `by the classifier`.

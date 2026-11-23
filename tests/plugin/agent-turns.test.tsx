@@ -317,7 +317,7 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
   // The agents: the tab counts the main loop's one; its row says it is done, with its report's head.
   expect(rows).toContainEqual(expect.stringMatching(/AGENTS 1$/))
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
-  expect(rows).toContainEqual(expect.stringMatching(/^ {4}✓ \S+ +42 lines +done *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}✓ reported · 1 step +done *$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
   // One receipt: none while the parent ran, the whole turn's once it had reported (2s, 3s waiting, 1s).
   expect(await receiptsUnder($, 'Parent launched.')).toEqual([])

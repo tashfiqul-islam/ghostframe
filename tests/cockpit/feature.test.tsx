@@ -72,7 +72,8 @@ test('three agents in parallel: one launch row, three roster rows that change in
   expect(rows).toContainEqual(expect.stringMatching(/AGENTS 3$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ ◇ Read seat +[━╸╺ ┊]+ +2s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ▸ read {2}hooks\/cockpit\/seat\.ts +running$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ▸ start reading its brief +running$/))
+  // An agent with no step yet has nothing under it: no invented first step (8.9).
+  expect(rows.some(r => /reading its brief|│ ▸ +running/.test(r))).toBe(false)
 
   // The turn ends with its agents still running in the background: the launch and the roster stay live.
   clock.now += 1_000
@@ -93,7 +94,7 @@ test('three agents in parallel: one launch row, three roster rows that change in
   rows = await paneText($)
   // The launch settles: `◇` with its agents' count; each agent's last step under it, the failed one `×` and `stopped`.
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched +[━╸╺ ┊]+ +3 agents$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ✓ \S+ +43 lines +done$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ✓ reported · \d+ steps? +done$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ × Read switch +[━╸╺ ┊]+ +\d+s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ × \S+ +context limit +stopped$/))
 

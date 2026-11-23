@@ -190,13 +190,17 @@ function agentBars(launch: LogStep, roster: readonly RosterAgent[], startedAt: n
         isFailed: a.state === 'failed',
         bar: { from, to, color: TOKEN.agent },
         result: duration((a.endedAt ?? now) - a.startedAt),
-        sub: {
-          glyph: isRunning ? 'current' : a.state === 'failed' ? 'failed' : 'ok',
-          kind: a.kind,
-          subject: a.subject,
-          result: isRunning ? 'running' : a.state === 'failed' ? 'stopped' : 'done',
-          tone: isRunning ? 'accent' : a.state === 'failed' ? 'err' : 'dim'
-        }
+        // Nothing under an agent until its first step (8.9): no invented one.
+        sub:
+          a.kind.length === 0
+            ? undefined
+            : {
+                glyph: isRunning ? 'current' : a.state === 'failed' ? 'failed' : 'ok',
+                kind: a.kind,
+                subject: a.subject,
+                result: isRunning ? 'running' : a.state === 'failed' ? 'stopped' : 'done',
+                tone: isRunning ? 'accent' : a.state === 'failed' ? 'err' : 'dim'
+              }
       }
     })
 }

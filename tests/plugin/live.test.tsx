@@ -190,3 +190,13 @@ test('16. turn 8, interrupted: the head`s pill is ◼ INTERRUPTED, never FAILED;
   expect(rows.some(r => /× FAILED/.test(r))).toBe(false)
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ search "width\\\.test" .* no matches *$/))
 })
+
+test('15. turn 7`s agents: nothing invented before a first step; done, `✓ reported · n steps` and `done`; the drawer`s brief', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 7, 200)
+  const rows = await paneRows($)
+
+  expect(rows.some(r => /reading its brief/.test(r))).toBe(false)
+  expect(rows.filter(r => /^ {2}[│ ] ✓ reported · \d+ steps? +done *$/.test(r))).toHaveLength(3)
+  expect(rows.some(r => /D:\|\uFE0F/.test(r))).toBe(false)
+})
