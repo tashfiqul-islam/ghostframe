@@ -1,6 +1,6 @@
 // A step's kind word, subject and fix key (spec E.12), read off the call's tool and input.
 import { describe, mcpName, TEST_CMD } from '../../shared/calls/describe'
-import { stripCd } from '../../shared/look/command'
+import { subjectCommand } from './failures'
 import { relPath } from '../../shared/url'
 
 export const KIND_W = 9 // the kind word's 8 cells and a space
@@ -68,8 +68,9 @@ export function kindOf(tool: string, input: unknown): string {
 export function subjectOf(tool: string, input: unknown, cwd: string | undefined): string {
   const i = rec(input)
 
-  // The command only (13.4): its `cd <dir> &&` prefix is the drawer's `in <dir>`.
-  if (isShell(tool)) return stripCd(command(input)).command
+  // The command only (13.4): its `cd <dir> &&` prefix is the drawer's `in <dir>`; of a joined command, the statement
+  // its failure key comes from, without the redirections and formatting pipes that only shape its output.
+  if (isShell(tool)) return subjectCommand(command(input), tool === 'PowerShell' ? 'pwsh' : 'bash')
 
   switch (tool) {
     case 'Read': {

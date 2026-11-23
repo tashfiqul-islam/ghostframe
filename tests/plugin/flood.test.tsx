@@ -82,7 +82,8 @@ test('fallback, 100 columns: three failure rows as they happen, then `+ 16 more 
 
   // 19 keys failed, by key and not by attempt: the first three draw their row, once each.
   expect(drawn.map(r => r[0]?.trim())).toEqual([
-    expect.stringMatching(/^×  shell \$t = Measure-Command \{ bun run --cwd tools check .*…   exit 1$/),
+    // The subject is the statement the key came from, its assignment and redirection gone (5.7, 13.4).
+    '×  shell Measure-Command { bun run --cwd tools check }   exit 1',
     '×  edit D:/Projects/ghostframe-v8/hooks/README.md   not read',
     '×  edit D:/Projects/ghostframe-v8/tools/scripts/boundaries.ts   not read'
   ])
@@ -106,8 +107,8 @@ test('docked, 200 columns: one failure card for the 4 keys still failing, two sh
   const card = answer.filter(r => r.includes('×') || r.includes('more · /steps'))
   expect(card.map(r => r.trim())).toEqual([
     '│    × 4 still failing',
-    // A long command is cut in its middle, its first two words and its last kept (13.5); its result stays whole.
-    expect.stringMatching(/^│    × test claude … .* exit 1$/),
+    // The statement the key came from, not the joined line and its output plumbing; its result at the right.
+    expect.stringMatching(/^│    × test claude plugin test \. +exit 1$/),
     // An edit refused because the file changed since it was read, and never made again with an edit tool.
     expect.stringMatching(/^│    × edit D:\/Projects\/ghostframe-v8\/tests\/plugin\/screens\.test\.ts +file changed$/),
     '│    + 2 more · /steps 1',

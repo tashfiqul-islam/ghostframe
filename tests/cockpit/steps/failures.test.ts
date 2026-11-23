@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement } from '../../../hooks/cockpit/steps/failures'
+import { failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement, subjectCommand } from '../../../hooks/cockpit/steps/failures'
 import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
@@ -170,4 +170,14 @@ test('13.7: a hook`s refusal names its script and its own message; a rule names 
   const joined = 'ls -la /d/Projects/cockpit-live/src && rm -rf /d/Projects/cockpit-live/src && ls /d/Projects/cockpit-live'
   expect(ruledStatement(joined, 'Bash(rm -rf:*)')).toBe('rm -rf /d/Projects/cockpit-live/src')
   expect(ruledStatement(joined, 'Bash(npm publish:*)')).toBeUndefined()
+})
+
+test('5.7, 13.4: a shell step`s subject is the statement its key comes from, without redirections or formatting pipes', () => {
+  expect(subjectCommand('bun test 2>&1 | Out-String', 'pwsh')).toBe('bun test')
+  expect(subjectCommand('bun run test 2>&1 | Select-Object -First 3 | Out-String; Test-Path bun.lock, tsconfig.json', 'pwsh')).toBe('bun run test')
+  expect(subjectCommand(String.raw`cd D:\Projects\x; $t = Get-Content -Raw a.ts; $t.Replace("a", "b")`, 'pwsh')).toBe('Get-Content -Raw a.ts')
+  expect(subjectCommand(String.raw`bun run --cwd tools check *> $env:TEMP\g.txt`, 'pwsh')).toBe('bun run --cwd tools check')
+  // A pipe that does work stays.
+  expect(subjectCommand('grep -rn width src | wc -l', 'bash')).toBe('grep -rn width src | wc -l')
+  expect(subjectCommand('ls /nope1', 'bash')).toBe('ls /nope1')
 })

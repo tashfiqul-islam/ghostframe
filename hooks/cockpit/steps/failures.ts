@@ -42,7 +42,7 @@ const DIR_OPTION = /^-[Cc]$|^--(?:context|namespace|git-dir|work-tree|cwd|prefix
  * @param cmd the command
  * @returns its statements, trimmed
  */
-function statementsOf(cmd: string): string[] {
+function statementsOf(cmd: string, isPipeASplit = true): string[] {
   const out: string[] = []
   let depth = 0
   let quote = ''
@@ -50,13 +50,14 @@ function statementsOf(cmd: string): string[] {
 
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i] ?? ''
+    const isPipe = ch === '|' && (isPipeASplit || cmd[i + 1] === '|')
 
     if (quote.length > 0) {
       if (ch === quote) quote = ''
     } else if (ch === '"' || ch === "'") quote = ch
     else if ('([{'.includes(ch)) depth++
     else if (')]}'.includes(ch)) depth = Math.max(0, depth - 1)
-    else if (depth === 0 && (ch === ';' || ch === '|' || (ch === '&' && cmd[i + 1] === '&'))) {
+    else if (depth === 0 && (ch === ';' || isPipe || (ch === '&' && cmd[i + 1] === '&'))) {
       out.push(cmd.slice(from, i).trim())
       i += cmd[i + 1] === ch ? 1 : 0
       from = i + 1
@@ -152,6 +153,31 @@ export function fixes(later: FailureKey, failed: FailureKey): boolean {
 
 // How the engine words a hook's refusal: `PreToolUse:PowerShell hook error: [<command it ran>]: <its message>`.
 const HOOK_ERROR = /hook error: \[([^\]]*)\]:\s*([^\r\n]*)/
+
+// The cmdlets a pipeline ends in only to shape what it prints: not what the step did.
+const FORMATTER = /^(?:Out-String|Out-Null|Out-Host|Select-Object|Format-\w+|Tee-Object)\b/i
+// A redirection and the file it writes to: `2>&1`, `*> $env:TEMP\g.txt`, `> "out.txt"`.
+const REDIRECTION = /\s+[0-9*]?>>?(?:&[0-9]|\s*(?:"[^"]*"|'[^']*'|[^\s;|&]+))/g
+
+/**
+ * A step's subject from its command (13.1, 13.4, 5.7): the statement its failure key comes from, without its `cd`
+ * prefix, a PowerShell assignment's left side, its redirections, or the trailing pipes that only shape the output.
+ * `bun test 2>&1 | Out-String` reads `bun test`; `bun run test 2>&1 | Select-Object -First 3 | Out-String; Test-Path
+ * bun.lock` reads `bun run test`.
+ * @param command the command as Claude ran it, its first line
+ * @param shell the shell that ran it
+ * @returns the subject
+ */
+export function subjectCommand(command: string, shell: 'pwsh' | 'bash'): string {
+  const chain = statementsOf(stripCd(command).command, false)
+  const isBare = (s: string) => PS_ASSIGNMENT.test(s) && PWSH_STATEMENT.test(s.replace(PS_ASSIGNMENT, '').trimStart())
+  const statement = (shell === 'pwsh' ? chain.find(s => !isBare(s)) : undefined) ?? chain[0] ?? ''
+  const pipeline = statementsOf(shell === 'pwsh' ? statement.replace(PS_ASSIGNMENT, '') : statement)
+
+  while (pipeline.length > 1 && FORMATTER.test(pipeline.at(-1) ?? '')) pipeline.pop()
+
+  return pipeline.join(' | ').replace(REDIRECTION, '').trim()
+}
 
 /**
  * A hook's refusal as the engine reports it (13.7): the script the hook ran (its file name) and the message it gave.

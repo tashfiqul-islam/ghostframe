@@ -73,3 +73,11 @@ test('13.6: an edit tool`s own guards read `not read` and `file changed`; a long
   expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'EACCES: permission denied, open a.ts')).toBe('failed')
   expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'disk full')).toBe('disk full')
 })
+
+test('5.7, 13.6: a result is a short word, never raw output: JSON, a path, a hash with its subject or `exit 0` read `done`', () => {
+  expect(shellResult('Get-Content package.json', out('{ "name": "cockpit-live", "private": true, "type": "module" }\n'))).toBe('done')
+  expect(shellResult('git log --oneline -1', out('d0cf00d chore: start\n'))).toBe('done')
+  expect(shellResult("Select-String -Path src/width.test.ts -Pattern 'ascii'", out(String.raw`src\width.test.ts:4:test('ascii', () => {})`))).toBe('done')
+  expect(shellResult('pwsh -c "exit 0"', out('exit 0\n'))).toBe('done')
+  expect(shellResult('bun --version', out('1.4.4\n'))).toBe('1.4.4')
+})

@@ -74,7 +74,15 @@ function shellSummary(cmd: string, text: string): string {
   if (GIT_DIFF.test(cmd)) return gitDiff(text)
   if (/^ls\b/.test(cmd)) return listing(text)
 
-  return lastLine(text) || (CHECK_CMD.test(cmd) ? 'clean' : 'no output')
+  const line = lastLine(text)
+
+  if (line.length === 0) return CHECK_CMD.test(cmd) ? 'clean' : 'no output'
+
+  // A result is a short word (5.7, 13.6): at most 14 cells, never raw output: not JSON, a path, a hash with its
+  // subject (`d0cf00d chore: start`) or an exit code. Any other output says the command ran: `done`.
+  const isWord = widthOf(line) <= RESULT_CELLS && !/^[[{"'<]|[/\\]|^[0-9a-f]{7,40}\s|^exit \d+$/i.test(line)
+
+  return isWord ? line : 'done'
 }
 
 const tonesText = (tones: readonly { text: string }[] | undefined) => tones?.map(t => t.text).join(' ') ?? ''
