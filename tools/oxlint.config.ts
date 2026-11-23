@@ -45,6 +45,14 @@ const config: OxlintConfig = defineConfig({
         'typescript/no-unsafe-type-assertion': 'off',
         'unicorn/consistent-function-scoping': 'off'
       }
+    },
+    {
+      // The live-check harness drives one terminal step by step: each key waits for the screen before the next.
+      files: ['**/live/**'],
+      rules: {
+        'no-await-in-loop': 'off',
+        'unicorn/consistent-function-scoping': 'off'
+      }
     }
   ],
   ignorePatterns: ['**/.claude-plugin/types/**', '**/node_modules/**']

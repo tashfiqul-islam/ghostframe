@@ -11,5 +11,5 @@
     "tsBuildInfoFile": "node_modules/.cache/tools.tsbuildinfo"
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "live"]
 }
