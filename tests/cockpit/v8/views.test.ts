@@ -171,3 +171,34 @@ test('13. Files: a zero side is left out (`+6`, not `+6 −0`); an outside chang
   expect(outside).toContainEqual(expect.stringMatching(/^ {2}turn 7 · against the start of the turn · changed outside it too *$/))
   expect(countsOf(['@@ -1,2 +1,1 @@', '-a', '-b', '+c', ' d'])).toEqual({ adds: 1, dels: 2 })
 })
+
+test('14. a hint row keeps at least 4 cells before the wordmark; whole hints drop from the end until it does', () => {
+  const sources: [string, string][] = [
+    ['enter', 'copy url'],
+    ['u', 'hide urls'],
+    ['c', 'copy'],
+    ['1', 'timeline']
+  ]
+  const agents: [string, string][] = [
+    ['enter', 'open conversation'],
+    ['tab', 'move'],
+    ['1', 'timeline']
+  ]
+
+  for (const keys of [sources, agents]) {
+    const row = shown([hintRow(keys, '0.2.0', P, 'copied')])[0] ?? ''
+    const mark = row.indexOf('ghostframe v0.2.0')
+
+    expect(mark).toBeGreaterThan(0)
+    expect(row.slice(mark - 4, mark)).toBe('    ')
+    // No hint is cut: each one shown is whole, and they are a prefix of the view's keys.
+    const hints = row.slice(0, mark).trim().split(/ {4}/)
+    expect(hints).toEqual(
+      keys
+        .slice(0, hints.length - 1)
+        .map(([k, a]) => `${k} ${a}`)
+        .concat(hints.slice(-1))
+    )
+    expect(hints.at(-1)).toBe('copied')
+  }
+})

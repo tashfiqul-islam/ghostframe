@@ -642,7 +642,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
   tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
-The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
+The last row of the pane. Keys in accent, actions in dim, 4 cells apart, and at least 4 cells before the wordmark: hints that do not fit drop whole from the end, never cut (screen 26 drops `1 timeline`). They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
 
 ### 8.13 The inline inspector
 
@@ -2828,7 +2828,7 @@ The pane (72 columns):
 
 
 
-  enter open conversation    tab move    1 timeline   ghostframe v0.1.0
+  enter open conversation    tab move                 ghostframe v0.1.0
 ```
 
 #### 12.27 · An agent’s conversation open

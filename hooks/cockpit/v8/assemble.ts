@@ -441,7 +441,7 @@ export function assemblePane(i: PaneInput): Pane {
     agents: i.roster.filter(a => a.parent === null).length
   })
   const keys = i.isFocused ? keysOf(i) : []
-  const hint = hintRow(keys, i.version, i.width)
+  const hint = hintRow(keys, i.version, i.width, i.note)
   const top = plainLines([...tabs, []])
   let body: Line[]
 
@@ -639,9 +639,8 @@ export function assemblePane(i: PaneInput): Pane {
     body = [...plainLines([...head, [], ...cutRows]), ...timeline(i, shown, i.rows - 3 - head.length - 4 - cutRows.length)]
   }
 
-  const note: Part[] = i.note === undefined ? [] : [{ t: `  ${i.note}`, color: TOKEN.dim }]
   const lines = [...top, ...body]
-  const hintLine = { parts: [...hint.slice(0, -2), ...note, ...hint.slice(-2)] }
+  const hintLine = { parts: hint }
   // The engine scrolls a view taller than the pane (a diff, every step); the fitted views fill it, the hint row last.
   const filled = framed(
     lines.map(l => l.parts),

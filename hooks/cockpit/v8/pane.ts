@@ -448,15 +448,27 @@ export function keyParts(keys: readonly (readonly [string, string])[], gap = 4):
  * @param width the pane's columns
  * @returns the row
  */
-export function hintRow(keys: readonly (readonly [string, string])[], version: string, width: number): Part[] {
+export function hintRow(keys: readonly (readonly [string, string])[], version: string, width: number, note?: string): Part[] {
   const mark: Part[] = [
     { t: 'ghostframe', color: TOKEN.wordmark },
     { t: ` v${version}`.replace(/^ vdev$/, ' dev'), color: TOKEN.wordmarkVersion },
     sp(width - 71)
   ]
+  const left = (shown: readonly (readonly [string, string])[]): Part[] => [
+    sp(2),
+    ...keyParts(shown),
+    ...(note === undefined ? [] : [sp(shown.length > 0 ? HINT_GAP : 0), { t: note, color: TOKEN.dim }])
+  ]
+  // At least 4 cells before the wordmark (8.12): whole hints drop from the end until the row fits, none is cut.
+  let shown = [...keys]
 
-  return spread([sp(2), ...keyParts(keys)], mark, width)
+  while (shown.length > 0 && partsWidth(left(shown)) + HINT_GAP > width - partsWidth(mark)) shown = shown.slice(0, -1)
+
+  return spread(left(shown), mark, width)
 }
+
+/** The cells between two hints, and the least before the wordmark (8.12). */
+const HINT_GAP = 4
 
 /**
  * The pane's rows fitted to its height: the content, blank rows, and the hint row last.

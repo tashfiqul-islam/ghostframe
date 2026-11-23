@@ -1094,7 +1094,7 @@ const SCREENS: Record<string, string[][]> = {
       "",
       "",
       "",
-      "  enter open conversation    tab move    1 timeline   ghostframe v0.1.0"
+      "  enter open conversation    tab move                 ghostframe v0.1.0"
     ]
   ],
   "27": [
