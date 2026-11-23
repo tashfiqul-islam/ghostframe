@@ -124,20 +124,21 @@ export function outcomeOf(kind: string, tool: string, input: unknown, outcome: O
   if (outcome.isError === true || outcome.deny !== undefined) return failure(kind, tool, outcome)
 
   const out = outcome.result
+  const cmd = command(input)
+  // The whole command, every line: a commit in a joined command or after a here-string's first line is still one.
+  const whole = typeof rec(input)['command'] === 'string' ? String(rec(input)['command']) : cmd
+  const ship = isShell(tool) && isShipCommand(whole) ? parseShip('', whole, shellText(out)) : undefined
+  const isShipped = outcome.commit !== undefined || ship?.commit !== undefined || ship?.push !== undefined || ship?.pr !== undefined
 
   if (kind === 'test') {
     const c = parseTests(shellText(out))
 
-    if (c !== undefined)
+    // A passing run that then commits or pushes (`bun test && git commit`) is the commit: the receipt ends on it.
+    if (c !== undefined && (c.failed > 0 || !isShipped))
       return c.failed > 0 ? { result: `${c.failed} of ${c.passed + c.failed} fail`, mark: '✕' } : { result: `${c.passed} pass`, mark: fixes ? '✓' : '' }
   }
 
   if (isShell(tool)) {
-    const cmd = command(input)
-    // The whole command, every line: a commit in a joined command or after a here-string's first line is still one.
-    const whole = typeof rec(input)['command'] === 'string' ? String(rec(input)['command']) : cmd
-    const ship = isShipCommand(whole) ? parseShip('', whole, shellText(out)) : undefined
-
     if (outcome.commit !== undefined && ship?.commit === undefined && ship?.push === undefined && ship?.pr === undefined)
       return { result: outcome.commit.sha, mark: '±' }
 

@@ -81,3 +81,14 @@ test('5.7, 13.6: a result is a short word, never raw output: JSON, a path, a has
   expect(shellResult('pwsh -c "exit 0"', out('exit 0\n'))).toBe('done')
   expect(shellResult('bun --version', out('1.4.4\n'))).toBe('1.4.4')
 })
+
+test('a test run that then commits keeps the commit: its result is the hash, so the receipt ends `↗ <sha>` (live check, step 1)', () => {
+  const command = 'bun test 2>&1 | tail -4 && git add src/width.ts && git commit -q -m "fix(width): count cells"'
+  const input = { command }
+  const outcome: Outcome = { result: { stdout: ' 3 pass\n 0 fail\n', stderr: '' }, commit: { sha: '56ac82c', subject: 'fix(width): count cells' } }
+  const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool: 'Bash', input, at: 0 }), { id: 'a', tool: 'Bash', input, outcome, at: 1_000 })
+
+  expect(log.steps[0]).toMatchObject({ kind: 'test', result: '56ac82c', mark: '±' })
+  // A failing run is still the failure: `&&` means nothing was committed.
+  expect(shellResult(command, { result: { stdout: ' 1 pass\n 2 fail\n', stderr: '' } })).toBe('2 of 3 fail')
+})
