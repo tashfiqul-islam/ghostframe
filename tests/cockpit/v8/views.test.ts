@@ -202,3 +202,11 @@ test('14. a hint row keeps at least 4 cells before the wordmark; whole hints dro
     expect(hints.at(-1)).toBe('copied')
   }
 })
+
+test('17. an agent in view: its head`s state is ok-coloured when done, err when failed, accent while it runs', () => {
+  const colourOf = (state: string) => agentHead('Audit src', state, 3, 0, 6, P)[1]?.find(p => p.t === state)?.color
+
+  expect(colourOf('done · 28s')).toBe(TOKEN.ok)
+  expect(colourOf('failed · 9s')).toBe(TOKEN.err)
+  expect(colourOf('running · 4s')).toBe(TOKEN.accent)
+})

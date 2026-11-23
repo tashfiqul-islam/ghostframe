@@ -77,6 +77,8 @@ function shellSummary(cmd: string, text: string): string {
   const line = lastLine(text)
 
   if (line.length === 0) return CHECK_CMD.test(cmd) ? 'clean' : 'no output'
+  // Only a one-line output is its own result (13.6); more lines, with no rule of their own, say the command ran.
+  if (text.split('\n').filter(l => l.trim().length > 0).length > 1) return 'done'
 
   // A result is a short word (5.7, 13.6): at most 14 cells, never raw output: not JSON, a path, a hash with its
   // subject (`d0cf00d chore: start`) or an exit code. Any other output says the command ran: `done`.

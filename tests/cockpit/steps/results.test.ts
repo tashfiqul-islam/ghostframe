@@ -92,3 +92,11 @@ test('a test run that then commits keeps the commit: its result is the hash, so 
   // A failing run is still the failure: `&&` means nothing was committed.
   expect(shellResult(command, { result: { stdout: ' 1 pass\n 2 fail\n', stderr: '' } })).toBe('2 of 3 fail')
 })
+
+test('17. a multi-line output with no rule of its own reads `done`, never its last line (`---HEAD---`, an agent`s cat)', () => {
+  const command = 'cat -n src/width.ts && echo ---DIFF--- && git diff HEAD -- src/width.ts && echo ---HEAD---'
+  const text = '     1\t// Counts the cells\n     2\texport const width = 1\n---DIFF---\n---HEAD---'
+
+  expect(shellResult(command, { result: { stdout: text, stderr: '' } })).toBe('done')
+  expect(shellResult('bun --version', { result: { stdout: '1.4.4\n', stderr: '' } })).toBe('1.4.4')
+})

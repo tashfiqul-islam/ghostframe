@@ -391,10 +391,13 @@ export function agentsView(agents: readonly AgentRow[], launchedAt: string, widt
  * @param width the pane's columns
  * @returns the rows, edges included
  */
+/** An agent's state word's colour (5.5): `done` ok, `failed` err, running accent. */
+const stateColor = (state: string): string => (/^done\b/.test(state) ? TOKEN.ok : /^failed\b/.test(state) ? TOKEN.err : TOKEN.accent)
+
 export function agentHead(name: string, state: string, steps: number, files: number, turnNo: number, width: number): Part[][] {
   return paneCard(
     [
-      spread([...pill('agent'), sp(2), { t: name, color: TOKEN.textBright }], [{ t: state, color: TOKEN.accent }], width - 3),
+      spread([...pill('agent'), sp(2), { t: name, color: TOKEN.textBright }], [{ t: state, color: stateColor(state) }], width - 3),
       [{ t: 'The conversation on the left is this agent’s.', color: TOKEN.textBright }],
       spread(
         [
