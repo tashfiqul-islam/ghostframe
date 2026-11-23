@@ -73,7 +73,7 @@ export function subjectOf(tool: string, input: unknown, cwd: string | undefined)
   if (isShell(tool)) {
     const whole = typeof i['command'] === 'string' ? i['command'] : command(input)
 
-    return commitSubject(whole) ?? subjectCommand(command(input), tool === 'PowerShell' ? 'pwsh' : 'bash', kindOf(tool, input) === 'test')
+    return commitSubject(whole) ?? subjectCommand(command(input), tool === 'PowerShell' ? 'pwsh' : 'bash', kindOf(tool, input) === 'test', cwd)
   }
 
   switch (tool) {

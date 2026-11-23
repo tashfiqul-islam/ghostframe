@@ -174,9 +174,10 @@ const REDIRECTION = /\s+[0-9*]?>>?(?:&[0-9]|\s*(?:"[^"]*"|'[^']*'|[^\s;|&]+))/g
  * @param command the command as Claude ran it, its first line
  * @param shell the shell that ran it
  * @param isTest whether the step is a test, named after the statement that runs the tests
+ * @param project the project folder, so a path argument reads as 13.2 shows it
  * @returns the subject
  */
-export function subjectCommand(command: string, shell: 'pwsh' | 'bash', isTest: boolean = false): string {
+export function subjectCommand(command: string, shell: 'pwsh' | 'bash', isTest: boolean = false, project?: string): string {
   const chain = statementsOf(stripCd(command).command, false)
   const isBare = (s: string) => PS_ASSIGNMENT.test(s) && PWSH_STATEMENT.test(s.replace(PS_ASSIGNMENT, '').trimStart())
   const statement = (isTest ? testStatement(chain) : undefined) ?? (shell === 'pwsh' ? chain.find(s => !isBare(s)) : undefined) ?? chain[0] ?? ''
@@ -184,7 +185,28 @@ export function subjectCommand(command: string, shell: 'pwsh' | 'bash', isTest: 
 
   while (pipeline.length > 1 && FORMATTER.test(pipeline.at(-1) ?? '')) pipeline.pop()
 
-  return pipeline.join(' | ').replace(REDIRECTION, '').trim()
+  return shownPaths(pipeline.join(' | ').replace(REDIRECTION, '').trim(), project)
+}
+
+// An absolute path argument, quoted or bare: a Windows drive's (`D:\…`) or Git Bash's (`/d/…`).
+const PATH_ARG = /(["'])((?:[A-Za-z]:[\\/]|\/[a-z]\/)[^"']*)\1|(?<![\w-])((?:[A-Za-z]:[\\/]|\/[a-z]\/)[^\s;|&"']*)/g
+
+/**
+ * A subject's path arguments as 13.2 shows them, without PowerShell's `-LiteralPath`/`-Path` names before them and
+ * the `-Confirm:$false` that only answers a prompt: `Remove-Item src/width.test.ts`.
+ * @param subject the subject
+ * @param project the project folder
+ * @returns the subject as shown
+ */
+function shownPaths(subject: string, project: string | undefined): string {
+  return subject
+    .replace(/\s-(?:Literal)?Path\s+(?=\S)/gi, ' ')
+    .replace(/\s-Confirm:\$(?:false|true)\b/gi, '')
+    .replace(PATH_ARG, (_: string, _q: string | undefined, quoted: string | undefined, bare: string | undefined) => {
+      const shown = showPath(quoted ?? bare ?? '', project === undefined ? {} : { project })
+
+      return quoted !== undefined && /\s/.test(shown) ? `"${shown}"` : shown
+    })
 }
 
 // A statement that commits: `git`, its global options (`-C dir`, `--git-dir=…`), then `commit`.

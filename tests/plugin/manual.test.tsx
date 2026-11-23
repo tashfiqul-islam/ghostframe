@@ -64,3 +64,12 @@ test('6. turn 7: the failing step is `× test bun test … 3 of 3`, never `test 
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}× test bun test .* 3 of 3 *$/))
   expect(rows.some(r => /git mv/.test(r))).toBe(false)
 })
+
+test('10. turn 3: the denied step is `▍` in err with the result `denied`, its path project-relative', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 3)
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}▍ shell Remove-Item src\/wi… .* denied *$/))
+  expect(rows.some(r => /✓ shell Remove-Item|LiteralPath/.test(r))).toBe(false)
+})

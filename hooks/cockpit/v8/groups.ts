@@ -60,6 +60,8 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
     // A failure a later step fixed keeps its × and its detail (8.3, 9.2); the passing rerun is its own row.
     const failed = open ?? own.find(s => isTurnFailure(s.step))
     const blocked = own.find(s => s.step.state === 'blocked')
+    // The person refused it (13.8): `▍` in err, `denied`.
+    const denied = own.find(s => s.step.state === 'denied')
     const running = own.some(s => s.step.isRunning)
     const launch = own.find(s => s.step.kind === 'agent')
     const shipped = own.findLast(s => isShipMark(s.step))
@@ -69,16 +71,24 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
         ? 'failed'
         : blocked !== undefined
           ? 'blocked'
-          : launch !== undefined
-            ? 'agent'
-            : shipped !== undefined
-              ? 'shipped'
-              : 'ok'
-    const decisive = failed ?? blocked ?? shipped ?? own.at(-1) ?? first
+          : denied !== undefined
+            ? 'denied'
+            : launch !== undefined
+              ? 'agent'
+              : shipped !== undefined
+                ? 'shipped'
+                : 'ok'
+    const decisive = failed ?? blocked ?? denied ?? shipped ?? own.at(-1) ?? first
     // A group with no sentence of its own is named by the step that decides it: the failing one, if one fails.
     const title =
       said !== undefined && (said.at === from || (k > 0 && launch === undefined)) ? titleOf(said.text) : `${decisive.step.kind} ${decisive.step.subject}`
-    const tone: Tone = running ? 'accent' : failed !== undefined ? 'err' : blocked !== undefined ? 'warn' : 'dim'
+    const tone: Tone = running
+      ? 'accent'
+      : failed !== undefined || (blocked === undefined && denied !== undefined)
+        ? 'err'
+        : blocked !== undefined
+          ? 'warn'
+          : 'dim'
     const result = running
       ? 'running'
       : launch !== undefined && failed === undefined
@@ -91,11 +101,13 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
         ? TOKEN.err
         : blocked !== undefined
           ? TOKEN.warn
-          : launch !== undefined
-            ? TOKEN.agent
-            : shipped !== undefined
-              ? TOKEN.accent
-              : TOKEN.barDone
+          : denied !== undefined
+            ? TOKEN.err
+            : launch !== undefined
+              ? TOKEN.agent
+              : shipped !== undefined
+                ? TOKEN.accent
+                : TOKEN.barDone
     const detail = failed !== undefined ? details.get(failed.step.id) : blocked !== undefined ? (blocked.step.why ?? details.get(blocked.step.id)) : undefined
 
     return [

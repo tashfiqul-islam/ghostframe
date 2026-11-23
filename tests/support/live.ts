@@ -77,6 +77,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded 
   on('agent.report', (_, e) => ({ text: e.text }))
   on('session.messages', () => ({ value: [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('command.run', () => ({ text: 'the engine`s command' }))
   // Git, as the session's repo answered: HEAD after turn 1's commit; no work tree otherwise.
   on('process.run', (_, e) => {

@@ -218,3 +218,14 @@ test('6. kind, subject, result and key come from one statement: the test run, no
   expect(subjectOf('PowerShell', { command }, PROJECT)).toBe('bun test')
   expect(pwsh(command, 'test')).toBe('bun · test ·')
 })
+
+test('10. a subject`s path arguments go through 13.2: `Remove-Item src/width.test.ts` (manual run, turn 3)', () => {
+  const live = String.raw`D:\Projects\cockpit-live`
+  const command = String.raw`Remove-Item -LiteralPath 'D:\Projects\cockpit-live\src\width.test.ts' -Confirm:$false; git status --short`
+
+  expect(subjectOf('PowerShell', { command }, live)).toBe('Remove-Item src/width.test.ts')
+  expect(subjectOf('PowerShell', { command: String.raw`Get-Content -Path "D:\Projects\cockpit-live\src\a b.ts"` }, live)).toBe('Get-Content "src/a b.ts"')
+  expect(subjectOf('Bash', { command: 'cat /d/Projects/cockpit-live/src/width.ts' }, live)).toBe('cat src/width.ts')
+  // A path outside the project stays absolute, with forward slashes.
+  expect(subjectOf('PowerShell', { command: String.raw`Remove-Item D:\Other\x.txt` }, live)).toBe('Remove-Item D:/Other/x.txt')
+})

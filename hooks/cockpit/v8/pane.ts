@@ -217,7 +217,7 @@ export function rulerRows(from: string, to: string, width: number): Part[][] {
 }
 
 /** A group's outcome glyph on the timeline (8.3). */
-export type GroupGlyph = 'ok' | 'failed' | 'agent' | 'shipped' | 'blocked' | 'waiting' | 'live' | 'folded'
+export type GroupGlyph = 'ok' | 'failed' | 'agent' | 'shipped' | 'blocked' | 'denied' | 'waiting' | 'live' | 'folded'
 
 const GROUP_GLYPH: Record<GroupGlyph, Part> = {
   ok: { t: GLYPH.ok, color: TOKEN.ok },
@@ -225,6 +225,7 @@ const GROUP_GLYPH: Record<GroupGlyph, Part> = {
   agent: { t: GLYPH.agent, color: TOKEN.agent },
   shipped: { t: GLYPH.shipped, color: TOKEN.accent },
   blocked: { t: GLYPH.blocked, color: TOKEN.warn },
+  denied: { t: GLYPH.denied, color: TOKEN.err },
   waiting: { t: GLYPH.needs, color: TOKEN.warn },
   live: { t: GLYPH.live, color: TOKEN.accent },
   folded: { t: GLYPH.folded, color: TOKEN.spine }
