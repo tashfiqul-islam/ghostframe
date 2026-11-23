@@ -3341,9 +3341,10 @@ A step is a **failure** when all of these hold:
 
 **The failure key.** Each failure has a key: _program_, _subcommand_, _target_.
 
-- _program_: the first word of the command after stripping the `cd` prefix (13.4) and leading `VAR=value` assignments: `bun`, `git`, `npm`, `pytest`. For `edit` and `write` it is the kind itself.
+- _program_: the first word of the command after stripping the `cd` prefix (13.4) and leading `VAR=value` assignments: `bun`, `git`, `npm`, `pytest`. For `edit` and `write` it is the kind itself. A command joined with `;`, `&&`, `||` or `|` keys on its first command; a `;` or `|` inside quotes, brackets or braces joins nothing.
+- In PowerShell, a leading `$name = ` is stripped like `VAR=value` (`$t = Get-Content -Raw a.ts` keys on `Get-Content`), and an assignment that runs no program is skipped like one (`$env:LANG = "C"; bun test` keys on `bun`). The call operator runs the program after it (`& "C:\tools\lint.exe"` keys on `lint`). A statement with no program (an expression such as `[IO.File]::ReadAllText(…)`, a script block, `foreach`, `for`, `while`, `if`) keys on `pwsh` with no target. Bash's own loops and conditionals (`for`, `while`, `until`, `if`, `case`, a `(` or `{` group) key on `bash`.
 - _subcommand_: for tools with subcommands (`bun`, `npm`, `pnpm`, `yarn`, `git`, `gh`, `cargo`, `go`, `docker`, `kubectl`), the first argument that is not a flag: `test`, `audit`, `push`. Otherwise empty.
-- _target_: the first argument that is a path or a test filter, project-relative (13.2); for `edit` and `write`, the file. Otherwise empty.
+- _target_: the first argument that is a path or a test filter, project-relative (13.2); for `edit` and `write`, the file. Otherwise empty. A redirection (`>`, `>>`, `2>`, `*>`, `2>&1`) and the file it writes to are not arguments, and the value of a folder option (`git -C`, `--cwd`, `--prefix`, `--git-dir`, `--work-tree`) is neither a subcommand nor a target.
 
 | Command                                             | Key                             |
 | --------------------------------------------------- | ------------------------------- |
@@ -3352,10 +3353,13 @@ A step is a **failure** when all of these hold:
 | `npm audit --omit dev`                              | `npm · audit ·`                 |
 | `LANG=C.UTF-8 bun test`                             | `bun · test ·`                  |
 | edit of `tests/width.test.tsx`                      | `edit · · tests/width.test.tsx` |
+| `$t = Get-Content -Raw a.ts; $t.Replace('a', 'b')`  | `Get-Content · · a.ts`          |
+| `[IO.File]::ReadAllText("a.ts")`                    | `pwsh · ·`                      |
+| `bun run --cwd tools check *> $env:TEMP\g.txt`      | `bun · run ·`                   |
 
 **Fixed.** A failure is fixed when a later step in the same turn succeeds with:
 
-- the same key; or
+- the same key (a `write` and an `edit` of the same file share it: both leave the file changed); or
 - a broader key: the same program and subcommand, and a target that is empty or contains the failed target. `bun test` passing fixes `bun test hooks/width`. `bun test hooks` passing fixes `bun test hooks/width/grapheme.test.tsx`.
 
 An agent's failure is fixed only by the same agent (amendment 13).
@@ -3364,7 +3368,7 @@ An agent's failure is fixed only by the same agent (amendment 13).
 
 **Showing.**
 
-- The left draws at most 3 failure rows per turn (the failure card on an answer, or the fallback failure rows). With more, the third row reads `+ n more · /steps n`.
+- The left draws at most 3 failure rows per turn. Docked, the failure card on the answer lists the keys still failing; with more than 3, its third row reads `+ n more · /steps n`. In fallback a failure row draws as the step settles, once per key, for the turn's first 3 keys to fail; with more, a `+ n more · /steps n` row on the spine above the receipt counts the rest, since a drawn row never changes.
 - The pane keeps every `×` group and step.
 - A failure row draws when the step settles and never changes (amendment 9). A later fix shows as its own row in the pane and as `1 fixed` in the receipt.
 
@@ -3430,6 +3434,9 @@ Results follow 5.7: at most 14 cells, a noun phrase, never a sentence or an echo
 | a formatter: `Formatted 38 files`            | `38 files`     |
 | `bun --version`                              | `1.4.4`        |
 | `git status`, clean                          | `clean`        |
+| an edit of a file not read first             | `not read`     |
+| an edit of a file changed since it was read  | `file changed` |
+| any other error longer than 14 cells         | `failed`       |
 | `ls`: 14 entries                             | `14 entries`   |
 
 ### 13.7 `⊘ BLOCKED`
@@ -3496,7 +3503,11 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **The pane comes back to the Timeline tab when it loses focus.** The tab, the open drawer and the URL toggle are view state; losing focus resets the view (amendment 7), and the tab with it, so an unfocused pane always shows the live turn's timeline.
 - **`m` is bound only while an agent is in view.** It answers with `$.ui.view`, which the engine allows only while an agent's conversation is shown; bound everywhere, it called the engine on every press.
 - **The docked worked node sits below the `↗` rows** of the same turn, directly above the receipt (7.12, 7.13), so the receipt tree reads node, then receipt.
-- **No third-row `+ n more` in fallback.** Fallback draws a failure as it happens and a drawn row never changes; a later failure is a row of its own, so the count line that would need redrawing is not drawn.
+- **Fallback's `+ n more` sits above the receipt.** A fallback failure row draws as its step settles and never changes, so its third row cannot count failures that have not happened yet. The first 3 keys draw their rows, a repeat of a key draws none, and the receipt, drawn once the turn ends, has `+ n more · /steps n` above it (13.1). The count is per receipt while the rows are per typed turn; they differ only when an agent's report splits a typed turn.
+- **PowerShell's failure keys** (13.1). The spec named only `VAR=value`. This session's own turn (455 steps, 80 errors, most of them exploratory PowerShell) drew 34 rows on v7 and keyed 52 failures on v8 before these rules: `$t = …` keyed on `$t`, `[IO.File]::…` on whatever came first, and each redirected gate run on its output file. With them it keys 19, 15 fixed, 4 still failing (tests/plugin/flood.test.tsx).
+- **Redirections and folder options are not targets** (13.1): `bun run --cwd tools check *> $env:TEMP\g.txt` failing and `bun run --cwd tools check > "$TEMP/g.txt"` passing are the same step, so the second must fix the first.
+- **A write fixes a failed edit of the same file** (13.1): Claude often follows a refused edit with a write of the whole file, and both leave it changed.
+- **Short results for the edit tools' guards** (13.6): `not read` and `file changed`; any other error longer than 14 cells reads `failed`, as 13.6 says a result is never a sentence.
 - **ctrl+o uses the narrow text column under 110 columns** (6.1) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
 - **No output frame in ctrl+o.** A step line carries its result word and, for an edit, its diff card (7.17); a command's output is in the step's detail in the pane, not repeated on the left.
 - **The Files tab opens no hunk in place.** Enter on a file opens the full diff view (8.7, screen 28); screen 23's hunk under a Files row is drawn by its renderer and tested, but the live pane goes to the full diff, since the pane draws whole rows and the engine gives no in-place expansion.

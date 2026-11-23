@@ -113,6 +113,26 @@ export const isTurnFailure = (s: LogStep): boolean => s.mark === '✕' && canFai
 /** Whether a step succeeded, so it can fix a failure: settled, not failed, not blocked, denied or cut. */
 const succeeded = (t: LogStep) => !t.isRunning && t.mark !== '✕' && t.state === undefined && t.result !== 'interrupted'
 
+/** How many failure rows the left draws for a turn (13.1); past them, one `+ n more · /steps n` row. */
+export const FAILURE_ROWS = 3
+
+/**
+ * Whether a failed step draws a failure row in fallback (13.1): it is the first failure of its key, and its key is
+ * one of the turn's first three to fail. It depends only on the steps before it, so a row drawn stays drawn.
+ * @param steps the typed turn's steps
+ * @param index the step's place in them
+ * @returns whether it draws its row
+ */
+export function isShownFailure(steps: readonly LogStep[], index: number): boolean {
+  const s = steps[index]
+
+  if (s === undefined || !isTurnFailure(s)) return false
+
+  const before = steps.slice(0, index).filter(isTurnFailure)
+
+  return !before.some(t => t.key === s.key) && new Set(before.map(t => t.key)).size < FAILURE_ROWS
+}
+
 /** Whether a failed step is still open (13.1): a turn failure no later success with the same or a broader key fixed. */
 export function isOpen(steps: readonly LogStep[], index: number): boolean {
   const s = steps[index]
@@ -206,7 +226,7 @@ export function startStep(started: StepLog, call: StepStart, cwd?: string): Step
     id: call.id,
     kind,
     subject,
-    key: keyText(failureKey(kind, command(call.input), typeof file === 'string' ? file : '', cwd)),
+    key: keyText(failureKey(kind, command(call.input), typeof file === 'string' ? file : '', cwd, call.tool === 'PowerShell' ? 'pwsh' : 'bash')),
     result: '',
     mark: '',
     isRunning: true,

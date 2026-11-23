@@ -6,6 +6,31 @@ import type { StepLog } from '../../../types'
 
 const PROJECT = 'D:\\Projects\\ghostframe'
 const key = (kind: string, command: string, file = '') => keyText(failureKey(kind, command, file, PROJECT))
+const pwsh = (command: string, kind = 'shell') => keyText(failureKey(kind, command, '', PROJECT, 'pwsh'))
+
+test('13.1 for PowerShell: an assignment is stripped, the first command keys, a statement with no program keys on pwsh', () => {
+  expect(pwsh('$t = Get-Content -Raw hooks\\a.ts; $t = $t.Replace("a", "b")')).toBe('Get-Content · · hooks/a.ts')
+  // An assignment that runs nothing is PowerShell's `VAR=value`: the next command keys.
+  expect(pwsh('$env:LANG = "C"; bun test hooks/width', 'test')).toBe('bun · test · hooks/width')
+  expect(pwsh('$t = [IO.File]::ReadAllText("a.ts"); $t = $t.Replace("a", "b"); [IO.File]::WriteAllText("a.ts", $t)')).toBe('pwsh · ·')
+  expect(pwsh('cd D:\\Projects\\ghostframe; git status | Select-String foo')).toBe('git · status ·')
+  expect(pwsh('$t = [IO.File]::ReadAllText("$PWD/hooks/a.ts")')).toBe('pwsh · ·')
+  expect(pwsh("foreach ($f in 'a.ts','b.ts') { Get-Content $f }")).toBe('pwsh · ·')
+  expect(pwsh('$t = Measure-Command { bun test }')).toBe('Measure-Command · ·')
+  expect(pwsh('& "C:\\tools\\lint.exe" hooks\\a.ts')).toBe('lint · · hooks/a.ts')
+  // A bash loop keys on bash; `[` is still the test command there.
+  expect(key('shell', 'for f in *.ts; do echo $f; done')).toBe('bash · ·')
+  expect(key('shell', '[ -f x.ts ]')).toBe('[ · · x.ts')
+})
+
+test('13.1: a redirection is not a target, a folder option is not a subcommand; a write fixes a failed edit', () => {
+  expect(pwsh('bun run --cwd tools check *> $env:TEMP\\g.txt')).toBe('bun · run ·')
+  expect(key('shell', 'bun run --cwd tools check > "$TEMP/g.txt" 2>&1')).toBe('bun · run ·')
+  expect(key('shell', 'npm --prefix web audit')).toBe('npm · audit ·')
+  expect(fixes(keyOf('write · · hooks/a.ts'), keyOf('edit · · hooks/a.ts'))).toBe(true)
+  expect(fixes(keyOf('edit · · hooks/a.ts'), keyOf('write · · hooks/a.ts'))).toBe(true)
+  expect(fixes(keyOf('write · · hooks/b.ts'), keyOf('edit · · hooks/a.ts'))).toBe(false)
+})
 
 test('13.1: every row of the key table', () => {
   expect(key('test', 'cd D:\\Projects\\ghostframe && bun test hooks/width')).toBe('bun · test · hooks/width')

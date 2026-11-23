@@ -135,14 +135,15 @@ test('C.2 in fallback: one blank row above the first event row after the prompt,
   await $.turn.start({ text: 'list both', turnId: 'two' })
   await $.session.append(respond([text('Listing it twice.'), use('ls15', 'Bash', { command: 'ls /nope' })], 'c15-1'))
   await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15' } as never)
-  await $.session.append(respond([use('ls15b', 'Bash', { command: 'ls /nope' })], 'c15-2'))
-  await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15b' } as never)
+  // A second key: the same command failing again would be the same failure, and draw no row (13.1).
+  await $.session.append(respond([use('ls15b', 'Bash', { command: 'ls /nope2' })], 'c15-2'))
+  await $.tool.call({ tool: 'Bash', command: 'ls /nope2', tool_use_id: 'ls15b' } as never)
   await $.session.append(respond([text(answerOf(15))], 'm15-answer'))
   await $.turn.complete({ answer: answerOf(15), durationMs: 3_000, isAborted: false, turnId: 'two', reason: 'answer' })
 
-  // Two failing commands: the first event row of the turn has a blank row above it (the narration left), the second none.
+  // Two failing commands, two keys: the first event row of the turn has a blank row above it (the narration left), the second none.
   expect(await topOf(groupOf(failing('ls15'), 100, true))).toBe(1)
-  expect(await topOf(groupOf(failing('ls15b'), 100, true))).toBe(0)
+  expect(await topOf(groupOf({ id: 'ls15b', tool: 'Bash', input: { command: 'ls /nope2' } }, 100, true))).toBe(0)
   // The answer's capsule touches the event row above it.
   const answer = await $.ui.mount(site('AssistantMessage', 'm15-answer', 100, { text: answerOf(15), isFirstOfReply: true }))
   const boxes = await answer.findAll({ type: 'Box' })

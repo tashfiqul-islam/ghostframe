@@ -4,6 +4,8 @@ import { DENIED, mcpName } from '../../shared/calls/describe'
 import { firstErrorLine, resultOf } from '../../shared/calls/results'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
+import { RESULT_CELLS } from '../../shared/look/words'
+import { vw } from '../../shared/text'
 import { command, firstLine, int, isShell, rec } from './kinds'
 import type { Outcome } from './log'
 
@@ -98,9 +100,15 @@ function failure(kind: string, tool: string, outcome: Outcome): { result: string
 
   if (kind === 'read' && /does not exist|not found|no such file/i.test(said)) return { result: 'not found', mark: '✕' }
   if (kind === 'edit' && /not found|no match/i.test(said)) return { result: 'no match', mark: '✕' }
+  // The edit tools' own guards (13.6): the file was not read first, or it changed since.
+  if (/has not been read yet/i.test(said)) return { result: 'not read', mark: '✕' }
+  if (/modified since read/i.test(said)) return { result: 'file changed', mark: '✕' }
   if (/timed? ?out/i.test(said)) return { result: 'timed out', mark: '✕' }
 
-  return { result: firstErrorLine(said) || 'failed', mark: '✕' }
+  // At most 14 cells (13.6): a longer line is no result, so the step just failed.
+  const line = firstErrorLine(said)
+
+  return { result: line.length > 0 && vw(line) <= RESULT_CELLS ? line : 'failed', mark: '✕' }
 }
 
 /** A finished call's result and mark; `fixes` says a failed step with the same key is still open. */

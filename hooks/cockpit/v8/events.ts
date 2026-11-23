@@ -232,6 +232,16 @@ export function moreParts(more: number, turnNo: number): Part[] {
 }
 
 /**
+ * Fallback's `+ n more · /steps n` row (13.1), on the spine above the receipt: the failures past the three drawn.
+ * @param more how many failure keys drew no row
+ * @param turnNo the turn's number
+ * @returns the row
+ */
+export function moreRow(more: number, turnNo: number): Part[] {
+  return spineRow(NO_LABEL, SPINE, moreParts(more, turnNo))
+}
+
+/**
  * The failures the left shows (13.1): at most three; with more, the first two and a `+ n more` row.
  * @param all every failure to show, oldest first
  * @returns the ones drawn, and how many the `+ n more` row stands for (0 for none)

@@ -1,7 +1,7 @@
 // The left's rows Cockpit owns (spec 7.8, 7.11 to 7.13, 7.15): the failure card, the live line, the receipt, the
 // worked node, slash command rows and the step rows of `/steps n all` and ctrl+o. Pure: cockpit/left.tsx draws them.
 import type { Part } from '../../shared/parts'
-import { bottomEdge, cardRow, topEdge } from '../../shared/look/card'
+import { PAD, bottomEdge, cardRow, topEdge } from '../../shared/look/card'
 import { count, duration } from '../../shared/look/format'
 import type { StateWord } from '../../shared/look/format'
 import { GLYPH, SPINNER } from '../../shared/look/glyphs'
@@ -270,8 +270,12 @@ export function failureCard(open: number, target: string, failures: readonly Car
   const blank = cardRow([], bg, width)
   const shown = failures.length <= 3 ? failures : failures.slice(0, 2)
   const rows = shown.map(f => {
-    const { folder, file } = splitPath(f.where.replace(/:\d+(?::\d+)?$/, ''))
     const line = /(:\d+(?::\d+)?)$/.exec(f.where)?.[1] ?? ''
+    const where = f.where.slice(0, f.where.length - line.length)
+    // The room left of the result (13.5): a test's path is cut from its middle folders, a step's command from its middle.
+    const room = width - 2 * PAD - vw(`${GLYPH.fail} `) - vw(line) - (f.said.length > 0 ? vw(f.said) + 1 : 0)
+    const isPath = !/\s/.test(where)
+    const { folder, file } = isPath ? splitPath(cutPath(where, room)) : { folder: '', file: cutCommand(where, room) }
 
     return cardRow(
       [{ t: `${GLYPH.fail} `, color: TOKEN.err }, ...(folder.length > 0 ? [dim(folder)] : []), { t: file, color: TOKEN.textBright }, dim(line)],

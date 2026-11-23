@@ -16,6 +16,7 @@ import { workedCounts } from '../v8/receipt'
 import { workedRow } from '../v8/left'
 import { shipEventRows } from '../v8/ships'
 import type { Capsule } from './capsule'
+import { isShownFailure } from '../steps/log'
 import { failureOf, failureRows } from './events'
 import type { Failure } from './events'
 import { turnOfCall, turnView } from './facts'
@@ -33,9 +34,11 @@ const capsuleRow = (c: Capsule, width: number): Part[] => workedRow(workedCounts
  * @returns the failure, or undefined (none, or not settled yet)
  */
 function failureFor(view: TurnView, id: string): Failure | undefined {
-  const step = view.steps.find(s => s.id === id || s.calls?.includes(id) === true)
+  const at = view.steps.findIndex(s => s.id === id || s.calls?.includes(id) === true)
+  const step = view.steps[at]
 
-  if (step === undefined || step.isRunning) return undefined
+  // A key that failed before, or a fourth key: the receipt's `+ n more` row stands for it (13.1).
+  if (step === undefined || step.isRunning || !isShownFailure(view.steps, at)) return undefined
 
   const detail = view.details.find(d => d.id === id)
 

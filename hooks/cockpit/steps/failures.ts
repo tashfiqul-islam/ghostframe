@@ -23,6 +23,72 @@ const isAssignment = (w: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(w)
 const isPathLike = (w: string) => /[/\\]/.test(w) || /\.[A-Za-z0-9]+$/.test(w) || w.startsWith('~')
 // Where a command's words end: the next command after `&&`, `||`, `;` or a pipe is another step's business.
 const firstCommand = (cmd: string) => cmd.split(/\s*(?:&&|\|\||;|\|)\s*/)[0] ?? cmd
+// A PowerShell assignment's left side (`$t = `, `$env:LANG = `), stripped like `VAR=value` (section 14).
+const PS_ASSIGNMENT = /^\s*\$[A-Za-z_][\w:]*\s*[+-]?=\s*/
+// A redirection: `>`, `>>`, `2>`, `*>`, `2>&1`; on its own, the word after it is what it writes to.
+const REDIRECT = /^[0-9*]?>>?/
+const isBareRedirect = (w: string) => /^[0-9*]?>>?$/.test(w)
+// A statement with no program to name (section 14): PowerShell's expressions, script blocks and loops; the shell's
+// own loops and conditionals.
+const PWSH_STATEMENT = /^(?:[[($@{'"0-9]|(?:foreach|for|while|do|if|switch|try|function)\b)/i
+const BASH_STATEMENT = /^(?:[({]|(?:for|while|until|if|case|function)\b)/
+// Options whose value is a folder, not a target: `git -C dir`, `bun run --cwd tools`, `npm --prefix web`.
+const DIR_OPTION = /^-[Cc]$|^--(?:context|namespace|git-dir|work-tree|cwd|prefix)$/
+
+/**
+ * A command's statements, split at `;`, `&&`, `||` and `|` outside quotes, brackets, parentheses and braces, so a
+ * `;` inside `$t.Replace("a; b", …)` or a script block is not a statement of its own.
+ * @param cmd the command
+ * @returns its statements, trimmed
+ */
+function statementsOf(cmd: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let quote = ''
+  let from = 0
+
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i] ?? ''
+
+    if (quote.length > 0) {
+      if (ch === quote) quote = ''
+    } else if (ch === '"' || ch === "'") quote = ch
+    else if ('([{'.includes(ch)) depth++
+    else if (')]}'.includes(ch)) depth = Math.max(0, depth - 1)
+    else if (depth === 0 && (ch === ';' || ch === '|' || (ch === '&' && cmd[i + 1] === '&'))) {
+      out.push(cmd.slice(from, i).trim())
+      i += cmd[i + 1] === ch ? 1 : 0
+      from = i + 1
+    }
+  }
+
+  return [...out, cmd.slice(from).trim()].filter(s => s.length > 0)
+}
+
+/**
+ * PowerShell's first command (section 14): its assignment's left side stripped (`$t = Get-Content …` runs
+ * Get-Content) and its call operator (`& "C:\tools\x.exe" …` runs x). A leading assignment that runs no program
+ * (`$env:LANG = "C"; bun test`) is PowerShell's `VAR=value`, so the next command keys.
+ * @param cmd the command, its `cd` prefix stripped
+ * @returns the command that keys, or undefined when no command runs a program
+ */
+function firstPwshCommand(cmd: string): string | undefined {
+  for (const part of statementsOf(cmd)) {
+    const assigned = part.replace(PS_ASSIGNMENT, '')
+    const called = assigned.replace(/^\s*&\s+/, '')
+
+    // What the call operator runs is a program, quoted path and all.
+    if (called !== assigned || !PWSH_STATEMENT.test(called.trimStart())) return called
+    if (!PS_ASSIGNMENT.test(part)) return undefined
+  }
+
+  return undefined
+}
+
+/** A command's words with its redirections and what they write to removed. */
+function withoutRedirects(words: readonly string[]): string[] {
+  return words.filter((w, i) => !REDIRECT.test(w) && !isBareRedirect(words[i - 1] ?? ''))
+}
 
 /**
  * A step's failure key (13.1).
@@ -30,17 +96,23 @@ const firstCommand = (cmd: string) => cmd.split(/\s*(?:&&|\|\||;|\|)\s*/)[0] ?? 
  * @param command the command a shell or test step ran, or '' for others
  * @param file the file an edit or a write changed, or ''
  * @param project the project root, for a project-relative target (13.2)
+ * @param shell the shell that ran it: PowerShell's statements key on `pwsh`, the others' on `bash`
  * @returns the key
  */
-export function failureKey(kind: string, command: string, file: string, project?: string): FailureKey {
+export function failureKey(kind: string, command: string, file: string, project?: string, shell: 'pwsh' | 'bash' = 'bash'): FailureKey {
   if (kind === 'edit' || kind === 'write' || kind === 'notebook')
     return { program: kind === 'notebook' ? 'edit' : kind, sub: '', target: showPath(file, { project }) }
 
-  const words = wordsOf(firstCommand(stripCd(command).command)).filter((w, i, all) => !(isAssignment(w) && all.slice(0, i).every(isAssignment)))
+  // PowerShell's first command has already left out its statements; the shell's loops are found here.
+  const stated = shell === 'pwsh' ? firstPwshCommand(stripCd(command).command) : firstCommand(stripCd(command).command)
+
+  if (stated === undefined || (shell === 'bash' && BASH_STATEMENT.test(stated.trimStart()))) return { program: shell, sub: '', target: '' }
+
+  const words = withoutRedirects(wordsOf(stated)).filter((w, i, all) => !(isAssignment(w) && all.slice(0, i).every(isAssignment)))
   const programWord = words[0] ?? ''
   const program = programWord.replace(/^.*[/\\]/, '').replace(/\.(?:exe|cmd)$/i, '')
   // `git -C dir`, `git -c k=v`, `docker --context x`: a global option's value is not the subcommand.
-  const rest = words.slice(1).filter((_, i, all) => !(i > 0 && /^-[Cc]$|^--(?:context|namespace|git-dir|work-tree)$/.test(all[i - 1] ?? '')))
+  const rest = words.slice(1).filter((_, i, all) => !(i > 0 && DIR_OPTION.test(all[i - 1] ?? '')))
   const subAt = WITH_SUBCOMMANDS.has(program) ? rest.findIndex(w => !isFlag(w)) : -1
   const sub = subAt < 0 ? '' : (rest[subAt] ?? '')
   const args = rest.slice(subAt + 1).filter(w => !isFlag(w))
@@ -60,6 +132,9 @@ export function keyOf(text: string): FailureKey {
   return m === null ? { program: text, sub: '', target: '' } : { program: m[1] ?? '', sub: m[2] ?? '', target: m[3] ?? '' }
 }
 
+// A write of a file fixes a failed edit of it, and the other way round (section 14): both leave the file changed.
+const family = (program: string) => (program === 'write' ? 'edit' : program)
+
 /**
  * Whether a later success with key `later` fixes a failure with key `failed` (13.1): the same key, or a broader one,
  * the same program and subcommand with a target that is empty or contains the failed target.
@@ -68,7 +143,7 @@ export function keyOf(text: string): FailureKey {
  * @returns whether it fixes it
  */
 export function fixes(later: FailureKey, failed: FailureKey): boolean {
-  if (later.program !== failed.program || later.sub !== failed.sub) return false
+  if (family(later.program) !== family(failed.program) || later.sub !== failed.sub) return false
   if (later.target === failed.target || later.target.length === 0) return true
 
   return failed.target.startsWith(`${later.target.replace(/\/+$/, '')}/`)

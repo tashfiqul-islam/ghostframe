@@ -56,3 +56,20 @@ test('ls: `N items`, `1 item`, or `empty`', () => {
 test('other commands keep their last line of output', () => {
   expect(shellResult('echo one', out('one\n'))).toBe('one')
 })
+
+/** The result of one settled call of another tool that errored, as the step log keeps it. */
+function errorResult(tool: string, input: Record<string, unknown>, text: string): string {
+  const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool, input, at: 0 }), { id: 'a', tool, input, outcome: { isError: true, text }, at: 1_000 })
+
+  return log.steps[0]?.result ?? ''
+}
+
+test('13.6: an edit tool`s own guards read `not read` and `file changed`; a longer error is just `failed`', () => {
+  const edit = { file_path: 'a.ts', old_string: 'a', new_string: 'b' }
+  expect(errorResult('Edit', edit, '<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>')).toBe('not read')
+  expect(errorResult('Edit', edit, '<tool_use_error>File has been modified since read, either by the user or by a linter.</tool_use_error>')).toBe(
+    'file changed'
+  )
+  expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'EACCES: permission denied, open a.ts')).toBe('failed')
+  expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'disk full')).toBe('disk full')
+})
