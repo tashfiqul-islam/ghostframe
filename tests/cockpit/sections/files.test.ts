@@ -76,3 +76,11 @@ test('an agent`s edit joins the list marked as the agent`s, once: the main loop`
     { path: 'b.ts', tag: '', adds: 1, dels: 1 }
   ])
 })
+
+test('13. a here-string`s body writes nothing: its `<…@….com>` and closing `@` are no `> @` (manual run, turn 1)', () => {
+  const command = "git add src/width.ts; git commit -m @'\nfix: count cells\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n'@; git log --oneline -2"
+
+  expect(writeTargets(command)).toEqual([])
+  expect(writeTargets('cat a > out.txt\necho hi >> log.txt')).toEqual(['out.txt', 'log.txt'])
+  expect(writeTargets("cat <<'EOF' > notes.md\nline > not-a-file\nEOF")).toEqual(['notes.md'])
+})

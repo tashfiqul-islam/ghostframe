@@ -15,7 +15,7 @@ import { foldGroups, groupsOf, paneResult } from './groups'
 import type { TimedStep } from './groups'
 import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from './pane'
 import type { AgentBar, Group, Head, Stat } from './pane'
-import { agentHead, agentsView, allStepsView, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
+import { agentHead, agentsView, allStepsView, countsOf, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
 import type { StepRow } from './views'
 
 /** What the pane reads to draw (8). */
@@ -39,6 +39,8 @@ export type PaneInput = {
   version: string
   /** The Files tab's file under the focus ring and its first hunk (8.5), drawn in place under its row. */
   selectedFile?: { path: string; hunk: readonly string[] } | undefined
+  /** The selected file's counts from its own diff (baseline against now), the one its hunk shows: they always agree. */
+  diffCounts?: ReadonlyMap<string, { adds: number; dels: number }> | undefined
   /** A brief note for the hint row (`copied`). */
   note?: string | undefined
 }
@@ -447,7 +449,16 @@ export function assemblePane(i: PaneInput): Pane {
     const diff = i.view
     const file = shown.files.find(f => f.path === diff.path)
 
-    body = plainLines(diffView(diff.path, diff.patch, { adds: file?.adds ?? 0, dels: file?.dels ?? 0 }, shown.turnNo, i.width))
+    // The counts and the hunks come from one diff (8.6); a file with none keeps its steps' tally.
+    body = plainLines(
+      diffView(
+        diff.path,
+        diff.patch,
+        diff.patch.some(l => l.startsWith('@@')) ? countsOf(diff.patch) : { adds: file?.adds ?? 0, dels: file?.dels ?? 0 },
+        shown.turnNo,
+        i.width
+      )
+    )
   } else if (i.viewed !== undefined) {
     const a = i.viewed
     const steps = a.log ?? []
@@ -488,17 +499,26 @@ export function assemblePane(i: PaneInput): Pane {
   } else if (i.tab === 'files') {
     const files = shown.files
     const hunkOf = (path: string) => (i.selectedFile?.path === path && i.selectedFile.hunk.length > 0 ? i.selectedFile.hunk : undefined)
+    // A file's counts are its diff's (8.5), the hunks' own; when the diff and the turn's steps disagree, something
+    // outside the steps changed the file too, and the baseline line says so.
+    const countOf = (f: (typeof files)[number]) => i.diffCounts?.get(f.path) ?? { adds: f.adds, dels: f.dels }
+    const isOutside = files.some(f => {
+      const c = i.diffCounts?.get(f.path)
+
+      return c !== undefined && (c.adds !== f.adds || c.dels !== f.dels)
+    })
     const rows = filesView(
       files.map(f => ({
         path: f.path,
-        adds: f.adds,
-        dels: f.dels,
+        adds: countOf(f).adds,
+        dels: countOf(f).dels,
         isAgent: f.isAgent === true,
         isSelected: i.selectedFile?.path === f.path,
         hunk: hunkOf(f.path)
       })),
       shown.turnNo,
-      i.width
+      i.width,
+      isOutside
     )
     // Each file's row opens it; the rows of a hunk open in place under it are plain.
     const ids = files.flatMap(f => [`file:${f.path}`, ...Array.from({ length: hunkHeight(hunkOf(f.path)) }, () => undefined)])

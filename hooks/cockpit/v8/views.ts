@@ -87,17 +87,23 @@ function spreadIn(left: readonly Part[], right: readonly Part[], width: number):
  * @param files the files
  * @param turnNo the turn
  * @param width the pane's columns
+ * @param isOutside whether a file's diff and the turn's own steps disagree: it changed outside them too
  * @returns the rows
  */
-export function filesView(files: readonly FileRow[], turnNo: number, width: number): Part[][] {
+export function filesView(files: readonly FileRow[], turnNo: number, width: number, isOutside: boolean = false): Part[][] {
   const adds = files.reduce((n, f) => n + f.adds, 0)
   const dels = files.reduce((n, f) => n + f.dels, 0)
   const largest = Math.max(1, ...files.map(f => f.adds + f.dels))
   const rows: Part[][] = [
     ...summary(
       [{ t: count(files.length, ['file changed', 'files changed']), color: TOKEN.text }],
-      [{ t: `+${adds}`, color: TOKEN.ok }, sp(2), { t: `${GLYPH.minus}${dels}`, color: TOKEN.err }],
-      [dim(`turn ${turnNo} · against the start of the turn`)],
+      // A zero side is left out: `+6`, not `+6 −0`.
+      [
+        ...(adds > 0 ? [{ t: `+${adds}`, color: TOKEN.ok }] : []),
+        ...(adds > 0 && dels > 0 ? [sp(2)] : []),
+        ...(dels > 0 ? [{ t: `${GLYPH.minus}${dels}`, color: TOKEN.err }] : [])
+      ],
+      [dim(`${baselineOf(turnNo)}${isOutside ? OUTSIDE : ''}`)],
       width
     ),
     []
@@ -123,6 +129,23 @@ export function filesView(files: readonly FileRow[], turnNo: number, width: numb
   if (files.some(f => f.isAgent)) rows.push([], [sp(2), { t: GLYPH.agent, color: TOKEN.agent }, dim(' changed by an agent')])
 
   return rows
+}
+
+/** The baseline line (8.5): the diff is the file at the turn's start against now. */
+const baselineOf = (turnNo: number): string => `turn ${turnNo} · against the start of the turn`
+
+/** Said on the baseline line when a file's diff and the turn's own steps disagree: something else changed it too. */
+const OUTSIDE = ' · changed outside it too'
+
+/**
+ * A unified diff's counts: its added and removed lines, headers left out.
+ * @param patch the diff's rows
+ * @returns the counts
+ */
+export function countsOf(patch: readonly string[]): { adds: number; dels: number } {
+  const rows = patch.filter(l => !l.startsWith('+++') && !l.startsWith('---'))
+
+  return { adds: rows.filter(l => l.startsWith('+')).length, dels: rows.filter(l => l.startsWith('-')).length }
 }
 
 /**

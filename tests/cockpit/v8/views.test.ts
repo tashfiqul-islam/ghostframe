@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { framed, hintRow, rulerRows, tabRows, timelineRows } from '../../../hooks/cockpit/v8/pane'
 import type { Group } from '../../../hooks/cockpit/v8/pane'
-import { agentHead, changeBar, diffView, interruptedRow, inspectorRows, pinnedHead } from '../../../hooks/cockpit/v8/views'
+import { agentHead, changeBar, countsOf, diffView, filesView, interruptedRow, inspectorRows, pinnedHead } from '../../../hooks/cockpit/v8/views'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import type { Part } from '../../../hooks/shared/parts'
 import { screen, shown } from '../../support/screens'
@@ -158,4 +158,16 @@ test('8.13: the inline inspector is one card, never taller than it may be, its k
   expect(rows.length).toBe(10)
   expect(shown(rows)[1]).toMatch(/^ {3}STEPS · TURN 8 +12 steps · 2 failed$/)
   expect(shown(rows).at(-2)).toBe('   s all   c copy   p previous   n next   esc close')
+})
+
+test('13. Files: a zero side is left out (`+6`, not `+6 −0`); an outside change is said on the baseline line', () => {
+  const rows = shown(filesView([{ path: 'src/width.ts', adds: 6, dels: 0, isAgent: false }], 5, P))
+
+  expect(rows.some(r => /−0/.test(r))).toBe(false)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 file changed +\+6$/))
+  const none = shown(filesView([], 3, P))
+  expect(none.some(r => /\+0|−0/.test(r))).toBe(false)
+  const outside = shown(filesView([{ path: 'src/width.ts', adds: 0, dels: 7, isAgent: false }], 7, P, true))
+  expect(outside).toContainEqual(expect.stringMatching(/^ {2}turn 7 · against the start of the turn · changed outside it too *$/))
+  expect(countsOf(['@@ -1,2 +1,1 @@', '-a', '-b', '+c', ' d'])).toEqual({ adds: 1, dels: 2 })
 })

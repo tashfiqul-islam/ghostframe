@@ -6,7 +6,7 @@ import { readDetails } from './keys/details'
 import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
 import { assemblePane, firstHunk } from './v8/assemble'
 import { drawPaneV8, isKeyElement, ringPastKeys } from './v8/draw'
-import { INSPECTOR_KEYS, inspectorRows } from './v8/views'
+import { countsOf, INSPECTOR_KEYS, inspectorRows } from './v8/views'
 import { pluginVersion } from './version'
 import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
@@ -521,7 +521,12 @@ export function registerPane(on: On): void {
     // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
     const ringed = e.props.isFocused && tabNow() === 'files' ? ringNow() : undefined
     const selectedPath = ringed?.startsWith('file:') === true ? ringed.slice('file:'.length) : undefined
-    const selectedFile = selectedPath === undefined ? undefined : { path: selectedPath, hunk: firstHunk((await fileView($, selectedPath)).patch) }
+    const selectedPatch = selectedPath === undefined ? undefined : (await fileView($, selectedPath)).patch
+    const selectedFile = selectedPath === undefined || selectedPatch === undefined ? undefined : { path: selectedPath, hunk: firstHunk(selectedPatch) }
+    // Where a file's hunk shows, its counts are that diff's (8.5): the selected file's row; a patch with no hunk is
+    // no diff, and that file keeps its steps' tally.
+    const diffCounts =
+      selectedPath !== undefined && selectedPatch?.some(l => l.startsWith('@@')) === true ? new Map([[selectedPath, countsOf(selectedPatch)]]) : undefined
     const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
     const pane = assemblePane({
       width: bodyColumns,
@@ -541,6 +546,7 @@ export function registerPane(on: On): void {
       viewed,
       version: pluginVersion(),
       selectedFile,
+      diffCounts,
       note: copiedNote(now)
     })
     return drawPaneV8($, e, pane.lines)

@@ -88,3 +88,17 @@ test('9. turn 2: the failure`s drawer names the cleaned command and says `exit 1
   expect(drawer).toEqual([expect.stringMatching(/test {2,}bun test {2,}.*exit 1/)])
   expect(rows.some(r => /2>&1|\bfailed\b/.test(r))).toBe(false)
 })
+
+test('13. turn 1`s Files tab: one file, `src/width.ts +2 −2`, no `@` file from the commit`s here-string', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 1)
+  const pane = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await pane.press({ key: 'key-2' })
+  await pane.redraw()
+  const rows = (await pane.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
+  await pane.unmount()
+
+  expect(rows).toContainEqual(expect.stringMatching(/FILES 1 /))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}src\/width\.ts +\+2 {3}−2 {2}■+ *$/))
+  expect(rows.some(r => /^ {4}@ /.test(r))).toBe(false)
+})

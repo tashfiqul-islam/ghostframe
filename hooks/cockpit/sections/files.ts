@@ -45,13 +45,18 @@ const by = (isAgent: boolean) => (isAgent ? { isAgent: true as const } : {})
 
 // What a shell command writes: `> f`, `>> f` (not `2>&1` or `/dev/null`), `tee [-a] f`, `touch f`, and PowerShell's
 // `Out-File`, `Set-Content` and `Add-Content`.
-const REDIRECT = /(?:^|[^0-9&>])>>?\s*([^\s&|;<>]+)/g
+const REDIRECT = /(?:^|[^0-9&>])>>?[ \t]*([^\s&|;<>]+)/g
+// A here-string's body (PowerShell's `@'…'@`, `@"…"@`) and a heredoc's (`<<'EOF' … EOF`) are text, not commands: a `>`
+// inside one writes nothing. A heredoc's opener line keeps what follows it (`cat <<'EOF' > notes.md`).
+const HERE_STRING = /@(['"])\r?\n[\s\S]*?\r?\n\1@/g
+const HEREDOC = /<<-?[ \t]*(['"]?)(\w+)\1([^\n]*)\n[\s\S]*?\n[ \t]*\2(?=\r?\n|$)/g
 const TEE = /\b(?:tee|touch)\s+(?:-a\s+)?([^\s&|;<>]+)/g
 const PS_WRITE = /\b(?:Out-File|Set-Content|Add-Content)\s+(?:-(?:Path|FilePath|LiteralPath)\s+)?([^\s&|;<>]+)/gi
 
 /** The files a shell command writes, as it names them; `/dev/null`, `NUL` and `$null` left out. */
 export function writeTargets(command: string): string[] {
-  const named = [...command.matchAll(REDIRECT), ...command.matchAll(TEE), ...command.matchAll(PS_WRITE)].map(m => m[1] ?? '')
+  const code = command.replace(HERE_STRING, "''").replace(HEREDOC, '$3')
+  const named = [...code.matchAll(REDIRECT), ...code.matchAll(TEE), ...code.matchAll(PS_WRITE)].map(m => m[1] ?? '')
 
   return [...new Set(named.filter(p => p.length > 0 && !/^(?:\/dev\/null|nul|\$null)$/i.test(p)))]
 }
