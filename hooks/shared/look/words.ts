@@ -16,7 +16,8 @@ export const KIND_CELLS = 6
 export const RESULT_CELLS = 14
 
 const isShell = (tool: string) => tool === 'Bash' || tool === 'PowerShell'
-const commandOf = (input: unknown) => stripCd((s(obj(input)?.['command']) ?? '').split('\n')[0]?.trim() ?? '').command
+/** A shell call's command: its first line, its `cd` prefix stripped (13.4). */
+export const commandOf = (input: unknown): string => stripCd((s(obj(input)?.['command']) ?? '').split('\n')[0]?.trim() ?? '').command
 
 /**
  * A call's kind word (5.6): `read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp`. Tools

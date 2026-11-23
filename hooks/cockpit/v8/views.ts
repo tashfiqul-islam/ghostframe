@@ -1,5 +1,7 @@
 // The pane's other views (spec 8.5 to 8.11, 8.13, 9.4): Files and the full diff, Sources, Todo, Agents and an agent in
 // view, every step, the pinned head, the interrupted line and the inline inspector. Pure: cockpit/pane.tsx draws them.
+import { dim, kindCell, sp, TONE } from '../../shared/look/bits'
+import type { Tone } from '../../shared/look/bits'
 import type { Part } from '../../shared/parts'
 import { count, duration } from '../../shared/look/format'
 import { GLYPH, superscript } from '../../shared/look/glyphs'
@@ -7,13 +9,8 @@ import { TOKEN } from '../../shared/look/palette'
 import { cutPath, cutTitle, splitPath } from '../../shared/look/paths'
 import { vw } from '../../shared/text'
 import { drawerRows, fit, keyParts, paneCard, pill, selected, spread } from './pane'
-import type { Tone } from './pane'
 
-const dim = (t: string): Part => ({ t, color: TOKEN.dim })
 /** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
-const kindCell = (kind: string) => (kind.length >= 6 ? `${kind} ` : kind.padEnd(6))
-const sp = (n: number): Part => ({ t: ' '.repeat(Math.max(0, n)), color: TOKEN.dim })
-const TONE: Record<Tone, string> = { dim: TOKEN.machineDim, ok: TOKEN.ok, err: TOKEN.err, bright: TOKEN.textBright, accent: TOKEN.accent, warn: TOKEN.warn }
 
 /** A summary card at the top of a view (8.5 to 8.9): its first row with a fact at the right, then a dim line. */
 function summary(left: readonly Part[], right: readonly Part[], line: readonly Part[], width: number): Part[][] {

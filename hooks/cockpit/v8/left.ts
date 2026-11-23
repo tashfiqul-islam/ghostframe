@@ -1,5 +1,6 @@
 // The left's rows Cockpit owns (spec 7.8, 7.11 to 7.13, 7.15): the failure card, the live line, the receipt, the
 // worked node, slash command rows and the step rows of `/steps n all` and ctrl+o. Pure: cockpit/left.tsx draws them.
+import { dim, TONE } from '../../shared/look/bits'
 import type { Part } from '../../shared/parts'
 import { PAD, bottomEdge, cardRow, topEdge } from '../../shared/look/card'
 import { count, duration } from '../../shared/look/format'
@@ -11,8 +12,6 @@ import { NO_LABEL, NO_SPINE, SPINE, spineRow } from '../../shared/look/spine'
 import { trace } from '../../shared/look/trace'
 import { vw } from '../../shared/text'
 import { moreParts } from './events'
-
-const dim = (t: string): Part => ({ t, color: TOKEN.dim })
 
 /** A receipt's or worked node's facts (7.12, 7.13), on the step log's one clock (13.9). */
 export type TurnCounts = {
@@ -193,8 +192,6 @@ export type StepLine = { kind: string; subject: string; result: string; tone: 'd
 
 const KIND_CELLS = 8
 const TIME_CELLS = 8
-
-const TONE: Record<StepLine['tone'], string> = { dim: TOKEN.machineDim, ok: TOKEN.ok, err: TOKEN.err, bright: TOKEN.textBright, accent: TOKEN.accent }
 
 /** A step's subject drawn as its kind shows it: a path folder dim and file bright, a URL or a command cut from the middle. */
 export function subjectParts(kind: string, subject: string, cells: number): Part[] {

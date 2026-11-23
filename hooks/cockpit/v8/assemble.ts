@@ -1,5 +1,6 @@
 // The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the v8 views,
 // each openable row under its id, and the keys the view offers. Pure: cockpit/pane.tsx reads the state and draws this.
+import { urlHost } from '../../shared/url'
 import type { FlowStamp, LogStep, RosterAgent, StepDetail, StepLog, TurnRecord, TurnWork } from '../../../types'
 import { isNarrationAt } from '../../shared/flow'
 import { clockTime, count, dayWord, duration, rulerTime, timeRange } from '../../shared/look/format'
@@ -492,7 +493,8 @@ export function assemblePane(i: PaneInput): Pane {
     const rows = sourcesView(
       pages.map(p => ({
         n: cited.includes(p.url) ? cited.indexOf(p.url) + 1 : undefined,
-        host: hostOf(p.url),
+        // A fetch names an absolute URL; one the parser cannot read is shown as Claude wrote it.
+        host: urlHost(p.url) ?? p.url,
         // A page with no title of its own takes the one the answer's link gave it.
         title: p.title.length > 0 ? p.title : (shown.cited.find(c => c.url === p.url)?.title ?? ''),
         status: p.status,
@@ -619,12 +621,3 @@ const hunkHeight = (hunk: readonly string[] | undefined) => (hunk === undefined 
 
 /** A cited page's place: cited pages first, in the answer's order (8.7). */
 const rank = (cited: readonly string[], url: string) => (cited.includes(url) ? cited.indexOf(url) : cited.length)
-
-/** A page's host, without `www.` (8.7). */
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host.replace(/^www\./, '')
-  } catch {
-    return url
-  }
-}

@@ -41,23 +41,3 @@ export function fmtClock(ms: number): string {
 
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-
-const two = (n: number) => String(n).padStart(2, '0')
-
-/**
- * One duration, as spec H.5 writes it everywhere: `0.4s`, `12s`, `4m 03s`, `1h 12m`, `1d 02h`.
- * @param ms the duration
- * @returns the string, at most 7 cells
- */
-export function formatSpan(ms: number): string {
-  if (!Number.isFinite(ms) || ms < 0) return ''
-  if (ms < 1_000) return `${(Math.floor(ms / 100) / 10).toFixed(1)}s`
-
-  const s = Math.floor(ms / 1_000)
-
-  if (s < 60) return `${s}s`
-  if (s < 3_600) return `${Math.floor(s / 60)}m ${two(s % 60)}s`
-  if (s < 86_400) return `${Math.floor(s / 3_600)}h ${two(Math.floor((s % 3_600) / 60))}m`
-
-  return `${Math.floor(s / 86_400)}d ${two(Math.floor((s % 86_400) / 3_600))}h`
-}

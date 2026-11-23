@@ -51,9 +51,6 @@ export const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏'
 /** The sparkline's levels, lowest first (8.2). */
 export const SPARK = '▁▂▃▄▅▆▇█'
 
-/** The braille trace's levels, lowest first (7.3, 7.12). */
-export const TRACE = '⣀⣠⣤⣴⣶⣾⣿'
-
 /** The superscript digits a cited source is numbered with (8.7). */
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 

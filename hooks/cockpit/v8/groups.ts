@@ -4,7 +4,8 @@ import type { LogStep } from '../../../types'
 import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
 import { isOpen, isShipMark } from '../steps/log'
-import type { Group, GroupGlyph, Tone } from './pane'
+import type { Group, GroupGlyph } from './pane'
+import type { Tone } from '../../shared/look/bits'
 
 /** A step with its time on the turn's clock: when it started and ended (undefined while it runs). */
 export type TimedStep = { step: LogStep; start: number; end: number | undefined }

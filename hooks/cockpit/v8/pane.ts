@@ -1,5 +1,7 @@
 // The pane (spec 8.1 to 8.4, 8.12): the tabs, the head card, the timeline with its ruler and bars, the detail drawer,
 // the key hints and the wordmark. Pure: cockpit/pane.tsx draws what these return.
+import { dim, kindCell, sp, TONE } from '../../shared/look/bits'
+import type { Tone } from '../../shared/look/bits'
 import type { Part } from '../../shared/parts'
 import type { PillState } from '../../shared/look/palette'
 import { GLYPH } from '../../shared/look/glyphs'
@@ -8,10 +10,7 @@ import { cutCommand, cutTitle } from '../../shared/look/paths'
 import { sparkline } from '../../shared/look/trace'
 import { vw } from '../../shared/text'
 
-const dim = (t: string): Part => ({ t, color: TOKEN.dim })
 /** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
-const kindCell = (kind: string) => (kind.length >= 6 ? `${kind} ` : kind.padEnd(6))
-const sp = (n: number): Part => ({ t: ' '.repeat(Math.max(0, n)), color: TOKEN.dim })
 const widthOf = (parts: readonly Part[]) => parts.reduce((n, p) => n + vw(p.t), 0)
 
 /** Parts padded with spaces to `width` cells, or cut there. */
@@ -231,9 +230,6 @@ const GROUP_GLYPH: Record<GroupGlyph, Part> = {
 }
 
 /** A result's tone in the pane (5.7). */
-export type Tone = 'dim' | 'ok' | 'err' | 'bright' | 'accent' | 'warn'
-
-const TONE: Record<Tone, string> = { dim: TOKEN.machineDim, ok: TOKEN.ok, err: TOKEN.err, bright: TOKEN.textBright, accent: TOKEN.accent, warn: TOKEN.warn }
 
 /** A sub-step under an agent (8.3): the running or last step, `▸ shell bun test …  running`. */
 export type SubStep = { glyph: 'current' | 'failed' | 'ok'; kind: string; subject: string; result: string; tone: Tone }

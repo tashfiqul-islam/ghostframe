@@ -1,18 +1,12 @@
 // What left the machine (spec 7.10, v7 E.5): a call's `↗` rows, drawn the moment it returns: a commit, a push, a pull
 // request opened or merged. Pure: the left draws what this returns.
+import { commandOf } from '../../shared/look/words'
 import type { Part } from '../../shared/parts'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
-import { stripCd } from '../../shared/look/command'
 import { shippedRow } from './events'
 
 /** One call as a site carries it. */
 export type ShipCall = { tool_use_id?: string | undefined; tool: string; input: unknown; output?: unknown; isErrored: boolean }
-
-const commandOf = (input: unknown) => {
-  const c = typeof input === 'object' && input !== null && 'command' in input ? input.command : undefined
-
-  return typeof c === 'string' ? stripCd((c.split('\n')[0] ?? '').trim()).command : ''
-}
 
 const MERGE = /\bgh\s+pr\s+merge\b(?:\s+(\d+))?/
 

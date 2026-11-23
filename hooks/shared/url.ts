@@ -116,7 +116,7 @@ const cleanHost = (host: string) =>
     .toLowerCase()
 
 /** The host the URL parser reads (no `user@`, keeps a port), without `www.`; not a URL → undefined. */
-function urlHost(url: string): string | undefined {
+export function urlHost(url: string): string | undefined {
   try {
     const { host } = new URL(url.trim())
 

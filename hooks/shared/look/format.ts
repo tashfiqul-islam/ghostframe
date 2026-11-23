@@ -1,6 +1,5 @@
 // Cockpit v8's formats (spec section 5): clock times, the day, durations, counts and state words. One formatter each,
 // used by every row that shows one.
-import { TOKEN } from './palette'
 
 const two = (n: number) => String(n).padStart(2, '0')
 
@@ -75,21 +74,6 @@ export function changeCount(adds: number, dels: number): string {
 
 /** A state word (5.5). */
 export type StateWord = 'DONE' | 'FAILED' | 'LIVE' | 'NEEDS YOU' | 'WAITING' | 'BLOCKED' | 'DENIED' | 'INTERRUPTED' | 'QUEUED' | 'PLAN' | 'AGENT'
-
-/** Each state word's colour (5.5): always drawn bold, in capitals. */
-export const STATE_COLOR: Record<StateWord, string> = {
-  DONE: TOKEN.ok,
-  FAILED: TOKEN.err,
-  LIVE: TOKEN.accent,
-  'NEEDS YOU': TOKEN.warn,
-  WAITING: TOKEN.warn,
-  BLOCKED: TOKEN.warn,
-  DENIED: TOKEN.err,
-  INTERRUPTED: TOKEN.muted,
-  QUEUED: TOKEN.muted,
-  PLAN: TOKEN.machine,
-  AGENT: TOKEN.agent
-}
 
 /**
  * The pane head's time range (5.1): `10:14:02 → 10:16:46`, `10:14:02 → now` while live, with the day before it when

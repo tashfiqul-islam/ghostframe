@@ -14,7 +14,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
   narration is), which both features read.
 - `shared/look/`: Cockpit v8's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
   draws with), the glyphs, the formats (clock, day, duration, counts, state words), the one path formatter and the
-  cuts from the middle, the `cd` prefix, kind words and short result words.
+  cuts from the middle, the `cd` prefix, kind words and short result words, and the small parts every row is built
+  from (a dim run, spaces, a kind cell, the result tones).
 - `shared/calls/`: what a tool call was and what it returned: its verb and target, result summaries, test-run
   counts, commits, pushes and pull requests.
 - `cockpit/`: the pane's seat and width rule, the off switch, the step log's atoms and timers, the turn's work
@@ -103,7 +104,8 @@ message or its finished notice), the `ToolUse` of an `Agent` call, and each `Age
 
 ## See also
 
-- [The Cockpit design](../docs/design/cockpit-v7.md), its
+- [The Cockpit v8 spec](../docs/design/cockpit-v8.md), the source of truth; its build decisions are its section 14.
+- [The Cockpit v7 design](../docs/design/cockpit-v7.md), which v8 replaced where they differ, its
   [amendments](../docs/design/cockpit-v7-amendments.md) and its
   [feasibility report and phase plan](../docs/design/cockpit-v7-feasibility.md).
 - [How the tests are laid out](../tests/README.md).

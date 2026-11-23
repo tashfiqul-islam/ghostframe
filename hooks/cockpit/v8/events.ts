@@ -1,5 +1,6 @@
 // The left's event rows (spec 7.10, 13.1, 13.7, 13.8): one row each on the spine, its label the time into the turn at
 // which it happened, and a `└` detail line where one thing explains it. Pure: the left draws what these return.
+import { dim } from '../../shared/look/bits'
 import type { Part } from '../../shared/parts'
 import { duration } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
@@ -18,7 +19,6 @@ export const atLabel = (ms: number | undefined, color: string = TOKEN.machineDim
 
 const glyph = (t: string, color: string): Part => ({ t, color })
 const word = (t: string, color: string): Part => ({ t, color, bold: true })
-const dim = (t: string): Part => ({ t, color: TOKEN.dim })
 
 /** Fits the detail into what the text column leaves after the lead, cut at its end. */
 function fitted(lead: readonly Part[], detail: readonly Part[], width: number): Part[] {
