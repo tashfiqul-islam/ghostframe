@@ -73,3 +73,18 @@ test('10. turn 3: the denied step is `▍` in err with the result `denied`, its 
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}▍ shell Remove-Item src\/wi… .* denied *$/))
   expect(rows.some(r => /✓ shell Remove-Item|LiteralPath/.test(r))).toBe(false)
 })
+
+test('9. turn 2: the failure`s drawer names the cleaned command and says `exit 1`', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 2)
+  const id = MANUAL.turns[2]?.events.find(e => e.k === 'call' && JSON.stringify(e['input']).includes('bun test'))?.['id']
+  const pane = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await pane.press({ key: `step:${String(id)}` })
+  await pane.redraw()
+  const rows = (await pane.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
+  await pane.unmount()
+  const drawer = rows.filter(r => / test {2,}bun test/.test(r))
+
+  expect(drawer).toEqual([expect.stringMatching(/test {2,}bun test {2,}.*exit 1/)])
+  expect(rows.some(r => /2>&1|\bfailed\b/.test(r))).toBe(false)
+})

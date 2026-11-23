@@ -141,9 +141,31 @@ export async function noteEnd($: EngineInterface, id: string, input: unknown, ou
         .filter((r, _, all) => all.length > 1 || r.length > 0)
       const excerpt = (isFailed ? rows.slice(-EXCERPT) : rows.slice(0, EXCERPT)).map(r => r.slice(0, ROW_MAX))
 
-      return { ...d, ms: Math.max(0, at - d.startAt), isFailed, lines: rows.length, excerpt, patch: isFailed ? [] : patchOf(d.tool, input, outcome.result) }
+      const exit = isFailed ? exitOf(outcome) : undefined
+
+      return {
+        ...d,
+        ms: Math.max(0, at - d.startAt),
+        isFailed,
+        lines: rows.length,
+        excerpt,
+        patch: isFailed ? [] : patchOf(d.tool, input, outcome.result),
+        ...(exit === undefined ? {} : { exit })
+      }
     })
   )
+}
+
+/**
+ * A failed command's exit code: the engine's `Exit code n` line on its error text, or the result's `exitCode`.
+ * @param outcome what the call came back with
+ * @returns the code, or undefined when the outcome gives none
+ */
+export function exitOf(outcome: Outcome): number | undefined {
+  const said = /^(?:Error: )?Exit code (\d+)/m.exec(outcome.text ?? '')?.[1]
+  const code = obj(outcome.result)?.['exitCode']
+
+  return said !== undefined ? Number(said) : typeof code === 'number' ? code : undefined
 }
 
 /**

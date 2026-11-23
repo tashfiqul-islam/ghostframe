@@ -313,8 +313,9 @@ function drawerOf(g: Group, step: LogStep | undefined, i: PaneInput): Part[][] {
   return drawerRows(
     {
       kind: step.kind,
-      command: d?.command ?? step.subject,
-      exit: d?.isFailed === true ? (/^exit \d+$/.test(step.result) ? step.result : 'failed') : 'done',
+      // The step's own subject (13.4): cleaned as the timeline shows it, never the raw command.
+      command: step.subject,
+      exit: d?.isFailed === true ? (d.exit !== undefined ? `exit ${d.exit}` : /^exit \d+$/.test(step.result) ? step.result : 'failed') : 'done',
       lines,
       keys: [
         ['c', 'copy output'],

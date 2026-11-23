@@ -263,6 +263,8 @@ export type StepDetail = {
   lines: number
   excerpt: string[]
   patch: string[]
+  /** A failed command's exit code, as its outcome gave it (`Exit code 1`); absent when it gave none. */
+  exit?: number
   /** The agent whose own call it is (phase 11); absent for the main loop's. */
   agent?: string
 }
