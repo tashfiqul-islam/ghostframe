@@ -396,6 +396,8 @@ export function registerPane(on: On): void {
   // switch the copy before this one kept.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     await readEnvOnce($)
+    // A rewind puts its prompt back in the box, and this line draws: the pane looks for the rewind (7.1).
+    if (isOn() && docked() && !(await readLog($)).isTurnRunning) await noteRewind($)
 
     const notice = isOn()
       ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {

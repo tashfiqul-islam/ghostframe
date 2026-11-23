@@ -60,3 +60,17 @@ test('4. a fetched page`s title is the one its fetch returned (`**Title:** Test 
     )[0]?.title
   ).toBe('')
 })
+
+test('4. a fetch`s own title wins over the title a search gave the page before', () => {
+  const url = 'https://bun.sh/docs/cli/test'
+  const searched = noteSources(
+    noteSources([], 'WebFetch', { url }, { result: { code: 200, url, result: 'no title line' } }),
+    'WebSearch',
+    {},
+    { result: { results: [{ content: [{ url, title: 'Search snippet title' }] }] } }
+  )
+  const fetched = noteSources(searched, 'WebFetch', { url }, { result: { code: 200, url, result: '**Title:** Test runner' } })
+
+  expect(searched[0]?.title).toBe('Search snippet title')
+  expect(fetched[0]?.title).toBe('Test runner')
+})

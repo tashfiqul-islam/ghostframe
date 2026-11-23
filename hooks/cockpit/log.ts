@@ -108,6 +108,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
     // A rewind took the last turns out: they leave first, and the new turn follows the last that remains (7.1).
+    await noteRewind($, true)
     await applyRewind($)
     await update($, stepLog, log => newTurn({ ...log, turnNo: lastRemaining(log) }, turn, at))
     rewound.clear()
@@ -337,17 +338,20 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   const waiting = waitingOn(await read($, roster))
   const ended = await read($, stepLog)
 
-  // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none, and the
-  // live line keeps saying what it waits on; the first that ends with none running writes the whole turn's. A
-  // report turn after it (an agent that had finished before its report turn ran) writes no second one: the first is
-  // drawn, and a drawn row never moves to another answer.
+  // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none; the first
+  // that ends with none running writes the whole turn's. A report turn after it (an agent that had finished before
+  // its report reached Claude) that answers takes the receipt: the receipt goes under the turn's last answer.
   const isWritten = (await read($, receipts)).some(r => r.turnNo === ended.turnNo)
 
-  if (waiting === 0 && !isWritten) {
+  if (waiting === 0 && (!isWritten || answer !== '')) {
     // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
     const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
     const receipt = { ...receiptOf(ended), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
-    await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+    const had = (await read($, receipts)).find(r => r.turnNo === receipt.turnNo)
+
+    // A later report turn's answer: the turn's receipt moves under it, the same receipt, its engine turn kept.
+    if (had !== undefined) await update($, receipts, list => list.map(r => (r === had || r.turnNo === receipt.turnNo ? { ...receipt, turn: had.turn } : r)))
+    else await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
     // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
     await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
   }
@@ -570,11 +574,11 @@ async function isGone($: EngineInterface, row: string): Promise<boolean> {
  * @param $ the engine interface
  * @returns the rewound turns' numbers
  */
-export async function noteRewind($: EngineInterface): Promise<ReadonlySet<number>> {
+export async function noteRewind($: EngineInterface, isForced: boolean = false): Promise<ReadonlySet<number>> {
   // The wall clock, not the engine's: a throttle, not a time anything is drawn with.
   const now = Date.now()
 
-  if (now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
+  if (!isForced && now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
   rewindCheckedAt = now
   const list = await read($, receipts)
   // The newest few turns, read together; a rewind further back is found 5 turns at a time, at the checks after.
@@ -602,9 +606,18 @@ export async function noteRewind($: EngineInterface): Promise<ReadonlySet<number
   for (const n of gone) rewound.add(n)
   $.ui.log(`cockpit: turns ${gone.join(', ')} rewound out of the conversation`, { to: 'debug' })
   // A draw reads state and never writes it: the rewound turns leave the receipts and history just after it.
-  $.clock.after(0, () => void applyRewind($))
+  $.clock.after(0, () => void redrawRewound($).catch((error: unknown) => $.ui.log(`cockpit: rewound turns not dropped: ${String(error)}`, { to: 'debug' })))
 
   return rewound
+}
+
+/**
+ * Just after the draw that found a rewind: the rewound turns leave, and every site draws again without them.
+ * @param $ the engine interface
+ */
+async function redrawRewound($: EngineInterface): Promise<void> {
+  await applyRewind($)
+  $.ui.invalidate('ui.render')
 }
 
 /**

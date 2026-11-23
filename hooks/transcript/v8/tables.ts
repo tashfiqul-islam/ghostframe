@@ -79,8 +79,18 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
   const widths = header.map((_, c) => Math.max(shownWidth(headParts[c] ?? []), ...bodyParts.map(r => shownWidth(r[c] ?? []))))
   const numeric = header.map((_, c) => rows.length > 0 && rows.every(r => NUMERIC.test(r[c] ?? '')))
   const boxes = widths.map((w, c) => (c === 0 && numeric[c] !== true && cols > 1 ? Math.max(w, Math.ceil(inner / 3) - GAP) : w))
-  // The last column takes what the others leave.
-  const rest = Math.max(1, inner - boxes.slice(0, -1).reduce((n, b) => n + b + GAP, 0))
+  // The last column takes what the others leave; when they leave it under a third of the card, the widest of them
+  // give way a cell at a time (cut with `…`), so no row runs past the card.
+  const floor = cols > 1 ? Math.min(widths[cols - 1] ?? 0, Math.ceil(inner / 3)) : inner
+  const spent = () => boxes.slice(0, -1).reduce((n, b) => n + b + GAP, 0)
+
+  while (inner - spent() < floor) {
+    const widest = boxes.slice(0, -1).reduce((w, b, c) => (b > (boxes[w] ?? 0) ? c : w), 0)
+
+    if ((boxes[widest] ?? 0) <= 3) break
+    boxes[widest] = (boxes[widest] ?? 0) - 1
+  }
+  const rest = Math.max(1, inner - spent())
   const lay = (cells: readonly Part[][], color: string): Part[] =>
     cells.flatMap((parts, c) => {
       const box = c === cols - 1 ? rest : (boxes[c] ?? 0)

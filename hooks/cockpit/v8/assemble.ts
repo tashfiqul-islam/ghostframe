@@ -1,6 +1,6 @@
 // The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the v8 views,
 // each openable row under its id, and the keys the view offers. Pure: cockpit/pane.tsx reads the state and draws this.
-import { sourceLabel } from '../../shared/url'
+import { waitingOn } from '../agents/roster'
 import { decisive as decisiveLines } from '../fallback/events'
 import { urlHost } from '../../shared/url'
 import type { FlowStamp, LogStep, RosterAgent, StepDetail, StepLog, TurnRecord, TurnWork } from '../../../types'
@@ -74,10 +74,6 @@ type Shown = {
 
 // No turn yet (a fresh session): no head card, since there is no turn, state or time to give it (8.3's empty state).
 const isBeforeFirstTurn = (shown: Shown): boolean => shown.turnNo === 0 && shown.startedAt === null && shown.steps.length === 0
-
-/** Claude's own title for a cited page, when it wrote one; else the page's host and path. */
-const linkTitle = (cited: string | undefined, url: string): string =>
-  cited !== undefined && cited.length > 0 && cited !== sourceLabel(url) ? cited : hostPath(url)
 
 /** A URL's host and path, without the scheme or a trailing slash: `example.com/missing-page`. */
 const hostPath = (url: string): string =>
@@ -154,7 +150,7 @@ function headOf(i: PaneInput, shown: Shown): Head {
   const planned = steps.some(s => s.kind === 'plan' && s.subject === 'plan for review')
   // A turn that ended with its background agents still running waits on them (amendment 1, 8.2): it is live until
   // its receipt draws, so its pill is `● LIVE` and its range ends `now`.
-  const waiting = i.pinned === undefined && !shown.isCut ? i.roster.filter(a => a.parent === null && a.state === 'running').length : 0
+  const waiting = i.pinned === undefined && !shown.isCut ? waitingOn(i.roster) : 0
   const isLive = shown.isLive || waiting > 0
   // An interrupted turn is that, whatever its steps said: a failure in it never makes its head FAILED (8.2).
   const state: Head['state'] = isLive
@@ -256,7 +252,14 @@ function timeline(i: PaneInput, shown: Shown, room: number): Line[] {
   const decisive = new Map(
     i.details.flatMap(d =>
       // Fallback's failure rows' own source (13.1): the decisive line, never the engine's `Error: Exit code n`.
-      d.isFailed && d.excerpt.length > 0 ? [[d.id, decisiveLines(d.excerpt, [])[0] ?? ''] as const] : []
+      d.isFailed && d.excerpt.length > 0
+        ? (() => {
+            const s = steps.find(x => x.id === d.id)
+            const line = decisiveLines(d.excerpt, s === undefined ? [] : [s.subject, s.result])[0]
+
+            return line === undefined ? [] : [[d.id, line] as const]
+          })()
+        : []
     )
   )
   const groups = groupsOf(timed(steps, i.details, shown.startedAt), sentencesOf(i.flow, steps, turns), span, decisive).map(g => {
@@ -342,7 +345,7 @@ function drawerOf(g: Group, step: LogStep | undefined, i: PaneInput): Part[][] {
       kind: step.kind,
       // The step's own subject (13.4): cleaned as the timeline shows it, never the raw command.
       command: step.subject,
-      exit: d?.isFailed === true ? (d.exit !== undefined ? `exit ${d.exit}` : /^exit \d+$/.test(step.result) ? step.result : 'failed') : 'done',
+      exit: d?.exit !== undefined ? `exit ${d.exit}` : isFailedMark(step) || d?.isFailed === true ? paneResult(step.result) : 'done',
       lines,
       keys: [
         ['c', 'copy output'],
@@ -564,9 +567,8 @@ export function assemblePane(i: PaneInput): Pane {
         // A fetch names an absolute URL; one the parser cannot read is shown as Claude wrote it.
         host: urlHost(p.url) ?? p.url,
         // A page with no title of its own takes the one the answer's link gave it.
-        // The fetch's own title (8.7), else Claude's own link text for it, else the page's host and path; never the
-        // label the transcript makes up for a bare URL (`bun.sh · test`).
-        title: p.title.length > 0 ? p.title : linkTitle(shown.cited.find(c => c.url === p.url)?.title, p.url),
+        // The fetch's own title (8.7), else the page's host and path; never a label made up for a bare URL.
+        title: p.title.length > 0 ? p.title : hostPath(p.url),
         status: p.status,
         url: p.url
       })),

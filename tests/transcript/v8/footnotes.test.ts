@@ -17,3 +17,11 @@ test('12. footnotes are Claude`s own `[n]` references; bare URLs and links numbe
     ]
   })
 })
+
+test('12. Claude`s other footnote forms: `[^1]:`, a title after the URL, `[n] Title — url`', () => {
+  expect(claudeFootnotes('See [1] and [2] and [3].\n\n[^1]: https://a.dev/x\n[2]: https://b.dev/y "Bee"\n[3] Bun docs — https://bun.sh/docs').notes).toEqual([
+    { n: 1, url: 'https://a.dev/x' },
+    { n: 2, url: 'https://b.dev/y' },
+    { n: 3, url: 'https://bun.sh/docs' }
+  ])
+})

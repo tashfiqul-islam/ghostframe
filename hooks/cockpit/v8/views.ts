@@ -380,6 +380,9 @@ export function agentsView(agents: readonly AgentRow[], launchedAt: string, widt
   return rows
 }
 
+/** An agent's state word's colour (5.5): `done` ok, `failed` err, running accent. */
+const stateColor = (state: string): string => (/^done\b/.test(state) ? TOKEN.ok : /^failed\b/.test(state) ? TOKEN.err : TOKEN.accent)
+
 /**
  * The head card while an agent is in view (8.10): the `◇ AGENT` pill and its name with its state and time; that the
  * conversation on the left is its; its steps and files, and the turn it came from.
@@ -391,9 +394,6 @@ export function agentsView(agents: readonly AgentRow[], launchedAt: string, widt
  * @param width the pane's columns
  * @returns the rows, edges included
  */
-/** An agent's state word's colour (5.5): `done` ok, `failed` err, running accent. */
-const stateColor = (state: string): string => (/^done\b/.test(state) ? TOKEN.ok : /^failed\b/.test(state) ? TOKEN.err : TOKEN.accent)
-
 export function agentHead(name: string, state: string, steps: number, files: number, turnNo: number, width: number): Part[][] {
   return paneCard(
     [

@@ -41,3 +41,11 @@ for (const width of [86, 78]) {
     expect(bgOf(2)).toBe(TINT.zebra)
   })
 }
+
+test('1. columns wider than the card give way, cut with `…`: no row runs past the card, the last keeps room', () => {
+  const lines = ['| Name | Description | Result |', '|---|---|---|', `| ${'a'.repeat(30)} | ${'b'.repeat(40)} | ok, it worked fine |`]
+
+  for (const r of tableCard(lines, 50).map(text)) expect(widthOf(r)).toBe(16 + 50)
+  expect(text(tableCard(lines, 50)[1] ?? [])).toMatch(/…/)
+  expect(text(tableCard(lines, 50)[1] ?? [])).toMatch(/ok,/)
+})

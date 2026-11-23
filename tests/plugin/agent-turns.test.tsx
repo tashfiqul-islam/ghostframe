@@ -372,3 +372,29 @@ test('A. no pane docked: the band above the prompt says `◇◇◇  Waiting on 3
   await (await $.ui.mount(PANE)).unmount()
   expect((await band()).some(t => /Waiting on/.test(t.text))).toBe(false)
 })
+
+test('15. every agent done, then a late report turn answers: the receipt moves under that last answer (the manual run`s turn 6)', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  await run($, clock, 1)
+  // All three have finished; the first report turn answers and ends with none running.
+  await report($, 'ag-Read seat', '43 lines')
+  await report($, 'ag-Read switch', '42 lines')
+  await report($, 'ag-Read draw', '25 lines')
+  await noticed($, 'ag-Read seat')
+  await $.turn.start({ text: '<task-notification>', turnId: 'r1' })
+  await $.session.append(respond([text('Two back.')], 'm3'))
+  clock.now += 1_000
+  await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r1', reason: 'answer' })
+  expect(await receiptsUnder($, 'Two back.')).toHaveLength(1)
+
+  // A late notification starts one more report turn, and Claude's final answer comes in it.
+  await noticed($, 'ag-Read draw')
+  await $.turn.start({ text: '<task-notification>', turnId: 'r2' })
+  await $.session.append(respond([text('All three back.')], 'm4'))
+  clock.now += 1_000
+  await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r2', reason: 'answer' })
+
+  expect(await receiptsUnder($, 'All three back.')).toEqual([expect.stringMatching(/✓  DONE .*3 agents/)])
+  expect(await receiptsUnder($, 'Two back.')).toEqual([])
+})

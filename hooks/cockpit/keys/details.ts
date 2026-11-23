@@ -1,5 +1,6 @@
 // Each main-loop step's detail (spec E.44: Enter on a step), kept in $.state apart from the step log so the log stays
 // small: the full command or subject, its timing, an excerpt of its output, and an edit's patch.
+import { exitOf as exitCodeIn } from '../../shared/look/words'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
@@ -162,10 +163,9 @@ export async function noteEnd($: EngineInterface, id: string, input: unknown, ou
  * @returns the code, or undefined when the outcome gives none
  */
 export function exitOf(outcome: Outcome): number | undefined {
-  const said = /^(?:Error: )?Exit code (\d+)/m.exec(outcome.text ?? '')?.[1]
   const code = obj(outcome.result)?.['exitCode']
 
-  return said !== undefined ? Number(said) : typeof code === 'number' ? code : undefined
+  return exitCodeIn(outcome.text ?? '') ?? (typeof code === 'number' ? code : undefined)
 }
 
 /**

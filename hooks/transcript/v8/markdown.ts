@@ -229,8 +229,9 @@ const isBlank = (row: readonly Part[] | undefined) =>
 /** A cited source as a footnote line names it (7.4): its number, and its host and path. */
 export type Footnote = { n: number; url: string }
 
-// A footnote line Claude wrote: `[1]: https://…` or `[1] https://…`, alone on its line, markdown around the URL.
-const FOOTNOTE_LINE = /^\s*\[(\d+)\]:?\s+[*_`<]*(https?:\/\/[^\s*_`>]+)[*_`>]*\s*$/
+// A footnote line Claude wrote, alone on its line: `[1]: https://…`, `[^1]: https://…`, `[1] https://…`, `[1]: url "Title"`,
+// `[1] Title — url`; markdown around the URL dropped.
+const FOOTNOTE_LINE = /^\s*\[\^?(\d+)\]:?\s+(?:\S.*?\s+[—–-]\s+)?[*_`<]*(https?:\/\/[^\s*_`>]+)[*_`>]*(?:\s+"[^"]*")?\s*$/
 
 /**
  * The footnotes Claude wrote (7.4): its own `[n]` reference lines, taken out of the prose and drawn as footnote lines.

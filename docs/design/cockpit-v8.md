@@ -440,7 +440,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 ```
 
 - Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim, in the order the screens draw them: steps, fixed, still failing, files, blocked (screen 13), sources (`n sources, m cited` when not every one is cited), `n agents`, `n browser` and `n mcp`, then `↗` and the commit hash or PR.
-- **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the pane head's summary says `Waiting on n agents`, or with no pane docked the band above the prompt (7.11). The receipt draws once, under the answer of the turn's last engine turn that ends with no agent running, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
+- **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the pane head's summary says `Waiting on n agents`, or with no pane docked the band above the prompt (7.11). The receipt draws under the answer of the first engine turn that ends with no agent running, and moves under a later one's when a late report turn answers after it (an agent that finished before its report reached Claude): it is always under the turn's last answer, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
 - Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
@@ -545,6 +545,8 @@ A `paneCard` card with half-block edges:
 
 Opens in place under the selected row, on `paneCard`: kind and command, the exit status at the right, the decisive lines (at most 3), then the keys. A waiting row's drawer says what it waits for and where to answer: `Answer in the dialog on the left.`
 
+- The exit at the right is the command's exit code when its outcome gives one (`exit 1`); a failure with none says its result (`3 of 3`, a test that failed by its count through a pipe that exited 0); a passing step says `done`. The command is the step's subject, cleaned as the timeline shows it.
+
 ### 8.5 Files tab
 
 ```text
@@ -583,7 +585,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 ```
 
 - The summary: pages read, cited, failed (err).
-- A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`), cut from the end; else Claude's own link text for it; else its host and path (`example.com/missing-page`), never a label made up from the URL.
+- A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`, over any title a search gave it), cut from the end; with none, its host and path (`example.com/missing-page`), never a label made up from the URL.
 - Cited pages first, with the footnote number the answer uses (`¹`–`⁴` in `machine`). Uncited pages follow with `·`. Host in `machine`, title in `text`, status at the right: `200` dim, a failure in `err` bold.
 - URLs dim under each row; `u` hides or shows them.
 - The numbers in the answer and in Sources are the same numbers: Claude's own footnotes (7.4). A page Claude linked without one is uncited (`·`). Cited pages re-sort to answer order at turn end only.
@@ -3549,5 +3551,5 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **A subject's paths read as 13.2 shows them** (13.2, 13.4, 13.8). A path argument in a command's subject goes through the one path formatter (`Remove-Item src/width.test.ts`, not `-LiteralPath 'D:\Projects\cockpit-live\src\width.test.ts'`); PowerShell's `-LiteralPath` and `-Path` names before a path and `-Confirm:$false`, which only answers a prompt, are left out. A commit step is named after its commit statement, its message's first line in place of a here-string. A denied step's timeline row is `▍` in err with the result `denied`.
 - **Waiting on agents, by mode** (7.11, 9.2, the owner's decision A). The engine draws no spinner row while only background agents run, so the left has no live line to say it. Docked, the pane head says `Waiting on n agents` and the left stays quiet; with no pane docked, the band above the prompt (`AbovePrompt`) draws `◇◇◇  Waiting on 3 agents`.
 - **No NEEDS YOU row on the left** (9.3, screens 04 and 12, the owner's decision B). The engine draws no spinner row while its dialog or question card is up; the dialog is its own signal and the pane's pill says NEEDS YOU.
-- **The receipt can draw before a late report's answer** (7.12, not fixed). When every agent has finished but one's report reaches Claude as its own engine turn after an engine turn already ended (the manual run's turn 6), the receipt draws under that earlier answer. The engine gives no event that a finished agent's report is still to be delivered, and holding the receipt until a notification arrives would hold it forever for an agent whose report never comes as one.
+- **The receipt goes under the last answer** (7.12, the manual run's turn 6). Every agent can finish before an engine turn ends while one's report reaches Claude only as its own engine turn after it; the receipt then first draws under the earlier answer, and moves under the late turn's answer when that turn ends. The engine gives no event that a finished agent's report is still to be delivered, so it cannot wait instead.
 - **What the engine does not give.** The classifier's text for a blocked step is not in any event the plugin receives, so a blocked step names what refused it (`by the classifier`, `by a hook · <script> · <message>`). A denial carries no reason the plugin can rely on, so `DENIED` names the command alone (13.8); the quoted reason 13.8 once showed was removed.

@@ -7,7 +7,7 @@ import type { On } from 'claude-code'
 import { GLYPH } from '../shared/look/glyphs'
 import { TOKEN } from '../shared/look/palette'
 import { waitingOn } from './agents/roster'
-import { readLog, readRoster } from './log'
+import { readLog, readRoster, readSecond } from './log'
 import { docked } from './mode'
 import { isOn } from './switch'
 
@@ -26,6 +26,8 @@ export function registerBand(on: On): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (!isOn() || e.surface !== 'terminal' || e.props.hasSurvey || docked()) return next(e)
 
+    // Reading the second redraws the band each second while agents run (the roster's count in place).
+    await readSecond($)
     const log = await readLog($)
     const n = log.isTurnRunning ? 0 : waitingOn(await readRoster($))
 

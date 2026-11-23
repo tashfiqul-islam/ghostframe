@@ -122,7 +122,7 @@ test('Enter on a group opens its drawer in place under it (8.4); `b` goes back; 
   await ui.redraw()
   let rows = await texts(ui)
   // The decisive step's kind and command, how it ended, its failing lines, the drawer's keys.
-  expect(rows).toContainEqual(expect.stringMatching(/^ {6}test {4}bun test tests\/width\.test\.tsx --bail +failed/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {6}test {4}bun test tests\/width\.test\.tsx --bail +2 of 14/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {6}× \(fail\) width > counts a skin-tone modifier/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {6}c copy output   enter full output/))
 

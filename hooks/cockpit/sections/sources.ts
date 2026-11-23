@@ -14,7 +14,7 @@ export function sameUrl(url: string): string {
   }
 }
 
-/** Adds a page, or settles one fetched again: a page keeps its row; a later status or title replaces an empty one. */
+/** Adds a page, or settles one fetched again: a page keeps its row; a later status replaces an empty one, a fetch's title any other. */
 function add(pages: readonly SourcePage[], page: SourcePage): SourcePage[] {
   const at = pages.findIndex(p => sameUrl(p.url) === sameUrl(page.url))
   const had = pages[at]
@@ -23,7 +23,7 @@ function add(pages: readonly SourcePage[], page: SourcePage): SourcePage[] {
 
   const by = had.isAgent === true || page.isAgent === true ? { isAgent: true as const } : {}
 
-  return pages.with(at, { ...had, status: page.status.length > 0 ? page.status : had.status, title: had.title.length > 0 ? had.title : page.title, ...by })
+  return pages.with(at, { ...had, status: page.status.length > 0 ? page.status : had.status, title: page.title.length > 0 ? page.title : had.title, ...by })
 }
 
 /**

@@ -101,26 +101,6 @@ export function failureRow(title: string, result: string, ms: number | undefined
 }
 
 /**
- * The left's last row while the turn waits on the person (7.10, 9.3): `41s !  NEEDS YOU   shell  rm -rf dist`, its
- * live time in warn. The engine draws the dialog or the card itself (correction C).
- * @param at the time into the turn
- * @param what the kind word and subject it waits on, or what it waits for (`1 question to answer`)
- * @param width the text column's cells
- * @returns the row
- */
-export function needsYouRow(at: number | undefined, what: { kind: string; subject: string } | string, width: number): Part[] {
-  const detail: Part[] =
-    typeof what === 'string'
-      ? [dim(what)]
-      : [
-          { t: `${what.kind}  `, color: TOKEN.muted },
-          { t: what.subject, color: TOKEN.textBright }
-        ]
-
-  return spineRow(atLabel(at, TOKEN.warn), glyph(GLYPH.needs, TOKEN.warn), fitted([word('NEEDS YOU', TOKEN.warn), dim(GAP)], detail, width))
-}
-
-/**
  * A pause that is not a failure (7.10, 9.3): `!  WAITING   rate limited · resumes at 14:05 · or /model to switch`, its
  * time in warn. A countdown in it updates in place; the row never moves.
  * @param at the time into the turn
