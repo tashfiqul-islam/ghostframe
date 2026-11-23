@@ -208,3 +208,26 @@ test('footer: a no-tool turn keeps its tokens and sources count when another tur
   const t1 = await footer($, 5200)
   expect(t1).toContain('5s · 240 tokens · 4 sources')
 })
+
+test('19. Cockpit on: a plugin`s reload note goes to the debug log, never a `●` row on the left (13.3)', { options: { cockpit: true } }, async ($, on) => {
+  const logged: { text: string; to?: string }[] = []
+  on('ui.log', (_, e) => {
+    logged.push({ text: e.text, ...(e.to === undefined ? {} : { to: e.to }) })
+
+    return { value: undefined as never }
+  })
+  on('clock.now', () => ({ value: 0 }))
+  on('ui.render', engineText as never)
+  for (const text of ['ghostframe reloaded · 19 hooks', 'ghostframe: reloaded (19 hooks: ui.render, tool.call)']) {
+    const ui = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'InfoNotice',
+      viewport: { columns: 200, rows: 50, isFullscreen: true },
+      props: { text, command: null }
+    })
+    expect((await ui.findAll({ type: 'Text' })).filter(t => t.text.trim().length > 0)).toEqual([])
+    await ui.unmount()
+  }
+  expect(logged.filter(l => l.to === 'debug' && /reloaded/.test(l.text))).toHaveLength(2)
+})

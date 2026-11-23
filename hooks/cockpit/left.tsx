@@ -660,6 +660,9 @@ export async function drawCommandOutput($: EngineInterface, e: RenderInput<'Comm
   return <ui.Box flexDirection="column">{drawRows(ui, [slashOutputRow(clock, isOk, run.command, run.text), spineOnly()])}</ui.Box>
 }
 
+// A plugin's hot-reload note, as the engine words it or as the ledger shortens it.
+const RELOAD_NOTE = /^\s*[\w.@/-]+:? reloaded(?: ·| \()\s*\d+ hooks?\b/
+
 /**
  * A notice from the engine while Cockpit is on (7.10, 13.3): grey and one line on the spine, `●` with its clock.
  * @param $ the engine interface
@@ -670,6 +673,14 @@ export async function drawNotice($: EngineInterface, e: RenderInput<'InfoNotice'
   if (!isOn()) return undefined
 
   const ui = $.ui.resolve(e)
+
+  // A plugin's hot-reload note (the engine's, shortened by the ledger to `ghostframe reloaded · 19 hooks`) is a
+  // diagnostic: the debug log's, never the left's (13.3).
+  if (RELOAD_NOTE.test(e.props.text)) {
+    $.ui.log(`cockpit: ${e.props.text.trim()}`, { to: 'debug' })
+
+    return <ui.Box />
+  }
   const at = commandClocks.get(e.requestId) ?? (await $.clock.now())
 
   remember(commandClocks, e.requestId, at, ROWS_MAX)

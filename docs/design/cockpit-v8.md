@@ -3412,6 +3412,8 @@ Cockpit's own informational notices (plugin loaded, settings read, a seat change
 - the `/tui` switch notice of amendment 10, once;
 - the notices of 7.10 that come from the engine (memory saved, context).
 
+A plugin's hot-reload note is the engine's (`ghostframe: reloaded (19 hooks: …)`), but Cockpit is what drew it on the left: the ledger shortens it to `ghostframe reloaded · 19 hooks` and the notice site drew that as a `●` row. With Cockpit on it goes to the debug log; with Cockpit off it keeps main's shortened line.
+
 ### 13.4 The `cd` prefix
 
 Claude often runs `cd <dir> && <command>`. Steps show the command only.
