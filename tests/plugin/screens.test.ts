@@ -114,7 +114,9 @@ test('screen 03, the pane: FAILED, the selected failed group`s drawer in place, 
   const { rows, want } = pane('03', pane03)
 
   expect(shown(rows)).toEqual(want)
-  expect(rows[14]?.[0]).toMatchObject({ t: '▐', color: TOKEN.accent, bg: TOKEN.surface })
+  expect(rows[14]?.[0]).toMatchObject({ t: '▐', color: TOKEN.accent, bg: TINT.selected })
+  // One background across the selected row (6.2).
+  expect(new Set(rows[14]?.map(p => p.bg))).toEqual(new Set([TINT.selected]))
   expect(find(rows, 'tab')?.color).toBe(TOKEN.accent)
 })
 

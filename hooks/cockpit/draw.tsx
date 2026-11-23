@@ -14,6 +14,10 @@ import type { Ui } from '../shared/rule'
 export function drawRow(ui: Pick<Ui, 'Text'>, row: readonly Part[], key: string): RenderElement {
   const { Text } = ui
 
+  // A blank row still takes its line: an empty Text takes none, and the pane's hint row would rise to meet the
+  // content instead of sitting on the pane's last row (8.12).
+  if (row.every(p => p.t.length === 0)) return <Text key={key}> </Text>
+
   return (
     <Text key={key} wrap="truncate">
       {row.map((p, j) => (

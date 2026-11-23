@@ -153,3 +153,30 @@ test('14. turn 10, no working sentences: one row per step, each `ls` its own, it
 
   expect(rows.map(r => /ls (\/nope\d)/.exec(r)?.[1])).toEqual(['/nope1', '/nope2', '/nope3', '/nope4', '/nope5', '/nope1'])
 })
+
+test('12, 17. the focused pane: no `1: 2: …` hotkey column; the hint row is the pane`s last row', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 10, 200)
+  const pane = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await $.ui.focus({
+    component: 'Pane',
+    requestId: 'cockpit',
+    plugin: 'ghostframe',
+    element: (await pane.findAll({ type: 'Button' }))[0]?.props['key'],
+    origin: { kind: 'person' }
+  } as never)
+  await pane.redraw()
+
+  // The hotkey Buttons sit in a Box that is not displayed: nothing of them is drawn.
+  const hidden = (await pane.findAll({ type: 'Box' })).filter(b => b.props['display'] === 'none')
+  expect(hidden).toHaveLength(1)
+  const shown = (await pane.findAll({ type: 'Text' })).map(t => t.text)
+  expect(shown.some(t => /^[0-9a-z]: ?$/.test(t.trim()))).toBe(false)
+  // Every row takes its line (a blank one draws a space), so the hint row and the wordmark are the pane's last row,
+  // blank rows above it where the content ends.
+  const lines = (await pane.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate' || t.text === ' ').map(t => t.text)
+  const hint = lines.findLastIndex(t => t.trim().length > 0)
+  expect(lines[hint]).toMatch(/ghostframe /)
+  expect(lines[hint - 1]).toBe(' ')
+  await pane.unmount()
+})

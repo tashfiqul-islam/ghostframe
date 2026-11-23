@@ -5,7 +5,7 @@ import type { Tone } from '../../shared/look/bits'
 import type { Part } from '../../shared/parts'
 import type { PillState } from '../../shared/look/palette'
 import { GLYPH } from '../../shared/look/glyphs'
-import { PILL, TOKEN } from '../../shared/look/palette'
+import { PILL, TINT, TOKEN } from '../../shared/look/palette'
 import { cutCommand, cutTitle } from '../../shared/look/paths'
 import { sparkline } from '../../shared/look/trace'
 import { widthOf } from '../../shared/look/width'
@@ -251,11 +251,14 @@ export type Group = {
   isSelected?: boolean
 }
 
-/** The selected row (6.2): `▐` in accent on `surface`, the whole width on `surface`. */
+/**
+ * The selected row (6.2): `▐` in accent at its first cell, and the whole row on the `selected` tint, one background
+ * across it (a part's own background would break it into blocks); the text keeps its own colours.
+ */
 export function selected(row: readonly Part[]): Part[] {
   const rest = [sp(1), ...row.slice(1)]
 
-  return [{ t: GLYPH.pillStart, color: TOKEN.accent, bg: TOKEN.surface }, ...rest.map(p => ({ ...p, bg: p.bg ?? TOKEN.surface }))]
+  return [{ t: GLYPH.pillStart, color: TOKEN.accent, bg: TINT.selected }, ...rest.map(p => ({ ...p, bg: TINT.selected }))]
 }
 
 /** A row on the pane's grid (6.2): select, glyph, title, the track, the result. */

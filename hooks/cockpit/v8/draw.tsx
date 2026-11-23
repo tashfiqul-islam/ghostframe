@@ -38,14 +38,20 @@ export function drawPaneV8($: EngineInterface, e: RenderInput<'Pane'>, lines: re
   // `m` only while an agent's conversation is in view: it answers with `$.ui.view`, which only that view needs.
   const isViewing = e.props.view.agentId !== undefined
   const bound = isFocused ? (only ?? ALL_KEYS.filter(k => k !== 'm' || isViewing)) : []
+  // A hotkey Button always draws its key (`1: …`), so the keys sit in a Box that is not displayed: they press, and
+  // nothing of them shows; the hint row is the only place the keys are written (8.12).
   const hint = (
     <Box key="hint" flexDirection="column">
       {only === undefined && drawRow(ui, lines.at(-1)?.parts ?? [], 'hint')}
-      {bound.map(k => (
-        <Button key={`key-${k}`} hotkey={k} plain onPress={async () => pressKey($, k)}>
-          <Text>{''}</Text>
-        </Button>
-      ))}
+      {bound.length > 0 && (
+        <Box key="keys" display="none">
+          {bound.map(k => (
+            <Button key={`key-${k}`} hotkey={k} plain onPress={async () => pressKey($, k)}>
+              <Text>{''}</Text>
+            </Button>
+          ))}
+        </Box>
+      )}
     </Box>
   )
   return (

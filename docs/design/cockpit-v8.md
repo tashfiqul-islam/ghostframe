@@ -44,7 +44,7 @@ Truecolor hex. Cockpit draws on the terminal's background; `bg` is the colour th
 | Token             | Hex       | Used for                                                           |
 | ----------------- | --------- | ------------------------------------------------------------------ |
 | `bg`              | `#0B0B0E` | base of both halves                                                |
-| `surface`         | `#14141B` | your message card, the selected row                                |
+| `surface`         | `#14141B` | your message card                                                  |
 | `code`            | `#0F0F14` | code, table and diff bodies                                        |
 | `codeHead`        | `#16161D` | label strip of code cards and table headers                        |
 | `pane`            | `#0D0E12` | pane background                                                    |
@@ -264,7 +264,7 @@ Everything is laid out in character cells. The terminal is `C` columns wide; the
 Counting from 0: select at 0, glyph at 2, title 4–28, track 31–50, result 51–70.
 
 - 72 cells when the terminal is 163 columns or wider. At 144–162 columns the engine allows 63–71 (correction B: the 45% cap includes the divider). Below 72 the result area shrinks first, to 14, then the track, to 12.
-- **Select column.** Blank, or a half-cell accent bar `▐` on `surface` for the selected row, whose whole width then takes `surface`.
+- **Select column.** Blank, or a half-cell accent bar `▐` for the selected row, whose whole width takes the `selected` tint, one background across the row; its text keeps its own colours.
 - **Indented rows** (agents under a group, sub-steps) put the tree guide `├ ` / `└ ` / `│ ` in the title's first two cells.
 - **Detail lines** start `└` under the glyph, with text under the title.
 - **The ruler** sits exactly over the track: `┬────┬────┬────┬───┬`, 20 cells, labels above its two ends.
