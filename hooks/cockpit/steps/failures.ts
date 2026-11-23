@@ -1,5 +1,6 @@
 // What counts as a failure (spec 13.1): the failure key (program · subcommand · target), negative answers, and when a
 // later step fixes a failure. Pure: the step log reads these at every settle.
+import { TEST_CMD } from '../../shared/calls/describe'
 import { stripCd } from '../../shared/look/command'
 import { showPath } from '../../shared/look/paths'
 
@@ -74,6 +75,9 @@ function statementsOf(cmd: string, isPipeASplit = true): string[] {
  * @param cmd the command, its `cd` prefix stripped
  * @returns the command that keys, or undefined when no command runs a program
  */
+// A test step keys on the statement that runs its tests (13.1): `sed -i … && bun test` is a `bun test`.
+const testStatement = (statements: readonly string[]): string | undefined => statements.find(s => TEST_CMD.test(s.replace(PS_ASSIGNMENT, '').trim()))
+
 function firstPwshCommand(cmd: string): string | undefined {
   for (const part of statementsOf(cmd)) {
     const assigned = part.replace(PS_ASSIGNMENT, '')
@@ -106,7 +110,9 @@ export function failureKey(kind: string, command: string, file: string, project?
     return { program: kind === 'notebook' ? 'edit' : kind, sub: '', target: showPath(file, { project }) }
 
   // PowerShell's first command has already left out its statements; the shell's loops are found here.
-  const stated = shell === 'pwsh' ? firstPwshCommand(stripCd(command).command) : firstCommand(stripCd(command).command)
+  const bare = stripCd(command).command
+  const tested = kind === 'test' ? testStatement(statementsOf(bare))?.replace(PS_ASSIGNMENT, '') : undefined
+  const stated = tested ?? (shell === 'pwsh' ? firstPwshCommand(bare) : firstCommand(bare))
 
   if (stated === undefined || (shell === 'bash' && BASH_STATEMENT.test(stated.trimStart()))) return { program: shell, sub: '', target: '' }
 
@@ -167,12 +173,13 @@ const REDIRECTION = /\s+[0-9*]?>>?(?:&[0-9]|\s*(?:"[^"]*"|'[^']*'|[^\s;|&]+))/g
  * bun.lock` reads `bun run test`.
  * @param command the command as Claude ran it, its first line
  * @param shell the shell that ran it
+ * @param isTest whether the step is a test, named after the statement that runs the tests
  * @returns the subject
  */
-export function subjectCommand(command: string, shell: 'pwsh' | 'bash'): string {
+export function subjectCommand(command: string, shell: 'pwsh' | 'bash', isTest: boolean = false): string {
   const chain = statementsOf(stripCd(command).command, false)
   const isBare = (s: string) => PS_ASSIGNMENT.test(s) && PWSH_STATEMENT.test(s.replace(PS_ASSIGNMENT, '').trimStart())
-  const statement = (shell === 'pwsh' ? chain.find(s => !isBare(s)) : undefined) ?? chain[0] ?? ''
+  const statement = (isTest ? testStatement(chain) : undefined) ?? (shell === 'pwsh' ? chain.find(s => !isBare(s)) : undefined) ?? chain[0] ?? ''
   const pipeline = statementsOf(shell === 'pwsh' ? statement.replace(PS_ASSIGNMENT, '') : statement)
 
   while (pipeline.length > 1 && FORMATTER.test(pipeline.at(-1) ?? '')) pipeline.pop()

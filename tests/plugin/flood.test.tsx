@@ -64,9 +64,9 @@ async function floodTurn($: Engine, clock: Clock): Promise<void> {
 const answerRows = async ($: Engine, columns: number) => rowsOf($, site('AssistantMessage', 'm-answer', columns, { text: ANSWER, isFirstOfReply: true }))
 // 455 calls through the engine take longer than a test's usual 5 seconds.
 const LONG = { ...ON, timeoutMs: 120_000 }
-const RECEIPT = /×  FAILED   [⣀-⣿]+   455 steps · 15 fixed · 4 still failing · 56 files$/
+const RECEIPT = /×  FAILED   [⣀-⣿]+   455 steps · 14 fixed · 4 still failing · 56 files$/
 
-test('fallback, 100 columns: three failure rows as they happen, then `+ 16 more · /steps 1` above the receipt', LONG, async ($, on) => {
+test('fallback, 100 columns: three failure rows as they happen, then `+ 15 more · /steps 1` above the receipt', LONG, async ($, on) => {
   const clock = { now: T0 }
   floodEngine(on, clock, false)
   await floodTurn($, clock)
@@ -88,7 +88,7 @@ test('fallback, 100 columns: three failure rows as they happen, then `+ 16 more 
     '×  edit D:/Projects/ghostframe-v8/tools/scripts/boundaries.ts   not read'
   ])
   const answer = await answerRows($, 100)
-  expect(answer.at(-2)).toBe('             │  + 16 more · /steps 1')
+  expect(answer.at(-2)).toBe('             │  + 15 more · /steps 1')
   expect(answer.at(-1)).toMatch(RECEIPT)
 })
 

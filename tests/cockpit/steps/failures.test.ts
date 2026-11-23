@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { commitIn, failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement, subjectCommand } from '../../../hooks/cockpit/steps/failures'
+import { subjectOf } from '../../../hooks/cockpit/steps/kinds'
 import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
@@ -191,4 +192,14 @@ test('7.10: a command commits only when one of its statements runs git commit, i
   expect(commitIn('git log --oneline -1')).toBeUndefined()
   // A shell's own formatting pipes go too.
   expect(subjectCommand('bun test 2>&1 | tail -20', 'bash')).toBe('bun test')
+})
+
+test('13.1: a test step keys on, and is named after, the statement that runs the tests (live check, step 2)', () => {
+  const joined = 'sed -i "4s/toBe(3)/toBe(4)/" src/width.test.ts && bun test'
+
+  expect(key('test', joined)).toBe('bun · test ·')
+  expect(subjectCommand(joined, 'bash', true)).toBe('bun test')
+  expect(pwsh('(Get-Content a.ts) -replace "3", "4" | Set-Content a.ts; bun test src 2>&1 | Out-String', 'test')).toBe('bun · test · src')
+  expect(subjectCommand('Set-Content a.ts x; bun test src 2>&1 | Out-String', 'pwsh', true)).toBe('bun test src')
+  expect(subjectOf('Bash', { command: joined }, PROJECT)).toBe('bun test')
 })
