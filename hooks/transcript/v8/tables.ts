@@ -37,10 +37,33 @@ const shownWidth = (parts: readonly Part[]) => parts.reduce((n, p) => n + widthO
 /** A table row's colour (7.6): every second row on the zebra tint. */
 const zebra = (i: number) => (i % 2 === 0 ? TOKEN.code : TINT.zebra)
 
+/** Parts cut to `cells`, the last kept character giving way to `…` when anything is cut; else as they are. */
+function cutTo(parts: readonly Part[], cells: number): Part[] {
+  if (shownWidth(parts) <= cells) return [...parts]
+
+  const out: Part[] = []
+  let used = 0
+
+  for (const p of parts) {
+    let t = ''
+
+    for (const ch of Array.from(p.t)) {
+      if (used + widthOf(t + ch) > cells - 1) break
+      t += ch
+    }
+    out.push({ ...p, t })
+    used += widthOf(t)
+    if (t.length < p.t.length) break
+  }
+  const last = out.at(-1)
+
+  return last === undefined ? [] : [...out.slice(0, -1), { ...last, t: `${last.t}${GLYPH.ellipsis}` }]
+}
+
 /**
- * A pipe table as a card (7.6): a `codeHead` header band in sentence case, bold, `muted`; zebra rows; numbers
- * right-aligned. The first column takes a third of the card or its content, whichever is wider; the others their
- * content, 3 cells apart; the last the rest.
+ * A pipe table as a card (7.6): a `codeHead` header band in sentence case, bold, `muted`, the card's first row; zebra
+ * rows. Each column is sized to its content, 3 cells apart: a number column right-aligned in its own width; the first
+ * text column takes a third of the card or its content, whichever is wider; the last takes the rest, cut with `…`.
  * @param lines the table's lines: header, separator, rows
  * @param width the text column's cells
  * @returns the rows
@@ -55,21 +78,23 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
   const bodyParts = rows.map(r => header.map((_, c) => cellParts(r[c] ?? '')))
   const widths = header.map((_, c) => Math.max(shownWidth(headParts[c] ?? []), ...bodyParts.map(r => shownWidth(r[c] ?? []))))
   const numeric = header.map((_, c) => rows.length > 0 && rows.every(r => NUMERIC.test(r[c] ?? '')))
-  const boxes = widths.map((w, c) => (c === 0 ? Math.max(w + GAP, Math.ceil(inner / 3)) : c === cols - 1 ? w : w + GAP))
+  const boxes = widths.map((w, c) => (c === 0 && numeric[c] !== true && cols > 1 ? Math.max(w, Math.ceil(inner / 3) - GAP) : w))
+  // The last column takes what the others leave.
+  const rest = Math.max(1, inner - boxes.slice(0, -1).reduce((n, b) => n + b + GAP, 0))
   const lay = (cells: readonly Part[][], color: string): Part[] =>
     cells.flatMap((parts, c) => {
-      const w = parts.reduce((n, p) => n + widthOf(p.t), 0)
-      const box = boxes[c] ?? 0
-      const content = c === cols - 1 ? box : c === 0 ? box : box - GAP
-      const fill = { t: ' '.repeat(Math.max(0, content - w)), color }
-      const gap = c > 0 && c < cols - 1 ? [{ t: ' '.repeat(GAP), color }] : []
+      const box = c === cols - 1 ? rest : (boxes[c] ?? 0)
+      const shown = cutTo(parts, box)
+      const fill = { t: ' '.repeat(Math.max(0, box - shownWidth(shown))), color }
+      const gap = c < cols - 1 ? [{ t: ' '.repeat(GAP), color }] : []
 
-      return numeric[c] === true ? [fill, ...parts, ...gap] : [...parts, ...(c === cols - 1 ? [] : [fill]), ...gap]
+      return numeric[c] === true ? [fill, ...shown, ...gap] : [...shown, fill, ...gap]
     })
   const head = cardRow(lay(headParts, TOKEN.muted), TOKEN.codeHead, width)
   const body = bodyParts.map((r, i) => cardRow(lay(r, TOKEN.text), zebra(i), width))
 
-  return [topEdge(TOKEN.codeHead, width), head, topEdge(TOKEN.code, width, TOKEN.codeHead), ...body, bottomEdge(zebra(Math.max(0, rows.length - 1)), width)]
+  // One header band (7.6): no half-block edge above or under it; the card closes under its last row.
+  return [head, ...body, bottomEdge(zebra(Math.max(0, rows.length - 1)), width)]
 }
 
 /**

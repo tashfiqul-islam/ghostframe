@@ -119,7 +119,7 @@ test('7.6: the live session`s turn 7 table: no backticks in the header; every ce
   const lines = (table ?? '').split('\n').filter(l => l.startsWith('|'))
   const rows = tableCard(lines, W)
   const texts = shown(rows)
-    .slice(1, -1)
+    .slice(0, -1)
     .filter(r => !/[▄▀]/.test(r))
 
   expect(texts[0]).toMatch(/Input +width returns +Terminal shows +Severity/)
