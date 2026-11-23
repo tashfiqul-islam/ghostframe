@@ -248,6 +248,8 @@ export type Group = {
   tone: Tone
   /** The decisive line under a failed or blocked group. */
   detail?: string | undefined
+  /** A failed group whose failure a later step fixed: it keeps its ×, and may fold. */
+  isFixed?: boolean
   agents?: readonly AgentBar[]
   isSelected?: boolean
 }

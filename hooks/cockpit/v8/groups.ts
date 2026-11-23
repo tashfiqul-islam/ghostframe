@@ -3,7 +3,7 @@
 import type { LogStep } from '../../../types'
 import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
-import { isOpen, isShipMark } from '../steps/log'
+import { isOpen, isShipMark, isTurnFailure } from '../steps/log'
 import type { Group, GroupGlyph } from './pane'
 import type { Tone } from '../../shared/look/bits'
 
@@ -57,13 +57,15 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
 
     const said = sentences.findLast(s => s.at <= from)
     const open = own.find(s => isOpen(all, all.indexOf(s.step)))
+    // A failure a later step fixed keeps its × and its detail (8.3, 9.2); the passing rerun is its own row.
+    const failed = open ?? own.find(s => isTurnFailure(s.step))
     const blocked = own.find(s => s.step.state === 'blocked')
     const running = own.some(s => s.step.isRunning)
     const launch = own.find(s => s.step.kind === 'agent')
     const shipped = own.findLast(s => isShipMark(s.step))
     const glyph: GroupGlyph = running
       ? 'live'
-      : open !== undefined
+      : failed !== undefined
         ? 'failed'
         : blocked !== undefined
           ? 'blocked'
@@ -72,20 +74,20 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
             : shipped !== undefined
               ? 'shipped'
               : 'ok'
-    const decisive = open ?? blocked ?? shipped ?? own.at(-1) ?? first
+    const decisive = failed ?? blocked ?? shipped ?? own.at(-1) ?? first
     // A group with no sentence of its own is named by the step that decides it: the failing one, if one fails.
     const title =
       said !== undefined && (said.at === from || (k > 0 && launch === undefined)) ? titleOf(said.text) : `${decisive.step.kind} ${decisive.step.subject}`
-    const tone: Tone = running ? 'accent' : open !== undefined ? 'err' : blocked !== undefined ? 'warn' : 'dim'
+    const tone: Tone = running ? 'accent' : failed !== undefined ? 'err' : blocked !== undefined ? 'warn' : 'dim'
     const result = running
       ? 'running'
-      : launch !== undefined && open === undefined
+      : launch !== undefined && failed === undefined
         ? count(launch.step.calls?.length ?? 1, 'agent')
         : paneResult(decisive.step.result)
     const end = Math.max(...own.map(s => s.end ?? now))
     const color = running
       ? TOKEN.accent
-      : open !== undefined
+      : failed !== undefined
         ? TOKEN.err
         : blocked !== undefined
           ? TOKEN.warn
@@ -94,9 +96,20 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
             : shipped !== undefined
               ? TOKEN.accent
               : TOKEN.barDone
-    const detail = open !== undefined ? details.get(open.step.id) : blocked !== undefined ? (blocked.step.why ?? details.get(blocked.step.id)) : undefined
+    const detail = failed !== undefined ? details.get(failed.step.id) : blocked !== undefined ? (blocked.step.why ?? details.get(blocked.step.id)) : undefined
 
-    return [{ id: first.step.id, glyph, title, bar: { from: first.start, to: end, color }, result, tone, ...(detail === undefined ? {} : { detail }) }]
+    return [
+      {
+        id: first.step.id,
+        glyph,
+        title,
+        bar: { from: first.start, to: end, color },
+        result,
+        tone,
+        ...(detail === undefined ? {} : { detail }),
+        ...(failed !== undefined && open === undefined ? { isFixed: true } : {})
+      }
+    ]
   })
 }
 
@@ -106,8 +119,8 @@ const rowsOf = (g: Group) => 1 + (g.detail === undefined ? 0 : 1) + (g.agents ??
 /** The rows these groups take. */
 const need = (gs: readonly Group[]) => gs.reduce((n, g) => n + rowsOf(g), 0)
 
-/** Whether a group may fold (8.3): never the live group, a waiting one, or an open failure. */
-const canFold = (g: Group) => g.glyph !== 'live' && g.glyph !== 'waiting' && g.glyph !== 'failed'
+/** Whether a group may fold (8.3): never the live group, a waiting one, or an open failure; a fixed one may. */
+const canFold = (g: Group) => g.glyph !== 'live' && g.glyph !== 'waiting' && (g.glyph !== 'failed' || g.isFixed === true)
 
 /**
  * Folds the oldest groups into one row from the top when they do not fit (8.3): `┊ Earlier work · n steps`, its bar
