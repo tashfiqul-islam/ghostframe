@@ -132,7 +132,7 @@ export const FAILURE_ROWS = 3
 
 /**
  * Whether a failed step draws a failure row in fallback (13.1): it is the first failure of its key, and its key is
- * one of the turn's first three to fail. It depends only on the steps before it, so a row drawn stays drawn.
+ * one of the turn's first three to fail. It depends only on failures that settled before it, so a row drawn stays drawn.
  * @param steps the typed turn's steps
  * @param index the step's place in them
  * @returns whether it draws its row
@@ -142,7 +142,10 @@ export function isShownFailure(steps: readonly LogStep[], index: number): boolea
 
   if (s === undefined || !isTurnFailure(s)) return false
 
-  const before = steps.slice(0, index).filter(isTurnFailure)
+  // Earlier means settled earlier, not started earlier: with calls in parallel a step started first can fail after
+  // this one drew its row, and must not take its place. A settled step's clock is fixed, so the answer never changes.
+  // shortcut: two failures settling in the same millisecond fall back to start order; upgrade if one is ever seen.
+  const before = steps.filter((t, k) => k !== index && isTurnFailure(t) && (t.clock < s.clock || (t.clock === s.clock && k < index)))
 
   return !before.some(t => t.key === s.key) && new Set(before.map(t => t.key)).size < FAILURE_ROWS
 }
