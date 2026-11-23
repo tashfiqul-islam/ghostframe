@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE, T0 } from '../support/cockpit'
+import { PANE, SLOW, T0 } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine } from '../support/engine'
 import { fallbackEngine } from '../support/fallback'
@@ -50,7 +50,7 @@ async function docked($: Engine, on: Parameters<typeof fallbackEngine>[0], clock
 }
 
 for (const end of ['aborted', 'none'] as const) {
-  test(`screen 06: turn 11 ${end === 'aborted' ? 'ended interrupted' : 'never ended'}; turn 12's pane names it above the ruler`, ON, async ($, on) => {
+  test(`screen 06: turn 11 ${end === 'aborted' ? 'ended interrupted' : 'never ended'}; turn 12's pane names it above the ruler`, SLOW, async ($, on) => {
     const clock = { now: T0 }
     await docked($, on, clock)
     await turn($, clock, 11, end)

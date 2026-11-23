@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { paneColumns } from '../../hooks/cockpit/seat'
-import { ON, PANE } from '../support/cockpit'
+import { ON, PANE, SLOW } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 import { MIXED, answerOf, fallbackEngine, groupOf, mixedTurn, must, rowsOf, site } from '../support/fallback'
 
@@ -239,7 +239,7 @@ function dragEngine(on: On, clock: ReturnType<typeof mock.clock>) {
   return { log, drawAt, drag, ask: () => (isAsked = true), mountWith: (m: typeof $mount) => ($mount = m) }
 }
 
-test('four live drag cycles: an unasked pane leaves at its first draw below 144, never inline, never a stale open; one open at start', ON, async ($, on) => {
+test('four live drag cycles: an unasked pane leaves at its first draw below 144, never inline, never a stale open; one open at start', SLOW, async ($, on) => {
   const clock = mock.clock(on)
   const d = dragEngine(on, clock)
   d.mountWith(raised => $.ui.mount(raised as never))

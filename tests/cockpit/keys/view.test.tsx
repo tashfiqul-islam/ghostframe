@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
 import { ringMoveOf } from '../../../hooks/cockpit/v8/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
-import { ON, PANE, T0, VIEW } from '../../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 
 // Phase 7 keys in the v8 pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
@@ -166,7 +166,7 @@ test('Enter on an edit step (every step), or on its Files row, shows its diff (8
   await ui.unmount()
 })
 
-test('`s` shows every step of the turn, unfolded (8.11); `s` again fits', ON, async ($, on) => {
+test('`s` shows every step of the turn, unfolded (8.11); `s` again fits', SLOW, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, [])
   await aTurn($)
