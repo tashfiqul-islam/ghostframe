@@ -216,9 +216,13 @@ test('4. while a background agent runs, the head says it waits on them and no re
   const docked = await $.ui.mount(PANE)
   const waiting = async () => (await paneOf(docked)).find(r => /^ {2}Waiting on /.test(r))?.trimEnd()
 
+  const pill = async () => (await paneOf(docked)).find(r => /^ {2}▐ /.test(r))?.trimEnd()
+
   await run($, clock, 1)
   expect(await waiting()).toBe('  Waiting on 3 agents')
   expect(await receiptsUnder($, 'Three agents launched.')).toEqual([])
+  // Until the turn's receipt draws, the turn is live: `● LIVE`, its range ending `now` (3. in the round 5 list).
+  expect(await pill()).toMatch(/^ {2}▐ ● LIVE ▌ {2}TURN 1 .*→ now$/)
 
   await (async () => {
     clock.now += 4_000
@@ -232,9 +236,12 @@ test('4. while a background agent runs, the head says it waits on them and no re
   expect(await waiting()).toBe('  Waiting on 2 agents')
   expect(await receiptsUnder($, 'One back.')).toEqual([])
 
+  expect(await pill()).toMatch(/● LIVE/)
+
   await report($, 'ag-Read seat', '43 lines')
   await report($, 'ag-Read switch', '42 lines')
   expect(await waiting()).toBeUndefined()
+  expect(await pill()).toMatch(/^ {2}▐ ✓ DONE ▌/)
   await docked.unmount()
 })
 

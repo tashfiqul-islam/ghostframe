@@ -505,7 +505,7 @@ A `paneCard` card with half-block edges:
 4. **Stats.** Steps, then the counts that apply (`1 fixed`, `2 still failing`, `1 open`, `1 waiting`, `1 blocked`, `3 agents`, `3 files`), 4 cells apart, in `dim` with the numbers in `text`; the duration at the right.
 
 - **Pinned** (screen 09): the live turn shrinks to one line on top, `● LIVE  TURN 8  running · 4 steps  2m 10s`, and the card below reads `PINNED  TURN 7`. The top line's pill is the live turn's state (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
-- **Waiting on agents:** while background agents run after the turn's answer, the summary reads `Waiting on n agents`, as the left's waiting receipt does (7.12).
+- **Waiting on agents:** while background agents run after the turn's answer, the summary reads `Waiting on n agents` and the turn is still live: the pill is `● LIVE` and the range ends `now` until the turn's receipt draws (7.12).
 - **An interrupted turn** before the shown one: one line under the card, `TURN 11   ◼ INTERRUPTED after 3 steps · 2 files changed   11:02:05`, the clock its start. It draws once the next turn starts, from what the step log kept: the turn before ended aborted, or never ended before the next prompt. While the interrupted turn is the live one nothing draws, since Esc sends nothing a row could draw from.
 
 ### 8.3 The timeline

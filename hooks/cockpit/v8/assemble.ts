@@ -131,8 +131,12 @@ function headOf(i: PaneInput, shown: Shown): Head {
   const counts = failureCounts(steps)
   const asked = steps.some(s => s.isRunning && i.log.asking.includes(s.id))
   const planned = steps.some(s => s.kind === 'plan' && s.subject === 'plan for review')
+  // A turn that ended with its background agents still running waits on them (amendment 1, 8.2): it is live until
+  // its receipt draws, so its pill is `● LIVE` and its range ends `now`.
+  const waiting = i.pinned === undefined && !shown.isCut ? i.roster.filter(a => a.parent === null && a.state === 'running').length : 0
+  const isLive = shown.isLive || waiting > 0
   // An interrupted turn is that, whatever its steps said: a failure in it never makes its head FAILED (8.2).
-  const state: Head['state'] = shown.isLive
+  const state: Head['state'] = isLive
     ? asked
       ? 'needsYou'
       : 'live'
@@ -144,7 +148,7 @@ function headOf(i: PaneInput, shown: Shown): Head {
           ? 'plan'
           : 'done'
   const start = shown.startedAt ?? i.now
-  const end = shown.isLive ? undefined : start + shown.durationMs
+  const end = isLive ? undefined : start + shown.durationMs
   const times = steps.map(s => s.clock)
   const buckets = Math.max(1, Math.min(SPARK_MAX, steps.length * 2))
   const failed = new Set(
@@ -160,8 +164,6 @@ function headOf(i: PaneInput, shown: Shown): Head {
     ...(launched > 0 ? [{ n: launched, word: launched === 1 ? 'agent' : 'agents' }] : []),
     ...(shown.files.length > 0 ? [{ n: shown.files.length, word: shown.files.length === 1 ? 'file' : 'files' }] : [])
   ]
-  // A turn that ended with its background agents still running waits on them (amendment 1, 8.2).
-  const waiting = i.pinned === undefined ? i.roster.filter(a => a.parent === null && a.state === 'running').length : 0
   const summary = shown.isLive
     ? i.log.said.length > 0
       ? i.log.said
