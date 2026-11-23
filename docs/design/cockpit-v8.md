@@ -187,19 +187,19 @@ Durations are `machineDim`. A live elapsed time in a label is `accent`, and `war
 
 ### 5.5 State words
 
-| Word          | Colour  | Where                                    |
-| ------------- | ------- | ---------------------------------------- |
-| `DONE`        | ok      | receipt, pane pill                       |
-| `FAILED`      | err     | receipt, pane pill                       |
-| `LIVE`        | accent  | pane pill                                |
-| `NEEDS YOU`   | warn    | the left's waiting row, pane pill        |
-| `WAITING`     | warn    | rate limit, API retry                    |
-| `BLOCKED`     | warn    | `⊘` rows                                 |
-| `DENIED`      | err     | you refused a permission                 |
-| `INTERRUPTED` | muted   | the pane's line for an interrupted turn  |
-| `QUEUED`      | muted   | at the right end of a queued card        |
-| `PLAN`        | machine | plan card label, closing node, pane pill |
-| `AGENT`       | agent   | pane pill while an agent is in view      |
+| Word          | Colour  | Where                                             |
+| ------------- | ------- | ------------------------------------------------- |
+| `DONE`        | ok      | receipt, pane pill                                |
+| `FAILED`      | err     | receipt, pane pill                                |
+| `LIVE`        | accent  | pane pill                                         |
+| `NEEDS YOU`   | warn    | the left's waiting row, pane pill                 |
+| `WAITING`     | warn    | rate limit, API retry, a receipt while agents run |
+| `BLOCKED`     | warn    | `⊘` rows                                          |
+| `DENIED`      | err     | you refused a permission                          |
+| `INTERRUPTED` | muted   | the pane's line for an interrupted turn           |
+| `QUEUED`      | muted   | at the right end of a queued card                 |
+| `PLAN`        | machine | plan card label, closing node, pane pill          |
+| `AGENT`       | agent   | pane pill while an agent is in view               |
 
 Other capitals: `TURN`, `NOTE`, the code language (`YAML`, `TS`), `STEPS`, `ALL STEPS`, `PINNED` and the tab names. Everything else is sentence case. Step titles in the pane ("Waiting for CI") are sentences, not state words. The engine's own rows keep the engine's words.
 
@@ -207,7 +207,9 @@ Other capitals: `TURN`, `NOTE`, the code language (`YAML`, `TS`), `STEPS`, `ALL 
 
 The kind word names the tool family, in `muted`, 6 cells, left-aligned:
 
-`read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp`
+`read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp` `ask` `plan` `skill`
+
+- `ask` is `AskUserQuestion`, `plan` the plan tools, `skill` the `Skill` tool: v7's words, kept.
 
 - `test` is a shell command that runs tests (`bun test`, `vitest`, `pytest`, `go test`, `cargo test`).
 - `mcp` steps read `mcp · <server> <tool>`, for example `mcp · linear create issue`, from the tool name `mcp__<server>__<tool>`.
@@ -249,8 +251,8 @@ Everything is laid out in character cells. The terminal is `C` columns wide; the
 
 - **Label column.** Ten cells, right-aligned. It holds a clock time (8 cells), a duration (at most 7), `from main`, or nothing. Words like `added` and `queued` never go there: they sit at the right end of their card.
 - **Spine column.** One cell: `◆` on a turn header, `│` inside a turn, the turn's node glyph on event rows and the receipt, `┊` above the live line. The spine is continuous inside a turn and breaks between turns.
-- **Text column.** 86 cells, from column 16 (counting from 0). Prose wraps at 86. Cards (your message, code, tables, notes, failures, plans) span the 86 cells, with a 2-cell inner pad. A turn header's rule ends at column 101, the text column's last cell.
-- **Narrow (no pane, under 110 columns):** the same margins, text column 78.
+- **Text column.** 86 cells, from column 16 (counting from 0). Prose wraps at 86. Cards (your message, code, tables, notes, failures, plans) span the 86 cells, with a 2-cell inner pad. A card row with nothing held at its right end may run into the right pad (screen 01's note); a row with `added`, `QUEUED`, `c copy` or a count at its right end keeps it. A turn header's rule ends at column 101, the text column's last cell.
+- **Narrow (no pane, under 110 columns, ctrl+o included):** the same margins, text column 78.
 - **Wide:** the text column never grows past 86. Extra width is empty space on the right of the left region (screen 33).
 
 ### 6.2 The pane
@@ -308,20 +310,21 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
           6s ∴  thought   ⣀⣠⣤⣴⣶⣾⣿⣷⣦⣤⣶⣿⣷⣤⣀   ctrl+o expand
 ```
 
-- Label: the thinking duration. Glyph `∴` (muted), `thought` (muted), a 15-cell braille trace in the trace steps (section 2), `ctrl+o` (accent) `expand` (dim).
+- Label: the thinking duration. Glyph `∴` (muted), `thought` (muted), a 15-cell braille trace in the trace steps (section 2), the same fixed shape on every thought row since only the duration is known, `ctrl+o` (accent) `expand` (dim).
 - The thinking text is never drawn, in ctrl+o too: only its duration is available.
 
 ### 7.4 The answer
 
 - **Lead sentence** in `textBright`; the rest in `text`.
-- **Headings:** `##` / `###` in `dim`, then the heading text in `textBright`, bold. One blank row above and below.
-- **Bullets:** `›` in `machine`, two spaces, then the item. A nested bullet indents 3 more cells.
+- **Headings:** `##` / `###` in `dim`, then the heading text in `textBright`, bold. No blank row is added around a heading: the list or paragraph under it starts on the next row (screens 01, 18).
+- **Blank rows and line breaks** follow the answer: a blank row only where the answer has a blank line, and a paragraph's own line breaks are row breaks. Words wrap only within them.
+- **Bullets:** `›` in `machine`, two spaces, then the item. A nested bullet's `›` sits 5 cells right of its parent's, under the parent's text (screen 18).
 - **Numbered lists:** the numeral in `machine`, two spaces.
 - **Task items:** `[x]` in ok, `[ ]` in dim.
 - **Quotes:** `▏` in `machine` at the start of each line, the text in `text`.
 - **Inline code and paths:** `textBright`, no background.
-- **Footnote refs** `[1]` in `machine`. The footnote lines go at the end of the answer, two per row: `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`.
-- Markdown markers stay visible but dim. No boxes around prose. The text column is 86 (screen 18).
+- **Footnote refs** `[1]` in `machine`. The footnote lines go at the end of the answer, two per row, the second at the row's 31st cell (screens 01, 23): `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`.
+- Heading and list markers stay visible but dim. Backticks and `**` are dropped; their text draws in `textBright` and bold. No boxes around prose. The text column is 86 (screen 18).
 - Each text block arrives whole: the engine never streams (correction E). While Claude writes, only the live line shows.
 
 ### 7.5 Code card
@@ -338,7 +341,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 - **Body** (`code`): two line-number gutters of 4 cells each (old, new) in `dim`, then `+` / `−` / space, then the line.
 - Added rows are tinted the full width of the card, removed rows likewise; changed words get the word highlight.
 - A code block that is not a diff has one gutter.
-- `c` copies the block without the indent it was nested at. `/copy code n` does the same (amendment 11).
+- The head strip is a Button: a click copies the block without the indent it was nested at. `c` is not bound on the left, since a left row cannot hold a hotkey without taking the key from the prompt; `/copy code n` copies by key (amendment 11).
 
 ### 7.6 Table
 
@@ -351,7 +354,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 ```
 
 - A header band (`codeHead`) in sentence case, bold, in `muted`. Zebra rows. Numbers right-aligned. A result column may lead with `✓` / `×` in their colours.
-- The table spans the text column. Columns are sized to their content; the last column takes the rest.
+- The table spans the text column. The first column takes a third of the card or its content, whichever is wider (screen 01); the others are sized to their content, 3 cells apart.
 
 ### 7.7 Note
 
@@ -373,7 +376,9 @@ A one-row card: `▲ NOTE` in `machine`, bold, then one sentence in `text`. Used
              │    → Next: set LANG=C.UTF-8 in ci.yml, or skip these two on Windows. Tell me which.
 ```
 
-- An `errCard` card: a count row (`× n still failing`, err, bold) with the target at the right, at most 3 failure rows (path, `:line`, expected and received at the right), then one `→ Next:` line.
+- An `errCard` card: a count row (`× n still failing`, err, bold) with the target at the right, then at most 3 failure rows. A failing test's row has its path, `:line`, and expected and received at the right, read from the test output kept in the step's detail; a failure with none of these shows the step's subject and result.
+- One `→ Next:` line follows only when Claude's answer gives the next action. Nothing in the engine says it apart from the prose, so Cockpit never writes one of its own.
+- Docked, this card is how a failure shows on the left; a `×` event row (7.10) draws only in fallback (13.1).
 - More than 3 failures: the 3rd row is `+ n more · /steps n` (dim).
 - The answer above it says the outcome first: `I couldn’t finish this.`
 - Section 13.1 defines what counts as a failure.
@@ -411,6 +416,8 @@ One row each, on the spine, label = the duration into the turn at which it happe
 
 - Glyph and state word in the state colour. The detail is dim, with hashes, PR numbers, commands and file names in `textBright` and times in `machine`.
 - A `└` detail line under the row says the one thing that explains it.
+- A `×` event row such as `Batch 6 tests` draws in fallback only; docked, failures show in the failure card (7.8, 13.1).
+- A `⊘ BLOCKED` row names the hook event and its reason. The engine never names the hook's script, so `guard-main.sh` shows only when the reason says it. Its `└` line draws only when what Claude did instead is already known as the row draws (13.7).
 - `↗` rows draw the moment the call returns (v7 E.5).
 - A WAITING countdown updates in place; the row does not move.
 - Notices (`●`, the context `!`) are grey and one line. The memory notice carries its clock in the label.
@@ -432,7 +439,8 @@ One row each, on the spine, label = the duration into the turn at which it happe
       3m 12s ×  FAILED   ⣀⣤⣶⣿⣷⣶⣿⣤⣀   12 steps · 2 still failing · 1 file
 ```
 
-- Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim: steps, fixed, still failing, blocked, files, sources, `n agents`, `↗` and the commit hash or PR.
+- Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim, in the order the screens draw them: steps, fixed, still failing, files, blocked (screen 13), sources (`n sources, m cited` when not every one is cited), `n agents`, `n browser` and `n mcp`, then `↗` and the commit hash or PR.
+- **Waiting** (background agents still running after the answer): `!` and `WAITING` in warn, the counts ending `n agents running`. The pane head's summary then reads `Waiting on n agents`.
 - Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
@@ -447,8 +455,8 @@ One row each, on the spine, label = the duration into the turn at which it happe
 The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
 
 - **Fallback (no pane docked):** each finished turn gets one worked node above its answer (amendment 9's triggers).
-- **Docked:** a turn that wrote no answer text gets one worked node above its `↗` rows and receipt (screen 16). A turn with any answer text gets none.
-- Its counts are the receipt's counts.
+- **Docked:** a turn that wrote no answer text gets one worked node, below its `↗` rows and directly above its receipt, so the receipt tree reads node, then receipt. The `↗` rows draw as their calls return (7.10), before the node exists (screen 16). A turn with any answer text gets none.
+- Its counts are its own, not the receipt's: steps, agents and fixes (`23 steps · 3 agents · 1 fixed`); a turn with no agents and no fixes names its two largest step kinds instead (`7 steps · 6 shell · 1 edit`, screens 16, 31).
 
 ### 7.14 Engine rows
 
@@ -464,7 +472,8 @@ The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
 ```
 
 - The command as a `/` node (machine) with its clock. Its output is one quiet row (`✓` / `×`).
-- `/steps n all` prints step rows (section 8.9) and ends `… n more · /steps n all is in your scrollback`.
+- `/steps n all` prints at most 20 step rows (8.11's rows), so one command never floods the transcript. With more, it ends `… n more · /steps n all is in your scrollback`; the pane's every-step view shows the rest.
+- `/copy` says `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, or `Not copied · <reason>`.
 - A wrong number always says what exists.
 
 ## 8. The pane: components
@@ -495,7 +504,8 @@ A `paneCard` card with half-block edges:
 3. **Sparkline.** The turn's activity, one cell per bucket, `machine`; failed buckets in `err`. It always shows the whole turn: steps are bucketed per column (screen 08).
 4. **Stats.** Steps, then the counts that apply (`1 fixed`, `2 still failing`, `1 open`, `1 waiting`, `1 blocked`, `3 agents`, `3 files`), 4 cells apart, in `dim` with the numbers in `text`; the duration at the right.
 
-- **Pinned** (screen 09): the live turn shrinks to one line on top, `● LIVE  TURN 8  running · 4 steps  2m 10s`, and the card below reads `PINNED  TURN 7`.
+- **Pinned** (screen 09): the live turn shrinks to one line on top, `● LIVE  TURN 8  running · 4 steps  2m 10s`, and the card below reads `PINNED  TURN 7`. The top line's pill is the live turn's state (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
+- **Waiting on agents:** while background agents run after the turn's answer, the summary reads `Waiting on n agents`, as the left's waiting receipt does (7.12).
 - **An interrupted turn** before the shown one: one line under the card, `TURN 11   ◼ INTERRUPTED after 3 steps · 2 files changed   11:02:05`, the clock its start. It draws once the next turn starts, from what the step log kept: the turn before ended aborted, or never ended before the next prompt. While the interrupted turn is the live one nothing draws, since Esc sends nothing a row could draw from.
 
 ### 8.3 The timeline
@@ -514,9 +524,9 @@ A `paneCard` card with half-block edges:
     × shell npm audit --omit dev                                 1 high
 ```
 
-- **Rows are groups**, not single steps. A group is one of Claude's working sentences, written as a short title ("Comparing Bun versions"), with the steps under it collapsed into its bar and result. The glyph is the group's outcome: `✓`, `×`, `◇` (it launched agents), `↗` (it pushed or published), `⊘`, `!`, or `●` on the live group.
+- **Rows are groups**, not single steps. A group is one of Claude's working sentences, with the steps under it collapsed into its bar and result. Its title is the sentence's first sentence without its closing stop, cut at the end to 25 cells (13.5); Cockpit never rewrites Claude's words, so the canvas's shorter titles ("Comparing Bun versions") are hand-written. Steps before Claude's first sentence form a group titled by the first step's kind and subject. The glyph is the group's outcome: `✓`, `×`, `◇` (it launched agents), `↗` (it pushed or published), `⊘`, `!`, or `●` on the live group.
 - **The track** is the turn's time from left to right. A bar starts and ends at its group's first and last step (`━`, with `╺` / `╸` half-cell ends). Finished bars are `barDone`, a failed group's bar is `err`, the live group's is `accent`, agents' bars are `agent`, a push is `accent`, a wait is `warn`.
-- **The now-line** `┊` (spine colour) runs down the track at the current time while the turn is live.
+- **The now-line** `┊` (spine colour) runs down the track at the current time only while the turn is `LIVE`: not while it is NEEDS YOU (screen 04), and not for an agent in view, whose timeline is the agent's (screen 27). It fills the empty track cells at that time; a bar over that cell hides it.
 - **Agents** sit under their launch group as `├ ◇ name` rows with their own bars (parallel bars). The running or last sub-step goes under each: `│ ▸ shell bun test …  running`. This replaces amendment 1 for the timeline only; the flat step list keeps one `agent  3 launched` row.
 - **Detail lines** `└` under a failed group: the decisive line of output.
 - **Folding.** When the groups do not fit, the oldest fold into one row from the top: `┊ Earlier work · batches 1–5 · 214 steps`. Never fold the live group or an open failure. A failure that was fixed keeps its `×` row and detail, followed by its passing rerun.
@@ -552,7 +562,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 ```
 
 - A summary card: the count, the total `+n −n`, the baseline line.
-- One row per file: path (folder dim, file bright), `+n` `−n`, a 5-cell change bar (`■` in ok and err in proportion, the rest dim). `◇` at column 0 marks a file an agent changed (amendment 13).
+- One row per file: path (folder dim, file bright), `+n` `−n`, a 5-cell change bar: lit in proportion to the file's change against the turn's largest, split ok and err by its additions and removals, the rest dim. `◇` at column 0 marks a file an agent changed (amendment 13).
 - The selected file's first hunk opens in place: the file row the focus ring is on (Tab, the arrows, a click) draws its first hunk under it, `@@` header and `c copy` first. Moving the ring off closes it; Enter opens the full diff (8.6).
 - The diff is the file at turn start against now (amendment 8). Order is first-touched.
 - **Keys:** `enter` diff, `c` copy path, `1` timeline.
@@ -632,7 +642,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
   tab move    enter open    1–5 tabs                  ghostframe v0.1.0
 ```
 
-The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view; the version is read from the plugin manifest (`dev` before a release).
+The last row of the pane. Keys in accent, actions in dim, 4 cells apart. They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
 
 ### 8.13 The inline inspector
 
@@ -684,7 +694,7 @@ All single-letter and digit keys are hotkey Buttons that fire only while the pan
 | ------- | ------------------------------- | ------------------------------------------------- |
 | `1`–`5` | any tab                         | switch tab                                        |
 | `enter` | a row                           | open its drawer, diff, URL copy, agent, or output |
-| `c`     | a row, a code card              | copy                                              |
+| `c`     | a pane row                      | copy (a code card on the left copies on a click)  |
 | `s`     | timeline                        | every step / fit                                  |
 | `p` `n` | timeline, every step, inspector | previous / next turn                              |
 | `l`     | pinned                          | back to live                                      |
@@ -708,6 +718,8 @@ Cockpit designs around these and does not redraw them.
 | The prompt and its hints         | The engine's. The canvas draws them to show placement only.                                                                                                                    |
 | Fonts                            | The terminal's. Cockpit sets none.                                                                                                                                             |
 | The divider                      | The engine's one cell (correction A).                                                                                                                                          |
+
+**ctrl+o.** Cockpit draws its own turn header and message card for a prompt, not the engine's row. Under 110 columns it uses the narrow text column (6.1). A step row carries its result word and, for an edit, its diff card (7.5); there is no output frame, and a command's output stays in the step's detail in the pane.
 
 ## 11. What v8 replaces in v7
 
@@ -926,9 +938,9 @@ The pane (72 columns):
 
 Board `S03Failed` · cause, evidence, one next step · the failing step opens in place
 
-- **SHOWS** ‘I couldn’t finish this’ + a red card: count, each failing test (path dim, file bright, :line), expected/received, then one ‘→ Next’ line. Receipt × FAILED. Pane: FAILED pill, red sparkline cells, the selected failed step opens a drawer (command, exit, failing cases, keys).
+- **SHOWS** ‘I couldn’t finish this’ + a red card: count, each failing test (path dim, file bright, :line), expected/received, then the ‘→ Next’ line Claude’s answer gave. Receipt × FAILED. Pane: FAILED pill, red sparkline cells, the selected failed step opens a drawer (command, exit, failing cases, keys).
 - **DATA** tool.call results: isError, exit code and output, keyed by program + subcommand + target.
-- **RULES** Failures are keyed by program + target; ‘fixed’ = a later success of the same key; at most 3 rows on the left + ‘+ n more · /steps n’. Fetch/search failures never count (amendment 6). Auto-mode refusals are ‘blocked’, not failures.
+- **RULES** Failures are keyed by program + subcommand + target; ‘fixed’ = a later success of the same key; at most 3 rows on the left + ‘+ n more · /steps n’. Fetch/search failures never count (amendment 6). Auto-mode refusals are ‘blocked’, not failures.
 
 The left (127 columns):
 
@@ -1741,7 +1753,7 @@ The pane (72 columns):
 
 Board `S13Notices` · notices sit on the spine as grey ● rows · a hook block is ⊘, not a failure
 
-- **SHOWS** ● Memory saved (grey notice with its clock); ⊘ BLOCKED by a hook (PreToolUse guard-main.sh) with what Claude did instead; ! Context 82% notice; receipt counts ‘1 blocked’.
+- **SHOWS** ● Memory saved (grey notice with its clock); ⊘ BLOCKED by a hook (PreToolUse, its reason naming guard-main.sh) with what Claude did instead, a line that draws live only when already known as the row draws (13.7); ! Context 82% notice; receipt counts ‘1 blocked’.
 - **DATA** Memory saves (v7 E.26), hook output (v7 E.27), context warnings (v7 E.22).
 - **RULES** ⊘ = a system said no (hook, classifier, sandbox, policy). It is warn, not red, and is never a failure. Notices are grey and one line.
 
@@ -1986,8 +1998,8 @@ The left (127 columns):
              │    ❯ bump all dev dependencies and commit
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 6 shell · 1 edit
          48s ↗  committed   9f3e2b1 chore(deps): bump dev dependencies
+         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 6 shell · 1 edit
              │
          48s ✓  DONE   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 2 files · ↗ 9f3e2b1
 ```
@@ -2106,7 +2118,7 @@ Board `S18LongAnswer` · every markdown element: headings, numbered and nested l
 
 - **SHOWS** Every markdown element in one answer: bright lead, ## and ### headings with dim markers, a numbered list (cyan numerals), bullets with a nested bullet, a quote (▏ in cyan), task items [x] [ ], an inline footnote [1].
 - **DATA** The answer block as Claude wrote it (v7 E.7); nothing is rewritten.
-- **RULES** Reading column 86. Markdown markers stay visible but dim. No boxes around prose.
+- **RULES** Reading column 86. Heading and list markers stay visible but dim; backticks and `**` are dropped. No boxes around prose.
 
 The left (127 columns):
 
@@ -3346,10 +3358,10 @@ Rules found in real sessions after Phase 11. Each applies docked, in fallback an
 
 A step is a **failure** when all of these hold:
 
-- its kind is `test`, `shell`, `edit`, `write` or `agent` (a `fetch` or `search` never is, amendment 6);
+- its kind is `test`, `shell`, `edit`, `write` or `agent`; v7's `notebook` kind counts as `edit`. A `fetch` or `search` never is (amendment 6), nor a `read`;
 - the tool reported an error (`isError`), or a command exited non-zero;
 - it was not blocked (13.7), denied (13.8) or interrupted;
-- it is not a negative answer. `grep`, `rg`, `git diff --exit-code`, `diff`, `cmp`, `test` and `[` exiting 1 with nothing on stderr mean "no" or "differs". The step is `✓`, with the result `no match` or `differs`.
+- it is not a negative answer. `grep`, `rg`, `git diff --exit-code` or `--quiet`, `diff`, `cmp`, `test` and `[` exiting 1 mean "no" or "differs"; exit 2 and up are those tools' own errors. The engine hands an errored shell call back as one text with no stderr apart, so the exit code decides; when an outcome does carry `stderr`, a non-empty one makes it a failure. The step is `✓`, with the result `differs` for `diff`, `cmp` and `git diff`, otherwise `no match`.
 
 **The failure key.** Each failure has a key: _program_, _subcommand_, _target_.
 
@@ -3433,7 +3445,7 @@ A subject that does not fit is cut from the middle with `…`, never from the en
 
 ### 13.6 Short result words
 
-Results follow 5.7: at most 14 cells, a noun phrase, never a sentence or an echo of the command. When a step's output gives no short result, its result is the exit (`exit 0` reads `done`, other codes `exit n`). Common outputs:
+Results follow 5.7: at most 14 cells, a noun phrase, never a sentence or an echo of the command. A command whose output is one line of at most 14 cells shows that line (`bun --version` → `1.4.4`). Any other output with no rule here gives the exit as the result (`exit 0` reads `done`, other codes `exit n`). Common outputs:
 
 | Output                                       | Result         |
 | -------------------------------------------- | -------------- |
@@ -3457,9 +3469,9 @@ A step is **blocked** when a system refused it, not the tool and not the person:
 
 - a `PreToolUse` hook exited 2 or returned a block decision;
 - the auto-mode classifier refused it;
-- the sandbox or a policy denied it.
+- the sandbox, a settings rule or a policy (the organization's ceiling) denied it.
 
-Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail line naming the hook, classifier or policy and its reason. On the left they draw one `⊘  BLOCKED` row with a `└` line saying what Claude did instead, if it did something (screen 13). They count as `n blocked` in the receipt and the head card, never as failures. The step log gains a `blocked` state for this (amendment 9 noted it had none).
+Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail line naming what refused it: `by a hook · <event> · <reason>`, `by a rule · <rule>`, or `by the classifier`. The hook's script and the classifier's text reach the plugin in no event, so neither is named unless the hook's reason says it. On the left they draw one `⊘  BLOCKED` row. Its `└` line saying what Claude did instead draws only when that is already known as the row draws; live it never is, since rows never change, so screen 13's `└ Claude switched to a branch instead.` shows only on the canvas. They count as `n blocked` in the receipt and the head card, never as failures. The step log gains a `blocked` state for this (amendment 9 noted it had none).
 
 ### 13.8 `DENIED`
 
@@ -3467,70 +3479,70 @@ When the person refuses a permission, the step is **denied**: a row on the left 
 
 ### 13.9 One clock
 
-The receipt's label, the pane head's duration and range, the live line's elapsed time and `/steps` all read the turn's time from one source: the step log's turn start and end. The same turn never shows two durations.
+The receipt's label, the pane head's duration and range, the live line's elapsed time and `/steps` all read the turn's time from one source: the step log's start and end of the engine turn. For a typed turn that is the prompt to the end. A report turn an agent started has its own receipt with its own time, so one receipt never shows two durations.
 
 ## 14. Build decisions (Phase 12)
 
 - **One palette for Cockpit; the transcript's own stays for Cockpit off.** `hooks/shared/look/palette.ts` holds section 2 and is the only palette any Cockpit-on row draws from; no module of `cockpit/` or `transcript/v8/` imports another. `hooks/shared/tokens.ts` is not a Cockpit palette: it is main's transcript palette, kept unchanged because with Cockpit off every row must draw exactly as on main. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in v8's folders outside `shared/look/glyphs.ts`.
 - **Section 2 gained the colours the spec already drew with.** 7.3, 7.12 and 8.12 named three hexes section 2 did not list (the trace's low end `#2E3A39`, the wordmark's `#3A4846` and `#56706B`), and the trace's gradient from that low end to `machine` made five more at run time. They are now section 2's `wordmark` and `wordmarkVersion` tokens and its seven trace steps, fixed values rather than a computed blend, so every hex Cockpit draws is listed there.
-- **Kind words outside 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep v7's words `ask`, `plan`, `skill` (each within 6 cells): 5.6's list has no word for them, and inventing one would be worse than keeping the known one.
-- **One short line is its own result.** 13.6 lists `bun --version` → `1.4.4`; generalised as "a command whose output is one line of at most 14 cells shows that line". Any other output with no rule in 13.6 reads `done` (exit 0) or `exit n`.
+- **Kind words `ask`, `plan`, `skill` joined 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep v7's words (each within 6 cells): 5.6's list had no word for them, and inventing one would be worse than keeping the known one.
+- **One short line is its own result** (13.6). 13.6 listed only `bun --version` → `1.4.4`; it now states the rule that example follows: a one-line output of at most 14 cells shows that line.
 - **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the v7 rule). The project root is checked first, so a project under the home folder never gets a `~`.
-- **Negative answers read the exit code.** The engine hands an errored shell call back as one text, without stderr apart from stdout. So exit 1 of `grep`, `rg`, `diff`, `cmp`, `test`, `[` and `git diff --exit-code` / `--quiet` is the answer; exit 2 and up are those tools' own errors. When an outcome does carry `stderr`, a non-empty one makes it a failure. `test` and `[` read `no match`, since 13.1 offers only `no match` and `differs`.
-- **Blocked against denied.** A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
-- **The hook's script name.** The verdict names the hook event (`PreToolUse`) and the reason, never the script, so screen 13's `guard-main.sh` shows only when the hook's reason says it.
-- **What Claude did instead.** The `└` line under `⊘ BLOCKED` needs what Claude did next, which is not known when the row first draws, and rows never change. It is drawn only when already known; live it is not, so screen 13's `└ Claude switched to a branch instead.` does not draw.
-- **One clock is the engine turn's.** The receipt, the pane head and the live line all read the step log's own start and end of the engine turn (`segmentStart` to its end). For a typed turn, that is the prompt to the end. A report turn an agent started has its own receipt with its own time, so a typed turn still never shows two times for one receipt.
-- **Failure kinds.** v7's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not (13.1 lists test, shell, edit, write, agent only).
+- **Negative answers read the exit code** (13.1). 13.1 asked for exit 1 "with nothing on stderr", but the engine hands an errored shell call back as one text, without stderr apart from stdout. So the exit code decides, and a non-empty `stderr` counts only when an outcome carries one. `git diff --quiet` joined `--exit-code`, and `test` and `[` read `no match`, since 13.1 offers only `no match` and `differs`.
+- **Blocked against denied** (13.7 now lists the settings rule and the organization's ceiling). A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
+- **The hook's script name** (7.10, 13.7). The verdict names the hook event (`PreToolUse`) and the reason, never the script, so screen 13's `guard-main.sh` shows only when the hook's reason says it.
+- **What Claude did instead** (7.10, 13.7). 13.7 drew the `└` line under `⊘ BLOCKED` whenever Claude did something else. It needs what Claude did next, which is not known when the row first draws, and rows never change, so it now draws only when already known; live, screen 13's `└ Claude switched to a branch instead.` does not draw.
+- **One clock is the engine turn's** (13.9). 13.9 said "the turn's start and end"; it is the engine turn's (`segmentStart` to its end). An agent's report turn splits a typed turn into two receipts, each with its own time, so the rule now reads "one receipt never shows two durations".
+- **Failure kinds** (13.1). v7's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not.
 - **The left's renderers live by who draws them.** Rows Cockpit owns (receipt, worked node, live line, event rows, slash rows, the failure card) are in `hooks/cockpit/v8/`; rows the transcript's sites draw (turn header, message cards, thought row, the answer's markdown, code, table, note and plan cards) are in `hooks/transcript/v8/`, since the transcript may read Cockpit but Cockpit may not read the transcript. Both build every row with `shared/look/spine.ts`, so the label, spine and text column line up.
-- **Cards may run into their right pad.** Screen 01's note ends on the card's last cell, so a card row with nothing held at its right end may use the right pad; a row with `added`, `QUEUED`, `c copy` or a count at its right end keeps it.
-- **Source line breaks are row breaks.** Screen 01 breaks after the lead sentence at 86 cells while screen 31 runs the same words on at 78; a paragraph's own line breaks are kept as row breaks, and only then do words wrap.
-- **No blank row under a heading.** 7.4 asks for one above and below; every screen draws a heading straight onto its list (screens 01, 18). The rows follow the screens: a blank row only where the answer has a blank line.
-- **Nested bullets indent 5 cells.** 7.4 says 3; screen 18's nested `›` sits 5 cells right of its parent's, under the parent's text. The screens win.
-- **Inline markers.** Heading and list markers stay visible and dim; backticks and `**` are dropped, their effect drawn as `textBright` and bold, since every screen shows paths and code with no backticks.
-- **Table columns.** 7.6 says columns are sized to their content; screen 01's first column is a third of the card wide. The first column takes a third of the card or its content, whichever is wider; the others their content, 3 cells apart; numbers right-aligned.
+- **Cards may run into their right pad** (6.1). 6.1 kept a 2-cell inner pad on every card row; screen 01's note ends on the card's last cell, so a row with nothing held at its right end now may use the right pad.
+- **Source line breaks are row breaks** (7.4). Screen 01 breaks after the lead sentence at 86 cells while screen 31 runs the same words on at 78, so a paragraph's own line breaks are kept as row breaks, and only then do words wrap.
+- **No blank row under a heading** (7.4). 7.4 asked for one above and below; every screen draws a heading straight onto its list (screens 01, 18), so a blank row now draws only where the answer has a blank line.
+- **Nested bullets indent 5 cells** (7.4). 7.4 said 3; screen 18's nested `›` sits 5 cells right of its parent's, under the parent's text, and the screen wins.
+- **Inline markers** (7.4, screen 18). 7.4 kept every markdown marker visible; now only heading and list markers stay, dim, and backticks and `**` are dropped, since every screen shows paths and code with no backticks.
+- **Table columns** (7.6). 7.6 sized every column to its content; screen 01's first column is a third of the card wide, so the first column now takes a third of the card or its content, whichever is wider.
 - **Diff cards come from diff fences and step patches.** A fenced block with the `diff` word (its info naming the path) or one that is a unified diff draws as the diff card; ctrl+o draws the same card from the step's kept patch. The canvas's two gutters sit at 3 and 4 cells after the inner pad, which is what screen 01 measures.
 - **The note card.** A paragraph that starts `Note:` (or `**Note:**`) is the note card. 7.7 gives no source for it.
-- **Footnotes.** Two per row, the second at the 31st cell (screens 01, 23). Screen 20 puts them 3 cells apart; it is not a screen test here.
-- **The braille trace.** A trace's cells are levels 0 to 6, the cell rising or falling by the level before it (`⣠⣴⣾` up, `⣦⣷` down), coloured by section 2's trace steps. Live, steps are bucketed over the turn's time; the screen tests feed each screen's levels, since the canvas's traces are drawn by hand. The thought row's trace is the same fixed shape on every screen: only the duration is known (7.3).
-- **Receipt counts.** In the order the screens draw them: steps, fixed, still failing, files, blocked, sources (`n sources, m cited` when not every one is cited), agents, `n browser` and `n mcp`, then `↗` and what left the machine. Screen 13 puts `blocked` after `files`, which 7.12's list does not; the screens win.
-- **The worked node's counts.** 7.13 says they are the receipt's; screens 16 and 31 draw others (`23 steps · 3 agents · 1 fixed`, `7 steps · 6 shell · 1 edit`). The worked node draws steps, agents and fixes, and a turn with neither names its two largest step kinds.
-- **The failure card's rows.** A failing test's path and line and its expected and received values come from the test output kept in the step's detail; a failure with none listed shows the step's subject and result. `→ Next:` is drawn only when Claude's answer gives the next action: nothing in the engine says it apart from the prose.
-- **`c copy` on the left.** A left row can't hold a hotkey without taking the key from the prompt, so the code card's head strip is a Button: a click copies the block, and `/copy code n` does the same by key (amendment 11).
-- **Docked failures.** 13.1 draws failures on the left as the failure card when docked and as failure rows in fallback; screen 08's docked `× Batch 6 tests` event row is not drawn docked (not a screen test here).
+- **Footnotes** (7.4). 7.4 said two per row; the second now sits at the 31st cell, as screens 01 and 23 draw it. Screen 20 puts them 3 cells apart; it is not a screen test here.
+- **The braille trace.** A trace's cells are levels 0 to 6, the cell rising or falling by the level before it (`⣠⣴⣾` up, `⣦⣷` down), coloured by section 2's trace steps. Live, steps are bucketed over the turn's time; the screen tests feed each screen's levels, since the canvas's traces are drawn by hand. The thought row's trace is the same fixed shape on every screen: only the duration is known (7.3 now says so).
+- **Receipt counts** (7.12). 7.12's list put `blocked` before `files`; screen 13 puts it after, so the list now follows the screens, and gained `n sources, m cited`, `n browser` and `n mcp`.
+- **The worked node's counts** (7.13). 7.13 said they were the receipt's; screens 16 and 31 draw others (`23 steps · 3 agents · 1 fixed`, `7 steps · 6 shell · 1 edit`), so the node now counts steps, agents and fixes, or names its two largest step kinds.
+- **The failure card's rows** (7.8). The rows' path, line and values come from the test output kept in the step's detail. 7.8 always ended the card with `→ Next:`; it now draws only when Claude's answer gives the next action, since nothing in the engine says it apart from the prose.
+- **`c copy` on the left** (7.5, 9.5). 7.5 and 9.5 bound `c` on a code card. A left row can't hold a hotkey without taking the key from the prompt, so the head strip is now a Button: a click copies the block, and `/copy code n` does the same by key (amendment 11).
+- **Docked failures** (7.8, 7.10). 13.1 draws failures on the left as the failure card when docked and as failure rows in fallback, so 7.10's `× Batch 6 tests` event row, also on screen 08, now draws in fallback only (not a screen test here).
 - **Canvas rows past the text column were corrected** (6.1, section 12). Screens 02, 03, 06, 11, 17, 18, 20, 21, 25, 26 and 27 drew rows longer than the 86-cell text column: answer paragraphs, a prompt card, an agent's brief and a WAITING detail line. Section 12 now shows them as the renderers draw them: paragraphs and cards wrap at 86 cells, and the one-line detail is cut with `…`. Screen 03's test compares every row.
 - **The pane's geometry, as measured.** Pane cards run from the second cell to the last but one, content from the third; the drawer from the fifth, content from the seventh, its right-hand facts ending 4 cells before the drawer's edge (screens 03, 04). A selected row is `▐` in accent at the first cell and `surface` across the width.
-- **The now-line shows only on a LIVE turn.** 9.2 and 8.3 say "while the turn is live"; screen 04 (NEEDS YOU) draws none, screens 02, 08, 14 and 15 (LIVE) do. It fills the empty track cells at the current time; a bar over that cell hides it.
+- **The now-line shows only on a LIVE turn** (8.3). 8.3 said "while the turn is live"; screen 04 (NEEDS YOU) draws none, screens 02, 08, 14 and 15 (LIVE) do, so 8.3 now says `LIVE` and how a bar hides it.
 - **The wordmark's column was corrected** (8.12, screens 02, 03). Every pane ends `ghostframe v…` on the last cell but one; screens 02 and 03 drew it one cell further left beside `? keys`. Their hint rows now sit on the same grid as every other screen.
-- **The wordmark's version.** Read once at session start from `.claude-plugin/plugin.json` under `$.plugin.root` with `$.fs.read`, as the engine documents; `dev` when the manifest has none or cannot be read. The manifest says `0.2.0`, so live the pane reads `ghostframe v0.2.0`; the screen tests feed the canvas's `0.1.0`.
-- **Group titles.** A group's title is its working sentence's first sentence without its closing stop, cut at the end to 25 cells (13.5). The canvas's titles are shorter rewrites (`Reproducing the failure first.` drawn as `Reproducing the failure`); Cockpit does not rewrite Claude's words. Steps before Claude's first sentence form a group titled by the first step's kind and subject.
+- **The wordmark's version** (8.12). Read once at session start from `.claude-plugin/plugin.json` under `$.plugin.root` with `$.fs.read`, as the engine documents. 8.12 said `dev` before a release; it is now `dev` when the manifest has none or cannot be read. The manifest says `0.2.0`, so live the pane reads `ghostframe v0.2.0`; the screen tests feed the canvas's `0.1.0`.
+- **Group titles** (8.3). 8.3 asked for a short title written from the working sentence. The canvas's titles are shorter rewrites (`Reproducing the failure first.` drawn as `Reproducing the failure`), but Cockpit does not rewrite Claude's words, so a title is now the first sentence without its stop, cut at the end to 25 cells.
 - **Bars on the screens.** The screen tests read each bar off the screen's track cells as a span on a 40-second turn (one second per half cell), since the canvas gives no step times.
 - **The full diff's counts.** Screen 28's head says `+12` over a patch of five added rows: the head carries the file's own counts over the turn, the ones its Files row shows, not the hunks' sum.
 - **The full diff's hunk headers name the old lines** (`@@ 18,3 @@`, screen 28); the hunk opened under a Files row names the new ones (`@@ 14,3 @@`, screen 23), which for a hunk that moves no line are the same.
-- **Screen 24 has no wordmark.** Every other pane draws one and 8.12 says every view does; screen 24's last row is keys alone. The renderer draws the wordmark on every view; screen 24's test draws its hint row as the canvas does, through the same key renderer.
-- **An agent in view draws no now-line** (screen 27): its timeline is the agent's, not the live turn's.
-- **The change bar** is 5 cells: lit in proportion to the file's change against the turn's largest, split ok and err by its additions and removals, the rest dim.
+- **Screen 24 has no wordmark** (8.12). Every other pane draws one, and the renderer draws it on every view as 8.12 says; screen 24's last row is keys alone, so its test draws its hint row as the canvas does, through the same key renderer.
+- **An agent in view draws no now-line** (8.3, screen 27): its timeline is the agent's, not the live turn's.
+- **The change bar** (8.5): 8.5 said "in proportion" without saying to what; it is the turn's largest change.
 - **`? keys` was removed** (8.12, 9.5, screens 02 and 03). The engine takes a hotkey only from `a` to `z` and `0` to `9`; a `?` hotkey throws inside the pane's render and the engine draws its own pane instead. Every other key in 9.5 works as specified.
 - **The hint row is drawn as text.** The keys themselves are hotkey Buttons with nothing of their own to draw, bound only while the pane holds the keyboard (amendment 7), so the hint row keeps the canvas's exact cells.
 - **The pane comes back to the Timeline tab when it loses focus.** The tab, the open drawer and the URL toggle are view state; losing focus resets the view (amendment 7), and the tab with it, so an unfocused pane always shows the live turn's timeline.
 - **`m` is bound only while an agent is in view.** It answers with `$.ui.view`, which the engine allows only while an agent's conversation is shown; bound everywhere, it called the engine on every press.
-- **The docked worked node sits below the `↗` rows** of the same turn, directly above the receipt (7.12, 7.13), so the receipt tree reads node, then receipt.
+- **The docked worked node sits below the `↗` rows** (7.13, screen 16). 7.13 and screen 16 put it above them; both now show it below. The `↗` rows draw as their calls return (7.10), before the turn ends, and rows never move, so the node now sits directly above the receipt and the receipt tree reads node, then receipt.
 - **Fallback's `+ n more` sits above the receipt.** A fallback failure row draws as its step settles and never changes, so its third row cannot count failures that have not happened yet. The first 3 keys draw their rows, a repeat of a key draws none, and the receipt, drawn once the turn ends, has `+ n more · /steps n` above it (13.1). The count is per receipt while the rows are per typed turn; they differ only when an agent's report splits a typed turn.
 - **PowerShell's failure keys** (13.1). The spec named only `VAR=value`. This session's own turn (455 steps, 80 errors, most of them exploratory PowerShell) drew 34 rows on v7 and keyed 52 failures on v8 before these rules: `$t = …` keyed on `$t`, `[IO.File]::…` on whatever came first, and each redirected gate run on its output file. With them it keys 19, 15 fixed, 4 still failing (tests/plugin/flood.test.tsx).
 - **Redirections and folder options are not targets** (13.1): `bun run --cwd tools check *> $env:TEMP\g.txt` failing and `bun run --cwd tools check > "$TEMP/g.txt"` passing are the same step, so the second must fix the first.
 - **A write fixes a failed edit of the same file** (13.1): Claude often follows a refused edit with a write of the whole file, and both leave it changed.
 - **Short results for the edit tools' guards** (13.6): `not read` and `file changed`; any other error longer than 14 cells reads `failed`, as 13.6 says a result is never a sentence.
-- **ctrl+o uses the narrow text column under 110 columns** (6.1) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
-- **No output frame in ctrl+o.** A step line carries its result word and, for an edit, its diff card (7.17); a command's output is in the step's detail in the pane, not repeated on the left.
+- **ctrl+o uses the narrow text column under 110 columns** (6.1, section 10) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
+- **No output frame in ctrl+o** (section 10). A step line carries its result word and, for an edit, its diff card (7.5); a command's output is in the step's detail in the pane, not repeated on the left.
 - **The selected file is the one under the focus ring** (8.5). The pane has no selection of its own; the engine raises `ui.focus` with the row's key each time the ring moves, so the Files tab draws the first hunk under the file the ring is on, and Enter still opens the full diff.
 - **The interrupted line draws when the next turn starts** (8.3, screen 06). Esc sends no event a row could draw from, and an interrupted turn raises no TurnDuration; but when the next prompt starts a turn, the step log knows the one before ended aborted or never ended, and keeps its number, steps, files and start for the pane. Its summary says `n files changed`, not the canvas's `renamed`: the step log knows a file changed, not how.
-- **`/steps n all` prints at most 20 rows**, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
+- **`/steps n all` prints at most 20 rows** (7.15). 7.15 set no limit; it now stops at 20, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
 - **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.
-- **The pinned head's state pill** is the live turn's (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
-- **`Waiting on n agents`** is the head card's summary while background agents run after the turn's answer (7.12's waiting receipt), so the head and the left say the same.
+- **The pinned head's state pill** (8.2). 8.2 showed the top line as `● LIVE` only; it is the live turn's state (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
+- **`Waiting on n agents`** (7.12, 8.2) is the head card's summary while background agents run after the turn's answer, matching the left's `WAITING` receipt, so the head and the left say the same. 7.12 and 5.5 now describe that receipt.
 - **The prompt's rows and the turn's stamp are found apart.** The prompt site draws the header and card from the message alone; which turn number it carries comes from the ledger's stamp, so a row drawn again keeps its number (the turn rule, amendment 10).
 - **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
-- **The `/copy` phrasing** follows 7.14: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
+- **The `/copy` phrasing** follows 7.15: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
 - **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
-- **Engine notices are drawn as `●` rows** (7.15) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
+- **Engine notices are drawn as `●` rows** (7.10) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
 - **What the engine does not give.** The classifier's text for a blocked step is not in any event the plugin receives, so a blocked step names what refused it (`by the classifier`, `by a hook · <event> · <reason>`). A denial carries no reason the plugin can rely on, so `DENIED` names the command alone (13.8); the quoted reason 13.8 once showed was removed.

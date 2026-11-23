@@ -160,8 +160,9 @@ export function screen16(): Part[][] {
     turnHeader({ at: at(14, 31, 0), turnNo: 18, isLive: false }, W),
     ...messageCard('bump all dev dependencies and commit', 'typed', W),
     spineOnly(),
-    workedRow(counts({ durationMs: 48_000, steps: 7, kinds: { shell: 6, edit: 1 }, levels: trace }), W),
+    // The `↗` row draws as its call returns; the node draws with the receipt, so below it (7.13).
     shippedRow(48_000, 'committed', '9f3e2b1', 'chore(deps): bump dev dependencies', W),
+    workedRow(counts({ durationMs: 48_000, steps: 7, kinds: { shell: 6, edit: 1 }, levels: trace }), W),
     spineOnly(),
     receiptRow(counts({ durationMs: 48_000, steps: 7, files: 2, shipped: '9f3e2b1', levels: trace }), W)
   ]

@@ -394,8 +394,8 @@ const SCREENS: Record<string, string[][]> = {
       "             │    ❯ bump all dev dependencies and commit",
       "             │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
       "             │",
-      "         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 6 shell · 1 edit",
       "         48s ↗  committed   9f3e2b1 chore(deps): bump dev dependencies",
+      "         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 6 shell · 1 edit",
       "             │",
       "         48s ✓  DONE   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 2 files · ↗ 9f3e2b1"
     ],
