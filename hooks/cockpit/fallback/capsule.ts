@@ -26,7 +26,8 @@ export type Capsule = {
 export function capsuleOf(all: readonly LogStep[], from: number, to: number): Capsule | undefined {
   const stretch = all.slice(Math.max(0, from), Math.max(0, to))
 
-  if (stretch.length === 0) return undefined
+  // A stretch of refused steps only did no work: each drew its own ⊘ or ▍ row, so no worked node stands for it.
+  if (stretch.every(s => s.state !== undefined)) return undefined
 
   const kinds = new Map<string, number>()
 

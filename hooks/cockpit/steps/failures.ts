@@ -150,6 +150,41 @@ export function fixes(later: FailureKey, failed: FailureKey): boolean {
   return failed.target.startsWith(`${later.target.replace(/\/+$/, '')}/`)
 }
 
+// How the engine words a hook's refusal: `PreToolUse:PowerShell hook error: [<command it ran>]: <its message>`.
+const HOOK_ERROR = /hook error: \[([^\]]*)\]:\s*([^\r\n]*)/
+
+/**
+ * A hook's refusal as the engine reports it (13.7): the script the hook ran (its file name) and the message it gave.
+ * @param text the refusal's text
+ * @returns the script and message, or undefined when the text is not a hook's
+ */
+export function hookWords(text: string): { script: string; message: string } | undefined {
+  const m = HOOK_ERROR.exec(text)
+
+  if (m === null) return undefined
+
+  const words = wordsOf(m[1] ?? '')
+  const file = words.findLast(w => /\.[A-Za-z0-9]+$/.test(w)) ?? words.at(-1) ?? ''
+
+  return { script: file.replace(/^.*[/\\]/, ''), message: (m[2] ?? '').trim() }
+}
+
+/**
+ * The statement of a joined command a permission rule matched (13.7): `rm -rf src` in `ls src && rm -rf src && ls`,
+ * for a rule such as `Bash(rm -rf:*)`.
+ * @param command the whole command
+ * @param rule the rule, as the engine names it
+ * @returns the statement, or undefined when the rule names no prefix or no statement starts with it
+ */
+export function ruledStatement(command: string, rule: string): string | undefined {
+  const m = /^\w+\(([^:)]+)(?::\*)?\)$/.exec(rule.trim())
+  const prefix = m?.[1]?.trim()
+
+  if (prefix === undefined || prefix.length === 0) return undefined
+
+  return statementsOf(stripCd(command).command).find(s => s === prefix || s.startsWith(`${prefix} `))
+}
+
 // The commands whose exit 1 is an answer, not an error (13.1): `no match` from a search, `differs` from a compare.
 const NO_MATCH = new Set(['grep', 'egrep', 'fgrep', 'rg', 'test', '['])
 const DIFFERS = new Set(['diff', 'cmp'])

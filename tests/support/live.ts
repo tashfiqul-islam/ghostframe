@@ -89,7 +89,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean): void {
 
     return hook === null
       ? { decision: 'allow' }
-      : ({ decision: 'deny', hook: { event: 'PreToolUse', command: hook[2] }, reason: (hook[3] ?? '').trim() } as never)
+      : ({ decision: 'deny', hook: hook[1], reason: `${hook[1] ?? ''} hook error: [${hook[2] ?? ''}]: ${(hook[3] ?? '').trim()}` } as never)
   })
   on('tool.call', (_, e) => {
     const c = calls.find(k => k.id === (e as { tool_use_id?: string }).tool_use_id)

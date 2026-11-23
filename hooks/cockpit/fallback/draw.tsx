@@ -3,6 +3,7 @@
 // failure draws its row at once, and the live area above the prompt is the whole of it. left.tsx routes each site
 // here; these draw. Every row is worked out from the turn's own data at each draw (amendment 10, facts.ts), so a row
 // drawn again after a resize, a resume or a reload draws the same.
+import { insteadRows, refusalRows } from '../v8/events'
 import type { EngineInterface, RenderElement } from 'claude-code'
 
 import type { Part } from '../../shared/parts'
@@ -75,8 +76,13 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
 
     const ms = c.tool_use_id === undefined ? undefined : (view.details.find(d => d.id === c.tool_use_id)?.ms ?? undefined)
 
+    const id = c.tool_use_id === undefined ? [] : [c.tool_use_id]
+
+    // The same event rows as docked (a mode switch keeps them): what Claude did instead, `↗`, ⊘ and ▍, the failure.
     return [
-      ...shipEventRows([c], clockOf, width, id => view.steps.find(s => s.id === id)?.commit),
+      ...insteadRows(view.steps, id, width),
+      ...shipEventRows([c], clockOf, width, k => view.steps.find(s => s.id === k)?.commit),
+      ...refusalRows(view.steps, id, width),
       ...(failure === undefined ? [] : failureRows(failure, width, ms))
     ]
   })

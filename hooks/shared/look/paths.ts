@@ -35,8 +35,10 @@ export function showPath(p: string, roots: PathRoots = {}): string {
   if (!/^(?:[A-Za-z]:)?\//.test(a)) return a.replace(/^(?:\.\/)+/, '')
 
   const project = roots.project === undefined || roots.project.length === 0 ? undefined : trimEnd(slashes(roots.project))
+  // Git Bash writes a Windows drive as `/d/…`: under a Windows project it is that drive's path (13.2).
+  const drive = /^[A-Za-z]:/.test(project ?? '') ? a.replace(/^\/([A-Za-z])(?=\/|$)/, (_, d: string) => `${d.toUpperCase()}:`) : a
 
-  if (project !== undefined && within(a, project)) return a.length === project.length ? '.' : a.slice(project.length + 1)
+  if (project !== undefined && within(drive, project)) return drive.length === project.length ? '.' : drive.slice(project.length + 1)
 
   const home = roots.home === undefined || roots.home.length === 0 ? undefined : trimEnd(slashes(roots.home))
 

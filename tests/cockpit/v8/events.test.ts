@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { blockedRow, capFailures, deniedRow, detailRow, failureRow, moreParts } from '../../../hooks/cockpit/v8/events'
+import { blockedRow, capFailures, deniedRow, detailRow, failureRow, insteadRows, moreParts } from '../../../hooks/cockpit/v8/events'
+import type { LogStep } from '../../../types'
 import { GLYPH } from '../../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import { NO_LABEL, SPINE, rowText, spineRow } from '../../../hooks/shared/look/spine'
@@ -26,4 +27,23 @@ test('13.1: a failure node, as screen 31 draws it; at most 3 rows, the third `+ 
   expect(capFailures([1, 2, 3])).toEqual({ shown: [1, 2, 3], more: 0 })
   expect(capFailures([1, 2, 3, 4, 5])).toEqual({ shown: [1, 2], more: 3 })
   expect(rowText(spineRow(NO_LABEL, SPINE, moreParts(3, 8)))).toBe('             │  + 3 more · /steps 8')
+})
+
+test('13.7: what Claude did instead of a refused step is a `└` line at the next step`s site; nothing after a step that ran', () => {
+  const step = (id: string, subject: string, state?: 'blocked' | 'denied'): LogStep => ({
+    id,
+    kind: 'shell',
+    subject,
+    key: `shell · · ${subject}`,
+    result: state ?? '',
+    mark: '',
+    isRunning: false,
+    clock: 1_000,
+    ...(state === undefined ? {} : { state })
+  })
+  const steps = [step('a', 'git push', 'blocked'), step('b', 'git status'), step('c', 'git log')]
+
+  expect(insteadRows(steps, ['b'], 86).map(rowText)).toEqual(['             │  └ instead  shell git status'])
+  expect(insteadRows(steps, ['c'], 86)).toEqual([])
+  expect(insteadRows(steps, ['a'], 86)).toEqual([])
 })

@@ -29,6 +29,8 @@ import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
+import { hookWords, ruledStatement } from './steps/failures'
+import { showPath } from '../shared/look/paths'
 import { GIT_COMMIT } from '../shared/calls/describe'
 import { parseShip, shellText } from '../shared/calls/ships'
 import { isOn, noticeSink } from './switch'
@@ -188,11 +190,13 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
 
   const got = outcome ?? { isError: true as const, text: 'failed' }
   const ran = await withCommit($, e, got, cwd)
-  const blockedBy = blocks.get(e.tool_use_id)
+  const block = blocks.get(e.tool_use_id)
   blocks.delete(e.tool_use_id)
+  const blockedBy = block?.why
+  const blockedSubject = block?.rule === undefined ? undefined : ruledSubject(e, block.rule, cwd)
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
-  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy }))
+  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
   await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
 }
@@ -241,7 +245,21 @@ export async function logCited($: EngineInterface, cited: readonly { url: string
 // The main-loop calls a check refused, by id, with who refused them (13.7), until their step settles.
 // shortcut: kept in the module, so a reload between a check and its call's end loses the block; the step then reads as
 // the engine's refusal text says (a policy). Fine: a check and its call's end are milliseconds apart.
-const blocks = new Map<string, string>()
+const blocks = new Map<string, { why: string; rule?: string | undefined }>()
+
+/**
+ * What a rule refused in a joined command (13.7): the statement it matched, its paths from the project root, so the
+ * row names `rm -rf src` rather than the command's first statement.
+ */
+function ruledSubject(e: ToolCallInput, rule: string, cwd: string | undefined): string | undefined {
+  const command: unknown = Reflect.get(e, 'command')
+  const statement = typeof command === 'string' ? ruledStatement(command, rule) : undefined
+
+  return statement
+    ?.split(' ')
+    .map(w => (/[/\\]/.test(w) ? showPath(w, { project: cwd }) : w))
+    .join(' ')
+}
 const BLOCKS_MAX = 100
 
 /**
@@ -253,13 +271,20 @@ const BLOCKS_MAX = 100
 export function logBlocked(id: string, verdict: { hook?: string | undefined; rule?: string | undefined; reason?: string | undefined }): void {
   if (!isOn()) return
 
-  const who = verdict.hook !== undefined ? `by a hook · ${verdict.hook}` : verdict.rule !== undefined ? `by a rule · ${verdict.rule}` : 'by a policy'
-  const reason = verdict.reason
-    ?.split('\n')
-    .find(l => l.trim().length > 0)
-    ?.trim()
+  // A hook names its script and its own message (`by a hook · guard-main.ps1 · pushing is blocked`), not the engine's
+  // wrapper around them; a rule's reason is only the engine's `Permission to use …` sentence, so the rule alone says it.
+  const words = verdict.hook === undefined ? undefined : hookWords(verdict.reason ?? '')
+  const who =
+    verdict.hook !== undefined ? `by a hook · ${words?.script ?? verdict.hook}` : verdict.rule !== undefined ? `by a rule · ${verdict.rule}` : 'by a policy'
+  const said =
+    words?.message ??
+    verdict.reason
+      ?.split('\n')
+      .find(l => l.trim().length > 0)
+      ?.trim()
+  const reason = verdict.rule !== undefined || /^Permission to use /i.test(said ?? '') ? undefined : said
 
-  blocks.set(id, reason === undefined || reason.length === 0 ? who : `${who} · ${reason}`)
+  blocks.set(id, { why: reason === undefined || reason.length === 0 ? who : `${who} · ${reason}`, rule: verdict.rule })
   while (blocks.size > BLOCKS_MAX) blocks.delete(blocks.keys().next().value ?? id)
 }
 

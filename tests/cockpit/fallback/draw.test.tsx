@@ -44,7 +44,7 @@ test('capsule, trigger 2: a step that starts after five silent minutes draws the
   // Ten minutes in, with nothing drawn on the left since the start: the capsule of the two steps before it.
   await run('s3', T0 + 10 * 60_000)
   const rows = await rowsOf($, groupOf(shell('s3'), 100))
-  expect(rows).toEqual([expect.stringMatching(/^ {6}4m 01s ◇  worked   [⣀-⣿]+   2 steps · 2 shell$/)])
+  expect(rows).toEqual([expect.stringMatching(/^ {6}4m 01s ◇  worked   [⣀-⣿]+   2 steps$/)])
   // Drawn again later (a resize, a scroll), it is the same row: it comes from the steps, not from the moment.
   clock.now += 60 * 60_000
   expect(await rowsOf($, groupOf(shell('s3'), 100))).toEqual(rows)
@@ -62,7 +62,7 @@ test('capsule, trigger 3: a turn that ends without any text draws its capsule an
 
   const row = await rowsOf($, groupOf({ id: 'q1', tool: 'Bash', input: { command: 'echo hi' } }, 100))
   expect(row).toEqual([
-    expect.stringMatching(/^ {10}1s ◇  worked   [⣀-⣿]+   1 step · 1 shell$/),
+    expect.stringMatching(/^ {10}1s ◇  worked   [⣀-⣿]+   1 step$/),
     expect.stringMatching(/^ {13}│$/),
     expect.stringMatching(/^ {10}2s ✓  DONE   [⣀-⣿]+   1 step$/)
   ])

@@ -79,7 +79,7 @@ for (const mode of ['docked', 'fallback'] as const) {
 
     // One worked node (7.13): the whole turn's docked, its last stretch's in fallback; then the receipt (7.12).
     const expected = [
-      expect.stringMatching(isDocked ? /^ {10}3s ◇  worked   [⣀-⣿]+   2 steps · 2 shell$/ : /^ {10}2s ◇  worked   [⣀-⣿]+   2 steps · 2 shell$/),
+      expect.stringMatching(isDocked ? /^ {10}3s ◇  worked   [⣀-⣿]+   2 steps$/ : /^ {10}2s ◇  worked   [⣀-⣿]+   2 steps$/),
       expect.stringMatching(/^ {13}│$/),
       expect.stringMatching(/^ {10}3s ✓  DONE   [⣀-⣿]+   2 steps$/)
     ]

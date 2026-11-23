@@ -104,16 +104,11 @@ export function receiptRow(c: TurnCounts, width: number): Part[] {
  * @returns the row
  */
 export function workedRow(c: TurnCounts, width: number): Part[] {
-  const byKind = Object.entries(c.kinds)
-    .filter(([, n]) => n > 0)
-    .toSorted((a, b) => b[1] - a[1])
-    .slice(0, 2)
-    .map(([k, n]): [string, number] => [`${n} ${k}`, 3])
+  // 7.13: steps, agents, fixed; never a tally of kinds, which says less than the steps it splits.
   const fields: [string, number][] = [
     [c.steps > 0 ? count(c.steps, 'step') : 'no steps', 1],
     ...(c.agents > 0 ? [[count(c.agents, 'agent'), 2] as [string, number]] : []),
-    ...(c.fixed > 0 ? [[`${c.fixed} fixed`, 0] as [string, number]] : []),
-    ...(c.agents === 0 && c.fixed === 0 ? byKind : [])
+    ...(c.fixed > 0 ? [[`${c.fixed} fixed`, 0] as [string, number]] : [])
   ]
 
   return nodeRow(duration(c.durationMs), { t: GLYPH.agent, color: TOKEN.dim }, { t: 'worked', color: TOKEN.dim }, c.levels, fields, width)

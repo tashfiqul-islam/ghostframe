@@ -1,6 +1,7 @@
 // The left's event rows (spec 7.10, 13.1, 13.7, 13.8): one row each on the spine, its label the time into the turn at
 // which it happened, and a `└` detail line where one thing explains it. Pure: the left draws what these return.
 import { dim } from '../../shared/look/bits'
+import type { LogStep } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { duration } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
@@ -250,4 +251,34 @@ export function moreRow(more: number, turnNo: number): Part[] {
  */
 export function capFailures<T>(all: readonly T[]): { shown: T[]; more: number } {
   return all.length <= 3 ? { shown: [...all], more: 0 } : { shown: all.slice(0, 2), more: all.length - 2 }
+}
+
+/**
+ * Refused steps among a site's calls (13.7, 13.8): ⊘ BLOCKED with what refused them, ▍ DENIED with the command, at
+ * the time into the turn at which they settled. Drawn docked and in fallback alike, so a mode switch keeps them.
+ * @param steps the turn's steps
+ * @param ids the site's call ids
+ * @param width the text column's cells
+ * @returns the rows
+ */
+export function refusalRows(steps: readonly LogStep[], ids: readonly string[], width: number): Part[][] {
+  return steps
+    .filter(s => ids.includes(s.id) && !s.isRunning && s.state !== undefined)
+    .map(s => (s.state === 'blocked' ? blockedRow(s.clock, s.why ?? '', width) : deniedRow(s.clock, s.kind, s.subject, width)))
+}
+
+/**
+ * What Claude did instead of a refused step (13.7): `└ instead  shell git status`, drawn at the next step's own site,
+ * since only then is it known; the refused row above it never changes. Nothing when the step before was not refused.
+ * @param steps the turn's steps
+ * @param ids the site's call ids
+ * @param width the text column's cells
+ * @returns the row, or none
+ */
+export function insteadRows(steps: readonly LogStep[], ids: readonly string[], width: number): Part[][] {
+  const at = steps.findIndex(s => ids.includes(s.id) || s.calls?.some(c => ids.includes(c)) === true)
+  const before = at > 0 ? steps[at - 1] : undefined
+  const now = steps[at]
+
+  return before?.state === undefined || now === undefined ? [] : [detailRow(`instead  ${now.kind} ${now.subject}`, width)]
 }

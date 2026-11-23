@@ -14,13 +14,12 @@ import { readWork } from './work'
 import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { FAILURE_ROWS } from './steps/log'
-import { blockedRow, deniedRow, moreRow } from './v8/events'
+import { insteadRows, moreRow, refusalRows } from './v8/events'
 import { failureCard, receiptRow, slashOutputRow, slashRow, stepsAllRows, workedRow } from './v8/left'
 import { liveArea } from './v8/live'
 import { receiptCounts } from './v8/receipt'
 import { shipEventRows } from './v8/ships'
 import { spineOnly, textCells } from '../shared/look/spine'
-import type { LogStep } from '../../types'
 import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, footerCapsule } from './fallback/draw'
 
 import { readFlow, isNarrationAt } from '../shared/flow'
@@ -323,6 +322,7 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
       width,
       id => steps.find(s => s.id === id)?.commit
     ),
+    ...insteadRows(steps, [p.tool_use_id], width),
     ...refusalRows(steps, [p.tool_use_id], width)
   ]
 
@@ -394,20 +394,6 @@ function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[
 }
 
 /**
- * Refused steps among a site's calls (13.7, 13.8): ⊘ BLOCKED with what refused them, ▍ DENIED with the command,
- * at the time into the turn at which they settled.
- * @param steps the turn's steps
- * @param ids the site's call ids
- * @param width the text column's cells
- * @returns the rows
- */
-function refusalRows(steps: readonly LogStep[], ids: readonly string[], width: number): Part[][] {
-  return steps
-    .filter(s => ids.includes(s.id) && !s.isRunning && s.state !== undefined)
-    .map(s => (s.state === 'blocked' ? blockedRow(s.clock, s.why ?? '', width) : deniedRow(s.clock, s.kind, s.subject, width)))
-}
-
-/**
  * A receipt's tree: the rows above it, the rows above it, then the receipt itself as a Button: a click pins its turn
  * in the pane (E.45; probe 25: a Button there is pressed by a click).
  * @param $ the engine interface
@@ -457,7 +443,11 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
-  const rows = [...shipEventRows(e.props.calls, clockOf, width, id => steps.find(s => s.id === id)?.commit), ...refusalRows(steps, ids, width)]
+  const rows = [
+    ...shipEventRows(e.props.calls, clockOf, width, id => steps.find(s => s.id === id)?.commit),
+    ...insteadRows(steps, ids, width),
+    ...refusalRows(steps, ids, width)
+  ]
 
   return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }

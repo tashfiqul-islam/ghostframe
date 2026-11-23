@@ -61,3 +61,24 @@ for (const [mode, columns] of [
     expect(receipt).toMatch(/✓  DONE .* ↗ 3c32406$/)
   })
 }
+
+const callOf = (n: number, match: (command: string) => boolean) => {
+  const c = TURNS[n]?.events.find(e => e.k === 'call' && match(JSON.stringify(e['input'])))
+
+  if (c === undefined) throw new Error(`turn ${n} has no such call`)
+
+  return { id: String(c['id']), tool: String(c['tool']), input: c['input'] as Record<string, unknown> }
+}
+const BLOCKED = '⊘  BLOCKED   by a hook · guard-main.ps1 · pushing is blocked in this repo'
+
+test('5, 6. turn 4: ⊘ BLOCKED names the hook`s script and its message; after /cockpit closes the pane it is still that row', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  const push = callOf(4, c => c.includes('git push'))
+  await liveTurn($, clock, 4, 200)
+  // liveTurn ran the turn's slash commands too: the last, `/cockpit`, closed the pane; the row is drawn again at 200.
+  const after = await rowsOf($, groupOf(push, 200, true))
+
+  expect(after.some(r => r.trim().endsWith(BLOCKED))).toBe(true)
+  expect(after.some(r => /◇  worked/.test(r))).toBe(false)
+  expect(after.join('\n')).not.toMatch(/hook error|pwsh -NoProfile/)
+})

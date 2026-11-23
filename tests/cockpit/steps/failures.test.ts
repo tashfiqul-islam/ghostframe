@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { failureKey, fixes, keyOf, keyText, negativeAnswer } from '../../../hooks/cockpit/steps/failures'
+import { failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer, ruledStatement } from '../../../hooks/cockpit/steps/failures'
 import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
@@ -159,4 +159,15 @@ test('13.9: one clock: the receipt and the pane head read the same time, from th
 
   expect(log.last?.durationMs).toBe(164_000)
   expect(receiptOf(log).durationMs).toBe(164_000)
+})
+
+test('13.7: a hook`s refusal names its script and its own message; a rule names the statement it matched', () => {
+  expect(hookWords('PreToolUse:PowerShell hook error: [pwsh -NoProfile -File .claude/hooks/guard-main.ps1]: pushing is blocked in this repo\r\n')).toEqual({
+    script: 'guard-main.ps1',
+    message: 'pushing is blocked in this repo'
+  })
+  expect(hookWords('Exit code 1')).toBeUndefined()
+  const joined = 'ls -la /d/Projects/cockpit-live/src && rm -rf /d/Projects/cockpit-live/src && ls /d/Projects/cockpit-live'
+  expect(ruledStatement(joined, 'Bash(rm -rf:*)')).toBe('rm -rf /d/Projects/cockpit-live/src')
+  expect(ruledStatement(joined, 'Bash(npm publish:*)')).toBeUndefined()
 })

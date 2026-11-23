@@ -4,7 +4,7 @@ import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
 import { DENIED } from '../../shared/calls/describe'
 import { levelsOf } from '../../shared/look/trace'
 import { exitOf } from '../../shared/look/words'
-import { canFail, failureKey, fixes, keyOf, keyText, negativeAnswer } from './failures'
+import { canFail, failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer } from './failures'
 import { UNLISTED, command, kindOf, rec, subjectOf } from './kinds'
 import { outcomeOf, plural } from './results'
 
@@ -22,7 +22,7 @@ export type Outcome = {
 }
 
 /** A call as it ends; `blockedBy`, what refused it before it ran (a hook, a rule, the ceiling), when one did (13.7). */
-export type StepEnd = StepStart & { outcome: Outcome; blockedBy?: string | undefined }
+export type StepEnd = StepStart & { outcome: Outcome; blockedBy?: string | undefined; blockedSubject?: string | undefined }
 
 // shortcut: one turn is held whole; past this many steps the oldest are dropped and counted in `dropped`.
 // Move the log to $.store when history lands (phase 8).
@@ -184,6 +184,11 @@ function refusal(end: StepEnd): { state: 'blocked' | 'denied'; why: string } | u
   const said = end.outcome.deny ?? end.outcome.text ?? ''
 
   if (end.blockedBy !== undefined) return { state: 'blocked', why: end.blockedBy }
+
+  // A hook's refusal the check did not name: its script and message from the engine's words (13.7).
+  const hook = hookWords(said)
+
+  if (hook !== undefined) return { state: 'blocked', why: `by a hook · ${hook.script}${hook.message.length > 0 ? ` · ${hook.message}` : ''}` }
   if (DENIED.test(said)) return { state: 'denied', why: '' }
   if (end.outcome.deny === undefined) return undefined
 
@@ -281,7 +286,17 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
   const refused = refusal(end)
 
   // Refused before it ran: blocked by a system (13.7) or denied by the person (13.8); neither is a failure.
-  if (refused !== undefined) return settled({ ...row, result: refused.state, mark: '', isRunning: false, clock, state: refused.state, why: refused.why })
+  if (refused !== undefined)
+    return settled({
+      ...row,
+      subject: end.blockedSubject ?? row.subject,
+      result: refused.state,
+      mark: '',
+      isRunning: false,
+      clock,
+      state: refused.state,
+      why: refused.why
+    })
 
   const said = end.outcome.text ?? ''
   const stderr = rec(end.outcome.result)['stderr']

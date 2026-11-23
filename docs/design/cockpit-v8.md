@@ -456,7 +456,7 @@ The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
 
 - **Fallback (no pane docked):** each finished turn gets one worked node above its answer (amendment 9's triggers).
 - **Docked:** a turn that wrote no answer text gets one worked node, below its `↗` rows and directly above its receipt, so the receipt tree reads node, then receipt. The `↗` rows draw as their calls return (7.10), before the node exists (screen 16). A turn with any answer text gets none.
-- Its counts are its own, not the receipt's: steps, agents and fixes (`23 steps · 3 agents · 1 fixed`); a turn with no agents and no fixes names its two largest step kinds instead (`7 steps · 6 shell · 1 edit`, screens 16, 31).
+- Its counts are its own, not the receipt's: steps, agents and fixes (`23 steps · 3 agents · 1 fixed`), each only when it is not zero; never a tally of step kinds (`7 steps`, screen 16).
 
 ### 7.14 Engine rows
 
@@ -1999,7 +1999,7 @@ The left (127 columns):
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
          48s ↗  committed   9f3e2b1 chore(deps): bump dev dependencies
-         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 6 shell · 1 edit
+         48s ◇  worked   ⣀⣤⣶⣿⣶⣤⣀   7 steps
              │
          48s ✓  DONE   ⣀⣤⣶⣿⣶⣤⣀   7 steps · 2 files · ↗ 9f3e2b1
 ```
@@ -3416,6 +3416,8 @@ One formatter for every path Cockpit shows:
 
 The `~` bug from the real sessions: a `~` path must never be resolved against the project, and a project path must never get a `~`. Test both directions, and paths in worktrees (`D:\Projects\ghostframe-<name>`), which are not inside `D:\Projects\ghostframe`.
 
+- Git Bash writes a Windows drive as `/d/…`; under a Windows project root it is that drive's path, so `/d/Projects/cockpit-live/src` reads `src`.
+
 ### 13.3 Notices off the left
 
 Cockpit's own informational notices (plugin loaded, settings read, a seat changed, a probe result) go to the debug log only: `$.ui.log(text, { to: 'debug' })`. On the left Cockpit draws only:
@@ -3471,7 +3473,7 @@ A step is **blocked** when a system refused it, not the tool and not the person:
 - the auto-mode classifier refused it;
 - the sandbox, a settings rule or a policy (the organization's ceiling) denied it.
 
-Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail line naming what refused it: `by a hook · <event> · <reason>`, `by a rule · <rule>`, `by the classifier`, `by the sandbox`, or `by a policy` for any other refusal that names neither a hook nor a rule (a permission mode's own deny). The hook's script and the classifier's text reach the plugin in no event, so neither is named unless the hook's reason says it. On the left they draw one `⊘  BLOCKED` row. Its `└` line saying what Claude did instead draws only when that is already known as the row draws; live it never is, since rows never change, so screen 13's `└ Claude switched to a branch instead.` shows only on the canvas. They count as `n blocked` in the receipt and the head card, never as failures. The step log gains a `blocked` state for this (amendment 9 noted it had none).
+Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail line naming what refused it: `by a hook · <event> · <reason>`, `by a rule · <rule>`, `by the classifier`, `by the sandbox`, or `by a policy` for any other refusal that names neither a hook nor a rule (a permission mode's own deny). The hook's script and the classifier's text reach the plugin in no event, so neither is named unless the hook's reason says it. On the left they draw one `⊘  BLOCKED` row. Its `└` line saying what Claude did instead (`└ instead  shell git status`) draws at the next step's own site, the first moment it is known, so the `⊘` row above it never changes; a refused step that Claude follows with no further step (it answers) has none. A rule's refusal names the statement of a joined command the rule matched (`rm -rf src` in `ls -la src && rm -rf src`), its path from the project root, and the rule alone (`by a rule · Bash(rm -rf:*)`), not the engine's `Permission to use …` sentence. A hook's names the script the hook ran and the hook's own message (`by a hook · guard-main.ps1 · pushing is blocked in this repo`), read from the engine's `… hook error: [command]: message`. They count as `n blocked` in the receipt and the head card, never as failures. The step log gains a `blocked` state for this (amendment 9 noted it had none).
 
 ### 13.8 `DENIED`
 
@@ -3491,7 +3493,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Negative answers read the exit code** (13.1). 13.1 asked for exit 1 "with nothing on stderr", but the engine hands an errored shell call back as one text, without stderr apart from stdout. So the exit code decides, and a non-empty `stderr` counts only when an outcome carries one. `git diff --quiet` joined `--exit-code`, and `test` and `[` read `no match`, since 13.1 offers only `no match` and `differs`.
 - **Blocked against denied** (13.7 now lists the settings rule and the organization's ceiling). A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
 - **The hook's script name** (7.10, 13.7). The verdict names the hook event (`PreToolUse`) and the reason, never the script, so screen 13's `guard-main.sh` shows only when the hook's reason says it.
-- **What Claude did instead** (7.10, 13.7). 13.7 drew the `└` line under `⊘ BLOCKED` whenever Claude did something else. It needs what Claude did next, which is not known when the row first draws, and rows never change, so it now draws only when already known; live, screen 13's `└ Claude switched to a branch instead.` does not draw.
+- **What Claude did instead** (7.10, 13.7). The `└` line under `⊘ BLOCKED` needs what Claude did next, which is not known when the row first draws, and rows never change. It draws instead at the next step's own site, `└ instead  <kind> <subject>`, the first moment it is known; a refused step Claude follows only with its answer has none. Screen 13's prose line `└ Claude switched to a branch instead.` is the canvas's wording.
 - **One clock is the engine turn's** (13.9). 13.9 said "the turn's start and end"; it is the engine turn's (`segmentStart` to its end). An agent's report turn splits a typed turn into two receipts, each with its own time, so the rule now reads "one receipt never shows two durations".
 - **Failure kinds** (13.1). v7's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not.
 - **The left's renderers live by who draws them.** Rows Cockpit owns (receipt, worked node, live line, event rows, slash rows, the failure card) are in `hooks/cockpit/v8/`; rows the transcript's sites draw (turn header, message cards, thought row, the answer's markdown, code, table, note and plan cards) are in `hooks/transcript/v8/`, since the transcript may read Cockpit but Cockpit may not read the transcript. Both build every row with `shared/look/spine.ts`, so the label, spine and text column line up.
@@ -3506,7 +3508,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Footnotes** (7.4). 7.4 said two per row; the second now sits at the 31st cell, as screens 01 and 23 draw it. Screen 20 puts them 3 cells apart; it is not a screen test here.
 - **The braille trace.** A trace's cells are levels 0 to 6, the cell rising or falling by the level before it (`⣠⣴⣾` up, `⣦⣷` down), coloured by section 2's trace steps. Live, steps are bucketed over the turn's time; the screen tests feed each screen's levels, since the canvas's traces are drawn by hand. The thought row's trace is the same fixed shape on every screen: only the duration is known (7.3 now says so).
 - **Receipt counts** (7.12). 7.12's list put `blocked` before `files`; screen 13 puts it after, so the list now follows the screens, and gained `n sources, m cited`, `n browser` and `n mcp`.
-- **The worked node's counts** (7.13). 7.13 said they were the receipt's; screens 16 and 31 draw others (`23 steps · 3 agents · 1 fixed`, `7 steps · 6 shell · 1 edit`), so the node now counts steps, agents and fixes, or names its two largest step kinds.
+- **The worked node's counts** (7.13). 7.13 said they were the receipt's; screens 16 and 31 draw others (`23 steps · 3 agents · 1 fixed`). The node counts steps, agents and fixes only. Screen 16 drew a kind tally (`7 steps · 6 shell · 1 edit`); the live check showed tallies such as `1 shell` or `2 fetch · 1 edit` read as noise, so screen 16 now reads `7 steps`.
 - **The failure card's rows** (7.8, not built as screen 03 draws them). Screen 03's per-test rows (path, `:line`, expected and received) and its count row's target need each runner's output parsed into tests; that parser is not written, so the live card has one row per failing key: the step's kind, subject and result. Screen 03's test feeds the per-test rows to the card renderer, which draws them as the screen does. 7.8 always ended the card with `→ Next:`; it now draws only when Claude's answer gives the next action, since nothing in the engine says it apart from the prose.
 - **`c copy` on the left** (7.5, 9.5). 7.5 and 9.5 bound `c` on a code card. A left row can't hold a hotkey without taking the key from the prompt, so the head strip is now a Button: a click copies the block, and `/copy code n` does the same by key (amendment 11).
 - **Docked failures** (7.8, 7.10). 13.1 draws failures on the left as the failure card when docked and as failure rows in fallback, so 7.10's `× Batch 6 tests` event row, also on screen 08, now draws in fallback only (not a screen test here).
