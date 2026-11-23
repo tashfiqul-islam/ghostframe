@@ -229,6 +229,29 @@ const isBlank = (row: readonly Part[] | undefined) =>
 /** A cited source as a footnote line names it (7.4): its number, and its host and path. */
 export type Footnote = { n: number; url: string }
 
+// A footnote line Claude wrote: `[1]: https://…` or `[1] https://…`, alone on its line, markdown around the URL.
+const FOOTNOTE_LINE = /^\s*\[(\d+)\]:?\s+[*_`<]*(https?:\/\/[^\s*_`>]+)[*_`>]*\s*$/
+
+/**
+ * The footnotes Claude wrote (7.4): its own `[n]` reference lines, taken out of the prose and drawn as footnote lines.
+ * A bare URL or a link is the answer's text and numbers nothing.
+ * @param text the answer's markdown
+ * @returns the prose without the reference lines, and the footnotes in number order
+ */
+export function claudeFootnotes(text: string): { body: string; notes: Footnote[] } {
+  const notes: Footnote[] = []
+  const kept = text.split('\n').filter(line => {
+    const m = FOOTNOTE_LINE.exec(line)
+
+    if (m === null) return true
+    notes.push({ n: Number(m[1]), url: m[2] ?? '' })
+
+    return false
+  })
+
+  return notes.length === 0 ? { body: text, notes } : { body: kept.join('\n').trimEnd(), notes: notes.toSorted((a, b) => a.n - b.n) }
+}
+
 /** The cells a footnote takes before the next one on its row. */
 const FOOTNOTE_CELLS = 31
 

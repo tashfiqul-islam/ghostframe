@@ -7,7 +7,8 @@ import { respond } from '../support/respond'
 
 // Phase 6: [ TODO ], [ FILES ] and [ SOURCES ] from the main loop's calls, through the real hooks.
 const URLS = ['https://docs.github.com/en/actions/workflow-syntax', 'https://bun.sh/docs/cli/publish', 'https://docs.sigstore.dev/cosign/overview/']
-const ANSWER = `Pin the workflow syntax [Workflow syntax](${URLS[0]}) and publish with [bun publish](${URLS[1]}).`
+// Claude's own footnotes (7.4): `[n]` in the prose and its `[n]: url` lines; a link of its own numbers nothing.
+const ANSWER = `Pin the workflow syntax [1] and publish with [bun publish](${URLS[1]}) [2].\n\n[1]: ${URLS[0]}\n[2]: ${URLS[1]}`
 
 function engine(on: On, clock: { now: number }) {
   on('clock.now', () => ({ value: clock.now }))
@@ -95,7 +96,7 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
   rows = await paneText($)
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 pages read {3}2 cited/))
-  expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(0, 20))).toEqual(['  ¹ docs.github.com ', '  ² bun.sh   bun pub', '  · docs.sigstore.de'])
+  expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(0, 20))).toEqual(['  ¹ docs.github.com ', '  ² bun.sh   bun.sh/', '  · docs.sigstore.de'])
 
   // The left numbers the same pages the same way: the prose marks and its Sources frame.
   const left = await $.ui.mount({
@@ -108,7 +109,7 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   const drawn = (await left.findAll({ type: 'Text' })).map(t => t.text)
   await left.unmount()
   // The prose's refs (7.4) and its footnote lines number the pages as the pane does.
-  expect(drawn).toContainEqual(expect.stringMatching(/Workflow syntax \[1\] and publish with bun publish \[2\]\./))
+  expect(drawn).toContainEqual(expect.stringMatching(/workflow syntax \[1\] and publish with bun publish \[2\]\./))
   expect(drawn).toContainEqual(expect.stringMatching(/^ {13}│  \[1\] docs\.github\.com\/en\/actions\/workflow-syntax {3}\[2\] bun\.sh\/docs\/cli\/publish *$/))
 
   // The next typed turn: files and pages start over; the list, not all done, stays.

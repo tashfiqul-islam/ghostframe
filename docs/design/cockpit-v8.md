@@ -324,7 +324,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 - **Task items:** `[x]` in ok, `[ ]` in dim.
 - **Quotes:** `▏` in `machine` at the start of each line, the text in `text`.
 - **Inline code and paths:** `textBright`, no background.
-- **Footnote refs** `[1]` in `machine`. The footnote lines go at the end of the answer, two per row, the second at the row's 31st cell (screens 01, 23): `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`.
+- **Footnote refs** `[1]` in `machine`: only the references Claude wrote, its `[n]` in the prose and its `[n]: url` (or `[n] url`) lines; Cockpit numbers no link or bare URL of its own, and a footnote shows its URL without markdown. The footnote lines go at the end of the answer, two per row, the second at the row's 31st cell (screens 01, 23): `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`.
 - Heading and list markers stay visible but dim. Backticks and `**` are dropped; their text draws in `textBright` and bold. No boxes around prose. The text column is 86 (screen 18).
 - Each text block arrives whole: the engine never streams (correction E). While Claude writes, only the live line shows.
 
@@ -587,7 +587,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 - A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`), cut from the end; else Claude's own link text for it; else its host and path (`example.com/missing-page`), never a label made up from the URL.
 - Cited pages first, with the footnote number the answer uses (`¹`–`⁴` in `machine`). Uncited pages follow with `·`. Host in `machine`, title in `text`, status at the right: `200` dim, a failure in `err` bold.
 - URLs dim under each row; `u` hides or shows them.
-- The numbers in the answer and in Sources are the same numbers. Cited pages re-sort to answer order at turn end only.
+- The numbers in the answer and in Sources are the same numbers: Claude's own footnotes (7.4). A page Claude linked without one is uncited (`·`). Cited pages re-sort to answer order at turn end only.
 - A failed page is a source problem, not a turn failure (amendment 6).
 - **Keys:** `enter` copy URL (no API opens a browser, amendment 13), `u` hide URLs, `c` copy, `1` timeline.
 

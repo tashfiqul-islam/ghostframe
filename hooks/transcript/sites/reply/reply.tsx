@@ -17,7 +17,7 @@ import { isStartRow } from '../../ledger/session'
 import { openerCaps, openerThought, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
 import { spineOnly } from '../../../shared/look/spine'
 import type { Part } from '../../../shared/parts'
-import { answerRows, footnoteRows } from '../../v8/markdown'
+import { answerRows, claudeFootnotes, footnoteRows } from '../../v8/markdown'
 import { thoughtRow } from '../../v8/turn'
 
 /** A thought shorter than this draws no thought row (7.3): it would only say `<1s`. */
@@ -181,17 +181,13 @@ export function registerReply(on: On): void {
     if (isQuietLeft) {
       const cells = leftCells(e)
       const thought = isOpener ? await openerThought($, o => inTurn(o.turn, place?.turn)) : 0
-      const byUrl = new Map(mine.map(c => [c.url, c.n]))
-      const marked = e.props.text.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (all, linked: string, url: string) => {
-        const n = byUrl.get(url)
-
-        return n === undefined ? all : `${linked} [${n}]`
-      })
+      // Footnotes are the `[n]` references Claude wrote (7.4); Cockpit numbers no link or bare URL of its own.
+      const { body, notes } = claudeFootnotes(e.props.text)
       const rows: Part[][] = [
         ...(thought >= THOUGHT_SHOWN_MS ? [thoughtRow(thought), spineOnly()] : []),
         ...(prev?.kind === 'tool' && prev.turn === place?.turn && thought < THOUGHT_SHOWN_MS ? [spineOnly()] : []),
-        ...answerRows(marked, { width: cells, hasLead: isOpener }),
-        ...(mine.length > 0 ? [spineOnly(), ...footnoteRows(mine, cells)] : []),
+        ...answerRows(body, { width: cells, hasLead: isOpener }),
+        ...(notes.length > 0 ? [spineOnly(), ...footnoteRows(notes, cells)] : []),
         ...(receipt === undefined ? [spineOnly()] : [])
       ]
 
