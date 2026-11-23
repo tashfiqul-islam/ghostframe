@@ -63,6 +63,9 @@ type Shown = {
   cited: TurnWork['cited']
 }
 
+// No turn yet (a fresh session): no head card, since there is no turn, state or time to give it (8.3's empty state).
+const isBeforeFirstTurn = (shown: Shown): boolean => shown.turnNo === 0 && shown.startedAt === null && shown.steps.length === 0
+
 function shownOf(i: PaneInput): Shown {
   const p = i.pinned
 
@@ -211,7 +214,7 @@ function timeline(i: PaneInput, shown: Shown, room: number): Line[] {
 
   if (steps.length === 0) {
     return plainLines(
-      shown.isLive
+      shown.isLive || isBeforeFirstTurn(shown)
         ? [
             [],
             [],
@@ -581,8 +584,9 @@ export function assemblePane(i: PaneInput): Pane {
       })
     ]
   } else {
-    const head =
-      i.pinned !== undefined
+    const head = isBeforeFirstTurn(shown)
+      ? []
+      : i.pinned !== undefined
         ? pinnedHead(
             {
               turnNo: i.log.turnNo,
