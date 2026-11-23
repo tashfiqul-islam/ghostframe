@@ -1,8 +1,10 @@
-// The live checks' session (tests/fixtures/live.ts) replayed through the engine: each turn's prompt, Claude's blocks
-// and calls in order, every call answering as it did, the slash commands typed after it, its agents' reports and the
-// report turns they started. Times are the session's own, from T0.
-import { AGENTS, TURNS } from '../fixtures/live'
-import type { LiveEvent, LiveTurn } from '../fixtures/live'
+// A recorded session replayed through the engine: each turn's prompt, Claude's blocks and calls in order, every call
+// answering as it did, the slash commands typed after it, its agents' reports and the report turns they started.
+// Times are the session's own, from T0. The live checks' session (tests/fixtures/live.ts) unless a test names
+// another (`MANUAL`, the person's own run, tests/fixtures/manual.ts).
+import * as live from '../fixtures/live'
+import type { LiveAgent, LiveEvent, LiveTurn } from '../fixtures/live'
+import * as manual from '../fixtures/manual'
 import { T0 } from './cockpit'
 import { text, use } from './docked'
 import type { Engine, On } from './engine'
@@ -17,16 +19,22 @@ const str = (v: unknown, otherwise: string): string => (typeof v === 'string' ? 
 /** HEAD after turn 1's `git commit -q`, as `git log -1 --format=%h%x09%s` prints it. */
 export const HEAD = '3c32406	fix: count width by grapheme cluster, not UTF-16 code unit'
 
-const calls = Object.values(TURNS).flatMap(t => t.events.filter((e): e is LiveEvent & Call => e.k === 'call'))
-const agentOf = (description: string) => AGENTS.find(a => a.meta['description'] === description)
+/** A recorded session: its typed turns, by the person's numbering, and the agents they launched. */
+export type Recorded = { turns: Record<number, LiveTurn>; agents: readonly LiveAgent[] }
+
+export const LIVE: Recorded = { turns: live.TURNS, agents: live.AGENTS }
+export const MANUAL: Recorded = { turns: manual.TURNS, agents: manual.AGENTS }
+
+const callsOf = (rec: Recorded) => Object.values(rec.turns).flatMap(t => t.events.filter((e): e is LiveEvent & Call => e.k === 'call'))
+const agentIn = (rec: Recorded, description: string) => rec.agents.find(a => a.meta['description'] === description)
 // A hook's refusal reaches the call as its error text: `PreToolUse:PowerShell hook error: [<command>]: <message>`.
 const HOOK = /^(PreToolUse:\S+) hook error: \[([^\]]+)\]: ([\s\S]*)$/
 
 /** What the engine answers a call with: the session's own outcome. */
-function outcome(c: Call): Record<string, unknown> {
+function outcome(rec: Recorded, c: Call): Record<string, unknown> {
   if (c.tool === 'Agent')
     return {
-      result: { status: 'async_launched', agentId: agentOf(String(c.input['description']))?.agentId ?? c.id, description: c.input['description'] },
+      result: { status: 'async_launched', agentId: agentIn(rec, String(c.input['description']))?.agentId ?? c.id, description: c.input['description'] },
       text: c.text ?? ''
     }
 
@@ -41,8 +49,10 @@ function outcome(c: Call): Record<string, unknown> {
  * @param on the test's `on`
  * @param clock the clock
  * @param placed whether the pane docks when opened
+ * @param rec the recorded session, the live checks' by default
  */
-export function liveEngine(on: On, clock: Clock, placed: boolean): void {
+export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded = LIVE): void {
+  const calls = callsOf(rec)
   let isPlaced = false
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
@@ -63,9 +73,10 @@ export function liveEngine(on: On, clock: Clock, placed: boolean): void {
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
-  on('agent.spawn', (_, e) => ({ model: 'opus', agentId: agentOf(e.description)?.agentId ?? `ag-${e.description}` }))
+  on('agent.spawn', (_, e) => ({ model: 'opus', agentId: agentIn(rec, e.description)?.agentId ?? `ag-${e.description}` }))
   on('agent.report', (_, e) => ({ text: e.text }))
   on('session.messages', () => ({ value: [] }))
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.run', () => ({ text: 'the engine`s command' }))
   // Git, as the session's repo answered: HEAD after turn 1's commit; no work tree otherwise.
   on('process.run', (_, e) => {
@@ -98,7 +109,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean): void {
     if (c === undefined) throw new Error('a call the fixture does not hold')
     clock.now = T0 + c.at + (c.ms ?? 0)
 
-    return outcome(c) as never
+    return outcome(rec, c) as never
   })
 }
 
@@ -142,10 +153,11 @@ const spawn = ($: Engine, c: Call) =>
  * @param clock the clock
  * @param n the turn's number, as the person numbered it
  * @param columns the terminal's width, for the slash commands
+ * @param rec the recorded session, the live checks' by default
  * @returns the turn's fixture
  */
-export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200): Promise<LiveTurn> {
-  const t = TURNS[n]
+export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200, rec: Recorded = LIVE): Promise<LiveTurn> {
+  const t = rec.turns[n]
 
   if (t === undefined) throw new Error(`no turn ${n} in the fixture`)
   clock.now = T0 + t.at
@@ -182,7 +194,7 @@ export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200
       // The session's third agent reported with no notification of its own: all three had reported by the turn's
       // last answer, so any the fixture never notified reports before it ends.
       if (i === lastEnd && segment > 0) {
-        for (const a of AGENTS) if (!reported.has(a.agentId)) await report(a.agentId)
+        for (const a of rec.agents) if (!reported.has(a.agentId)) await report(a.agentId)
       }
       await $.turn.complete({
         answer: str(answer?.['text'], ''),
@@ -220,8 +232,8 @@ export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200
 }
 
 /** The id the engine draws a turn's block under (`requestId`): its turn and its place among the turn's events. */
-export function blockRow(n: number, text: string): string {
-  const at = TURNS[n]?.events.findIndex(e => (e.k === 'text' || e.k === 'summary') && String(e['text']) === text) ?? -1
+export function blockRow(n: number, text: string, rec: Recorded = LIVE): string {
+  const at = rec.turns[n]?.events.findIndex(e => (e.k === 'text' || e.k === 'summary') && String(e['text']) === text) ?? -1
 
   if (at < 0) throw new Error(`turn ${n} has no block ${text.slice(0, 20)}`)
 
@@ -229,4 +241,5 @@ export function blockRow(n: number, text: string): string {
 }
 
 /** A turn's blocks of a kind, in order: its answers (`text`) or its thinking summaries (`summary`). */
-export const blocksOf = (n: number, kind: 'text' | 'summary'): string[] => (TURNS[n]?.events ?? []).filter(e => e.k === kind).map(e => String(e['text']))
+export const blocksOf = (n: number, kind: 'text' | 'summary', rec: Recorded = LIVE): string[] =>
+  (rec.turns[n]?.events ?? []).filter(e => e.k === kind).map(e => String(e['text']))
