@@ -83,6 +83,9 @@ export function noteRing(element: string | undefined): void {
   ring = element
 }
 
+/** The element the focus ring is on in the pane, as `ui.focus` last named it. */
+export const ringNow = (): string | undefined => ring
+
 /**
  * The view's counter; read while drawing, so the pane draws again when the view changes.
  * @param $ the engine interface
@@ -139,7 +142,7 @@ function missing(patch: readonly string[], row: { adds: number; dels: number } |
  * @param path the file, as the pane names it
  * @returns its rows, and what they leave out
  */
-async function fileView($: EngineInterface, path: string): Promise<{ patch: string[]; note?: string }> {
+export async function fileView($: EngineInterface, path: string): Promise<{ patch: string[]; note?: string }> {
   const pinned = await pinnedRecord($)
 
   if (pinned !== undefined) {

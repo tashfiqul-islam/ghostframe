@@ -2,8 +2,8 @@
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
 import { readDetails } from './keys/details'
-import { copiedNote, hasCopied, noteRing, noteViewed, readViewTick, tabNow, urlsShown, viewNow } from './keys/view'
-import { assemblePane } from './v8/assemble'
+import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
+import { assemblePane, firstHunk } from './v8/assemble'
 import { drawPaneV8 } from './v8/draw'
 import { INSPECTOR_KEYS, inspectorRows } from './v8/views'
 import { pluginVersion } from './version'
@@ -346,8 +346,14 @@ export function registerPane(on: On): void {
   })
 
   // The focus ring moved in the pane: `c` copies what it is on.
-  on('ui.focus', (_$, e, next) => {
-    if (e.component === 'Pane' && e.requestId === PANE) noteRing(e.element)
+  // On the Files tab a file row under the ring opens its first hunk in place (8.5), so a move onto or off one redraws.
+  on('ui.focus', ($, e, next) => {
+    if (e.component === 'Pane' && e.requestId === PANE) {
+      const was = ringNow()
+      noteRing(e.element)
+
+      if (tabNow() === 'files' && was !== e.element && [was, e.element].some(k => k?.startsWith('file:') === true)) $.ui.invalidate('ui.render')
+    }
 
     return next(e)
   }).catch((_$, e, next) => next(e)) // a ring that cannot be noted never stops the ring
@@ -495,6 +501,10 @@ export function registerPane(on: On): void {
       return drawPaneV8($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
     }
 
+    // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
+    const ringed = e.props.isFocused && tabNow() === 'files' ? ringNow() : undefined
+    const selectedPath = ringed?.startsWith('file:') === true ? ringed.slice('file:'.length) : undefined
+    const selectedFile = selectedPath === undefined ? undefined : { path: selectedPath, hunk: firstHunk((await fileView($, selectedPath)).patch) }
     const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
     const pane = assemblePane({
       width: bodyColumns,
@@ -513,6 +523,7 @@ export function registerPane(on: On): void {
       isUrlsShown: urlsShown(),
       viewed,
       version: pluginVersion(),
+      selectedFile,
       note: copiedNote(now)
     })
     return drawPaneV8($, e, pane.lines)

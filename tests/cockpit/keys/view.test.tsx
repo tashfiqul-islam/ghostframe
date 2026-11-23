@@ -469,3 +469,36 @@ test('Enter on a source copies its URL and says no key opens a browser; `c` on i
   await ui.press({ key: 'key-u' })
   await ui.unmount()
 })
+
+test('8.5: on the Files tab the file under the ring opens its first hunk in place; Enter still opens the full diff', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  await aTurn($)
+  const ui = await $.ui.mount(pane(true))
+  const ring = (element: string) => $.ui.focus({ component: 'Pane', requestId: 'cockpit', plugin: 'ghostframe', element, origin: { kind: 'person' } } as never)
+  const rows = async () => {
+    await ui.redraw()
+
+    return texts(ui)
+  }
+
+  await ui.press({ key: 'key-2' })
+  expect((await rows()).some(t => t.includes('@@'))).toBe(false)
+
+  // The ring on the file's row: its first hunk under it, the hunk's header and its lines, the old and the new.
+  await ring('file:hooks/shared/text.ts')
+  const open = await rows()
+  const at = open.findIndex(t => t.includes('hooks/shared/text.ts'))
+  expect(at).toBeGreaterThan(0)
+  expect(open.slice(at + 1).find(t => t.includes('@@'))).toMatch(/@@ 40,2 @@ +c copy/)
+  expect(open.some(t => /^ *40 {2}- old line/.test(t))).toBe(true)
+  expect(open.some(t => /^ *40 {2}\+ new line/.test(t))).toBe(true)
+
+  // Enter on the row opens the full diff (8.6); `b` goes back to the tab, and the ring off the row closes the hunk.
+  await ui.press({ key: 'file:hooks/shared/text.ts' })
+  expect((await rows()).some(t => /@@ 40,1 @@/.test(t))).toBe(true)
+  await ui.press({ key: 'key-b' })
+  await ring('nothing')
+  expect((await rows()).some(t => t.includes('@@'))).toBe(false)
+  await ui.unmount()
+})

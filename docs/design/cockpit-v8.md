@@ -553,7 +553,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 
 - A summary card: the count, the total `+n −n`, the baseline line.
 - One row per file: path (folder dim, file bright), `+n` `−n`, a 5-cell change bar (`■` in ok and err in proportion, the rest dim). `◇` at column 0 marks a file an agent changed (amendment 13).
-- The selected file's first hunk opens in place.
+- The selected file's first hunk opens in place: the file row the focus ring is on (Tab, the arrows, a click) draws its first hunk under it, `@@` header and `c copy` first. Moving the ring off closes it; Enter opens the full diff (8.6).
 - The diff is the file at turn start against now (amendment 8). Order is first-touched.
 - **Keys:** `enter` diff, `c` copy path, `1` timeline.
 
@@ -3518,7 +3518,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Short results for the edit tools' guards** (13.6): `not read` and `file changed`; any other error longer than 14 cells reads `failed`, as 13.6 says a result is never a sentence.
 - **ctrl+o uses the narrow text column under 110 columns** (6.1) and draws Cockpit's turn header and message card for a prompt, not the engine's row, so the full record reads like the quiet left.
 - **No output frame in ctrl+o.** A step line carries its result word and, for an edit, its diff card (7.17); a command's output is in the step's detail in the pane, not repeated on the left.
-- **The Files tab opens no hunk in place.** Enter on a file opens the full diff view (8.7, screen 28); screen 23's hunk under a Files row is drawn by its renderer and tested, but the live pane goes to the full diff, since the pane draws whole rows and the engine gives no in-place expansion.
+- **The selected file is the one under the focus ring** (8.5). The pane has no selection of its own; the engine raises `ui.focus` with the row's key each time the ring moves, so the Files tab draws the first hunk under the file the ring is on, and Enter still opens the full diff.
 - **The interrupted line draws when the next turn starts** (8.3, screen 06). Esc sends no event a row could draw from, and an interrupted turn raises no TurnDuration; but when the next prompt starts a turn, the step log knows the one before ended aborted or never ended, and keeps its number, steps, files and start for the pane. Its summary says `n files changed`, not the canvas's `renamed`: the step log knows a file changed, not how.
 - **`/steps n all` prints at most 20 rows**, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
 - **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.

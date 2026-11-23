@@ -35,6 +35,8 @@ export type PaneInput = {
   /** The agent whose conversation the engine has in view. */
   viewed: RosterAgent | undefined
   version: string
+  /** The Files tab's file under the focus ring and its first hunk (8.5), drawn in place under its row. */
+  selectedFile?: { path: string; hunk: readonly string[] } | undefined
   /** A brief note for the hint row (`copied`). */
   note?: string | undefined
 }
@@ -458,17 +460,31 @@ export function assemblePane(i: PaneInput): Pane {
       at += own
     }
   } else if (i.tab === 'files') {
-    const largest = shown.files
+    const files = shown.files
+    const hunkOf = (path: string) => (i.selectedFile?.path === path && i.selectedFile.hunk.length > 0 ? i.selectedFile.hunk : undefined)
     const rows = filesView(
-      largest.map(f => ({ path: f.path, adds: f.adds, dels: f.dels, isAgent: f.isAgent === true })),
+      files.map(f => ({
+        path: f.path,
+        adds: f.adds,
+        dels: f.dels,
+        isAgent: f.isAgent === true,
+        isSelected: i.selectedFile?.path === f.path,
+        hunk: hunkOf(f.path)
+      })),
       shown.turnNo,
       i.width
     )
+    // Each file's row opens it; the rows of a hunk open in place under it are plain.
+    const ids = files.flatMap(f => [`file:${f.path}`, ...Array.from({ length: hunkHeight(hunkOf(f.path)) }, () => undefined)])
 
     body = [
       ...plainLines(rows.slice(0, 5)),
-      ...rows.slice(5, 5 + largest.length).map((parts, k) => ({ parts, id: `file:${largest[k]?.path ?? ''}` })),
-      ...plainLines(rows.slice(5 + largest.length))
+      ...rows.slice(5, 5 + ids.length).map((parts, k) => {
+        const id = ids[k]
+
+        return id === undefined ? { parts } : { parts, id }
+      }),
+      ...plainLines(rows.slice(5 + ids.length))
     ]
   } else if (i.tab === 'sources') {
     const cited = shown.cited.map(c => c.url)
@@ -582,6 +598,24 @@ export function assemblePane(i: PaneInput): Pane {
     keys
   }
 }
+
+/**
+ * A patch's first hunk (8.5): its `@@` header and the rows up to the next one.
+ * @param patch the file's unified rows
+ * @returns the hunk, or none when the patch has no header
+ */
+export function firstHunk(patch: readonly string[]): string[] {
+  const from = patch.findIndex(l => l.startsWith('@@'))
+
+  if (from < 0) return []
+
+  const next = patch.findIndex((l, k) => k > from && l.startsWith('@@'))
+
+  return patch.slice(from, next < 0 ? patch.length : next)
+}
+
+/** How many rows a hunk open in place takes (8.5): the drawer's edges, its header row and one row per line. */
+const hunkHeight = (hunk: readonly string[] | undefined) => (hunk === undefined ? 0 : hunk.length + 2)
 
 /** A cited page's place: cited pages first, in the answer's order (8.7). */
 const rank = (cited: readonly string[], url: string) => (cited.includes(url) ? cited.indexOf(url) : cited.length)
