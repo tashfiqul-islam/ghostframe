@@ -45,3 +45,13 @@ test('5. turn 1: the first `bun test` failed and stays ×, though a later run fi
 
   expect(tests).toEqual([expect.stringMatching(/^ {2}× test bun test .* 2 of 3 *$/), expect.stringMatching(/^ {2}✓ test bun test .* 3 pass *$/)])
 })
+
+test('7. turn 1: the commit step reads `git commit …` and the head summary `↗ <sha>`', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 1)
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}↗ shell git commit -m "fix… .* 078b71c *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 failure → fixed · ↗ 078b71c *$/))
+  expect(rows.some(r => /git add|±/.test(r))).toBe(false)
+})

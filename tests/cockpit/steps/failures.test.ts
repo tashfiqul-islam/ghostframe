@@ -203,3 +203,11 @@ test('13.1: a test step keys on, and is named after, the statement that runs the
   expect(subjectCommand('Set-Content a.ts x; bun test src 2>&1 | Out-String', 'pwsh', true)).toBe('bun test src')
   expect(subjectOf('Bash', { command: joined }, PROJECT)).toBe('bun test')
 })
+
+test('7. a commit step is named after its commit, its message`s first line, never the `git add` before it (manual run, turn 1)', () => {
+  const hereString = "git add src/width.ts; git commit -m @'\nfix: count terminal cells\n\nbody\n'@; git log --oneline -2"
+
+  expect(subjectOf('PowerShell', { command: hereString }, PROJECT)).toBe('git commit -m "fix: count terminal cells"')
+  expect(subjectOf('Bash', { command: 'git add a.ts && git commit -q -m "fix: x" && git push' }, PROJECT)).toBe('git commit -q -m "fix: x"')
+  expect(subjectOf('Bash', { command: 'git -C sub commit -am "wip"' }, PROJECT)).toBe('git -C sub commit -am "wip"')
+})

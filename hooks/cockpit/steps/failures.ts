@@ -213,6 +213,35 @@ export function commitIn(command: string): { dir: string | undefined } | undefin
 }
 
 /**
+ * A commit step's subject (7.10, 13.4): its commit statement, never the `git add` before it, with the message's first
+ * line in place of a here-string: `git commit -m "fix: count cells"`.
+ * @param command the whole command, every line of it
+ * @returns the subject, or undefined when the command does not commit
+ */
+export function commitSubject(command: string): string | undefined {
+  const { command: rest } = stripCd(command)
+
+  for (const raw of statementsOf(rest, false)) {
+    const statement = raw.replace(PS_ASSIGNMENT, '').trim()
+
+    if (!COMMIT.test(statement) || /\s--dry-run\b/.test(statement)) continue
+
+    const flag = /\s(-[a-z]*m)\s+(@'|@"|"([^"]*)"|'([^']*)'|(\S+))/.exec(statement)
+
+    if (flag === null) return (statement.split('\n')[0] ?? '').replace(REDIRECTION, '').trim()
+
+    const isHereString = flag[2] === "@'" || flag[2] === '@"'
+    // A here-string's message is on the lines after its opener, wherever the statement split ends.
+    const after = rest.slice(rest.indexOf(raw) + raw.indexOf(flag[0]) + flag[0].length)
+    const said = isHereString ? (after.split('\n').find(l => l.trim() !== '') ?? '') : (flag[3] ?? flag[4] ?? flag[5] ?? '')
+
+    return `${statement.slice(0, flag.index).trim()} ${flag[1]} "${said.split('\n')[0]?.trim() ?? ''}"`
+  }
+
+  return undefined
+}
+
+/**
  * A hook's refusal as the engine reports it (13.7): the script the hook ran (its file name) and the message it gave.
  * @param text the refusal's text
  * @returns the script and message, or undefined when the text is not a hook's

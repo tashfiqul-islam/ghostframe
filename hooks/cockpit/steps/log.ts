@@ -372,7 +372,7 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
   const committed = steps.findLast(s => s.mark === '±')
   const facts = [
     ...(failures.length > 0 ? [`${plural(failures.length, 'failure')} → fixed`] : []),
-    ...(committed === undefined ? [] : [`± ${committed.result}`]),
+    ...(committed === undefined ? [] : [`↗ ${committed.result}`]),
     ...(shipped === undefined ? [] : [`↗ ${shipped.result}`])
   ]
 
