@@ -3,7 +3,7 @@
 import type { LogStep } from '../../../types'
 import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
-import { isOpen } from '../steps/log'
+import { isOpen, isShipMark } from '../steps/log'
 import type { Group, GroupGlyph, Tone } from './pane'
 
 /** A step with its time on the turn's clock: when it started and ended (undefined while it runs). */
@@ -26,8 +26,6 @@ export function titleOf(text: string): string {
 
 /** A result for the pane (5.7): the left's long forms shortened (`2 of 14 fail` reads `2 of 14`). */
 export const paneResult = (result: string): string => result.replace(/^(\d+ of \d+) fail$/, '$1')
-
-const SHIPPED = new Set(['↗', '±'])
 
 /**
  * The groups of a turn (8.3): a group per working sentence, its steps the ones after it up to the next sentence; steps
@@ -56,7 +54,7 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
     const blocked = own.find(s => s.step.state === 'blocked')
     const running = own.some(s => s.step.isRunning)
     const launch = own.find(s => s.step.kind === 'agent')
-    const shipped = own.findLast(s => SHIPPED.has(s.step.mark))
+    const shipped = own.findLast(s => isShipMark(s.step))
     const glyph: GroupGlyph = running
       ? 'live'
       : open !== undefined

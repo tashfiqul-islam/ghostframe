@@ -11,7 +11,7 @@ import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
 import { readFrame, readLog, readReceipts, readRoster } from './log'
 import { readWork } from './work'
-import { stepsAllLines } from './copy'
+import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
 import { FAILURE_ROWS } from './steps/log'
 import { blockedRow, deniedRow, moreRow } from './v8/events'
@@ -30,7 +30,6 @@ import { isOn } from './switch'
 import { noteUnfolded, unfolded } from './unfolded'
 import { noticeRow, sentenceRows } from './v8/events'
 import { stepLineRow } from './v8/left'
-import type { StepLine } from './v8/left'
 import { diffCard } from '../shared/look/code'
 import { clockTime } from '../shared/look/format'
 
@@ -216,10 +215,6 @@ export function noteView($: EngineInterface, isExpanded: boolean | undefined): v
   if (isOn()) noteUnfolded($, isExpanded)
 }
 
-/** A step's result tone on the left (5.7): err for a failure, ok for a pass, bright for a hash. */
-const stepTone = (s: LogStep): StepLine['tone'] =>
-  s.mark === '✕' ? 'err' : s.mark === '±' || s.mark === '↗' ? 'bright' : /\bpass\b/.test(s.result) ? 'ok' : 'dim'
-
 /**
  * A call's rows in the ctrl+o view (E.4, F.8): its step row, inset under the sentence that announced it, then its
  * diff (an edit or a write) or its output (a command, a test) in a frame. A launch of several agents is one step
@@ -244,7 +239,7 @@ export async function drawUnfoldedCall($: EngineInterface, e: RenderInput<'ToolU
   const detail = view.details.find(d => d.id === step.id)
   // A diff in place under an edit (screen 30); a command's output stays in the pane's step drawer.
   const below = detail !== undefined && detail.patch.length > 0 ? diffCard(detail.patch, step.subject, width) : []
-  const line = { kind: step.kind, subject: step.subject, result: step.result, tone: stepTone(step), ms: detail?.ms ?? undefined }
+  const line = stepLineOf(step, detail?.ms ?? undefined)
 
   return <ui.Box flexDirection="column">{drawRows(ui, [stepLineRow(line, width), ...below])}</ui.Box>
 }

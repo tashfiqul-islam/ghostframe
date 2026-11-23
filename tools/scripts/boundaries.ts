@@ -142,7 +142,7 @@ const PALETTES = new Set(['hooks/shared/look/palette.ts', 'hooks/shared/tokens.t
 // The folders Cockpit v8 draws from, where a status glyph is always GLYPH's (spec section 4), never a literal.
 const V8_FOLDERS = ['hooks/shared/look/', 'hooks/cockpit/v8/', 'hooks/transcript/v8/']
 const HEX = /['"`]#[0-9a-fA-F]{6}\b/
-const STATUS_GLYPH = /['"`][^'"`\n]*[✓×⊘◇◆●✕✗][^'"`\n]*['"`]/
+const STATUS_GLYPH = /['"`][^'"`\n]*[✓×⊘◇◆●✕✗↗▸◼±][^'"`\n]*['"`]/
 
 /**
  * Colour hexes outside the two palettes, and status glyph literals in v8's folders outside its glyph table.

@@ -1,4 +1,5 @@
 // The Cockpit pane (spec C.1, E.37; corrections A, B and K): its seat at the width rule, `/cockpit`, and its drawing.
+import { isFailedMark } from './steps/log'
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
 import { readDetails } from './keys/details'
@@ -469,14 +470,14 @@ export function registerPane(on: On): void {
     if (isInspector) {
       const steps = pinned?.steps ?? log.steps
       const rows = steps.map(s => ({
-        glyph: s.isRunning ? ('current' as const) : s.mark === '✕' ? ('failed' as const) : ('ok' as const),
+        glyph: s.isRunning ? ('current' as const) : isFailedMark(s) ? ('failed' as const) : ('ok' as const),
         kind: s.kind,
         subject: s.subject,
         result: s.isRunning ? 'running' : s.result,
-        tone: s.isRunning ? ('accent' as const) : s.mark === '✕' ? ('err' as const) : ('dim' as const),
+        tone: s.isRunning ? ('accent' as const) : isFailedMark(s) ? ('err' as const) : ('dim' as const),
         ms: details.find(d => d.id === s.id)?.ms ?? undefined
       }))
-      const failed = steps.filter(s => s.mark === '✕').length
+      const failed = steps.filter(isFailedMark).length
 
       // Every step (`s`): the card grows and the engine scrolls it; `b` and `s` go back.
       const isAll = view.kind === 'all'

@@ -2,6 +2,7 @@
 // turn into the transcript, and `/copy` gains `code n`, `link n`, `steps n`, `turn n` and `diff <path>` beside the
 // engine's own `/copy` (the last answer), each through `$.ui.copy`, each answered with one notice. Nothing on screen
 // changes. Wrong n or path: one notice saying what exists.
+import { isFailedMark, isShipMark } from './steps/log'
 import type { EngineInterface } from 'claude-code'
 
 import type { FileDiff, LogStep } from '../../types'
@@ -270,9 +271,15 @@ export async function copyFromCommand($: EngineInterface, args: string, columns:
   return undefined
 }
 
-/** A step as the left prints it (screens 22, 30): its kind, subject, result and tone, its own time. */
+/**
+ * A step as the left prints it (screens 22, 30, ctrl+o): its kind, subject, result and its own time; the result err
+ * for a failure, bright for what shipped (a hash), ok for a pass (5.7).
+ * @param step the step
+ * @param ms its own time, when its detail kept it
+ * @returns the line
+ */
 export function stepLineOf(step: LogStep, ms: number | undefined): StepLine {
-  const tone: StepLine['tone'] = step.mark === '✕' ? 'err' : step.mark === '±' || step.mark === '↗' ? 'bright' : /\bpass\b/.test(step.result) ? 'ok' : 'dim'
+  const tone: StepLine['tone'] = isFailedMark(step) ? 'err' : isShipMark(step) ? 'bright' : /\bpass\b/.test(step.result) ? 'ok' : 'dim'
 
   return { kind: step.kind, subject: step.subject, result: step.result, tone, ms }
 }
