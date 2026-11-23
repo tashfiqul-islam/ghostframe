@@ -42,6 +42,11 @@ export type PaneInput = {
   selectedFile?: { path: string; hunk: readonly string[] } | undefined
   /** The selected file's counts from its own diff (baseline against now), the one its hunk shows: they always agree. */
   diffCounts?: ReadonlyMap<string, { adds: number; dels: number }> | undefined
+  /**
+   * The turn a rewind left as the last, shown in place of the rewound one (7.1); null when none remains. Absent
+   * when no rewind took the shown turn.
+   */
+  remains?: TurnRecord | null | undefined
   /** A brief note for the hint row (`copied`). */
   note?: string | undefined
 }
@@ -83,7 +88,10 @@ const hostPath = (url: string): string =>
     .replace(/\/$/, '')
 
 function shownOf(i: PaneInput): Shown {
-  const p = i.pinned
+  if (i.pinned === undefined && i.remains === null)
+    return { turnNo: 0, steps: [], startedAt: null, durationMs: 0, isLive: false, isCut: false, files: [], sources: [], cited: [] }
+
+  const p = i.pinned ?? i.remains ?? undefined
 
   if (p !== undefined)
     return {

@@ -10,9 +10,14 @@ import { blockRow, blocksOf, liveEngine, liveTurn, MANUAL } from '../support/liv
 const LONG = { ...ON, timeoutMs: 120_000 }
 
 /** The engine for the manual run, its session started in the run's project, the pane docked at 200 columns or not. */
-async function manualSession($: Engine, on: Parameters<typeof liveEngine>[0], isDocked: boolean): Promise<{ now: number }> {
+async function manualSession(
+  $: Engine,
+  on: Parameters<typeof liveEngine>[0],
+  isDocked: boolean,
+  gone: ReadonlySet<string> = new Set()
+): Promise<{ now: number }> {
   const clock = { now: T0 }
-  liveEngine(on, clock, isDocked, MANUAL)
+  liveEngine(on, clock, isDocked, MANUAL, gone)
   await $.session.start({ cwd: String.raw`D:\Projects\cockpit-live`, surface: 'terminal', isInteractive: true } as never)
   // The session's start seats the pane where it docks; its first draw places it.
   if (isDocked) await (await $.ui.mount(PANE)).unmount()
@@ -150,3 +155,28 @@ test(
     expect(left.at(-1)).toMatch(/×  FAILED/)
   }
 )
+
+test('18. a rewind took turn 10 out: the pane shows turn 9, turn 10 leaves history, and the next turn is TURN 10 again', LONG, async ($, on) => {
+  const gone = new Set<string>()
+  const clock = await manualSession($, on, true, gone)
+  await turns($, clock, 10)
+  expect((await paneRows($)).some(r => /TURN 10 /.test(r))).toBe(true)
+
+  // The rewind: turn 10's rows leave the conversation (its prompt and its answer).
+  const t10 = MANUAL.turns[10]
+  gone.add(t10?.row ?? '')
+  for (const [i, e] of (t10?.events ?? []).entries()) if (e.k === 'text') gone.add(`t10-b${i}`)
+  // The pane looks for a rewind at most every 1.5 s (wall clock).
+  const until = Date.now() + 1_600
+
+  while (Date.now() < until) await Promise.resolve()
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}▐ . [A-Z ]+ ▌ {2}TURN 9 /))
+  expect(rows.some(r => /TURN 10\b/.test(r))).toBe(false)
+
+  // The next typed turn follows the last that remains: TURN 10 again, not 11.
+  await $.prompt.submit({ text: 'say hello', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'say hello', turnId: 't11' })
+  expect(await paneRows($)).toContainEqual(expect.stringMatching(/^ {2}▐ ● LIVE ▌ {2}TURN 10 /))
+})

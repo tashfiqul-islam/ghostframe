@@ -226,6 +226,16 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
 }
 
 /**
+ * Turns a rewind took out of the conversation leave history (7.1): the session's copy at once, the store's at the
+ * next turn's write, which starts from the session's copy.
+ * @param $ the engine interface
+ * @param turnNos the turns' numbers
+ */
+export async function dropTurns($: EngineInterface, turnNos: readonly number[]): Promise<void> {
+  await update($, history, list => list.filter(r => !turnNos.includes(r.turnNo)))
+}
+
+/**
  * The session's turns; read while drawing.
  * @param $ the engine interface
  * @returns the turns, oldest first

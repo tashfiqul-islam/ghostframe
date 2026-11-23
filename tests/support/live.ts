@@ -50,8 +50,9 @@ function outcome(rec: Recorded, c: Call): Record<string, unknown> {
  * @param clock the clock
  * @param placed whether the pane docks when opened
  * @param rec the recorded session, the live checks' by default
+ * @param gone rows a rewind has taken out of the conversation: `$.session.messages({ after })` finds none of them
  */
-export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded = LIVE): void {
+export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded = LIVE, gone: ReadonlySet<string> = new Set()): void {
   const calls = callsOf(rec)
   let isPlaced = false
   on('clock.now', () => ({ value: clock.now }))
@@ -75,7 +76,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded 
   on('turn.complete', (_, e) => ({ text: e.answer }))
   on('agent.spawn', (_, e) => ({ model: 'opus', agentId: agentIn(rec, e.description)?.agentId ?? `ag-${e.description}` }))
   on('agent.report', (_, e) => ({ text: e.text }))
-  on('session.messages', () => ({ value: [] }))
+  on('session.messages', (_, e) => ({ value: gone.has(String((e as { after?: unknown }).after)) ? (undefined as never) : [] }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('command.run', () => ({ text: 'the engine`s command' }))

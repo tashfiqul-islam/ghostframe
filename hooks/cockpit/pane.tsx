@@ -10,7 +10,7 @@ import { countsOf, INSPECTOR_KEYS, inspectorRows } from './v8/views'
 import { pluginVersion } from './version'
 import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
-import { readLog, readRoster, readSecond } from './log'
+import { noteRewind, readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
 import { answered } from './commands'
 import { isOn, noticeSink, OFF_NOTE, readEnvOnce } from './switch'
@@ -477,6 +477,9 @@ export function registerPane(on: On): void {
 
     const pinNo = await readPin($)
     const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
+    // A rewind that took the shown turn out of the conversation: the pane shows the last turn that remains (7.1).
+    const rewound = log.isTurnRunning ? new Set<number>() : await noteRewind($)
+    const remains = rewound.has(log.turnNo) ? ((await readHistory($)).findLast(r => !rewound.has(r.turnNo)) ?? null) : undefined
     const isInspector = placement === 'inline' && askedInline === 'steps'
     const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
     const viewedId = e.props.view.agentId
@@ -540,6 +543,7 @@ export function registerPane(on: On): void {
       details,
       flow: await readFlow($),
       pinned,
+      remains,
       view,
       tab: tabNow(),
       isUrlsShown: urlsShown(),

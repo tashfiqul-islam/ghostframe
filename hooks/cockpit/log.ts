@@ -24,7 +24,7 @@ import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
-import { loadHistory, saveTurn, setPin } from './history/store'
+import { dropTurns, loadHistory, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
@@ -107,7 +107,10 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
   if (at === undefined) {
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
-    await update($, stepLog, log => newTurn(log, turn, at))
+    // A rewind took the last turns out: they leave first, and the new turn follows the last that remains (7.1).
+    await applyRewind($)
+    await update($, stepLog, log => newTurn({ ...log, turnNo: lastRemaining(log) }, turn, at))
+    rewound.clear()
     // A typed prompt means the person has moved on: the pin goes (E.45), and the new turn's files are read afresh.
     await setPin($, null, 0)
     resetSnapshots()
@@ -541,6 +544,89 @@ export async function readLog($: EngineInterface): Promise<StepLog> {
  */
 export async function readReceipts($: EngineInterface): Promise<Receipt[]> {
   return read($, receipts)
+}
+
+// The typed turns a rewind took out of the conversation, by number (7.1): their answer rows are gone. Found while
+// the pane draws idle, at most every REWIND_CHECK_MS, since no event says a rewind happened.
+// shortcut: kept in the module, so a reload forgets them; the receipts and history they left stay left.
+const rewound = new Set<number>()
+let rewindCheckedAt = Number.NEGATIVE_INFINITY
+const REWIND_CHECK_MS = 1_500
+const REWIND_DEPTH = 5
+
+/**
+ * Whether a row has left the main conversation: `$.session.messages` reads on from no row that was rewound.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it has
+ */
+async function isGone($: EngineInterface, row: string): Promise<boolean> {
+  return !Array.isArray(await $.session.messages({ after: row }))
+}
+
+/**
+ * The typed turns a rewind took out, newest first until one still in the conversation: they leave the receipts and
+ * history, and the pane shows the last turn that remains.
+ * @param $ the engine interface
+ * @returns the rewound turns' numbers
+ */
+export async function noteRewind($: EngineInterface): Promise<ReadonlySet<number>> {
+  // The wall clock, not the engine's: a throttle, not a time anything is drawn with.
+  const now = Date.now()
+
+  if (now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
+  rewindCheckedAt = now
+  const list = await read($, receipts)
+  // The newest few turns, read together; a rewind further back is found 5 turns at a time, at the checks after.
+  const turnNos = [...new Set(list.map(r => r.turnNo))]
+    .filter(n => !rewound.has(n))
+    .toSorted((a, b) => b - a)
+    .slice(0, REWIND_DEPTH)
+  let gone: number[] = []
+
+  try {
+    // A turn's last answer row stands for it; a turn that wrote none cannot be told apart, and ends the run.
+    const answers = turnNos.map(n => list.findLast(r => r.turnNo === n && r.answer !== '')?.answer)
+    const isGoneEach = await Promise.all(answers.map(async a => (a === undefined ? false : isGone($, a))))
+    const stays = isGoneEach.indexOf(false)
+
+    gone = turnNos.slice(0, stays < 0 ? turnNos.length : stays)
+  } catch (error: unknown) {
+    // The engine would not read the conversation: no rewind is told this time, and the pane draws as it was.
+    $.ui.log(`cockpit: rewind not checked: ${String(error)}`, { to: 'debug' })
+
+    return rewound
+  }
+  if (gone.length === 0) return rewound
+
+  for (const n of gone) rewound.add(n)
+  $.ui.log(`cockpit: turns ${gone.join(', ')} rewound out of the conversation`, { to: 'debug' })
+  // A draw reads state and never writes it: the rewound turns leave the receipts and history just after it.
+  $.clock.after(0, () => void applyRewind($))
+
+  return rewound
+}
+
+/**
+ * The rewound turns leave the receipts and history; the next typed turn takes the number after the last that remains.
+ * @param $ the engine interface
+ */
+export async function applyRewind($: EngineInterface): Promise<void> {
+  if (rewound.size === 0) return
+
+  await update($, receipts, l => l.filter(r => !rewound.has(r.turnNo)))
+  await dropTurns($, [...rewound])
+}
+
+/** The last turn a rewind left: the number the next typed turn follows, or the log's own when no rewind took it. */
+const lastRemaining = (log: StepLog): number => {
+  if (!rewound.has(log.turnNo)) return log.turnNo
+
+  let n = log.turnNo
+
+  while (n > 0 && rewound.has(n)) n--
+
+  return n
 }
 
 /**
