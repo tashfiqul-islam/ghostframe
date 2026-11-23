@@ -102,3 +102,16 @@ test('13. turn 1`s Files tab: one file, `src/width.ts +2 −2`, no `@` file from
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}src\/width\.ts +\+2 {3}−2 {2}■+ *$/))
   expect(rows.some(r => /^ {4}@ /.test(r))).toBe(false)
 })
+
+test('16. turn 6`s three agents, started from one message 2.5 s apart: `launched together at HH:MM:SS`', LONG, async ($, on) => {
+  const clock = await manualSession($, on, true)
+  await turns($, clock, 6)
+  const pane = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await pane.press({ key: 'key-5' })
+  await pane.redraw()
+  const rows = (await pane.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
+  await pane.unmount()
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}launched together at \d\d:\d\d:\d\d *$/))
+  expect(rows.some(r => /one by one/.test(r))).toBe(false)
+})

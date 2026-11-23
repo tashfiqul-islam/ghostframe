@@ -565,7 +565,11 @@ export function assemblePane(i: PaneInput): Pane {
   } else if (i.tab === 'agents') {
     const mains = i.roster.filter(a => a.parent === null)
     const first = mains[0]
-    const together = first !== undefined && mains.every(a => Math.abs(a.startedAt - first.startedAt) < 2_000)
+    // Together (8.9): one launch step holds them all (one message's calls, which can stream seconds apart), or they
+    // started within 2 s of each other.
+    const launches = [...i.log.steps, ...(i.log.prev?.steps ?? [])].filter(s => s.kind === 'agent')
+    const isOneLaunch = launches.some(s => mains.every(a => (s.calls ?? [s.id]).includes(a.call)))
+    const together = first !== undefined && (isOneLaunch || mains.every(a => Math.abs(a.startedAt - first.startedAt) < 2_000))
     const rows = agentsView(
       mains.map(a => {
         const isRunning = a.state === 'running'
