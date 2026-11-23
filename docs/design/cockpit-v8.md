@@ -188,19 +188,19 @@ Durations are `machineDim`. A live elapsed time in a label is `accent`, and `war
 
 ### 5.5 State words
 
-| Word          | Colour  | Where                                             |
-| ------------- | ------- | ------------------------------------------------- |
-| `DONE`        | ok      | receipt, pane pill                                |
-| `FAILED`      | err     | receipt, pane pill                                |
-| `LIVE`        | accent  | pane pill                                         |
-| `NEEDS YOU`   | warn    | the left's waiting row, pane pill                 |
-| `WAITING`     | warn    | rate limit, API retry, a receipt while agents run |
-| `BLOCKED`     | warn    | `⊘` rows                                          |
-| `DENIED`      | err     | you refused a permission                          |
-| `INTERRUPTED` | muted   | the pane's line for an interrupted turn           |
-| `QUEUED`      | muted   | at the right end of a queued card                 |
-| `PLAN`        | machine | plan card label, closing node, pane pill          |
-| `AGENT`       | agent   | pane pill while an agent is in view               |
+| Word          | Colour  | Where                                    |
+| ------------- | ------- | ---------------------------------------- |
+| `DONE`        | ok      | receipt, pane pill                       |
+| `FAILED`      | err     | receipt, pane pill                       |
+| `LIVE`        | accent  | pane pill                                |
+| `NEEDS YOU`   | warn    | the left's waiting row, pane pill        |
+| `WAITING`     | warn    | rate limit, API retry                    |
+| `BLOCKED`     | warn    | `⊘` rows                                 |
+| `DENIED`      | err     | you refused a permission                 |
+| `INTERRUPTED` | muted   | the pane's line for an interrupted turn  |
+| `QUEUED`      | muted   | at the right end of a queued card        |
+| `PLAN`        | machine | plan card label, closing node, pane pill |
+| `AGENT`       | agent   | pane pill while an agent is in view      |
 
 Other capitals: `TURN`, `NOTE`, the code language (`YAML`, `TS`), `STEPS`, `ALL STEPS`, `PINNED` and the tab names. Everything else is sentence case. Step titles in the pane ("Waiting for CI") are sentences, not state words. The engine's own rows keep the engine's words.
 
@@ -441,7 +441,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 ```
 
 - Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim, in the order the screens draw them: steps, fixed, still failing, files, blocked (screen 13), sources (`n sources, m cited` when not every one is cited), `n agents`, `n browser` and `n mcp`, then `↗` and the commit hash or PR.
-- **Waiting** (background agents still running after the answer): `!` and `WAITING` in warn, the counts ending `n agents running`. The pane head's summary then reads `Waiting on n agents`.
+- **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the live line says `Waiting on n agents` with a `◇` per agent, and the pane head's summary says the same. The receipt draws once, under the answer of the turn's last engine turn that ends with no agent running, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
 - Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
@@ -3478,7 +3478,7 @@ When the person refuses a permission, the step is **denied**: a row on the left 
 
 ### 13.9 One clock
 
-The receipt's label, the pane head's duration and range, the live line's elapsed time and `/steps` all read the turn's time from one source: the step log's start and end of the engine turn. For a typed turn that is the prompt to the end. A report turn an agent started has its own receipt with its own time, so one receipt never shows two durations.
+The receipt's label, the pane head's duration and range, the live line's elapsed time and `/steps` all read the turn's time from one source: the step log's typed turn, its prompt to its end. A typed turn whose agents' reports start engine turns of their own is still one turn with one receipt and one time.
 
 ## 14. Build decisions (Phase 12)
 
@@ -3491,7 +3491,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **Blocked against denied** (13.7 now lists the settings rule and the organization's ceiling). A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <event> · <reason>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
 - **The hook's script name** (7.10, 13.7). The verdict names the hook event (`PreToolUse`) and the reason, never the script, so screen 13's `guard-main.sh` shows only when the hook's reason says it.
 - **What Claude did instead** (7.10, 13.7). The `└` line under `⊘ BLOCKED` needs what Claude did next, which is not known when the row first draws, and rows never change. It draws instead at the next step's own site, `└ instead  <kind> <subject>`, the first moment it is known; a refused step Claude follows only with its answer has none. Screen 13's prose line `└ Claude switched to a branch instead.` is the canvas's wording.
-- **One clock is the engine turn's** (13.9). 13.9 said "the turn's start and end"; it is the engine turn's (`segmentStart` to its end). An agent's report turn splits a typed turn into two receipts, each with its own time, so the rule now reads "one receipt never shows two durations".
+- **One clock is the typed turn's, with one receipt** (7.12, 13.9). Phase 12 first gave each engine turn its own receipt and time, so turn 7 (three agents) drew `16s ! WAITING`, `11s ! WAITING` and `35s × FAILED`. A typed turn now has one receipt, drawn when its last engine turn ends with no agent running, its time the whole turn's; until then the live line says what it waits on.
 - **Failure kinds** (13.1). v7's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not.
 - **The left's renderers live by who draws them.** Rows Cockpit owns (receipt, worked node, live line, event rows, slash rows, the failure card) are in `hooks/cockpit/v8/`; rows the transcript's sites draw (turn header, message cards, thought row, the answer's markdown, code, table, note and plan cards) are in `hooks/transcript/v8/`, since the transcript may read Cockpit but Cockpit may not read the transcript. Both build every row with `shared/look/spine.ts`, so the label, spine and text column line up.
 - **Cards may run into their right pad** (6.1). 6.1 kept a 2-cell inner pad on every card row; screen 01's note ends on the card's last cell, so a row with nothing held at its right end now may use the right pad.
@@ -3539,7 +3539,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **`/steps n all` prints at most 20 rows** (7.15). 7.15 set no limit; it now stops at 20, then `… n more`, so one command never floods the transcript; the pane's every-step view shows the rest.
 - **The inline inspector's keys** are its own card's key row (8.13); the hint row is not drawn under it, and only the keys it lists are bound.
 - **The pinned head's state pill** (8.2). 8.2 showed the top line as `● LIVE` only; it is the live turn's state (`LIVE`, `DONE` or `FAILED`), on its own row above `PINNED`, so a pinned past turn never hides what the session is doing now.
-- **`Waiting on n agents`** (7.12, 8.2) is the head card's summary while background agents run after the turn's answer, matching the left's `WAITING` receipt, so the head and the left say the same. 7.12 and 5.5 now describe that receipt.
+- **`Waiting on n agents`** is the head card's summary and the live line's while background agents run after the turn's answer, so the pane and the left say the same; no receipt draws until they have reported (7.12).
 - **The prompt's rows and the turn's stamp are found apart.** The prompt site draws the header and card from the message alone; which turn number it carries comes from the ledger's stamp, so a row drawn again keeps its number (the turn rule, amendment 10).
 - **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
 - **The `/copy` phrasing** follows 7.15: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
