@@ -40,7 +40,11 @@ export const paneResult = (result: string): string => result.replace(/^(\d+ of \
  */
 export function groupsOf(steps: readonly TimedStep[], sentences: readonly Sentence[], now: number, details: ReadonlyMap<string, string> = new Map()): Group[] {
   const all = steps.map(s => s.step)
-  const cuts = [...new Set([0, ...sentences.map(s => s.at).filter(at => at > 0 && at < steps.length)])].toSorted((a, b) => a - b)
+  // A group starts at each working sentence; with none, every step is its own row (8.3). An agent launch is a group
+  // of its own: a main-loop step after it is Claude's, never its agents', so it starts the next group.
+  const bySentence = sentences.length === 0 ? steps.map((_, i) => i) : sentences.map(s => s.at)
+  const byLaunch = steps.flatMap((s, i) => (s.step.kind === 'agent' ? [i, i + 1] : []))
+  const cuts = [...new Set([0, ...bySentence, ...byLaunch].filter(at => at >= 0 && at < steps.length))].toSorted((a, b) => a - b)
 
   return cuts.flatMap((from, k): Group[] => {
     const to = cuts[k + 1] ?? steps.length
@@ -50,7 +54,6 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
     if (first === undefined) return []
 
     const said = sentences.findLast(s => s.at <= from)
-    const title = said !== undefined && (said.at === from || k > 0) ? titleOf(said.text) : `${first.step.kind} ${first.step.subject}`
     const open = own.find(s => isOpen(all, all.indexOf(s.step)))
     const blocked = own.find(s => s.step.state === 'blocked')
     const running = own.some(s => s.step.isRunning)
@@ -68,6 +71,9 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
               ? 'shipped'
               : 'ok'
     const decisive = open ?? blocked ?? shipped ?? own.at(-1) ?? first
+    // A group with no sentence of its own is named by the step that decides it: the failing one, if one fails.
+    const title =
+      said !== undefined && (said.at === from || (k > 0 && launch === undefined)) ? titleOf(said.text) : `${decisive.step.kind} ${decisive.step.subject}`
     const tone: Tone = running ? 'accent' : open !== undefined ? 'err' : blocked !== undefined ? 'warn' : 'dim'
     const result = running
       ? 'running'

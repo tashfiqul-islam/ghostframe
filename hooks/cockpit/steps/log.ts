@@ -393,10 +393,13 @@ export function endTurn(log: StepLog, engineMs: number, isAborted = false, ended
   const isCut = (s: LogStep) => s.isRunning && (isAborted || s.kind !== 'agent')
   const steps = log.steps.map(s => (isCut(s) ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
   const workedMs = log.workedMs + segmentMs
-  // One clock (13.9): an engine turn's time is its own start to its end (`segmentMs`), for its receipt, the pane head,
-  // the live line and `/steps` alike. A typed turn's first engine turn starts at the prompt, so for a turn no agent's
-  // report carried on, that is the typed turn's time; a report turn's receipt and the head after it say its own.
-  const last: LastTurn = { ...verdict(steps, isAborted), durationMs: segmentMs, endedAt: log.segmentStart === null ? null : log.segmentStart + segmentMs }
+  // One clock (13.9): the typed turn's time, its prompt to this end, for its one receipt, the pane head and `/steps`
+  // alike; an agent's report turn carries the typed turn on, so its end is the typed turn's end so far.
+  const last: LastTurn = {
+    ...verdict(steps, isAborted),
+    durationMs: turnEnd ?? segmentMs,
+    endedAt: log.segmentStart === null ? null : log.segmentStart + segmentMs
+  }
 
   return { ...log, steps, segmentMs, workedMs, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
 }
@@ -435,12 +438,12 @@ export function clearAgentWork(log: StepLog, counted: StepLog['agentWork']): Ste
 }
 
 /**
- * A finished engine turn's receipt (E.32): its state, and its own steps only (a turn its agents' reports started
- * borrows nothing from the typed turn before it): their count, failures and how many were fixed, files changed,
- * the last commit, the failures left open, and its time. `waiting` while `agents` background agents still run.
+ * A typed turn's one receipt (7.12): written when its last engine turn ends with no agent running, it counts the
+ * whole turn from its header: every step (the report turns' too), the agents its launches started, failures and how
+ * many were fixed, files changed, the last commit, the failures left open, and the turn's time.
  */
-export function receiptOf(log: StepLog, agents = 0): Receipt {
-  const from = Math.max(0, log.segmentFrom - log.dropped)
+export function receiptOf(log: StepLog): Receipt {
+  const from = 0
   const all = log.steps
   const counts = failureCounts(all, from)
   // One open row per key (13.1), its latest attempt's.
@@ -458,24 +461,25 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
 
   for (const s of steps) kinds[s.kind] = (kinds[s.kind] ?? 0) + 1
 
-  // The trace (7.12): the steps bucketed over the engine turn's own time, one cell per bucket, 3 to 12 cells.
-  const from0 = log.segmentStart === null || log.startedAt === null ? 0 : log.segmentStart - log.startedAt
+  // One clock (13.9): the typed turn's own time, its header to its end, the time the pane head shows.
+  const durationMs = log.last?.durationMs ?? log.workedMs
+  // The trace (7.12): the steps bucketed over that time, one cell per bucket, 3 to 12 cells.
   const levels = levelsOf(
-    steps.map(s => s.clock - from0),
-    log.segmentMs,
+    steps.map(s => s.clock),
+    durationMs,
     Math.max(3, Math.min(12, steps.length))
   )
   const pr = steps.findLast(s => s.mark === '↗' && /^PR #\d+$/.test(s.result))?.result
   const isCut = log.last?.state === 'interrupted'
-  const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'
+  const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : 'done'
 
   return {
     turn: log.turn,
     turnNo: log.turnNo,
     answer: '',
     state,
-    agents: state === 'waiting' ? agents : 0,
-    steps: Math.max(0, all.length + log.dropped - log.segmentFrom),
+    agents: 0,
+    steps: all.length + log.dropped,
     failures: counts.failed.length,
     fixed: counts.failed.length - counts.open.length,
     blocked: steps.filter(s => s.state === 'blocked').length,
@@ -487,7 +491,6 @@ export function receiptOf(log: StepLog, agents = 0): Receipt {
     kinds,
     shipped: steps.findLast(s => s.mark === '±')?.result ?? pr ?? '',
     open,
-    // One clock (13.9): the same time the pane head shows for this turn.
-    durationMs: log.segmentMs
+    durationMs
   }
 }

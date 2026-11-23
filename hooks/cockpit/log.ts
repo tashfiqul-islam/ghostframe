@@ -329,12 +329,17 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
   const ended = await read($, stepLog)
-  // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
-  const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
-  const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
-  await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
-  // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
-  await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
+
+  // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none, and the
+  // live line keeps saying what it waits on; the one that ends with none running writes the whole turn's.
+  if (waiting === 0) {
+    // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
+    const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
+    const receipt = { ...receiptOf(ended), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
+    await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+    // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
+    await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
+  }
 
   if (anyRunning(await read($, roster))) startTimers($, false)
   else stopTimers()

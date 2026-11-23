@@ -133,20 +133,21 @@ async function run($: Engine, clock: { now: number }, upTo: number) {
   for (const stage of stages.slice(0, upTo)) await stage()
 }
 
-test('1. every turn that answered, report turns included, ends with exactly one receipt; the footer draws none', ON, async ($, on) => {
+test('1. a typed turn has exactly one receipt, under the answer of its last engine turn, once no agent runs (7.12)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
   await run($, clock, 4)
 
-  for (const answer of [
-    'Three agents launched.',
-    'Read switch agent done soon; draw.tsx: 25 lines.',
-    'All three done: 43, 42, 25.',
-    'Parent launched.',
-    'It is 42.'
-  ]) {
-    expect(await receiptsUnder($, answer)).toHaveLength(1)
+  // While its agents ran, an engine turn's answer drew no receipt; the turn's one receipt is under its last answer.
+  for (const [answer, n] of [
+    ['Three agents launched.', 0],
+    ['Read switch agent done soon; draw.tsx: 25 lines.', 0],
+    ['All three done: 43, 42, 25.', 1],
+    ['Parent launched.', 0],
+    ['It is 42.', 1]
+  ] as const) {
+    expect(await receiptsUnder($, answer)).toHaveLength(n)
   }
 
   // The engine's one footer for both report turns (12s, matching neither) draws nothing.
@@ -154,16 +155,17 @@ test('1. every turn that answered, report turns included, ends with exactly one 
   await docked.unmount()
 })
 
-test('2. a drawn receipt never changes: each is its own turn`s, and a turn with no steps says so', ON, async ($, on) => {
+test('2. the typed turn`s receipt counts it whole, from its header: every step, its agents, its time; it never changes', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
   await run($, clock, 3)
 
+  // 3s of launching, 4s waiting, the first report (1s), 2s waiting, the other two (2s): 12s, one step, three agents.
   const first = await receiptsUnder($, 'All three done: 43, 42, 25.')
-  expect(first).toEqual([expect.stringMatching(/^ +2s ✓  DONE   [⣀-⣿]+   no steps$/)])
+  expect(first).toEqual([expect.stringMatching(/^ +12s ✓  DONE   [⣀-⣿]+   1 step · 3 agents$/)])
   const launch = await receiptsUnder($, 'Three agents launched.')
-  expect(launch).toEqual([expect.stringMatching(/^ +3s !  WAITING   [⣀-⣿]+   1 step · 3 agents running$/)])
+  expect(launch).toEqual([])
 
   // Later turns start and end: what was drawn stays as drawn.
   await typed($, 'nest')
@@ -208,7 +210,7 @@ test('3. the roster stays through the report turns, frozen once all are done, un
   await docked.unmount()
 })
 
-test('4. while a background agent runs, the head and the receipt say it waits on them, not that it is done', ON, async ($, on) => {
+test('4. while a background agent runs, the head says it waits on them and no receipt is drawn: WAITING is the API`s', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   const docked = await $.ui.mount(PANE)
@@ -216,7 +218,7 @@ test('4. while a background agent runs, the head and the receipt say it waits on
 
   await run($, clock, 1)
   expect(await waiting()).toBe('  Waiting on 3 agents')
-  expect(await receiptsUnder($, 'Three agents launched.')).toEqual([expect.stringMatching(/!  WAITING .* · 3 agents running$/)])
+  expect(await receiptsUnder($, 'Three agents launched.')).toEqual([])
 
   await (async () => {
     clock.now += 4_000
@@ -228,7 +230,7 @@ test('4. while a background agent runs, the head and the receipt say it waits on
     await $.turn.complete({ answer: 'x', durationMs: 1_000, isAborted: false, turnId: 'r1', reason: 'answer' })
   })()
   expect(await waiting()).toBe('  Waiting on 2 agents')
-  expect(await receiptsUnder($, 'One back.')).toEqual([expect.stringMatching(/^ +1s !  WAITING   [⣀-⣿]+   no steps · 2 agents running$/)])
+  expect(await receiptsUnder($, 'One back.')).toEqual([])
 
   await report($, 'ag-Read seat', '43 lines')
   await report($, 'ag-Read switch', '42 lines')
@@ -272,8 +274,9 @@ test('the nested agent of the sequence: inset under its parent, its launch settl
   // The timeline lists the main loop's agent; its child is the parent's own (8.3).
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
-  expect(await receiptsUnder($, 'It is 42.')).toEqual([expect.stringMatching(/^ +1s ✓  DONE   [⣀-⣿]+   no steps$/)])
-  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/^ +2s !  WAITING   [⣀-⣿]+   1 step · 1 agent running$/)])
+  // Turn 2's one receipt counts it whole: the launch and its agent, 3s from the header.
+  expect(await receiptsUnder($, 'It is 42.')).toEqual([expect.stringMatching(/^ +3s ✓  DONE   [⣀-⣿]+   1 step · 1 agent$/)])
+  expect(await receiptsUnder($, 'Parent launched.')).toEqual([])
   await docked.unmount()
 })
 
@@ -316,9 +319,9 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}✓ \S+ +42 lines +done *$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
-  // The receipts: waiting while the parent ran, done once it had reported.
-  expect(await receiptsUnder($, 'Parent launched.')).toEqual([expect.stringMatching(/!  WAITING .* · 1 agent running$/)])
-  expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^ +1s ✓  DONE   [⣀-⣿]+   no steps$/)])
+  // One receipt: none while the parent ran, the whole turn's once it had reported (2s, 3s waiting, 1s).
+  expect(await receiptsUnder($, 'Parent launched.')).toEqual([])
+  expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^ +6s ✓  DONE   [⣀-⣿]+   1 step · 1 agent$/)])
 
   // The next typed turn is done too: nothing is left running.
   await typed($, 'thanks')

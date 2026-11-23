@@ -107,3 +107,49 @@ test('7. after turn 4: one row per command, `×` for an error, the whole command
   expect(cockpit[0]).toMatch(/✓  \/cockpit {3}Pane (closed|docked · 200 columns)$/)
   for (const r of [...copy, ...steps, ...cockpit]) expect(r).not.toContain('ghostframe:')
 })
+
+const receiptRows = async ($: Engine, n: number, answer: string, columns: number) =>
+  (await rowsOf($, site('AssistantMessage', blockRow(n, answer), columns, { text: answer, isFirstOfReply: true }))).filter(r =>
+    /✓  DONE|×  FAILED|!  WAITING/.test(r)
+  )
+
+test('8. turn 7, three agents: one receipt, at the end, counting the whole turn: every step and `3 agents`; never WAITING', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 7, 200)
+  const answers = blocksOf(7, 'text')
+
+  // The first two answers came while agents still ran: no receipt under either.
+  expect(await receiptRows($, 7, answers[0] ?? '', 127)).toEqual([])
+  expect(await receiptRows($, 7, answers[1] ?? '', 127)).toEqual([])
+  // The last: the whole turn's, its steps from the header (the launch and Claude's own 3 calls).
+  // 1m 31s from the header; Claude's own `bun run test` after the reports failed and nothing fixed it.
+  expect(await receiptRows($, 7, answers[2] ?? '', 127)).toEqual([
+    expect.stringMatching(/^ +1m 31s × {2}FAILED {3}[⣀-⣿]+ {3}4 steps · 1 still failing · 3 agents$/)
+  ])
+})
+
+const paneRows = async ($: Engine) => {
+  const pane = await $.ui.mount(PANE)
+  const texts = (await pane.findAll({ type: 'Text' })).map(t => t.text)
+  await pane.unmount()
+
+  return texts.filter((t, i) => !texts.slice(0, i).some(o => o !== t && o.includes(t)))
+}
+
+test('9, 14. turn 7: Claude`s own `bun run test` is its own row, never the agents` launch group; the launch reads 3 agents', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 7, 200)
+  const rows = await paneRows($)
+
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched .* 3 agents *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}× shell bun run test .* exit 1 *$/))
+  expect(rows.some(r => /◇ agent 3 launched .*exit 1/.test(r))).toBe(false)
+})
+
+test('14. turn 10, no working sentences: one row per step, each `ls` its own, its own failure', LONG, async ($, on) => {
+  const clock = await session($, on, true)
+  await liveTurn($, clock, 10, 200)
+  const rows = (await paneRows($)).filter(r => /^ {2}[×✓●] shell ls /.test(r))
+
+  expect(rows.map(r => /ls (\/nope\d)/.exec(r)?.[1])).toEqual(['/nope1', '/nope2', '/nope3', '/nope4', '/nope5', '/nope1'])
+})

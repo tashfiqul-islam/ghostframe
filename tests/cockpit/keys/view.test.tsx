@@ -372,7 +372,9 @@ test('Enter on an agent opens its conversation (8.10); the pane shows its ◇ AG
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}▐ ◇ AGENT ▌  Edit note +running · \d+s/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}The conversation on the left is this agent’s\./))
   // Its own steps, as one group on its own clock; the main loop's are not listed while the agent's are.
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ read notes\.md +[━╸╺ ]+ +\+2 −1 *$/))
+  // The agent wrote no working sentences: one row per step (8.3).
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ read notes\.md +[━╸╺ ]+ +3 lines *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}✓ edit notes\.md +[━╸╺ ]+ +\+2 −1 *$/))
   expect(rows.some(r => /bun test tests\/width/.test(r))).toBe(false)
 
   await ui.press({ key: 'key-m' })

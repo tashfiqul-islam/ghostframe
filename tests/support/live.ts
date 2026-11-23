@@ -162,11 +162,28 @@ export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200
   let from = 0
   await $.turn.start({ text: t.prompt, turnId: `t${n}` })
 
+  const reported = new Set<string>()
+  const lastEnd = t.events.findLastIndex(x => x.k === 'end')
+  const report = (agentId: string) =>
+    $.agent.report({
+      agentId,
+      subagentType: 'caveman:cavecrew-reviewer',
+      provider: { plugin: 'engine', tier: 'core' },
+      status: 'completed',
+      text: 'done'
+    } as never)
+
   for (const [i, e] of t.events.entries()) {
     if (e.k === 'end' || e.k === 'interrupted') {
       await blocks($, clock, t.events, n, from, i)
       const answer = t.events.slice(from, i).findLast(x => x.k === 'text')
       clock.now = T0 + (e.at ?? 0)
+
+      // The session's third agent reported with no notification of its own: all three had reported by the turn's
+      // last answer, so any the fixture never notified reports before it ends.
+      if (i === lastEnd && segment > 0) {
+        for (const a of AGENTS) if (!reported.has(a.agentId)) await report(a.agentId)
+      }
       await $.turn.complete({
         answer: str(answer?.['text'], ''),
         durationMs: Number(e['durationMs'] ?? 0),
@@ -179,13 +196,8 @@ export async function liveTurn($: Engine, clock: Clock, n: number, columns = 200
     if (e.k === 'notification') {
       const id = /<task-id>([^<]+)<\/task-id>/.exec(String(e['text']))?.[1] ?? ''
       clock.now = T0 + (e.at ?? 0)
-      await $.agent.report({
-        agentId: id,
-        subagentType: 'caveman:cavecrew-reviewer',
-        provider: { plugin: 'engine', tier: 'core' },
-        status: 'completed',
-        text: 'done'
-      } as never)
+      reported.add(id)
+      await report(id)
       await $.prompt.submit({ text: String(e['text']), wait: false, origin: { kind: 'task-notification' } })
       segment++
       await $.turn.start({ text: String(e['text']), turnId: `t${n}-r${segment}` })

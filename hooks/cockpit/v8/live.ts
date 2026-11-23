@@ -6,6 +6,7 @@ import type { Part } from '../../shared/parts'
 import { textCells } from '../../shared/look/spine'
 import { needsYouRow, waitingRow } from './events'
 import { branchRow, liveRows } from './left'
+import { count } from '../../shared/look/format'
 import { TOKEN } from '../../shared/look/palette'
 
 /** A pause the engine's spinner names (rate limit, API retry), which the live line says as `WAITING` (7.10). */
@@ -34,16 +35,25 @@ export function liveArea(
   message?: string | null
 ): Part[][] {
   const width = textCells(columns, !isFallback)
-  // One clock (13.9): the engine turn's own start, the time its receipt will show.
-  const elapsed = log.segmentStart === null ? 0 : Math.max(0, now - log.segmentStart)
+  // One clock (13.9): the typed turn's own start, the time its one receipt will show.
+  const elapsed = log.startedAt === null ? 0 : Math.max(0, now - log.startedAt)
   const asked = log.steps.find(s => s.isRunning && log.asking.includes(s.id))
 
   if (asked !== undefined) return [needsYouRow(elapsed, { kind: asked.kind, subject: asked.subject }, width)]
+  // WAITING is for the API alone: a rate limit or a retry (7.10).
   if (message !== undefined && message !== null && PAUSE.test(message)) return [waitingRow(elapsed, [{ t: message, color: TOKEN.dim }], width)]
 
   const running = roster.filter(a => a.state === 'running' && a.parent === null).length
   const steps = log.steps.length + log.dropped
-  const said = log.said.length > 0 ? log.said.replace(/[.!?…:]+$/, '') : steps === 0 ? 'Thinking' : 'Working'
+  // Claude answered and its background agents still run: the turn is not over, and its receipt waits for them (7.12).
+  const isWaitingOnAgents = !log.isTurnRunning && running > 0
+  const said = isWaitingOnAgents
+    ? `Waiting on ${count(running, 'agent')}`
+    : log.said.length > 0
+      ? log.said.replace(/[.!?…:]+$/, '')
+      : steps === 0
+        ? 'Thinking'
+        : 'Working'
   const rows = liveRows({ elapsedMs: elapsed, frame, sentence: said, agents: running, steps }, width)
 
   if (!isFallback) return rows
