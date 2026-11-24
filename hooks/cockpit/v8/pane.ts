@@ -202,8 +202,13 @@ export function track(bar: Bar | undefined, spanMs: number, cells: number, nowAt
   return out
 }
 
+/** A ruler label without its seconds: `10:14:02` reads `10:14`. */
+const short = (t: string): string => t.replace(/^(\d\d:\d\d):\d\d$/, '$1')
+
 /**
- * The ruler (8.3): its two end labels over the track, then `┬────┬────┬────┬───┬` exactly over it.
+ * The ruler (8.3): its two end labels over the track, the start's on its first cell and the end's ending on its last,
+ * then `┬────┬────┬────┬───┬` exactly over it. A track too short for both drops their seconds (`10:14`): no label
+ * ever runs past the track's end.
  * @param from the left label (`10:14`)
  * @param to the right label (`10:17`, `now`)
  * @param width the pane's columns
@@ -212,9 +217,11 @@ export function track(bar: Bar | undefined, spanMs: number, cells: number, nowAt
 export function rulerRows(from: string, to: string, width: number): Part[][] {
   const cells = columns(width).track
   const ticks = Array.from({ length: cells }, (_, i) => (i % 5 === 0 || i === cells - 1 ? GLYPH.tick : GLYPH.rule)).join('')
+  // The track is at least 12 cells: two `HH:MM` labels always fit.
+  const [left, right] = widthOf(from) + 1 + widthOf(to) <= cells ? [from, to] : [short(from), short(to)]
 
   return [
-    [sp(31), { t: from, color: TOKEN.dim }, sp(cells - widthOf(from) - widthOf(to)), { t: to, color: TOKEN.dim }],
+    [sp(31), { t: left, color: TOKEN.dim }, sp(cells - widthOf(left) - widthOf(right)), { t: right, color: TOKEN.dim }],
     [sp(31), { t: ticks, color: TOKEN.hairline }]
   ]
 }

@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { foldGroups, groupsOf, paneResult, titleOf } from '../../../hooks/cockpit/v8/groups'
 import type { TimedStep } from '../../../hooks/cockpit/v8/groups'
-import { columns, tabRows, timelineRows, track } from '../../../hooks/cockpit/v8/pane'
+import { columns, rulerRows, tabRows, timelineRows, track } from '../../../hooks/cockpit/v8/pane'
 import type { Group } from '../../../hooks/cockpit/v8/pane'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import type { LogStep } from '../../../types'
@@ -147,4 +147,26 @@ test('round 6, 4. a launch row reads `3 agents launched`; an agent`s time is liv
   const colorOf = (t: string) => parts.find(p => p.t === t)?.color
 
   expect([colorOf('2s'), colorOf('3s'), colorOf('4s')]).toEqual([TOKEN.accent, TOKEN.ok, TOKEN.err])
+})
+
+test('round 6, 7. the ruler: the start label on the track`s first cell, the end label ending on its last, at every pane width', () => {
+  const at = (width: number) => {
+    const [labels = '', ticks = ''] = rulerRows('10:14:02', '10:31:07', width).map(row => row.map(p => p.t).join(''))
+
+    return { labels: labels.trim(), from: labels.search(/\S/), to: labels.trimEnd().length - 1, first: ticks.indexOf('┬'), last: ticks.lastIndexOf('┬') }
+  }
+
+  for (const width of [72, 60, 52]) {
+    const r = at(width)
+
+    expect([r.first, r.last]).toEqual([31, 31 + columns(width).track - 1])
+    // Never past the track's end, and never before its start.
+    expect(r.to).toBe(r.last)
+    expect(r.from).toBeGreaterThanOrEqual(r.first)
+  }
+
+  // 20 cells hold both whole; 14 and 12 only without their seconds.
+  expect(at(72)).toMatchObject({ labels: '10:14:02    10:31:07', from: 31 })
+  expect(at(60)).toMatchObject({ labels: '10:14    10:31', from: 31 })
+  expect(at(52)).toMatchObject({ labels: '10:14  10:31', from: 31 })
 })

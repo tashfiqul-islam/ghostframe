@@ -249,7 +249,10 @@ function timeline(i: PaneInput, shown: Shown, room: number): Line[] {
   }
 
   const turns = new Set<string>([...(i.pinned?.turns ?? []), ...(i.pinned === undefined && i.log.turn !== null ? [i.log.turn] : [])])
-  const span = Math.max(1, shown.durationMs)
+  // Waiting on agents after the answer, the turn is still live (8.2): its track runs to now and its end label says so,
+  // as the agents' bars do.
+  const isWaiting = !shown.isLive && i.pinned === undefined && !shown.isCut && waitingOn(i.roster) > 0
+  const span = Math.max(1, isWaiting && shown.startedAt !== null ? i.now - shown.startedAt : shown.durationMs)
   const decisive = new Map(
     i.details.flatMap(d =>
       // Fallback's failure rows' own source (13.1): the decisive line, never the engine's `Error: Exit code n`.
@@ -294,10 +297,14 @@ function timeline(i: PaneInput, shown: Shown, room: number): Line[] {
   const fitted = foldGroups(groups, Math.max(3, room - (open === undefined ? 0 : 6)), sizes)
   const end = shown.startedAt === null ? undefined : shown.startedAt + span
   const lines: Line[] = plainLines(
-    rulerRows(shown.startedAt === null ? '' : rulerTime(shown.startedAt, span), shown.isLive || end === undefined ? 'now' : rulerTime(end, span), i.width)
+    rulerRows(
+      shown.startedAt === null ? '' : rulerTime(shown.startedAt, span),
+      shown.isLive || isWaiting || end === undefined ? 'now' : rulerTime(end, span),
+      i.width
+    )
   )
 
-  const isNowShown = shown.isLive && i.viewed === undefined && headOf(i, shown).state === 'live'
+  const isNowShown = (shown.isLive || isWaiting) && i.viewed === undefined && headOf(i, shown).state === 'live'
 
   for (const g of fitted) {
     const id = decisiveOf(g)

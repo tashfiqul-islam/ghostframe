@@ -224,6 +224,10 @@ test('4. while a background agent runs, the head says it waits on them and no re
   expect(await receiptsUnder($, 'Three agents launched.')).toEqual([])
   // Until the turn's receipt draws, the turn is live: `● LIVE`, its range ending `now` (3. in the round 5 list).
   expect(await pill()).toMatch(/^ {2}▐ ● LIVE ▌ {2}TURN 1 .*→ now$/)
+  // The ruler says the same: its track runs to now, its end label `now` over the track's last cell (round 6, 7), never
+  // the answer's time while the agents' bars run past it.
+  const ruler = (await paneOf(docked)).filter(r => /^ {31}\S/.test(r))
+  expect(ruler.map(r => r.trimEnd())).toEqual([expect.stringMatching(/^ {31}\d\d:\d\d:\d\d {9}now$/), `${' '.repeat(31)}┬────┬────┬────┬───┬`])
 
   await (async () => {
     clock.now += 4_000
