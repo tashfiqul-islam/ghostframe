@@ -577,10 +577,12 @@ export function assemblePane(i: PaneInput): Pane {
       i.width
     )
     const per = i.isUrlsShown ? 2 : 1
+    // The summary card's rows: one fewer with nothing cited (no order line).
+    const head = rows.length - pages.length * per
 
     body = [
-      ...plainLines(rows.slice(0, 5)),
-      ...rows.slice(5).map((parts, k) => (k % per === 0 ? { parts, id: `source:${pages[k / per]?.url ?? ''}` } : { parts }))
+      ...plainLines(rows.slice(0, head)),
+      ...rows.slice(head).map((parts, k) => (k % per === 0 ? { parts, id: `source:${pages[k / per]?.url ?? ''}` } : { parts }))
     ]
   } else if (i.tab === 'todo') {
     body = plainLines(

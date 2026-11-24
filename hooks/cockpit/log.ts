@@ -33,7 +33,7 @@ import { commitIn, hookWords, ruledStatement } from './steps/failures'
 import { showPath } from '../shared/look/paths'
 import { parseShip, shellText } from '../shared/calls/ships'
 import { isOn, noticeSink } from './switch'
-import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
+import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
@@ -175,6 +175,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
 
   lastCwd = cwd ?? lastCwd
   await snapshotBefore($, e.tool, e, cwd)
+  noteFetchStart(e.tool, e)
 
   await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
   await noteStart($, e.tool_use_id, e.tool, e, at)
@@ -458,6 +459,7 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   lastCwd = cwd ?? lastCwd
   // A file's diff is the whole turn's change: an agent's call reads it first too (amendment 8).
   await snapshotBefore($, e.tool, e, cwd)
+  noteFetchStart(e.tool, e)
   await update($, roster, list => agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id))
   await noteStart($, e.tool_use_id, e.tool, e, at, id)
 }

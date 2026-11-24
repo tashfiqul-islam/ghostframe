@@ -8,7 +8,8 @@ import type { FileChange, TurnRecord, TurnWork } from '../../types'
 import { filesFromCommand, filesFromDiff, noteFiles } from './sections/files'
 import type { Counted } from './sections/files'
 import { isAtHome, onDisk } from '../shared/url'
-import { noteSources } from './sections/sources'
+import { noteSources, sameUrl } from './sections/sources'
+import type { SourcePage } from '../../types'
 import { noteTodo, startTodo } from './sections/todo'
 import type { Outcome } from './steps/log'
 
@@ -156,6 +157,24 @@ async function shellFiles(
     : files => filesFromCommand(files, command, cwd, isAgent)
 }
 
+/** Each page's place in the order its fetch started this turn (8.7), by `sameUrl`: fetches in parallel end out of order. */
+let fetchOrder = new Map<string, number>()
+
+/**
+ * A call is about to run: a fetch takes its place in the turn's fetch order.
+ * @param tool the call's tool
+ * @param input the call's input
+ */
+export function noteFetchStart(tool: string, input: unknown): void {
+  const url = tool === 'WebFetch' && typeof input === 'object' && input !== null && 'url' in input && typeof input.url === 'string' ? input.url : undefined
+
+  if (url !== undefined && !fetchOrder.has(sameUrl(url))) fetchOrder.set(sameUrl(url), fetchOrder.size)
+}
+
+/** The pages in the order their fetches started; one with no start seen (a resume) keeps its place after them. */
+const inFetchOrder = (pages: readonly SourcePage[]): SourcePage[] =>
+  pages.toSorted((a, b) => (fetchOrder.get(sameUrl(a.url)) ?? Infinity) - (fetchOrder.get(sameUrl(b.url)) ?? Infinity))
+
 /**
  * A typed turn starts: its files, pages and citations start empty; the to-do list stays unless every item was done.
  * The working copy's diff now is where the turn's own changes are counted from.
@@ -164,6 +183,7 @@ async function shellFiles(
  */
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
+  fetchOrder = new Map()
   lastDiff = (await diffNow($, cwd))?.files
   startDiff = lastDiff === undefined ? undefined : { root: copy?.root ?? '', files: lastDiff }
   await update($, work, w => {
@@ -215,7 +235,7 @@ async function noteWorkNow($: EngineInterface, tool: string, input: unknown, out
       todo: todo.items,
       isRevised: todo.isRevised,
       files: isOk ? noteFiles(files, tool, input, outcome.result, cwd, isAgent) : files,
-      sources: outcome.deny === undefined ? noteSources(w.sources, tool, input, outcome, isAgent) : w.sources
+      sources: outcome.deny === undefined ? inFetchOrder(noteSources(w.sources, tool, input, outcome, isAgent)) : w.sources
     }
   })
 }

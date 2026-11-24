@@ -10,7 +10,10 @@ const URLS = ['https://docs.github.com/en/actions/workflow-syntax', 'https://bun
 // Claude's own footnotes (7.4): `[n]` in the prose and its `[n]: url` lines; a link of its own numbers nothing.
 const ANSWER = `Pin the workflow syntax [1] and publish with [bun publish](${URLS[1]}) [2].\n\n[1]: ${URLS[0]}\n[2]: ${URLS[1]}`
 
-function engine(on: On, clock: { now: number }) {
+/** A fetch's answer, for a test that answers its own (`round 6, 6b`). */
+type Fetched = { result: unknown; text: string; isError?: true }
+
+function engine(on: On, clock: { now: number }, fetch?: (url: string) => Promise<Fetched>) {
   on('clock.now', () => ({ value: clock.now }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
@@ -20,7 +23,7 @@ function engine(on: On, clock: { now: number }) {
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('agent.list', () => ({ value: [] as never }))
-  on('tool.call', (_, e) => {
+  on('tool.call', async (_, e) => {
     clock.now += 1_000
     const i = e as unknown as Record<string, unknown>
 
@@ -32,6 +35,8 @@ function engine(on: On, clock: { now: number }) {
       case 'Write':
         return { result: { type: 'create', content: 'x\ny\n', structuredPatch: [] }, text: 'ok' }
       case 'WebFetch':
+        if (fetch !== undefined) return fetch(String(i['url']))
+
         return i['url'] === URLS[2]
           ? { result: 'Request failed with status code 404', isError: true, text: 'Request failed with status code 404' }
           : { result: { url: i['url'], code: 200 }, text: 'ok' }
@@ -89,6 +94,8 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 pages read {3}0 cited +1 failed$/))
   expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(2, 4))).toEqual(['· ', '· ', '· '])
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}· docs\.sigstore\.dev .* 404$/))
+  // Nothing cited: no order line in the card (round 6, 6b).
+  expect(rows.some(r => /cited pages first/.test(r))).toBe(false)
 
   // The answer cites two; the turn ends: those come first, marked as the answer marks them.
   await $.session.append(respond([text(ANSWER)], 'm2'))
@@ -96,6 +103,7 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
   rows = await paneText($)
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}3 pages read {3}2 cited/))
+  expect(rows).toContainEqual('  cited pages first, in answer order')
   expect(rows.filter(r => /^ {2}[·¹²³] \S/.test(r)).map(r => r.slice(0, 20))).toEqual(['  ¹ docs.github.com ', '  ² bun.sh   bun.sh/', '  · docs.sigstore.de'])
 
   // The left numbers the same pages the same way: the prose marks and its Sources frame.
@@ -118,6 +126,33 @@ test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match 
   rows = await paneText($)
   expect(rows).toContainEqual(expect.stringMatching(/FILES 0 {3}SOURCES 0 {3}TODO 1\/2/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}1 of 2 done +turn \d+$/))
+})
+
+test('round 6, 6b. two fetches at once: Sources lists them in the order Claude fetched them, not the order they ended', ON, async ($, on) => {
+  const clock = { now: T0 }
+  let finishFirst: (() => void) | undefined
+  const first = new Promise<void>(resolve => {
+    finishFirst = resolve
+  })
+  engine(on, clock, async url => {
+    // bun.sh is fetched first and answers last, as in the live run's step 6.
+    if (url.includes('bun.sh')) await first
+
+    return url.includes('example.com')
+      ? { result: 'Request failed with status code 404', isError: true, text: 'Request failed with status code 404' }
+      : { result: { url, code: 200, result: '**Title:** Test runner' }, text: 'ok' }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'read two pages', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'read two pages', turnId: 't1' })
+  const bun = call($, 'WebFetch', 'f1', { url: 'https://bun.sh/docs/cli/test', prompt: 'x' })
+  await call($, 'WebFetch', 'f2', { url: 'https://example.com/missing-page', prompt: 'x' })
+  finishFirst?.()
+  await bun
+
+  const rows = (await paneText($)).filter(r => /^ {2}· \S/.test(r))
+  expect(rows.map(r => r.trim().split(/\s+/)[1])).toEqual(['bun.sh', 'example.com'])
+  expect(rows[0]).toMatch(/^ {2}· bun\.sh {3}Test runner +200$/)
 })
 
 test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `printf >> notes3.txt` is a row', ON, async ($, on) => {

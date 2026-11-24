@@ -239,15 +239,13 @@ export type SourceRow = { n: number | undefined; host: string; title: string; st
 export function sourcesView(pages: readonly SourceRow[], showUrls: boolean, width: number): Part[][] {
   const failed = pages.filter(p => /^[45]\d\d$/.test(p.status)).length
   const cited = pages.filter(p => p.n !== undefined).length
-  const rows: Part[][] = [
-    ...summary(
-      [{ t: count(pages.length, ['page read', 'pages read']), color: TOKEN.text }, sp(3), { t: `${cited} cited`, color: TOKEN.text }],
-      failed > 0 ? [{ t: `${failed} failed`, color: TOKEN.err }] : [],
-      [dim('cited pages first, in answer order')],
-      width
-    ),
-    []
-  ]
+  const head = spread(
+    [{ t: count(pages.length, ['page read', 'pages read']), color: TOKEN.text }, sp(3), { t: `${cited} cited`, color: TOKEN.text }],
+    failed > 0 ? [{ t: `${failed} failed`, color: TOKEN.err }] : [],
+    width - 3
+  )
+  // With nothing cited the pages are in fetch order, and the card says nothing of an order.
+  const rows: Part[][] = [...paneCard(cited > 0 ? [head, [dim('cited pages first, in answer order')]] : [head], width), []]
 
   for (const p of pages) {
     const isFailed = /^[45]\d\d$/.test(p.status)
