@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 import { TOKEN } from '../../hooks/shared/look/palette'
 import { ON, PANE, T0, VIEW } from '../support/cockpit'
@@ -16,8 +16,8 @@ const FOOTER = (durationMs: number) =>
 const ANSWER = (t: string) =>
   ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', ...rowOf(t), viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const
 
-function engine(on: On, clock: { now: number }) {
-  on('clock.now', () => ({ value: clock.now }))
+function engine(on: On, clock?: { now: number }) {
+  if (clock !== undefined) on('clock.now', () => ({ value: clock.now }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
@@ -247,6 +247,45 @@ test('4. while a background agent runs, the head says it waits on them and no re
   await report($, 'ag-Read switch', '42 lines')
   expect(await waiting()).toBeUndefined()
   expect(await pill()).toMatch(/^ {2}▐ ✓ DONE ▌/)
+  await docked.unmount()
+})
+
+test('4b. a running agent`s time counts up each second on its own while the turn waits, then holds once it ends', ON, async ($, on) => {
+  const clock = mock.clock(on, { now: T0 })
+  engine(on)
+  const docked = await $.ui.mount(PANE)
+  // Read without a redraw of the test's own: the second timer is what draws the pane again.
+  const rows = async () => (await docked.findAll({ type: 'Text' })).map(t => t.text).filter(t => /Read (seat|switch|draw)/.test(t) && !t.includes('\n'))
+  const timeOf = async (name: string) => (await rows()).find(r => r.includes(name))?.match(/(\d+)s\s*$/)?.[1]
+
+  await typed($, 'audit the cockpit')
+  await $.turn.start({ text: 'audit the cockpit', turnId: 't1' })
+  await $.session.append(respond([use('c1', 'Agent', {}), use('c2', 'Agent', {})], 'm1'))
+  for (const [call, name] of [
+    ['c1', 'Read seat'],
+    ['c2', 'Read switch']
+  ] as const) {
+    await $.tool.call({ tool: 'Agent', description: name, prompt: 'go', run_in_background: true, tool_use_id: call } as never)
+    await spawn($, call, name)
+  }
+  await $.session.append(respond([text('Two agents launched.')], 'm2'))
+  await clock.advance(2_000)
+  await $.turn.complete({ answer: 'x', durationMs: 2_000, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  await clock.advance(1_000)
+  const first = Number(await timeOf('Read seat'))
+  for (const step of [1, 2, 3]) {
+    await clock.advance(1_000)
+    expect(Number(await timeOf('Read seat'))).toBe(first + step)
+    expect(Number(await timeOf('Read switch'))).toBe(first + step)
+  }
+
+  // Read seat ends: its time holds while Read switch's goes on.
+  await report($, 'ag-Read seat', '43 lines')
+  const ended = Number(await timeOf('Read seat'))
+  await clock.advance(2_000)
+  expect(Number(await timeOf('Read seat'))).toBe(ended)
+  expect(Number(await timeOf('Read switch'))).toBe(first + 5)
   await docked.unmount()
 })
 
