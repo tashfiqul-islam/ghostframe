@@ -72,11 +72,26 @@ export function screenChecks(step: Step): void {
   const zero: string[] = []
   const reloads: string[] = []
   const marked: string[] = []
+  const rulers: string[] = []
+  let rulerCount = 0
 
   for (const cap of step.caps) {
     const pane = layoutOf(cap).pane
 
     if (pane !== undefined) {
+      // 7. The ruler: the start label on the track's first cell, the end label ending on its last; `now` while live.
+      for (let y = pane.y0 + 1; y < pane.y1; y++) {
+        const ticks = rowText(cap, y, pane.x0, pane.x1)
+
+        if (!/^ +┬[─┬]+┬ *$/.test(ticks)) continue
+        rulerCount++
+        const labels = rowText(cap, y - 1, pane.x0, pane.x1)
+        const isLive = rowsMatching(paneRows(cap), /▐ ● LIVE ▌/).length > 0 && rowsMatching(paneRows(cap), /PINNED/).length === 0
+        const isAligned = labels.search(/\S/) === ticks.indexOf('┬') && labels.trimEnd().length === ticks.lastIndexOf('┬') + 1
+
+        if (!isAligned || (isLive && !labels.trimEnd().endsWith('now'))) rulers.push(`${cap.name}: “${labels.trim()}” over ${ticks.trim().length} cells`)
+      }
+
       for (let y = pane.y0; y < pane.y1; y++) {
         const first = at(cap, y, pane.x0).ch
         const row = rowText(cap, y, pane.x0, pane.x1)
@@ -98,6 +113,12 @@ export function screenChecks(step: Step): void {
   step.expect('13. no `+0` or `−0` in the pane', zero.length === 0, zero.slice(0, 3).join(' ') || '(none)')
   step.expect('19. no `reloaded · n hooks` row', reloads.length === 0, reloads.slice(0, 3).join(' ') || '(none)')
   step.expect('12. no footnote carries markdown (`**`, backticks)', marked.length === 0, marked.slice(0, 3).join(' ') || '(none)')
+  if (rulerCount > 0)
+    step.expect(
+      '7. the ruler: start label on the track`s first cell, end label on its last, `now` while LIVE',
+      rulers.length === 0,
+      rulers.slice(0, 3).join(' ') || `${rulerCount} rulers`
+    )
 }
 
 /** Steps 1 and 5: a fix and its commit, then the slash commands in the same session. */
@@ -478,7 +499,19 @@ const sources: Suite = {
     six.expect('Sources summary `n pages read · n cited · n failed`', summary.length > 0, quote(summary))
     const bun = rowsMatching(paneRows(src), /bun\.sh {3}\S/)
 
-    six.expect('4. the bun.sh page`s title is the fetch`s own, never `bun.sh · …`', bun.length > 0 && !bun.some(r => /bun\.sh · /.test(r.text)), quote(bun))
+    six.expect(
+      '4, 6a. the bun.sh page`s title is the fetch`s own (`Test runner`), never `bun.sh · …` or its host and path',
+      bun.length > 0 && !bun.some(r => /bun\.sh · |bun\.sh {3}bun\.sh\//.test(r.text)),
+      quote(bun)
+    )
+    const listed = rowsMatching(paneRows(src), /^ {2}[▐ ][·¹²³⁴] \S/).map(r => /[·¹²³⁴] (\S+)/.exec(r.text)?.[1] ?? '')
+    const cited = Number(/(\d+) cited/.exec(summary[0]?.text ?? '')?.[1] ?? '-1')
+
+    six.expect(
+      '6b. nothing cited: no `cited pages first` line, the pages in fetch order (bun.sh, then example.com)',
+      cited !== 0 || (rowsMatching(paneRows(src), /cited pages first/).length === 0 && listed.join(' ') === 'bun.sh example.com'),
+      `${cited} cited · ${listed.join(', ')} · ${quote(rowsMatching(paneRows(src), /cited pages first/))}`
+    )
     const pane = layoutOf(src).pane
     const fourOhFour = pane === undefined ? -1 : paneRows(src).findIndex(r => /\b404\s*$/.test(r))
     const cell404 =
