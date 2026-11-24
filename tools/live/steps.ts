@@ -674,7 +674,18 @@ function flood(id: string, width: number, stepId: string): Suite {
           quote(crosses)
         )
         step.expect('a `└` line under each', details.length >= 3, quote(details))
-        step.expect('`+ 2 more · /steps n` above the receipt', rowsMatching(left, /\+ 2 more · \/steps \d+/).length === 1, quote(rowsMatching(left, /more ·/)))
+        const more = rowsMatching(left, /\+ 2 more · \/steps \d+/)
+        const worked = rowsMatching(left, /◇ {2}worked/)
+        const answer = rowsMatching(left, /ls|nope|exit/i).filter(r => !/[×└]/.test(r.text) && !/◇|FAILED|❯/.test(r.text))
+
+        step.expect(
+          '3. `+ 2 more · /steps n` directly under the third row`s `└` line, right above `◇ worked`, before the answer',
+          more.length === 1 &&
+            more[0]?.y === (details[2]?.y ?? -2) + 1 &&
+            worked[0]?.y === (more[0]?.y ?? -2) + 1 &&
+            answer.every(r => r.y > (more[0]?.y ?? Infinity)),
+          quote(rowsMatching(left, /more ·|◇ {2}worked|└ /))
+        )
         const wide = left.filter(r => r.slice(16 + 78).trim() !== '')
 
         step.expect('the text column is 78 cells (nothing past column 94)', wide.length === 0, quote(wide))

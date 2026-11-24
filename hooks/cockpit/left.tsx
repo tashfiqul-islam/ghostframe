@@ -15,8 +15,7 @@ import { readFrame, readLog, readReceipts, readRoster } from './log'
 import { readWork } from './work'
 import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
-import { FAILURE_ROWS } from './steps/log'
-import { insteadRows, moreRow, refusalRows } from './v8/events'
+import { insteadRows, refusalRows } from './v8/events'
 import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from './v8/left'
 import { liveArea } from './v8/live'
 import { receiptCounts } from './v8/receipt'
@@ -370,10 +369,10 @@ async function noTextReceipt(
   if (receipt.state === 'interrupted') return undefined
 
   // A turn with no answer text gets one worked node (7.13): its last stretch's in fallback, the whole turn's docked.
-  const worked = isFallbackNow ? await footerCapsule($, turn, width) : workedRow(receiptCounts(receipt), width)
+  const worked = isFallbackNow ? await footerCapsule($, turn, width) : [workedRow(receiptCounts(receipt), width)]
   const rows = receiptRowsOf(receipt, width, isFallbackNow)
 
-  return receiptTree($, ui, receipt.turnNo, turn, [...(worked === undefined ? [] : [worked]), ...rows.slice(0, -1)], rows.at(-1) ?? [])
+  return receiptTree($, ui, receipt.turnNo, turn, [...worked, ...rows.slice(0, -1)], rows.at(-1) ?? [])
 }
 
 /**
@@ -387,13 +386,11 @@ async function noTextReceipt(
 function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[][] {
   // A result that only repeats its subject (`exit 3`) is said once.
   const open = r.open.map(f => ({ where: `${f.kind} ${f.subject}`, said: f.result === f.subject ? '' : f.result }))
+  // In fallback the first three failure keys drew their rows as they settled, and the worked node above the answer
+  // counted the rest (13.1).
   const card = isFallbackNow || open.length === 0 ? [] : [...failureCard(open.length, '', open, '', r.turnNo, width), spineOnly()]
-  // In fallback the first three failure keys drew their rows as they settled; the rest are counted here, once.
-  // shortcut: counted per receipt (engine turn) while rows are capped per typed turn; they differ only for a typed
-  // turn an agent's report split, where a few failures may draw neither a row nor a count. Upgrade if one is seen.
-  const more = isFallbackNow && r.failures > FAILURE_ROWS ? [moreRow(r.failures - FAILURE_ROWS, r.turnNo)] : []
 
-  return [spineOnly(), ...more, ...card, receiptRow(receiptCounts(r), width)]
+  return [spineOnly(), ...card, receiptRow(receiptCounts(r), width)]
 }
 
 /**

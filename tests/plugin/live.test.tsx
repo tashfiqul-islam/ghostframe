@@ -154,6 +154,36 @@ test('14. turn 10, no working sentences: one row per step, each `ls` its own, it
   expect(rows.map(r => /ls (\/nope\d)/.exec(r)?.[1])).toEqual(['/nope1', '/nope2', '/nope3', '/nope4', '/nope5', '/nope1'])
 })
 
+test(
+  'round 6, 3. turn 10 in fallback at 100: three × rows, `+ 2 more` directly under them above the worked node, never after the answer',
+  LONG,
+  async ($, on) => {
+    const clock = await session($, on, false)
+    await liveTurn($, clock, 10, 100)
+    const calls = (TURNS[10]?.events ?? [])
+      .filter(e => e.k === 'call')
+      .map(e => ({ id: String(e['id']), tool: String(e['tool']), input: e['input'] as Record<string, unknown> }))
+    const rows: string[] = []
+
+    for (const c of calls) rows.push(...(await rowsOf($, groupOf(c, 100, true))))
+
+    const [answer] = blocksOf(10, 'text')
+    const left = [...rows, ...(await rowsOf($, site('AssistantMessage', blockRow(10, answer ?? ''), 100, { text: answer, isFirstOfReply: true })))]
+    const marks = left.flatMap(r => {
+      const m = /^ +(?:\d+s )?([×◇│]) {2}(\S+)/.exec(r)
+
+      return m === null ? [] : m[1] === '│' && m[2] !== '+' ? [] : [m[1] === '│' ? '+' : `${m[1]} ${m[2]}`]
+    })
+
+    // The order the left reads, top to bottom: the three keys' rows, the count of the rest, the worked node, the receipt.
+    expect(marks).toEqual(['× shell', '× shell', '× shell', '+', '◇ worked', '× FAILED'])
+    // Directly under the third row's detail line, and nothing of the answer between.
+    const more = left.indexOf('             │  + 2 more · /steps 1')
+    expect(more).toBeGreaterThan(0)
+    expect(left[more - 1]).toMatch(/^ {13}│ {2}└ ls: cannot access '\/nope3'/)
+  }
+)
+
 test('12, 17. the focused pane: no `1: 2: …` hotkey column; the hint row is the pane`s last row', LONG, async ($, on) => {
   const clock = await session($, on, true)
   await liveTurn($, clock, 10, 200)

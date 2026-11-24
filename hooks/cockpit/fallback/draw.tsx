@@ -3,7 +3,7 @@
 // failure draws its row at once, and the live area above the prompt is the whole of it. left.tsx routes each site
 // here; these draw. Every row is worked out from the turn's own data at each draw (amendment 10, facts.ts), so a row
 // drawn again after a resize, a resume or a reload draws the same.
-import { insteadRows, refusalRows } from '../v8/events'
+import { insteadRows, moreRow, refusalRows } from '../v8/events'
 import type { EngineInterface, RenderElement } from 'claude-code'
 
 import type { Part } from '../../shared/parts'
@@ -24,8 +24,14 @@ import { turnOfCall, turnView } from './facts'
 import type { TurnView } from './facts'
 import { callAnchor, footerAnchor, isAfterEventAt, textAnchor } from './plan'
 
-/** A capsule as v8's worked node (7.13). */
-const capsuleRow = (c: Capsule, width: number): Part[] => workedRow(workedCounts(c), width)
+/**
+ * A capsule as v8's worked node (7.13), with the failure keys of its stretch that drew no row counted directly above
+ * it: `+ n more · /steps n`, under the turn's failure rows and before the answer (13.1).
+ */
+const capsuleRows = (c: Capsule, width: number, turnNo: number): Part[][] => [
+  ...(c.unshown > 0 ? [moreRow(c.unshown, turnNo)] : []),
+  workedRow(workedCounts(c), width)
+]
 
 /**
  * A call's failure row, from its settled step and its kept output: the same at every draw, and never taken back by a
@@ -86,7 +92,7 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
       ...(failure === undefined ? [] : failureRows(failure, width, ms))
     ]
   })
-  const all = [...(capsule === undefined ? [] : [capsuleRow(capsule, width)]), ...rows]
+  const all = [...(capsule === undefined ? [] : capsuleRows(capsule, width, view.turnNo)), ...rows]
 
   if (all.length === 0) return <ui.Box />
 
@@ -114,7 +120,7 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
  */
 export async function drawBlockCapsule(
   $: EngineInterface,
-  ui: Pick<Ui, 'Text'>,
+  ui: Pick<Ui, 'Box' | 'Text'>,
   key: string | undefined,
   turn: string | null | undefined,
   width: number
@@ -128,7 +134,10 @@ export async function drawBlockCapsule(
 
   const at = view.flow.findLastIndex(f => f.kind === 'text' && f.key === key)
 
-  return { capsule: drawRows(ui, [capsuleRow(capsule, width)])[0], isAfterEvent: at >= 0 && isAfterEventAt(view.flow, at, turn, view.plan) }
+  return {
+    capsule: <ui.Box flexDirection="column">{drawRows(ui, capsuleRows(capsule, width, view.turnNo))}</ui.Box>,
+    isAfterEvent: at >= 0 && isAfterEventAt(view.flow, at, turn, view.plan)
+  }
 }
 
 /**
@@ -136,12 +145,13 @@ export async function drawBlockCapsule(
  * @param $ the engine interface
  * @param turn the engine turn it closes
  * @param width the transcript rule's width
- * @returns the capsule's parts, or undefined
+ * @returns the capsule's rows (its `+ n more` row first when it has one); none without a capsule
  */
-export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<Part[] | undefined> {
-  const capsule = (await turnView($, turn))?.plan.capsules.get(footerAnchor(turn))
+export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<Part[][]> {
+  const view = await turnView($, turn)
+  const capsule = view?.plan.capsules.get(footerAnchor(turn))
 
-  return capsule === undefined ? undefined : capsuleRow(capsule, width)
+  return view === undefined || capsule === undefined ? [] : capsuleRows(capsule, width, view.turnNo)
 }
 
 /**

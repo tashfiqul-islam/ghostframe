@@ -66,7 +66,7 @@ const answerRows = async ($: Engine, columns: number) => rowsOf($, site('Assista
 const LONG = { ...ON, timeoutMs: 120_000 }
 const RECEIPT = /×  FAILED   [⣀-⣿]+   455 steps · 14 fixed · 4 still failing · 56 files$/
 
-test('fallback, 100 columns: three failure rows as they happen, then `+ 15 more · /steps 1` above the receipt', LONG, async ($, on) => {
+test('fallback, 100 columns: three failure rows as they happen, then each stretch counts the rest above its worked node', LONG, async ($, on) => {
   const clock = { now: T0 }
   floodEngine(on, clock, false)
   await floodTurn($, clock)
@@ -87,8 +87,19 @@ test('fallback, 100 columns: three failure rows as they happen, then `+ 15 more 
     '×  edit D:/Projects/ghostframe-v8/hooks/README.md   not read',
     '×  edit D:/Projects/ghostframe-v8/tools/scripts/boundaries.ts   not read'
   ])
+  // The rest are counted where each stretch of work closes, directly above its worked node and before the answer, as
+  // they first failed (13.1): every key once, none after the answer.
+  const sites = [...(await Promise.all(calls.map(async c => rowsOf($, groupOf(c, 100, c.isError === true))))).flat(), ...(await answerRows($, 100))]
+  const more = sites.flatMap((r, i) => {
+    const n = /^ {13}│ {2}\+ (\d+) more · \/steps 1$/.exec(r)?.[1]
+
+    return n === undefined ? [] : [{ n: Number(n), next: sites[i + 1] ?? '' }]
+  })
+  // The 15 keys past the first three, the count the receipt gave when it carried this row.
+  expect(more.reduce((sum, m) => sum + m.n, 0)).toBe(15)
+  for (const m of more) expect(m.next).toMatch(/◇ {2}worked/)
   const answer = await answerRows($, 100)
-  expect(answer.at(-2)).toBe('             │  + 15 more · /steps 1')
+  expect(answer.slice(answer.findIndex(r => r.includes(ANSWER))).some(r => /more · \/steps/.test(r))).toBe(false)
   expect(answer.at(-1)).toMatch(RECEIPT)
 })
 

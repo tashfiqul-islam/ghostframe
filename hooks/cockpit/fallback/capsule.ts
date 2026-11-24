@@ -1,7 +1,7 @@
 // The capsule (spec E.3; v8 7.13): fallback's count of a stretch of work, drawn as the worked node. Pure:
 // hooks/cockpit/v8/receipt.ts reads it into the node's counts and hooks/cockpit/fallback/draw.tsx draws it.
 import type { LogStep } from '../../../types'
-import { isOpen, isTurnFailure } from '../steps/log'
+import { isOpen, isShownFailure, isTurnFailure } from '../steps/log'
 
 /** What one stretch of work did, counted when its capsule is first drawn and kept: a capsule is never updated. */
 export type Capsule = {
@@ -11,6 +11,8 @@ export type Capsule = {
   agentsFailed: number
   failures: number
   open: number
+  /** The failure keys that first failed in the stretch and drew no row (past the turn's first three, 13.1). */
+  unshown: number
   clock: number
 }
 
@@ -35,6 +37,12 @@ export function capsuleOf(all: readonly LogStep[], from: number, to: number): Ca
 
   const launches = stretch.filter(s => s.kind === 'agent')
   const failed = stretch.flatMap((s, i) => (isTurnFailure(s) ? [Math.max(0, from) + i] : []))
+  // A key's first failure, by when it settled: a repeat of a key, here or before, is not a new one.
+  const isFirst = (i: number) => {
+    const s = all[i]
+
+    return s !== undefined && !all.some((t, k) => k !== i && isTurnFailure(t) && t.key === s.key && (t.clock < s.clock || (t.clock === s.clock && k < i)))
+  }
 
   return {
     steps: stretch.length,
@@ -43,6 +51,7 @@ export function capsuleOf(all: readonly LogStep[], from: number, to: number): Ca
     agentsFailed: launches.reduce((n, s) => n + (s.failed ?? 0), 0),
     failures: failed.length,
     open: failed.filter(i => isOpen(all, i)).length,
+    unshown: failed.filter(i => isFirst(i) && !isShownFailure(all, i)).length,
     clock: Math.max(...stretch.map(s => s.clock))
   }
 }
