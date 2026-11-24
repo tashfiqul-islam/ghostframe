@@ -240,7 +240,7 @@ const GROUP_GLYPH: Record<GroupGlyph, Part> = {
 export type SubStep = { glyph: 'current' | 'failed' | 'ok'; kind: string; subject: string; result: string; tone: Tone }
 
 /** An agent under its launch group (8.3): `├ ◇ name` with its own bar, and its running or last sub-step. */
-export type AgentBar = { name: string; isFailed: boolean; bar?: Bar | undefined; result: string; sub?: SubStep | undefined }
+export type AgentBar = { name: string; isFailed: boolean; isRunning: boolean; bar?: Bar | undefined; result: string; sub?: SubStep | undefined }
 
 /** One timeline row (8.3): a group of steps under one of Claude's working sentences. */
 export type Group = {
@@ -347,7 +347,8 @@ export function timelineRows(groups: readonly Group[], spanMs: number, width: nu
           { t: guide.trimEnd(), color: TOKEN.spine },
           [glyph, sp(1), { t: cutTitle(a.name, 23), color: TOKEN.text }],
           track(a.bar, spanMs, cells),
-          { t: a.result, color: TOKEN.machineDim },
+          // Its time so far while it runs, in the live colour; ok or err only once it ends.
+          { t: a.result, color: a.isRunning ? TOKEN.accent : a.isFailed ? TOKEN.err : TOKEN.ok },
           width
         )
       )

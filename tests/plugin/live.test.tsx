@@ -141,9 +141,9 @@ test('9, 14. turn 7: Claude`s own `bun run test` is its own row, never the agent
   await liveTurn($, clock, 7, 200)
   const rows = await paneRows($)
 
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched .* 3 agents *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ 3 agents launched .* 3 agents *$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}× shell bun run test .* exit 1 *$/))
-  expect(rows.some(r => /◇ agent 3 launched .*exit 1/.test(r))).toBe(false)
+  expect(rows.some(r => /◇ 3 agents launched .*exit 1/.test(r))).toBe(false)
 })
 
 test('14. turn 10, no working sentences: one row per step, each `ls` its own, its own failure', LONG, async ($, on) => {

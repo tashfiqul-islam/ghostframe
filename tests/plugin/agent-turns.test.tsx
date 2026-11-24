@@ -256,7 +256,7 @@ test('5. turns are numbered by typed prompts: a report turn is part of the typed
   expect(await label()).toMatch(/▐ ✓ DONE ▌  TURN 1 +\d\d:\d\d:\d\d → \d\d:\d\d:\d\d/)
   // The launch and its settled count stay in the typed turn's own head and timeline.
   expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}1 step /))
-  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched .* 3 agents *$/))
+  expect(await paneOf(docked)).toContainEqual(expect.stringMatching(/^ {2}◇ 3 agents launched .* 3 agents *$/))
 
   await (async () => {
     await typed($, 'nest')
@@ -281,7 +281,7 @@ test('the nested agent of the sequence: inset under its parent, its launch settl
   const rows = await paneOf(docked)
   // The timeline lists the main loop's agent; its child is the parent's own (8.3).
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ 1 agent launched .* 1 agent *$/))
   // Turn 2's one receipt counts it whole: the launch and its agent, 3s from the header.
   expect(await receiptsUnder($, 'It is 42.')).toEqual([expect.stringMatching(/^ +3s ✓  DONE   [⣀-⣿]+   1 step · 1 agent$/)])
   expect(await receiptsUnder($, 'Parent launched.')).toEqual([])
@@ -326,7 +326,7 @@ test('nested, to the end: parent launches child, child reports, parent is woken,
   expect(rows).toContainEqual(expect.stringMatching(/AGENTS 1$/))
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}✓ reported · 1 step +done *$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched .* 1 agent *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ 1 agent launched .* 1 agent *$/))
   // One receipt: none while the parent ran, the whole turn's once it had reported (2s, 3s waiting, 1s).
   expect(await receiptsUnder($, 'Parent launched.')).toEqual([])
   expect(await receiptsUnder($, 'Agent "Nest parent" finished: 42.')).toEqual([expect.stringMatching(/^ +6s ✓  DONE   [⣀-⣿]+   1 step · 1 agent$/)])

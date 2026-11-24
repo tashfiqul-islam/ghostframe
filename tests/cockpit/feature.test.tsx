@@ -68,7 +68,7 @@ test('three agents in parallel: one launch row, three roster rows that change in
 
   let rows = await paneText($)
   // One launch group, live, its three agents as bars under it (amendment 1 for the step list; 8.3 for the timeline).
-  expect(rows.filter(r => / agent 3 launched /.test(r))).toEqual([expect.stringMatching(/^ {2}● agent 3 launched +[━╸╺ ┊]+ +running$/)])
+  expect(rows.filter(r => / 3 agents launched /.test(r))).toEqual([expect.stringMatching(/^ {2}● 3 agents launched +[━╸╺ ┊]+ +running$/)])
   expect(rows).toContainEqual(expect.stringMatching(/AGENTS 3$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ ◇ Read seat +[━╸╺ ┊]+ +2s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ▸ read {2}hooks\/cockpit\/seat\.ts +running$/))
@@ -80,7 +80,7 @@ test('three agents in parallel: one launch row, three roster rows that change in
   await $.turn.complete({ answer: 'waiting', durationMs: 3_000, isAborted: false, turnId: 't1', reason: 'answer' })
   clock.now += 7_000
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● agent 3 launched .* running$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● 3 agents launched .* running$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ ◇ Read seat +[━╸╺ ┊]+ +10s$/))
 
   // Their reports start a turn of their own (no prompt): the roster stays; the launch settles when the last reports.
@@ -88,12 +88,12 @@ test('three agents in parallel: one launch row, three roster rows that change in
   await report($, 'ag-Read seat', 'completed', '43 lines')
   await report($, 'ag-Read switch', 'failed', 'context limit')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● agent 3 launched .* running$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}● 3 agents launched .* running$/))
 
   await report($, 'ag-Read draw', 'completed', '25 lines')
   rows = await paneText($)
   // The launch settles: `◇` with its agents' count; each agent's last step under it, the failed one `×` and `stopped`.
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 3 launched +[━╸╺ ┊]+ +3 agents$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ 3 agents launched +[━╸╺ ┊]+ +3 agents$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ ✓ reported · \d+ steps? +done$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}├ × Read switch +[━╸╺ ┊]+ +\d+s$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {2}│ × \S+ +context limit +stopped$/))
@@ -128,7 +128,7 @@ test('a nested agent rides under its parent; the parent, woken for its child`s r
   await spawn($, '', 'Nest parent')
   await report($, 'ag-Nest parent', 'completed', '42 lines')
   rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ agent 1 launched +[━╸╺ ┊]+ +1 agent$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}◇ 1 agent launched +[━╸╺ ┊]+ +1 agent$/))
   expect(rows.filter(r => /◇ Nest/.test(r))).toEqual([expect.stringMatching(/^ {2}└ ◇ Nest parent /)])
 })
 

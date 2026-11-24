@@ -120,3 +120,31 @@ test('5. with a working sentence, the passing rerun of a failure is its own ✓ 
   // The rerun's row names its own step, not the sentence that holds it (live, round 6: `✓ Bun's built-in stringWid…`).
   expect(groups[2]?.title).toBe('test bun test')
 })
+
+test('round 6, 4. a launch row reads `3 agents launched`; an agent`s time is live while it runs, ok or err once it ends', () => {
+  const at = (id: string, start: number, extra: Partial<LogStep> = {}) => ({
+    step: step(id, 'agent', '', { subject: '3 launched', ...extra }),
+    start,
+    end: undefined
+  })
+  const [launch] = groupsOf([at('l1', 0, { isRunning: true, calls: ['a', 'b', 'c'] })], [], 8_000)
+  expect(launch?.title).toBe('3 agents launched')
+  const [one] = groupsOf([at('l2', 0, { isRunning: true, subject: '1 launched', calls: ['a'] })], [], 8_000)
+  expect(one?.title).toBe('1 agent launched')
+
+  const group: Group = {
+    glyph: 'live',
+    title: '3 agents launched',
+    result: 'running',
+    tone: 'accent',
+    agents: [
+      { name: 'Audit src', isFailed: false, isRunning: true, result: '2s' },
+      { name: 'Audit tests', isFailed: false, isRunning: false, result: '3s' },
+      { name: 'Audit package.json', isFailed: true, isRunning: false, result: '4s' }
+    ]
+  }
+  const parts = timelineRows([group], 8_000, 72, true).flat()
+  const colorOf = (t: string) => parts.find(p => p.t === t)?.color
+
+  expect([colorOf('2s'), colorOf('3s'), colorOf('4s')]).toEqual([TOKEN.accent, TOKEN.ok, TOKEN.err])
+})

@@ -213,6 +213,7 @@ function agentBars(launch: LogStep, roster: readonly RosterAgent[], startedAt: n
       return {
         name: a.name,
         isFailed: a.state === 'failed',
+        isRunning,
         bar: { from, to, color: TOKEN.agent },
         result: duration((a.endedAt ?? now) - a.startedAt),
         // Nothing under an agent until its first step (8.9): no invented one.

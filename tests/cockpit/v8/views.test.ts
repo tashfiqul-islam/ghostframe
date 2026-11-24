@@ -226,6 +226,7 @@ test('2. no timeline row is wider than the pane, and a result is cut to 14 cells
           bar: { from: 0, to: 2_000, color: TOKEN.agent },
           result: 'reported a lot of things',
           isFailed: false,
+          isRunning: false,
           sub: { glyph: 'ok', kind: 'shell', subject: 'cat package.json', result: 'a very long result word', tone: 'dim' }
         }
       ]
