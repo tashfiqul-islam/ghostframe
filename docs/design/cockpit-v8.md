@@ -587,7 +587,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 ```
 
 - The summary: pages read, cited, failed (err).
-- A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`, over any title a search gave it), cut from the end; with none, its host and path (`example.com/missing-page`), never a label made up from the URL.
+- A page's title is the one its fetch returned (the result's `Title:` line, `Test runner`, over any title a search gave it), cut from the end; with none, its host and path (`example.com/missing-page`), never a label made up from the URL. The engine's fetch result carries no page title of its own (its fields are the bytes, the status, the URL and `result`, Claude's summary of the page), so a `Title:` line is there only when the summary gave one: the live run of round 6 drew `bun.sh/docs/cli/test` for a summary without one, round 5's `Test runner` for one with it.
 - Cited pages first, with the footnote number the answer uses (`¹`–`⁴` in `machine`), under the card's `cited pages first, in answer order` line. Uncited pages follow with `·`, in the order Claude fetched them: when each fetch started, not when it ended, since fetches in parallel end out of order. With nothing cited the card has no order line and every page is in fetch order. Host in `machine`, title in `text`, status at the right: `200` dim, a failure in `err` bold.
 - URLs dim under each row; `u` hides or shows them.
 - The numbers in the answer and in Sources are the same numbers: Claude's own footnotes (7.4). A page Claude linked without one is uncited (`·`). Cited pages re-sort to answer order at turn end only.

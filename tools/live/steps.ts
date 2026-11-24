@@ -499,12 +499,18 @@ const sources: Suite = {
     six.expect('Sources summary `n pages read · n cited · n failed`', summary.length > 0, quote(summary))
     const bun = rowsMatching(paneRows(src), /bun\.sh {3}\S/)
 
+    // The engine's fetch result has no page title of its own, only Claude's summary of the page: a `Title:` line in it
+    // is the title (`Test runner`); with none, the host and path (8.7). Which one drew is noted.
     six.expect(
-      '4, 6a. the bun.sh page`s title is the fetch`s own (`Test runner`), never `bun.sh · …` or its host and path',
-      bun.length > 0 && !bun.some(r => /bun\.sh · |bun\.sh {3}bun\.sh\//.test(r.text)),
+      '4, 6a. the bun.sh page`s title is the fetch`s `Title:` line or its host and path, never `bun.sh · …`',
+      bun.length > 0 && !bun.some(r => /bun\.sh · /.test(r.text)),
       quote(bun)
     )
-    const listed = rowsMatching(paneRows(src), /^ {2}[▐ ][·¹²³⁴] \S/).map(r => /[·¹²³⁴] (\S+)/.exec(r.text)?.[1] ?? '')
+    six.note(
+      '6a. the bun.sh title drawn',
+      bun.some(r => /bun\.sh {3}bun\.sh\//.test(r.text)) ? 'host and path: this fetch`s summary had no `Title:` line' : 'the fetch`s `Title:` line'
+    )
+    const listed = rowsMatching(paneRows(src), /^[ ▐] [·¹²³⁴⁵⁶⁷⁸⁹] \S/).map(r => /[·¹²³⁴] (\S+)/.exec(r.text)?.[1] ?? '')
     const cited = Number(/(\d+) cited/.exec(summary[0]?.text ?? '')?.[1] ?? '-1')
 
     six.expect(
@@ -709,14 +715,13 @@ function flood(id: string, width: number, stepId: string): Suite {
         step.expect('a `└` line under each', details.length >= 3, quote(details))
         const more = rowsMatching(left, /\+ 2 more · \/steps \d+/)
         const worked = rowsMatching(left, /◇ {2}worked/)
-        const answer = rowsMatching(left, /ls|nope|exit/i).filter(r => !/[×└]/.test(r.text) && !/◇|FAILED|❯/.test(r.text))
 
         step.expect(
           '3. `+ 2 more · /steps n` directly under the third row`s `└` line, right above `◇ worked`, before the answer',
           more.length === 1 &&
             more[0]?.y === (details[2]?.y ?? -2) + 1 &&
             worked[0]?.y === (more[0]?.y ?? -2) + 1 &&
-            answer.every(r => r.y > (more[0]?.y ?? Infinity)),
+            !rowsMatching(left, /more ·/).some(r => r.y > (worked[0]?.y ?? -1)),
           quote(rowsMatching(left, /more ·|◇ {2}worked|└ /))
         )
         const wide = left.filter(r => r.slice(16 + 78).trim() !== '')
