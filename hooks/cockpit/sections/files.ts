@@ -3,7 +3,7 @@
 import type { FileChange } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { patchCounts } from '../../shared/calls/results'
-import { relPath } from '../../shared/url'
+import { isOffProject, relPath } from '../../shared/url'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 const lineCount = (t: string) => (t.length === 0 ? 0 : t.replace(/\n+$/, '').split('\n').length)
@@ -12,7 +12,8 @@ const DELETE = /^\s*(?:git\s+rm|rm|del|erase|Remove-Item|ri)\s+(.+)$/i
 
 /**
  * A path as a shell command or a tool names it, from the project root: `$PWD`, `${PWD}`, `%CD%` and `./` are the
- * session's folder; `$HOME` and `${HOME}` are `~`, which stays as it is; a quoted path loses its quotes.
+ * session's folder; `$HOME`, `${HOME}`, `%USERPROFILE%` and `$env:USERPROFILE` are `~`, which stays as it is; a quoted
+ * path loses its quotes.
  * @param path the path as named
  * @param cwd the session's folder
  * @returns the path from the project root, or as it stands when it is outside
@@ -22,7 +23,7 @@ export function shownPath(path: string, cwd: string | undefined): string {
   const here = cwd ?? '.'
   const expanded = bare
     .replace(/^(?:\$\{PWD\}|\$PWD|%CD%)(?=[\\/]|$)/i, here)
-    .replace(/^(?:\$\{HOME\}|\$HOME)(?=[\\/]|$)/, '~')
+    .replace(/^(?:\$\{HOME\}|\$HOME|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\})(?=[\\/]|$)/i, '~')
     .replace(/^\.(?=[\\/])/, here)
 
   return relPath(expanded.replaceAll('\\', '/'), cwd)
@@ -100,15 +101,20 @@ export function filesFromDiff(
 }
 
 /**
- * What a shell step wrote, where no working copy can say: each file it names as a write target, with no counts.
+ * What a shell step wrote, where no working copy can say (or outside the working copy): each file it names as a write
+ * target, with no counts.
  * @param files the list before the step
  * @param command the shell command
  * @param cwd the session's folder
  * @param isAgent whether an agent's step wrote them
+ * @param isOffOnly only the targets outside the project: the working copy's diff counted the rest
  * @returns the list after it
  */
-export function filesFromCommand(files: readonly FileChange[], command: string, cwd: string | undefined, isAgent = false): FileChange[] {
-  return writeTargets(command).reduce((list, path) => add(list, { path: shownPath(path, cwd), tag: '', adds: 0, dels: 0, ...by(isAgent) }), [...files])
+export function filesFromCommand(files: readonly FileChange[], command: string, cwd: string | undefined, isAgent = false, isOffOnly = false): FileChange[] {
+  return writeTargets(command)
+    .map(path => shownPath(path, cwd))
+    .filter(path => !isOffOnly || isOffProject(path))
+    .reduce((list, path) => add(list, { path, tag: '', adds: 0, dels: 0, ...by(isAgent) }), [...files])
 }
 
 /** The paths a shell command deletes: the arguments of each deleting segment, less its flags. */
@@ -146,7 +152,11 @@ export function noteFiles(files: readonly FileChange[], tool: string, input: unk
     const adds = counts !== undefined && (counts.adds > 0 || counts.dels > 0) ? counts.adds : isCreate ? lineCount(content) : 0
     const dels = counts?.dels ?? 0
 
-    return add(files, { path: shownPath(path, cwd), tag: isCreate ? 'new' : '', adds, dels, ...by(isAgent) })
+    const shown = shownPath(path, cwd)
+    // A file outside the project is listed as written, with no counts: it is never diffed (8.5).
+    const isOff = isOffProject(shown)
+
+    return add(files, { path: shown, tag: isCreate ? 'new' : '', adds: isOff ? 0 : adds, dels: isOff ? 0 : dels, ...by(isAgent) })
   }
 
   if (tool === 'Bash' || tool === 'PowerShell') {

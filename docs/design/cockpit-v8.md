@@ -566,6 +566,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 - One row per file: path (folder dim, file bright), `+n` `−n`, a 5-cell change bar: lit in proportion to the file's change against the turn's largest, split ok and err by its additions and removals, the rest dim. `◇` at column 0 marks a file an agent changed (amendment 13).
 - The selected file's first hunk opens in place: the file row the focus ring is on (Tab, the arrows, a click) draws its first hunk under it, `@@` header and `c copy` first. Moving the ring off closes it; Enter opens the full diff (8.6).
 - The diff is the file at turn start against now (amendment 8). Order is first-touched.
+- A file outside the project (`~/…`, another drive, a temp or scratchpad folder) is listed as the call wrote it, with no counts and an empty change bar, and is never diffed: no read, no Git call; its full diff says `no diff · outside the project`. A path a command names from the home folder (`~`, `$HOME`, `%USERPROFILE%`, `$env:USERPROFILE`) is the home folder's, never the project's. A diff that cannot be read goes to the debug log only, Cockpit on or off (13.3).
 - **Keys:** `enter` diff, `c` copy path, `1` timeline.
 
 ### 8.6 The full diff
@@ -3416,6 +3417,8 @@ Cockpit's own informational notices (plugin loaded, settings read, a seat change
 - the notices of 7.10 that come from the engine (memory saved, context).
 
 A plugin's hot-reload note is the engine's (`ghostframe: reloaded (19 hooks: …)`), but Cockpit is what drew it on the left: the ledger shortens it to `ghostframe reloaded · 19 hooks` and the notice site drew that as a `●` row. With Cockpit on it goes to the debug log; with Cockpit off it keeps main's shortened line.
+
+A file's diff that cannot be read (`no diff for <path>`) is the debug log's whether Cockpit is on or off: the turn's history diffs its files at every turn's end, so a failure there would print on main's screen too.
 
 ### 13.4 The `cd` prefix
 

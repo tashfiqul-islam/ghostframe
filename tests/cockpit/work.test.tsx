@@ -154,6 +154,69 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}src\/app\.ts +\+2 {3}−1  ■+$/))
 })
 
+/**
+ * A turn that writes two files outside the project, one by a Write to its full path and one by a shell to a `~/` path,
+ * then ends: what the engine printed on the main screen (not the debug log), and what it was asked to read.
+ */
+async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: string[] }> {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const said: string[] = []
+  const read: string[] = []
+  on('session.id', () => ({ value: 's1' }))
+  on('store.get', () => ({ value: undefined }))
+  on('store.set', () => ({ value: undefined }))
+  on('ui.log', (_, e) => {
+    if ((e as { to?: unknown }).to !== 'debug') said.push(e.text)
+
+    return { value: undefined }
+  })
+  // A clean work tree, so a file no snapshot covers would fall back to Git.
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
+
+    return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+  })
+  on('fs.read', (_, e) => {
+    const path = String((e as { path?: unknown }).path)
+    read.push(path)
+
+    if (path.includes('~')) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
+
+    return { value: 'x\n' }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'scratch', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'scratch', turnId: 't1' })
+  await call($, 'Write', 'w1', { file_path: 'C:\\Users\\me\\AppData\\Local\\Temp\\claude\\s\\scratchpad\\harness5.py', content: 'x\ny\n' })
+  await call($, 'Bash', 'b1', { command: `printf 'x\n' > ~/AppData/Local/Temp/claude/s/scratchpad/notes.txt` })
+  clock.now += 1_000
+  await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
+
+  return { said, read }
+}
+
+test('a file written outside the project is never diffed: nothing reaches the main screen, and Files shows it with no counts', ON, async ($, on) => {
+  const { said, read } = await outsideTurn($, on)
+  const rows = await paneText($)
+
+  expect(said).toEqual([])
+  expect(read.filter(p => /harness5|notes\.txt/.test(p))).toEqual([])
+  // No counts: the change bar's empty track only.
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/harness5\.py {2,}■{5}$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/notes\.txt {2,}■{5}$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 files changed$/))
+})
+
+test('with Cockpit off, a file written outside the project prints nothing either', async ($, on) => {
+  const { said } = await outsideTurn($, on)
+
+  expect(said).toEqual([])
+})
+
 test('an append to a file the turn created counts too: its lines are read again at each shell step', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
