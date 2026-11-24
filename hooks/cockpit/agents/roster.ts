@@ -15,7 +15,7 @@ export type AgentEnd = { id: string; status: 'completed' | 'failed' | 'stopped';
 // the section shows at most 7 rows anyway (E.40). Raise it if `a` ever lists them all (E.44).
 const ROSTER_MAX = 200
 
-/** An agent started: its row appears last, `start · reading its brief`, 0 steps (E.40 *Launched*). */
+/** An agent started: its row appears last, with no step under it until its first one (8.9), 0 steps. */
 export function addAgent(roster: readonly RosterAgent[], start: AgentStart): RosterAgent[] {
   const agent: RosterAgent = {
     id: start.id,
@@ -25,8 +25,8 @@ export function addAgent(roster: readonly RosterAgent[], start: AgentStart): Ros
     ...(start.called === undefined || start.called.length === 0 ? {} : { called: [...start.called] }),
     isBackground: start.isBackground,
     state: 'running',
-    kind: 'start',
-    subject: 'reading its brief',
+    kind: '',
+    subject: '',
     steps: 0,
     startedAt: start.at,
     endedAt: null,
@@ -124,9 +124,11 @@ export function endAgent(roster: readonly RosterAgent[], end: AgentEnd): RosterA
 
     const isDone = end.status === 'completed'
     const said = head(end.text)
-    const subject = isDone ? said : end.status === 'stopped' ? 'stopped' : said.length > 0 ? said : 'failed'
+    // Done, the row says it reported and how much it did (8.9), never the report's own words: they can hold a path
+    // or anything else the agent wrote. A failure keeps its reason.
+    const subject = isDone ? `· ${a.steps} ${a.steps === 1 ? 'step' : 'steps'}` : end.status === 'stopped' ? 'stopped' : said.length > 0 ? said : 'failed'
 
-    return { ...a, state: isDone ? 'done' : 'failed', kind: isDone ? 'done' : 'failed', subject, endedAt: end.at, pending: null }
+    return { ...a, state: isDone ? 'done' : 'failed', kind: isDone ? 'reported' : 'failed', subject, endedAt: end.at, pending: null }
   })
 }
 

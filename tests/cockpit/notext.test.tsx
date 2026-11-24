@@ -77,9 +77,12 @@ for (const mode of ['docked', 'fallback'] as const) {
     if (isDocked) await (await $.ui.mount(PANE)).unmount()
     await silentTurn($, clock)
 
-    const expected = isDocked
-      ? [expect.stringMatching(/^─ done ─+ 2 steps · 3s$/)]
-      : [expect.stringMatching(/^│ worked · 2 steps · 2 shell +2s$/), expect.stringMatching(/^─ done ─+ 3s$/)]
+    // One worked node (7.13): the whole turn's docked, its last stretch's in fallback; then the receipt (7.12).
+    const expected = [
+      expect.stringMatching(isDocked ? /^ {10}3s ◇  worked   [⣀-⣿]+   2 steps$/ : /^ {10}2s ◇  worked   [⣀-⣿]+   2 steps$/),
+      expect.stringMatching(/^ {13}│$/),
+      expect.stringMatching(/^ {10}3s ✓  DONE   [⣀-⣿]+   2 steps$/)
+    ]
     expect(await rowsOf($, groupOf(shell('q2'), columns))).toEqual(expected)
     // The earlier call's row draws no receipt, and nor does the footer.
     expect(await rowsOf($, groupOf(shell('q1'), columns))).toEqual([])
@@ -112,6 +115,13 @@ for (const mode of ['docked', 'fallback'] as const) {
     if (isDocked) await (await $.ui.mount(PANE)).unmount()
 
     // No flow survives a resume, so no capsule is drawn: the receipt carries the steps itself (amendment 9).
-    expect(await rowsOf($, groupOf(shell(last), columns))).toEqual([expect.stringMatching(/^─ done ─+ 20 steps · 3 files · 1m 01s$/)])
+    const receiptRow = expect.stringMatching(/^ {6}1m 01s ✓  DONE   [⣀-⣿]+   20 steps · 3 files$/)
+    const rows = await rowsOf($, groupOf(shell(last), columns))
+
+    expect(rows).toEqual(
+      isDocked
+        ? [expect.stringMatching(/^ {6}1m 01s ◇  worked   [⣀-⣿]+   20 steps$/), expect.stringMatching(/^ {13}│$/), receiptRow]
+        : [expect.stringMatching(/^ {13}│$/), receiptRow]
+    )
   })
 }

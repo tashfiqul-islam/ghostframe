@@ -106,11 +106,12 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
   const presentation = { isFullscreen: true, columns: 120 }
   const first = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(opened).toEqual([{ id: 'cockpit', columns: 40 }])
-  expect(first.text).toMatch(/open/)
+  // It toggles (7.15): it names the terminal's width, the one the person sees.
+  expect(first.text).toBe('Pane docked · 120 columns')
 
   const second = await $.command.run({ command: 'cockpit', args: '', origin: { kind: 'composer' }, presentation })
   expect(closed).toEqual(['cockpit'])
-  expect(second.text).toMatch(/closed/)
+  expect(second.text).toBe('Pane closed')
 })
 
 // Correction C: a permission dialog or question card grows the pane. Every row stays where it was; the new rows stay blank.
@@ -150,7 +151,22 @@ test('a dialog opening mid-turn moves nothing: the rows stay put while bodyRows 
   const open = await drawAt(31, true)
   const after = await drawAt(24, false)
 
-  expect(before.filter(t => /^┄ \[ (NOW|STEPS|TODO) \]/.test(t))).toHaveLength(3)
+  // The head card, the ruler and the to-do count are all there before the dialog opens.
+  expect(before.some(t => /● LIVE/.test(t))).toBe(true)
+  expect(before.some(t => /┬────┬/.test(t))).toBe(true)
+  expect(before.some(t => /TODO \d+\/\d+/.test(t))).toBe(true)
   expect(open).toEqual(before)
   expect(after).toEqual(before)
+})
+
+test('8.3: before the first turn the pane draws no head card, only what will appear (live check: no `DONE TURN 0` at 06:00:00)', ON, async ($, on) => {
+  on('clock.now', () => ({ value: Date.UTC(2026, 10, 24, 9) }))
+  on('ui.open', () => ({ value: { isPlaced: true } }))
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  const ui = await $.ui.mount({ ...PANE, viewport: { columns: 200, rows: 50, isFullscreen: true } })
+  const shown = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+
+  expect(shown.some(t => /TURN 0|DONE|No steps in this turn/.test(t))).toBe(false)
+  expect(shown.some(t => t.includes('Steps, files, sources and agents appear here as Claude works.'))).toBe(true)
+  await ui.unmount()
 })

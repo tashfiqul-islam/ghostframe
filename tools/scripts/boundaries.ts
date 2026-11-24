@@ -63,7 +63,7 @@ export function violations(files: ReadonlyMap<string, string>): string[] {
 }
 
 // A hooks folder as hooks/README.md names it: `shared/`, `transcript/sites/reply/`, … (backticked, ending in a slash).
-const README_FOLDER = /`((?:shared|cockpit|transcript)(?:\/[a-z-]+)*)\/`/g
+const README_FOLDER = /`((?:shared|cockpit|transcript)(?:\/[a-z0-9-]+)*)\/`/g
 
 /**
  * Where hooks/README.md and the folders under hooks/ disagree, so the README cannot go stale: a folder it names
@@ -137,6 +137,35 @@ function sources(root: string, dir: string, out: Map<string, string> = new Map()
   return out
 }
 
+// The two palettes: Cockpit v8's (spec section 2) and the transcript's with Cockpit off, kept as it is on main.
+const PALETTES = new Set(['hooks/shared/look/palette.ts', 'hooks/shared/tokens.ts'])
+// The folders Cockpit v8 draws from, where a status glyph is always GLYPH's (spec section 4), never a literal.
+const V8_FOLDERS = ['hooks/shared/look/', 'hooks/cockpit/v8/', 'hooks/transcript/v8/']
+const HEX = /['"`]#[0-9a-fA-F]{6}\b/
+const STATUS_GLYPH = /['"`][^'"`\n]*[✓×⊘◇◆●✕✗↗▸◼±][^'"`\n]*['"`]/
+
+/**
+ * Colour hexes outside the two palettes, and status glyph literals in v8's folders outside its glyph table.
+ * @param files every source, by path
+ * @returns one message per stray literal
+ */
+export function strayLiterals(files: ReadonlyMap<string, string>): string[] {
+  const out: string[] = []
+
+  for (const [file, text] of files) {
+    if (!file.startsWith('hooks/')) continue
+
+    for (const [i, line] of text.split('\n').entries()) {
+      if (!PALETTES.has(file) && HEX.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) out.push(`${file}:${i + 1} holds a colour hex: use shared/look/palette.ts`)
+      if (V8_FOLDERS.some(f => file.startsWith(f)) && file !== 'hooks/shared/look/glyphs.ts' && STATUS_GLYPH.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) {
+        out.push(`${file}:${i + 1} holds a status glyph: use shared/look/glyphs.ts`)
+      }
+    }
+  }
+
+  return out
+}
+
 /** Stops the self-test with what it found. */
 function fail(what: string): never {
   throw new Error(`self-test: ${what}`)
@@ -189,7 +218,16 @@ function selfTest(): void {
     fail('a debug row passed')
   }
 
-  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught)`)
+  const literals = new Map([
+    ['hooks/shared/look/palette.ts', "const a = '#0B0B0E'"],
+    ['hooks/cockpit/v8/row.ts', 'const ok = GLYPH.ok\n// ✓ in a comment'],
+    ['hooks/transcript/prose.ts', "const tick = '✓'"]
+  ])
+
+  if (strayLiterals(literals).length > 0) fail(`allowed literals were refused: ${strayLiterals(literals).join('; ')}`)
+  if (strayLiterals(new Map([['hooks/cockpit/v8/row.ts', "const a = '#ffffff'\nconst b = '× failed'"]])).length !== 2) fail('a stray literal passed')
+
+  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, stray literals caught)`)
 }
 
 if (process.argv.includes('--self-test')) {
@@ -198,7 +236,12 @@ if (process.argv.includes('--self-test')) {
   const root = process.cwd()
   const hooks = join(root, 'hooks')
   const files = sources(root, hooks)
-  const found = [...violations(files), ...loggedRows(files), ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))]
+  const found = [
+    ...violations(files),
+    ...loggedRows(files),
+    ...strayLiterals(files),
+    ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))
+  ]
 
   if (found.length > 0) {
     console.error(found.join('\n'))

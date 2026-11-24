@@ -4,6 +4,8 @@ import { DENIED, mcpName } from '../../shared/calls/describe'
 import { firstErrorLine, resultOf } from '../../shared/calls/results'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
+import { RESULT_CELLS } from '../../shared/look/words'
+import { widthOf } from '../../shared/look/width'
 import { command, firstLine, int, isShell, rec } from './kinds'
 import type { Outcome } from './log'
 
@@ -72,7 +74,17 @@ function shellSummary(cmd: string, text: string): string {
   if (GIT_DIFF.test(cmd)) return gitDiff(text)
   if (/^ls\b/.test(cmd)) return listing(text)
 
-  return lastLine(text) || (CHECK_CMD.test(cmd) ? 'clean' : 'no output')
+  const line = lastLine(text)
+
+  if (line.length === 0) return CHECK_CMD.test(cmd) ? 'clean' : 'no output'
+  // Only a one-line output is its own result (13.6); more lines, with no rule of their own, say the command ran.
+  if (text.split('\n').filter(l => l.trim().length > 0).length > 1) return 'done'
+
+  // A result is a short word (5.7, 13.6): at most 14 cells, never raw output: not JSON, a path, a hash with its
+  // subject (`d0cf00d chore: start`) or an exit code. Any other output says the command ran: `done`.
+  const isWord = widthOf(line) <= RESULT_CELLS && !/^[[{"'<]|[/\\]|^[0-9a-f]{7,40}\s|^exit \d+$/i.test(line)
+
+  return isWord ? line : 'done'
 }
 
 const tonesText = (tones: readonly { text: string }[] | undefined) => tones?.map(t => t.text).join(' ') ?? ''
@@ -98,9 +110,15 @@ function failure(kind: string, tool: string, outcome: Outcome): { result: string
 
   if (kind === 'read' && /does not exist|not found|no such file/i.test(said)) return { result: 'not found', mark: '✕' }
   if (kind === 'edit' && /not found|no match/i.test(said)) return { result: 'no match', mark: '✕' }
+  // The edit tools' own guards (13.6): the file was not read first, or it changed since.
+  if (/has not been read yet/i.test(said)) return { result: 'not read', mark: '✕' }
+  if (/modified since read/i.test(said)) return { result: 'file changed', mark: '✕' }
   if (/timed? ?out/i.test(said)) return { result: 'timed out', mark: '✕' }
 
-  return { result: firstErrorLine(said) || 'failed', mark: '✕' }
+  // At most 14 cells (13.6): a longer line is no result, so the step just failed.
+  const line = firstErrorLine(said)
+
+  return { result: line.length > 0 && widthOf(line) <= RESULT_CELLS ? line : 'failed', mark: '✕' }
 }
 
 /** A finished call's result and mark; `fixes` says a failed step with the same key is still open. */
@@ -108,17 +126,23 @@ export function outcomeOf(kind: string, tool: string, input: unknown, outcome: O
   if (outcome.isError === true || outcome.deny !== undefined) return failure(kind, tool, outcome)
 
   const out = outcome.result
+  const cmd = command(input)
+  // The whole command, every line: a commit in a joined command or after a here-string's first line is still one.
+  const whole = typeof rec(input)['command'] === 'string' ? String(rec(input)['command']) : cmd
+  const ship = isShell(tool) && isShipCommand(whole) ? parseShip('', whole, shellText(out)) : undefined
+  const isShipped = outcome.commit !== undefined || ship?.commit !== undefined || ship?.push !== undefined || ship?.pr !== undefined
 
   if (kind === 'test') {
     const c = parseTests(shellText(out))
 
-    if (c !== undefined)
+    // A passing run that then commits or pushes (`bun test && git commit`) is the commit: the receipt ends on it.
+    if (c !== undefined && (c.failed > 0 || !isShipped))
       return c.failed > 0 ? { result: `${c.failed} of ${c.passed + c.failed} fail`, mark: '✕' } : { result: `${c.passed} pass`, mark: fixes ? '✓' : '' }
   }
 
   if (isShell(tool)) {
-    const cmd = command(input)
-    const ship = isShipCommand(cmd) ? parseShip('', cmd, shellText(out)) : undefined
+    if (outcome.commit !== undefined && ship?.commit === undefined && ship?.push === undefined && ship?.pr === undefined)
+      return { result: outcome.commit.sha, mark: '±' }
 
     if (ship?.pr !== undefined) return { result: `PR #${ship.pr.n}`, mark: '↗' }
     if (ship?.push !== undefined) return { result: ship.push.to, mark: '↗' }

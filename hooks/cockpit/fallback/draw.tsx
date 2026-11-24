@@ -3,26 +3,35 @@
 // failure draws its row at once, and the live area above the prompt is the whole of it. left.tsx routes each site
 // here; these draw. Every row is worked out from the turn's own data at each draw (amendment 10, facts.ts), so a row
 // drawn again after a resize, a resume or a reload draws the same.
+import { insteadRows, moreRow, refusalRows } from '../v8/events'
 import type { EngineInterface, RenderElement } from 'claude-code'
 
+import type { Part } from '../../shared/parts'
 import type { Ui } from '../../shared/rule'
 import { readFlow } from '../../shared/flow'
 import { drawRows } from '../draw'
 import { keptRecords } from '../history/store'
-import { readFrame, readLog, readRoster } from '../log'
-import { shipRows } from '../quiet'
+import { readLog, readRoster } from '../log'
 import type { GroupCall } from '../quiet'
-import { readWork } from '../work'
-import { capsuleRow } from './capsule'
+import { workedCounts } from '../v8/receipt'
+import { workedRow } from '../v8/left'
+import { shipEventRows } from '../v8/ships'
+import type { Capsule } from './capsule'
+import { isShownFailure } from '../steps/log'
 import { failureOf, failureRows } from './events'
 import type { Failure } from './events'
 import { turnOfCall, turnView } from './facts'
 import type { TurnView } from './facts'
-import { liveRows } from './live'
 import { callAnchor, footerAnchor, isAfterEventAt, textAnchor } from './plan'
 
-/** The engine's mark at the end of the live band (`[-]`, types) and a cell of gap before it. */
-const BAND_MARK = 6
+/**
+ * A capsule as v8's worked node (7.13), with the failure keys of its stretch that drew no row counted directly above
+ * it: `+ n more · /steps n`, under the turn's failure rows and before the answer (13.1).
+ */
+const capsuleRows = (c: Capsule, width: number, turnNo: number): Part[][] => [
+  ...(c.unshown > 0 ? [moreRow(c.unshown, turnNo)] : []),
+  workedRow(workedCounts(c), width)
+]
 
 /**
  * A call's failure row, from its settled step and its kept output: the same at every draw, and never taken back by a
@@ -32,9 +41,11 @@ const BAND_MARK = 6
  * @returns the failure, or undefined (none, or not settled yet)
  */
 function failureFor(view: TurnView, id: string): Failure | undefined {
-  const step = view.steps.find(s => s.id === id || s.calls?.includes(id) === true)
+  const at = view.steps.findIndex(s => s.id === id || s.calls?.includes(id) === true)
+  const step = view.steps[at]
 
-  if (step === undefined || step.isRunning) return undefined
+  // A key that failed before, or a fourth key: the receipt's `+ n more` row stands for it (13.1).
+  if (step === undefined || step.isRunning || !isShownFailure(view.steps, at)) return undefined
 
   const detail = view.details.find(d => d.id === id)
 
@@ -69,9 +80,19 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
   const rows = calls.flatMap(c => {
     const failure = c.tool_use_id === undefined ? undefined : failureFor(view, c.tool_use_id)
 
-    return [...shipRows([c], clockOf, width), ...(failure === undefined ? [] : failureRows(failure, width))]
+    const ms = c.tool_use_id === undefined ? undefined : (view.details.find(d => d.id === c.tool_use_id)?.ms ?? undefined)
+
+    const id = c.tool_use_id === undefined ? [] : [c.tool_use_id]
+
+    // The same event rows as docked (a mode switch keeps them): what Claude did instead, `↗`, ⊘ and ▍, the failure.
+    return [
+      ...insteadRows(view.steps, id, width),
+      ...shipEventRows([c], clockOf, width, k => view.steps.find(s => s.id === k)?.commit),
+      ...refusalRows(view.steps, id, width),
+      ...(failure === undefined ? [] : failureRows(failure, width, ms))
+    ]
   })
-  const all = [...(capsule === undefined ? [] : [capsuleRow(capsule, width)]), ...rows]
+  const all = [...(capsule === undefined ? [] : capsuleRows(capsule, width, view.turnNo)), ...rows]
 
   if (all.length === 0) return <ui.Box />
 
@@ -99,7 +120,7 @@ export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' |
  */
 export async function drawBlockCapsule(
   $: EngineInterface,
-  ui: Pick<Ui, 'Text'>,
+  ui: Pick<Ui, 'Box' | 'Text'>,
   key: string | undefined,
   turn: string | null | undefined,
   width: number
@@ -113,7 +134,10 @@ export async function drawBlockCapsule(
 
   const at = view.flow.findLastIndex(f => f.kind === 'text' && f.key === key)
 
-  return { capsule: drawRows(ui, [capsuleRow(capsule, width)])[0], isAfterEvent: at >= 0 && isAfterEventAt(view.flow, at, turn, view.plan) }
+  return {
+    capsule: <ui.Box flexDirection="column">{drawRows(ui, capsuleRows(capsule, width, view.turnNo))}</ui.Box>,
+    isAfterEvent: at >= 0 && isAfterEventAt(view.flow, at, turn, view.plan)
+  }
 }
 
 /**
@@ -121,23 +145,13 @@ export async function drawBlockCapsule(
  * @param $ the engine interface
  * @param turn the engine turn it closes
  * @param width the transcript rule's width
- * @returns the capsule's parts, or undefined
+ * @returns the capsule's rows (its `+ n more` row first when it has one); none without a capsule
  */
-export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<ReturnType<typeof capsuleRow> | undefined> {
-  const capsule = (await turnView($, turn))?.plan.capsules.get(footerAnchor(turn))
+export async function footerCapsule($: EngineInterface, turn: string, width: number): Promise<Part[][]> {
+  const view = await turnView($, turn)
+  const capsule = view?.plan.capsules.get(footerAnchor(turn))
 
-  return capsule === undefined ? undefined : capsuleRow(capsule, width)
-}
-
-/**
- * How many capsules the typed turn of an engine turn draws in fallback: its receipt leaves the steps to the capsule
- * only when there is exactly one (E.32).
- * @param $ the engine interface
- * @param turn the engine turn
- * @returns the count
- */
-export async function capsuleCount($: EngineInterface, turn: string): Promise<number> {
-  return (await turnView($, turn))?.plan.capsules.size ?? 0
+  return view === undefined || capsule === undefined ? [] : capsuleRows(capsule, width, view.turnNo)
 }
 
 /**
@@ -170,18 +184,4 @@ export async function drawAgentFailure(
       {drawRows(ui, failureRows(failure, width))}
     </ui.Box>
   )
-}
-
-/**
- * The live area in fallback (E.33): the now-row, the roster and the to-do in progress, across the band.
- * @param $ the engine interface
- * @param ui the surface's elements
- * @param columns the terminal's columns
- * @returns the band's tree
- */
-export async function drawFallbackLive($: EngineInterface, ui: Pick<Ui, 'Box' | 'Text'>, columns: number): Promise<RenderElement> {
-  const now = await $.clock.now()
-  const rows = liveRows(await readLog($), await readRoster($), (await readWork($)).todo, now, await readFrame($), columns - BAND_MARK)
-
-  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
 }

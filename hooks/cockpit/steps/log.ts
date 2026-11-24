@@ -1,21 +1,35 @@
-// Cockpit's step log: one turn's tool calls as `[ STEPS ]` rows (spec E.12, E.37, E.39, H.5; amendments 1
-// and 2). Pure: hooks/cockpit/log.ts keeps the log in $.state and draws what `stepRows` returns.
+// Cockpit's step log: one turn's tool calls as steps (spec E.12, E.37, E.39, H.5; amendments 1 and 2; v8 13).
+// Pure: hooks/cockpit/log.ts keeps the log in $.state and hooks/cockpit/v8/ draws it.
 import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
-import { UNLISTED, fixKey, kindOf, subjectOf } from './kinds'
+import { DENIED } from '../../shared/calls/describe'
+import { levelsOf } from '../../shared/look/trace'
+import { exitOf } from '../../shared/look/words'
+import { canFail, failureKey, fixes, hookWords, keyOf, keyText, negativeAnswer } from './failures'
+import { UNLISTED, command, kindOf, rec, subjectOf } from './kinds'
 import { outcomeOf, plural } from './results'
 
 /** A call as it starts: its id, tool, input, and the wall clock in ms. */
 export type StepStart = { id: string; tool: string; input: unknown; at: number }
 
 /** What the call came back with, as `tool.call`'s `next(e)` resolves (a deny, an error, or the tool's record). */
-export type Outcome = { result?: unknown; text?: string | undefined; isError?: true | undefined; deny?: string | undefined }
+export type Outcome = {
+  result?: unknown
+  text?: string | undefined
+  isError?: true | undefined
+  deny?: string | undefined
+  /** The commit a `git commit` step made, when Cockpit read it from Git (its output had no `[branch sha]` line). */
+  commit?: { sha: string; subject: string } | undefined
+}
 
-/** A call as it ends. */
-export type StepEnd = StepStart & { outcome: Outcome }
+/** A call as it ends; `blockedBy`, what refused it before it ran (a hook, a rule, the ceiling), when one did (13.7). */
+export type StepEnd = StepStart & { outcome: Outcome; blockedBy?: string | undefined; blockedSubject?: string | undefined }
 
 // shortcut: one turn is held whole; past this many steps the oldest are dropped and counted in `dropped`.
 // Move the log to $.store when history lands (phase 8).
 const STEPS_MAX = 5_000
+
+// The kinds whose steps change a file.
+const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
 /** An empty log for a turn that started at `startedAt`; unknown (null), the turn's first step starts its clock. */
 export function newLog(turn: string | null, startedAt: number | null): StepLog {
@@ -45,9 +59,20 @@ export function newLog(turn: string | null, startedAt: number | null): StepLog {
  */
 export function newTurn(log: StepLog, turn: string, startedAt: number | null): StepLog {
   const prev = log.steps.length > 0 ? { turnNo: log.turnNo, steps: log.steps, dropped: log.dropped } : log.prev
+  // The turn before was interrupted (screen 06): it ended aborted, or it never ended before this prompt came.
+  const isCut = log.turnNo > 0 && (log.last?.state === 'interrupted' || log.isTurnRunning)
+  const files = new Set(log.steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && s.state === undefined).map(s => s.subject))
+  const cut = isCut ? { cut: { turnNo: log.turnNo, steps: log.steps.length + log.dropped, files: files.size, startedAt: log.startedAt } } : {}
 
   // Agents' work no receipt has counted yet (a background agent's, between turns) goes to this turn's first receipt.
-  return { ...newLog(turn, startedAt), turnNo: log.turnNo + 1, isTurnRunning: true, prev, ...(log.agentWork === undefined ? {} : { agentWork: log.agentWork }) }
+  return {
+    ...newLog(turn, startedAt),
+    turnNo: log.turnNo + 1,
+    isTurnRunning: true,
+    prev,
+    ...cut,
+    ...(log.agentWork === undefined ? {} : { agentWork: log.agentWork })
+  }
 }
 
 /**
@@ -94,18 +119,87 @@ export function askStep(log: StepLog, id: string): StepLog {
   return log.asking.includes(id) ? log : { ...log, asking: [...log.asking, id] }
 }
 
-// A fetch or search that fails is a source problem, not the turn's (amendment 6): its row keeps its ✕ and its status,
-// and [ SOURCES ] its pink status, but nothing waits on it being fixed.
-const SOURCE_KINDS = new Set(['fetch', 'web'])
+/**
+ * Whether a step failed in a way the turn is answerable for (13.1): a test, shell, edit, write or agent step that
+ * errored. A failed fetch or search is a source problem (amendment 6), and a blocked or denied step is no failure.
+ */
+/** A step whose settled mark says it failed (its exit, its answer), whatever the turn makes of it. */
+export const isFailedMark = (s: LogStep): boolean => s.mark === '✕'
 
-/** Whether a step failed in a way the turn is answerable for: a failed fetch or search is not. */
-export const isTurnFailure = (s: LogStep): boolean => s.mark === '✕' && !SOURCE_KINDS.has(s.kind)
+/** A step that committed or published. */
+export const isShipMark = (s: LogStep): boolean => s.mark === '↗' || s.mark === '±'
 
-/** Whether a failed step is still open: a turn failure no later step with its key settled without failing. */
+export const isTurnFailure = (s: LogStep): boolean => s.mark === '✕' && canFail(s.kind) && s.state === undefined
+
+/** Whether a step succeeded, so it can fix a failure: settled, not failed, not blocked, denied or cut. */
+const succeeded = (t: LogStep) => !t.isRunning && t.mark !== '✕' && t.state === undefined && t.result !== 'interrupted'
+
+/** How many failure rows the left draws for a turn (13.1); past them, one `+ n more · /steps n` row. */
+export const FAILURE_ROWS = 3
+
+/**
+ * Whether a failed step draws a failure row in fallback (13.1): it is the first failure of its key, and its key is
+ * one of the turn's first three to fail. It depends only on failures that settled before it, so a row drawn stays drawn.
+ * @param steps the typed turn's steps
+ * @param index the step's place in them
+ * @returns whether it draws its row
+ */
+export function isShownFailure(steps: readonly LogStep[], index: number): boolean {
+  const s = steps[index]
+
+  if (s === undefined || !isTurnFailure(s)) return false
+
+  // Earlier means settled earlier, not started earlier: with calls in parallel a step started first can fail after
+  // this one drew its row, and must not take its place. A settled step's clock is fixed, so the answer never changes.
+  // shortcut: two failures settling in the same millisecond fall back to start order; upgrade if one is ever seen.
+  const before = steps.filter((t, k) => k !== index && isTurnFailure(t) && (t.clock < s.clock || (t.clock === s.clock && k < index)))
+
+  return !before.some(t => t.key === s.key) && new Set(before.map(t => t.key)).size < FAILURE_ROWS
+}
+
+/** Whether a failed step is still open (13.1): a turn failure no later success with the same or a broader key fixed. */
 export function isOpen(steps: readonly LogStep[], index: number): boolean {
   const s = steps[index]
 
-  return s !== undefined && isTurnFailure(s) && !steps.slice(index + 1).some(t => !t.isRunning && t.key === s.key && t.mark !== '✕')
+  return s !== undefined && isTurnFailure(s) && !steps.slice(index + 1).some(t => succeeded(t) && fixes(keyOf(t.key), keyOf(s.key)))
+}
+
+/** The failures of these steps counted by key (13.1): the same failing command run five times is one failure. */
+export function failureCounts(steps: readonly LogStep[], from = 0): { failed: string[]; open: string[] } {
+  const failed = new Set<string>()
+  const open = new Set<string>()
+
+  for (const [i, s] of steps.entries()) {
+    if (i < from || !isTurnFailure(s)) continue
+
+    failed.add(s.key)
+    if (isOpen(steps, i)) open.add(s.key)
+  }
+
+  return { failed: [...failed], open: [...open] }
+}
+
+/** How a refused call is told apart (13.7, 13.8): the person's refusal is a denial; any other refusal is a block. */
+function refusal(end: StepEnd): { state: 'blocked' | 'denied'; why: string } | undefined {
+  const said = end.outcome.deny ?? end.outcome.text ?? ''
+
+  if (end.blockedBy !== undefined) return { state: 'blocked', why: end.blockedBy }
+
+  // A hook's refusal the check did not name: its script and message from the engine's words (13.7).
+  const hook = hookWords(said)
+
+  if (hook !== undefined) return { state: 'blocked', why: `by a hook · ${hook.script}${hook.message.length > 0 ? ` · ${hook.message}` : ''}` }
+  if (DENIED.test(said)) return { state: 'denied', why: '' }
+  if (end.outcome.deny === undefined) return undefined
+
+  const by = /classifier|auto[- ]mode/i.test(said) ? 'by the classifier' : /sandbox/i.test(said) ? 'by the sandbox' : 'by a policy'
+  const reason =
+    said
+      .split('\n')
+      .find(l => l.trim().length > 0)
+      ?.trim() ?? ''
+
+  return { state: 'blocked', why: reason.length > 0 ? `${by} · ${reason}` : by }
 }
 
 const clockOf = (log: StepLog, at: number) => Math.max(0, at - (log.startedAt ?? at))
@@ -149,11 +243,12 @@ export function startStep(started: StepLog, call: StepStart, cwd?: string): Step
   }
 
   const subject = subjectOf(call.tool, call.input, cwd)
+  const file = rec(call.input)['file_path'] ?? rec(call.input)['notebook_path']
   const row: LogStep = {
     id: call.id,
     kind,
     subject,
-    key: fixKey(kind, subject, call.input),
+    key: keyText(failureKey(kind, command(call.input), typeof file === 'string' ? file : '', cwd, call.tool === 'PowerShell' ? 'pwsh' : 'bash')),
     result: '',
     mark: '',
     isRunning: true,
@@ -186,12 +281,35 @@ export function settleStep(log: StepLog, end: StepEnd): StepLog {
     return !isFailed && isLaunchedOnly(end.outcome.result) ? log : endLaunched(log, end.id, isFailed, end.at)
   }
 
-  const fixes = log.steps.some((s, i) => i < at && s.key === row.key && isOpen(log.steps, i))
-  const { result, mark } = outcomeOf(row.kind, end.tool, end.input, end.outcome, fixes)
   const asking = log.asking.filter(id => id !== end.id)
+  const settled = (step: LogStep): StepLog => ({ ...log, asking, mode: 'requesting', modeSince: end.at, steps: log.steps.with(at, step) })
+  const refused = refusal(end)
+
+  // Refused before it ran: blocked by a system (13.7) or denied by the person (13.8); neither is a failure.
+  if (refused !== undefined)
+    return settled({
+      ...row,
+      subject: end.blockedSubject ?? row.subject,
+      result: refused.state,
+      mark: '',
+      isRunning: false,
+      clock,
+      state: refused.state,
+      why: refused.why
+    })
+
+  const said = end.outcome.text ?? ''
+  const stderr = rec(end.outcome.result)['stderr']
+  const negative = end.outcome.isError === true ? negativeAnswer(command(end.input), exitOf(said), typeof stderr === 'string' ? stderr : undefined) : undefined
+
+  // A search or a compare that answered "no" (13.1): a passing step.
+  if (negative !== undefined) return settled({ ...row, result: negative, mark: '', isRunning: false, clock })
+
+  const isFix = log.steps.some((s, i) => i < at && isOpen(log.steps, i) && fixes(keyOf(row.key), keyOf(s.key)))
+  const { result, mark } = outcomeOf(row.kind, end.tool, end.input, end.outcome, isFix)
 
   // The step is answered; the model is called again: `[ NOW ]` says `waiting` from here.
-  return { ...log, asking, mode: 'requesting', modeSince: end.at, steps: log.steps.with(at, { ...row, result, mark, isRunning: false, clock }) }
+  return settled({ ...row, result, mark, isRunning: false, clock, ...(end.outcome.commit === undefined ? {} : { commit: end.outcome.commit }) })
 }
 
 /** Whether an Agent call's record says it only launched its agent, which runs on in the background. */
@@ -241,19 +359,20 @@ function verdict(steps: readonly LogStep[], isAborted: boolean): Pick<LastTurn, 
 
   if (steps.length === 0) return { state: 'done', story: 'no steps', wait: '' }
 
-  const failures = steps.filter(isTurnFailure)
-  const open = failures.filter(s => isOpen(steps, steps.indexOf(s)))
-  const first = open[0]
+  // Counted by key (13.1): a failing command run five times is one failure.
+  const counts = failureCounts(steps)
+  const failures = counts.failed
+  const first = steps.find((s, i) => isOpen(steps, i) && s.key === counts.open[0])
 
   if (first !== undefined) {
-    return { state: 'failed', story: `${plural(open.length, 'failure')} · ${first.kind} ${first.subject}`, wait: 'ask Claude to continue' }
+    return { state: 'failed', story: `${plural(counts.open.length, 'failure')} · ${first.kind} ${first.subject}`, wait: 'ask Claude to continue' }
   }
 
   const shipped = steps.findLast(s => s.mark === '↗')
   const committed = steps.findLast(s => s.mark === '±')
   const facts = [
     ...(failures.length > 0 ? [`${plural(failures.length, 'failure')} → fixed`] : []),
-    ...(committed === undefined ? [] : [`± ${committed.result}`]),
+    ...(committed === undefined ? [] : [`↗ ${committed.result}`]),
     ...(shipped === undefined ? [] : [`↗ ${shipped.result}`])
   ]
 
@@ -274,12 +393,16 @@ export function endTurn(log: StepLog, engineMs: number, isAborted = false, ended
   const isCut = (s: LogStep) => s.isRunning && (isAborted || s.kind !== 'agent')
   const steps = log.steps.map(s => (isCut(s) ? { ...s, isRunning: false, result: 'interrupted', mark: '' as const, clock: turnEnd ?? s.clock } : s))
   const workedMs = log.workedMs + segmentMs
-  const last: LastTurn = { ...verdict(steps, isAborted), durationMs: workedMs, endedAt: log.segmentStart === null ? null : log.segmentStart + segmentMs }
+  // One clock (13.9): the typed turn's time, its prompt to this end, for its one receipt, the pane head and `/steps`
+  // alike; an agent's report turn carries the typed turn on, so its end is the typed turn's end so far.
+  const last: LastTurn = {
+    ...verdict(steps, isAborted),
+    durationMs: turnEnd ?? segmentMs,
+    endedAt: log.segmentStart === null ? null : log.segmentStart + segmentMs
+  }
 
   return { ...log, steps, segmentMs, workedMs, isTurnRunning: false, asking: [], mode: null, modeSince: null, last }
 }
-
-const FILE_KINDS = new Set(['edit', 'write', 'notebook'])
 
 /** A page as a receipt counts it: the fetch's host and path, as `[ SOURCES ]` keeps one row per page. */
 const pageOf = (subject: string) => subject.toLowerCase().replace(/^www\./, '')
@@ -315,41 +438,59 @@ export function clearAgentWork(log: StepLog, counted: StepLog['agentWork']): Ste
 }
 
 /**
- * A finished engine turn's receipt (E.32): its state, and its own steps only (a turn its agents' reports started
- * borrows nothing from the typed turn before it): their count, failures and how many were fixed, files changed,
- * the last commit, the failures left open, and its time. `waiting` while `agents` background agents still run.
+ * A typed turn's one receipt (7.12): written when its last engine turn ends with no agent running, it counts the
+ * whole turn from its header: every step (the report turns' too), the agents its launches started, failures and how
+ * many were fixed, files changed, the last commit, the failures left open, and the turn's time.
  */
-export function receiptOf(log: StepLog, agents = 0): Receipt {
-  const from = Math.max(0, log.segmentFrom - log.dropped)
+export function receiptOf(log: StepLog): Receipt {
+  const from = 0
   const all = log.steps
-  const failed = all.flatMap((s, i) => (i >= from && isTurnFailure(s) ? [i] : []))
-  const open = failed.flatMap(i => {
-    const s = all[i]
+  const counts = failureCounts(all, from)
+  // One open row per key (13.1), its latest attempt's.
+  const open = counts.open.flatMap(key => {
+    const s = all.findLast((t, i) => i >= from && t.key === key && isTurnFailure(t))
 
-    return s === undefined || !isOpen(all, i) ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
+    return s === undefined ? [] : [{ kind: s.kind, subject: s.subject, result: s.result, clock: s.clock }]
   })
   const steps = all.slice(from)
   // Agents' files and pages count too, once each beside the main loop's (B3); their steps do not.
   const files = new Set([...steps.filter(s => FILE_KINDS.has(s.kind) && s.mark !== '✕' && !s.isRunning).map(s => s.subject), ...(log.agentWork?.files ?? [])])
   const pages = new Set([...steps.filter(s => s.kind === 'fetch').map(s => pageOf(s.subject)), ...(log.agentWork?.pages ?? [])])
   const launched = steps.filter(s => s.kind === 'agent').reduce((n, s) => n + (s.calls?.length ?? 1), 0)
+  const kinds: Record<string, number> = {}
+
+  for (const s of steps) kinds[s.kind] = (kinds[s.kind] ?? 0) + 1
+
+  // One clock (13.9): the typed turn's own time, its header to its end, the time the pane head shows.
+  const durationMs = log.last?.durationMs ?? log.workedMs
+  // The trace (7.12): the steps bucketed over that time, one cell per bucket, 3 to 12 cells.
+  const levels = levelsOf(
+    steps.map(s => s.clock),
+    durationMs,
+    Math.max(3, Math.min(12, steps.length))
+  )
+  const pr = steps.findLast(s => s.mark === '↗' && /^PR #\d+$/.test(s.result))?.result
   const isCut = log.last?.state === 'interrupted'
-  const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : agents > 0 ? 'waiting' : 'done'
+  const state = isCut ? 'interrupted' : open.length > 0 ? 'failed' : 'done'
 
   return {
     turn: log.turn,
     turnNo: log.turnNo,
     answer: '',
     state,
-    agents: state === 'waiting' ? agents : 0,
-    steps: Math.max(0, all.length + log.dropped - log.segmentFrom),
-    failures: failed.length,
-    fixed: failed.length - open.length,
+    agents: 0,
+    steps: all.length + log.dropped,
+    failures: counts.failed.length,
+    fixed: counts.failed.length - counts.open.length,
+    blocked: steps.filter(s => s.state === 'blocked').length,
     files: files.size,
     launched,
     sources: pages.size,
     commit: steps.findLast(s => s.mark === '±')?.result ?? '',
+    levels,
+    kinds,
+    shipped: steps.findLast(s => s.mark === '±')?.result ?? pr ?? '',
     open,
-    durationMs: log.segmentMs
+    durationMs
   }
 }

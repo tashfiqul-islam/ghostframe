@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { footnoteLines } from '../../hooks/transcript/research/footnotes'
 import { sourcesFrame } from '../../hooks/transcript/research/sources'
-import { sourceLabel, clipPath, relPath } from '../../hooks/shared/url'
+import { sourceLabel, clipPath, isOffProject, onDisk, relPath } from '../../hooks/shared/url'
 import { stepOf } from '../../hooks/transcript/activity/steps'
 import type { Step } from '../../hooks/transcript/activity/steps'
 import { layoutStep } from '../../hooks/transcript/activity/row'
@@ -110,4 +110,24 @@ test('urls: one label everywhere; link colour on markers and numbers only, label
   if (table?.kind !== 'table') throw new Error('not a table')
   expect(table.table.rows[0]?.[0]?.runs).toEqual([{ t: 'vitest.dev · cli', s: 'label' }])
   expect(table.table.rows[1]?.[0]?.runs).toEqual([{ t: 'bun.sh · docs', s: 'label' }]) // only a link: its URL label
+})
+
+// ─── Paths on disk ───────────────────────────────────────────────────────
+
+test('`~` and the home variables expand to the home folder before a `$.fs` call, on Windows and POSIX; never onto the project', async () => {
+  const win = 'C:\\Users\\me'
+  expect(onDisk('~/AppData/Local/Temp/x.py', 'D:\\Projects\\ghostframe', win)).toBe('C:/Users/me/AppData/Local/Temp/x.py')
+  expect(onDisk('%USERPROFILE%\\AppData\\x.py', 'D:/p', win)).toBe('C:/Users/me/AppData/x.py')
+  expect(onDisk('$env:USERPROFILE/x.py', 'D:/p', win)).toBe('C:/Users/me/x.py')
+  expect(onDisk('~/notes.txt', '/repo', '/home/me')).toBe('/home/me/notes.txt')
+  expect(onDisk('$HOME/notes.txt', '/repo', '/home/me/')).toBe('/home/me/notes.txt')
+  expect(onDisk('src/app.ts', 'D:\\Projects\\ghostframe\\', win)).toBe('D:/Projects/ghostframe/src/app.ts')
+  expect(onDisk('/etc/hosts', '/repo', '/home/me')).toBe('/etc/hosts')
+  expect(onDisk('~notes.txt', '/repo', '/home/me')).toBe('/repo/~notes.txt')
+  expect(() => onDisk('~/x.py', 'D:/p', undefined)).toThrow(/no home folder/)
+})
+
+test('a path as shown is outside the project when it is `~/…`, absolute or climbs out', async () => {
+  expect(['~/AppData/x.py', '~', 'C:/Temp/x', '/tmp/x', '../x'].map(isOffProject)).toEqual([true, true, true, true, true])
+  expect(['src/app.ts', '~notes.txt', '.github/ci.yml', '..x'].map(isOffProject)).toEqual([false, false, false, false])
 })

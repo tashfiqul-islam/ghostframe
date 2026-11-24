@@ -1,10 +1,11 @@
 import { expect, test } from 'claude-code/testing'
 
+import { TOKEN } from '../../../../hooks/shared/look/palette'
 import { ON, T0, PANE } from '../../../support/cockpit'
 import { respond } from '../../../support/respond'
 import { text, use, engine, message, NARRATION, ANSWER, CALLS, AGAIN, fixedTurn } from '../../../support/docked'
 
-test('docked: narration draws nothing; the answer stays, with `claude`', ON, async ($, on) => {
+test('docked: narration draws nothing; the answer stays, its lead sentence bright (7.4)', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, CALLS, clock)
   const pane = await $.ui.mount(PANE)
@@ -18,7 +19,7 @@ test('docked: narration draws nothing; the answer stays, with `claude`', ON, asy
 
   const answer = await $.ui.mount(message(ANSWER))
   expect(await answer.find({ type: 'Text', text: /old Bun/ })).toBeDefined()
-  expect(await answer.findAll({ type: 'Text', text: /^claude$/ })).toHaveLength(1)
+  expect((await answer.findAll({ type: 'Text' })).some(t => t.props['color'] === TOKEN.textBright && /Fixed:/.test(t.text))).toBe(true)
   await answer.unmount()
   await pane.unmount()
 })

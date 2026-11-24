@@ -1,6 +1,7 @@
 // History (spec E.45): every typed turn's record, in $.state for the session (it survives a plugin reload) and in
 // $.store under `history:<session id>` (it survives a resume), fitted to the store's budget with the other sessions'
 // histories; and the pinned turn the pane shows instead of the live one.
+import { noticeSink } from '../switch'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
@@ -199,25 +200,39 @@ async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<Tu
 }
 
 /**
- * A typed turn's engine turn ended: its record is kept, in the session's state and in the store, under the budget.
- * A store that refuses the write is read again, all of it, and the plan made afresh, once.
+ * A typed turn's engine turn ended: its record is kept, in the session's state first, then in the store, under the
+ * budget. A store that refuses the write is read again, all of it, and the plan made afresh, once.
  * @param $ the engine interface
  * @param parts what the record is built from
  */
 export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<void> {
   const record = recordOf(parts)
   const all = withRecord(await read($, history), record)
+
+  // The session keeps the turn whether or not the store takes it: the pane's pins and fallback's redraw of a past
+  // turn (13.1) read it. A refused write costs the turn its place after a resume, never the session's copy.
+  await update($, history, () => all)
   let kept: TurnRecord[]
 
   try {
     kept = await write($, all)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`)
+    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, noticeSink())
     await readStore($)
     kept = await write($, all)
   }
 
   await update($, history, () => kept)
+}
+
+/**
+ * Turns a rewind took out of the conversation leave history (7.1): the session's copy at once, the store's at the
+ * next turn's write, which starts from the session's copy.
+ * @param $ the engine interface
+ * @param turnNos the turns' numbers
+ */
+export async function dropTurns($: EngineInterface, turnNos: readonly number[]): Promise<void> {
+  await update($, history, list => list.filter(r => !turnNos.includes(r.turnNo)))
 }
 
 /**

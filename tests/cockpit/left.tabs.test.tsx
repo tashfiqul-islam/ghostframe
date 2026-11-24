@@ -86,7 +86,7 @@ async function look($: Engine, n: number) {
   return {
     isNarrationShown: narration.some(t => t.includes(NARRATION(n))),
     isStepShown: step.length > 0,
-    hasReceipt: answer.some(t => t.startsWith('─ done')),
+    hasReceipt: answer.some(t => /✓  DONE/.test(t)),
     rows: [...narration, ...step, ...answer]
   }
 }

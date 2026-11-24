@@ -1,5 +1,6 @@
 // Each main-loop step's detail (spec E.44: Enter on a step), kept in $.state apart from the step log so the log stays
 // small: the full command or subject, its timing, an excerpt of its output, and an edit's patch.
+import { exitOf as exitCodeIn } from '../../shared/look/words'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
@@ -29,6 +30,17 @@ export function commandOf(tool: string, input: unknown): string {
   const named = s(i['command']) ?? s(i['file_path']) ?? s(i['notebook_path']) ?? s(i['url']) ?? s(i['query']) ?? s(i['pattern'])
 
   if (named !== undefined) return tool === 'Grep' && s(i['path']) !== undefined ? `${named} in ${s(i['path'])}` : named
+
+  // An agent's launch: what it was asked to do, its description and its brief's first line (8.4), not its record.
+  if (tool === 'Agent' || tool === 'Task') {
+    const brief =
+      (s(i['prompt']) ?? '')
+        .split('\n')
+        .find(l => l.trim().length > 0)
+        ?.trim() ?? ''
+
+    return [s(i['description']) ?? '', brief].filter(x => x.length > 0).join(' · ')
+  }
 
   const rest = Object.fromEntries(Object.entries(i).filter(([k]) => k !== 'tool' && k !== 'tool_use_id' && k !== 'agentId'))
 
@@ -130,9 +142,30 @@ export async function noteEnd($: EngineInterface, id: string, input: unknown, ou
         .filter((r, _, all) => all.length > 1 || r.length > 0)
       const excerpt = (isFailed ? rows.slice(-EXCERPT) : rows.slice(0, EXCERPT)).map(r => r.slice(0, ROW_MAX))
 
-      return { ...d, ms: Math.max(0, at - d.startAt), isFailed, lines: rows.length, excerpt, patch: isFailed ? [] : patchOf(d.tool, input, outcome.result) }
+      const exit = isFailed ? exitOf(outcome) : undefined
+
+      return {
+        ...d,
+        ms: Math.max(0, at - d.startAt),
+        isFailed,
+        lines: rows.length,
+        excerpt,
+        patch: isFailed ? [] : patchOf(d.tool, input, outcome.result),
+        ...(exit === undefined ? {} : { exit })
+      }
     })
   )
+}
+
+/**
+ * A failed command's exit code: the engine's `Exit code n` line on its error text, or the result's `exitCode`.
+ * @param outcome what the call came back with
+ * @returns the code, or undefined when the outcome gives none
+ */
+export function exitOf(outcome: Outcome): number | undefined {
+  const code = obj(outcome.result)?.['exitCode']
+
+  return exitCodeIn(outcome.text ?? '') ?? (typeof code === 'number' ? code : undefined)
 }
 
 /**

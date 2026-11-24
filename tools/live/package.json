@@ -1,0 +1,20 @@
+{
+  "name": "ghostframe-live-checks",
+  "private": true,
+  "description": "The headless live-check harness: drives the real Claude Code in a pseudo-terminal and reads its screen. A dev tool only, kept in its own package so neither the plugin nor the tools/ gate installs its native dependency.",
+  "type": "module",
+  "scripts": {
+    "live": "bun run.ts",
+    "test": "bun test",
+    "typecheck": "../node_modules/.bin/tsrs -p ."
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "@xterm/addon-unicode11": "0.9.0",
+    "@xterm/headless": "6.0.0",
+    "node-pty": "1.1.0"
+  },
+  "trustedDependencies": [
+    "node-pty"
+  ]
+}

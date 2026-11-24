@@ -7,7 +7,6 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { LogStep, StepDetail, TurnRecord } from '../../../types'
-import type { Section } from '../fit'
 import { readLog, readRoster } from '../log'
 import { fileDiff } from '../history/snapshots'
 import { readHistory, readPin, setPin } from '../history/store'
@@ -21,16 +20,9 @@ import { readDetails } from './details'
 export type View =
   | { kind: 'fit' }
   | { kind: 'all' }
-  | { kind: 'step'; id: string }
+  | { kind: 'step'; id: string; in: 'fit' | 'all' }
   | { kind: 'diff'; path: string; patch: string[]; note?: string }
   | { kind: 'agent'; id: string; note: string }
-
-/**
- * The note under `[ STEPS · AGENT name ]` while the engine shows the agent's conversation. `m` goes back from anywhere
- * in the pane (Enter on the agent's row too). Escape at the prompt is not offered: live, it stopped the viewed agent's
- * running shell first, and went back to main only when nothing ran.
- */
-export const AGENT_NOTE = 'agent in view · m for main'
 
 const FIT: View = { kind: 'fit' }
 const EDIT_KINDS = new Set(['edit', 'write', 'notebook'])
@@ -42,7 +34,6 @@ const tick = atom({ plugin: 'ghostframe', key: 'viewTick' } as const, 0, { shape
 
 // shortcut: the view lives in the module; a reload forgets it and the pane draws the fitted layout, as after Escape.
 let view: View = FIT
-const whole = new Set<Section>()
 /** The element under the focus ring (`ui.focus`): what `c` copies in the fitted and full views. */
 let ring: string | undefined
 /** What the last `c` said, and when. */
@@ -67,15 +58,12 @@ export function noteViewed(agentId: string | undefined): void {
 export function viewNow(isFocused: boolean): View {
   if (!isFocused) {
     view = FIT
-    whole.clear()
+    tab = 'timeline'
     ring = undefined
   }
 
   return view
 }
-
-/** The sections shown whole. */
-export const wholeNow = (): ReadonlySet<Section> => whole
 
 /**
  * What the last `c` said, while it still shows.
@@ -94,6 +82,9 @@ export const hasCopied = (): boolean => copied !== undefined
 export function noteRing(element: string | undefined): void {
   ring = element
 }
+
+/** The element the focus ring is on in the pane, as `ui.focus` last named it. */
+export const ringNow = (): string | undefined => ring
 
 /**
  * The view's counter; read while drawing, so the pane draws again when the view changes.
@@ -151,7 +142,7 @@ function missing(patch: readonly string[], row: { adds: number; dels: number } |
  * @param path the file, as the pane names it
  * @returns its rows, and what they leave out
  */
-async function fileView($: EngineInterface, path: string): Promise<{ patch: string[]; note?: string }> {
+export async function fileView($: EngineInterface, path: string): Promise<{ patch: string[]; note?: string }> {
   const pinned = await pinnedRecord($)
 
   if (pinned !== undefined) {
@@ -247,7 +238,7 @@ export async function openRow($: EngineInterface, id: string): Promise<void> {
     view =
       step !== undefined && EDIT_KINDS.has(step.kind) && (detail?.patch.length ?? 0) > 0
         ? { kind: 'diff', path: step.subject, patch: detail?.patch ?? [] }
-        : { kind: 'step', id: stepId }
+        : { kind: 'step', id: stepId, in: view.kind === 'all' ? 'all' : 'fit' }
   }
 
   await redraw($)
@@ -368,32 +359,44 @@ async function stepPin($: EngineInterface, step: -1 | 1): Promise<void> {
   view = FIT
 }
 
-const SECTION_KEYS: Readonly<Record<string, Section>> = { a: 'agents', t: 'todo', f: 'files', u: 'sources' }
+/** The pane's five tabs (8.1), by their keys. */
+export type Tab = 'timeline' | 'files' | 'sources' | 'todo' | 'agents'
+const TAB_KEYS: Readonly<Record<string, Tab>> = { '1': 'timeline', '2': 'files', '3': 'sources', '4': 'todo', '5': 'agents' }
+
+// shortcut: the tab and the URLs' switch live in the module, as the view does; a reload shows the timeline again.
+let tab: Tab = 'timeline'
+let isUrlsShown = true
+
+/** The tab shown (8.1). */
+export const tabNow = (): Tab => tab
+
+/** Whether the Sources tab shows each page's URL under it (8.7, `u`). */
+export const urlsShown = (): boolean => isUrlsShown
 
 /**
- * A key of the focused pane, pressed: `s` the full step view (again to fit), `a` `t` `f` `u` a section shown whole
- * (again to fit), `c` copy, `b` back to the fitted layout, `p` `n` a kept turn before or after (E.45), `l` live.
+ * A key of the focused pane, pressed (9.5): `1` to `5` a tab, `s` every step (again to fit), `u` the Sources tab's URLs,
+ * `c` copy, `b` back, `p` `n` a kept turn before or after (9.4), `l` live, `m` main. (`?` cannot be a hotkey.)
  * @param $ the engine interface
  * @param key the hotkey
  */
 export async function pressKey($: EngineInterface, key: string): Promise<void> {
-  const section = SECTION_KEYS[key]
+  const toTab = TAB_KEYS[key]
 
-  if (key === 'p') await stepPin($, -1)
+  if (toTab !== undefined) {
+    tab = toTab
+    view = FIT
+  } else if (key === 'p') await stepPin($, -1)
   else if (key === 'n') await stepPin($, 1)
   else if (key === 'l') {
     await setPin($, null, 0)
     view = FIT
-  } else if (key === 's') view = view.kind === 'all' ? FIT : { kind: 'all' }
+  } else if (key === 's') {
+    tab = 'timeline'
+    view = view.kind === 'all' ? FIT : { kind: 'all' }
+  } else if (key === 'u') isUrlsShown = !isUrlsShown
   else if (key === 'm') await backToMain($)
-  else if (key === 'b') view = FIT
+  else if (key === 'b') view = view.kind === 'step' && view.in === 'all' ? { kind: 'all' } : FIT
   else if (key === 'c') await copyNow($)
-  else if (section !== undefined) {
-    if (whole.has(section)) whole.delete(section)
-    else whole.add(section)
-
-    view = FIT
-  }
 
   await redraw($)
 }

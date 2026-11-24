@@ -10,7 +10,7 @@ const SPINNER = {
   props: { word: 'Sauteing', message: null, suffix: '…', mode: 'tool-use' }
 } as const
 
-test('docked, the left live row is one `working` row with the turn`s time on the time edge', ON, async ($, on) => {
+test('docked, the left live area is the live line: its time, the spinner, the sentence (7.11)', ON, async ($, on) => {
   let now = T0
   on('clock.now', () => ({ value: now }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -24,9 +24,10 @@ test('docked, the left live row is one `working` row with the turn`s time on the
   now = T0 + 76_000
 
   const live = await $.ui.mount(SPINNER)
-  const row = await live.find({ type: 'Text', text: /working/ })
-  expect(row?.text).toMatch(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] working +1m 16s$/)
-  expect(row?.text.length).toBe(120)
+  // The live line (7.11): `┊` above it, the turn's elapsed time in its label, the spinner, what Claude is doing.
+  const rows = (await live.findAll({ type: 'Text' })).map(t => t.text)
+  expect(rows).toContain('             ┊')
+  expect(rows.find(r => /Thinking/.test(r))).toMatch(/^ {6}1m 16s [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]  Thinking$/)
   expect(await live.find({ type: 'Text', text: /engine/ })).toBeUndefined()
   await live.unmount()
   await pane.unmount()
@@ -36,7 +37,7 @@ test('off, the left live row is the engine`s', async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const live = await $.ui.mount(SPINNER)
-  expect(await live.find({ type: 'Text', text: /working/ })).toBeUndefined()
+  expect(await live.find({ type: 'Text', text: /Thinking/ })).toBeUndefined()
   expect((await live.find({ type: 'Text', text: /engine/ }))?.text).toBe('engine')
   await live.unmount()
 })

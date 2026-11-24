@@ -18,7 +18,7 @@ export const drawParts = (ui: Ui, parts: readonly Part[], key: string): RenderEl
       {parts.length === 0
         ? ' '
         : parts.map((p, i) => (
-            <Text key={`${i}`} color={p.color} {...(p.bold ? { weight: 'bold' as const } : {})}>
+            <Text key={`${i}`} color={p.color} {...(p.bold ? { weight: 'bold' as const } : {})} {...(p.bg === undefined ? {} : { backgroundColor: p.bg })}>
               {p.t}
             </Text>
           ))}

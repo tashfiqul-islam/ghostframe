@@ -24,13 +24,16 @@ import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
-import { loadHistory, saveTurn, setPin } from './history/store'
+import { dropTurns, loadHistory, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
-import { isOn } from './switch'
-import { noteCited, noteWork, readWork, restoreWork, startWork } from './work'
+import { commitIn, hookWords, ruledStatement } from './steps/failures'
+import { showPath } from '../shared/look/paths'
+import { parseShip, shellText } from '../shared/calls/ships'
+import { isOn, noticeSink } from './switch'
+import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
@@ -104,7 +107,11 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
   if (at === undefined) {
     await update($, stepLog, log => continueTurn(log, turn, now))
   } else {
-    await update($, stepLog, log => newTurn(log, turn, at))
+    // A rewind took the last turns out: they leave first, and the new turn follows the last that remains (7.1).
+    await noteRewind($, true)
+    await applyRewind($)
+    await update($, stepLog, log => newTurn({ ...log, turnNo: lastRemaining(log) }, turn, at))
+    rewound.clear()
     // A typed prompt means the person has moved on: the pin goes (E.45), and the new turn's files are read afresh.
     await setPin($, null, 0)
     resetSnapshots()
@@ -112,7 +119,7 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
     await settleUnreported($, now)
     await update($, roster, startTurnAgents)
     // A `/tui` switch is old news too; a note that cannot be cleared costs a repeat of it after a reload, nothing more.
-    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`))
+    await clearSwitch($).catch((error: unknown) => $.ui.log(`cockpit: /tui note not cleared: ${String(error)}`, noticeSink()))
   }
 
   lastMode = undefined
@@ -132,7 +139,7 @@ async function settleUnreported($: EngineInterface, now: number): Promise<void> 
     const listed = await $.agent.list()
     await update($, roster, list => reconcile(list, listed, now))
   } catch (error: unknown) {
-    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`)
+    $.ui.log(`cockpit: agent list unavailable: ${String(error)}`, noticeSink())
   }
 }
 
@@ -168,6 +175,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
 
   lastCwd = cwd ?? lastCwd
   await snapshotBefore($, e.tool, e, cwd)
+  noteFetchStart(e.tool, e)
 
   await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
   await noteStart($, e.tool_use_id, e.tool, e, at)
@@ -184,12 +192,51 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
 export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: Outcome | undefined, at: number, cwd?: string): Promise<void> {
   if (!isOn()) return
 
-  const ran = outcome ?? { isError: true as const, text: 'failed' }
+  const got = outcome ?? { isError: true as const, text: 'failed' }
+  const ran = await withCommit($, e, got, cwd)
+  const block = blocks.get(e.tool_use_id)
+  blocks.delete(e.tool_use_id)
+  const blockedBy = block?.why
+  const blockedSubject = block?.rule === undefined ? undefined : ruledSubject(e, block.rule, cwd)
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
-  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
+  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
   await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
+}
+
+/**
+ * A `git commit` that succeeded but printed no `[branch sha] subject` line (`-q`, or its output piped away): the
+ * commit it made is HEAD now, read from Git, so the step, its `↗ committed` row and the receipt name it (7.10).
+ * @param $ the engine interface
+ * @param e the call
+ * @param ran what it returned
+ * @param cwd the session's folder, where Git is asked
+ * @returns the outcome, with the commit when it was read
+ */
+async function withCommit($: EngineInterface, e: ToolCallInput, ran: Outcome, cwd: string | undefined): Promise<Outcome> {
+  const command: unknown = Reflect.get(e, 'command')
+  const isShell = e.tool === 'Bash' || e.tool === 'PowerShell'
+
+  const commits = !isShell || ran.isError === true || ran.deny !== undefined || typeof command !== 'string' ? undefined : commitIn(command)
+
+  if (commits === undefined || typeof command !== 'string') return ran
+  if (parseShip(e.tool_use_id, command, shellText(ran.result) || (ran.text ?? ''))?.commit !== undefined) return ran
+
+  // Git is asked where the commit ran: the folder its `cd` or `git -C` named, from the session's folder.
+  const at = commits.dir === undefined ? cwd : /^(?:[A-Za-z]:|[/\\~])/.test(commits.dir) || cwd === undefined ? commits.dir : `${cwd}/${commits.dir}`
+
+  try {
+    const head = await $.process.run(['git', 'log', '-1', '--format=%h%x09%s'], at === undefined ? {} : { cwd: at })
+    const [sha = '', subject = ''] = head.stdout.trim().split('\t')
+
+    return head.exitCode === 0 && /^[0-9a-f]{7,40}$/.test(sha) ? { ...ran, commit: { sha: sha.slice(0, 7), subject } } : ran
+  } catch (error: unknown) {
+    // Git could not be asked (no repository, no Git): the step settles as its output says, with no hash.
+    $.ui.log(`cockpit: commit not read from Git: ${String(error)}`, noticeSink())
+
+    return ran
+  }
 }
 
 /**
@@ -202,6 +249,52 @@ export async function logCited($: EngineInterface, cited: readonly { url: string
   if (!isOn() || cited.length === 0) return
 
   await noteCited($, cited)
+}
+
+// The main-loop calls a check refused, by id, with who refused them (13.7), until their step settles.
+// shortcut: kept in the module, so a reload between a check and its call's end loses the block; the step then reads as
+// the engine's refusal text says (a policy). Fine: a check and its call's end are milliseconds apart.
+const blocks = new Map<string, { why: string; rule?: string | undefined }>()
+
+/**
+ * What a rule refused in a joined command (13.7): the statement it matched, its paths from the project root, so the
+ * row names `rm -rf src` rather than the command's first statement.
+ */
+function ruledSubject(e: ToolCallInput, rule: string, cwd: string | undefined): string | undefined {
+  const command: unknown = Reflect.get(e, 'command')
+  const statement = typeof command === 'string' ? ruledStatement(command, rule) : undefined
+
+  return statement
+    ?.split(' ')
+    .map(w => (/[/\\]/.test(w) ? showPath(w, { project: cwd }) : w))
+    .join(' ')
+}
+const BLOCKS_MAX = 100
+
+/**
+ * A check refused a main-loop call before it ran (13.7): a hook (`PreToolUse`), a settings rule or the organization's
+ * ceiling. Its step settles `blocked`, with this as its detail line. The person's refusal is not a check's: a denial.
+ * @param id the call's id
+ * @param verdict the check's verdict: the hook event, the rule, and the reason it gave
+ */
+export function logBlocked(id: string, verdict: { hook?: string | undefined; rule?: string | undefined; reason?: string | undefined }): void {
+  if (!isOn()) return
+
+  // A hook names its script and its own message (`by a hook · guard-main.ps1 · pushing is blocked`), not the engine's
+  // wrapper around them; a rule's reason is only the engine's `Permission to use …` sentence, so the rule alone says it.
+  const words = verdict.hook === undefined ? undefined : hookWords(verdict.reason ?? '')
+  const who =
+    verdict.hook !== undefined ? `by a hook · ${words?.script ?? verdict.hook}` : verdict.rule !== undefined ? `by a rule · ${verdict.rule}` : 'by a policy'
+  const said =
+    words?.message ??
+    verdict.reason
+      ?.split('\n')
+      .find(l => l.trim().length > 0)
+      ?.trim()
+  const reason = verdict.rule !== undefined || /^Permission to use /i.test(said ?? '') ? undefined : said
+
+  blocks.set(id, { why: reason === undefined || reason.length === 0 ? who : `${who} · ${reason}`, rule: verdict.rule })
+  while (blocks.size > BLOCKS_MAX) blocks.delete(blocks.keys().next().value ?? id)
 }
 
 /**
@@ -245,12 +338,24 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
   const ended = await read($, stepLog)
-  // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
-  const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
-  const receipt = { ...receiptOf(ended, waiting), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
-  await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
-  // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
-  await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
+
+  // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none; the first
+  // that ends with none running writes the whole turn's. A report turn after it (an agent that had finished before
+  // its report reached Claude) that answers takes the receipt: the receipt goes under the turn's last answer.
+  const isWritten = (await read($, receipts)).some(r => r.turnNo === ended.turnNo)
+
+  if (waiting === 0 && (!isWritten || answer !== '')) {
+    // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
+    const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
+    const receipt = { ...receiptOf(ended), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
+    const had = (await read($, receipts)).find(r => r.turnNo === receipt.turnNo)
+
+    // A later report turn's answer: the turn's receipt moves under it, the same receipt, its engine turn kept.
+    if (had !== undefined) await update($, receipts, list => list.map(r => (r === had || r.turnNo === receipt.turnNo ? { ...receipt, turn: had.turn } : r)))
+    else await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+    // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
+    await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
+  }
 
   if (anyRunning(await read($, roster))) startTimers($, false)
   else stopTimers()
@@ -280,7 +385,7 @@ async function keepTurn($: EngineInterface): Promise<void> {
     )
     await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
   } catch (error: unknown) {
-    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`)
+    $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, noticeSink())
   }
 }
 
@@ -354,6 +459,7 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   lastCwd = cwd ?? lastCwd
   // A file's diff is the whole turn's change: an agent's call reads it first too (amendment 8).
   await snapshotBefore($, e.tool, e, cwd)
+  noteFetchStart(e.tool, e)
   await update($, roster, list => agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id))
   await noteStart($, e.tool_use_id, e.tool, e, at, id)
 }
@@ -444,6 +550,98 @@ export async function readLog($: EngineInterface): Promise<StepLog> {
  */
 export async function readReceipts($: EngineInterface): Promise<Receipt[]> {
   return read($, receipts)
+}
+
+// The typed turns a rewind took out of the conversation, by number (7.1): their answer rows are gone. Found while
+// the pane draws idle, at most every REWIND_CHECK_MS, since no event says a rewind happened.
+// shortcut: kept in the module, so a reload forgets them; the receipts and history they left stay left.
+const rewound = new Set<number>()
+let rewindCheckedAt = Number.NEGATIVE_INFINITY
+const REWIND_CHECK_MS = 1_500
+const REWIND_DEPTH = 5
+
+/**
+ * Whether a row has left the main conversation: `$.session.messages` reads on from no row that was rewound.
+ * @param $ the engine interface
+ * @param row the row's id
+ * @returns whether it has
+ */
+async function isGone($: EngineInterface, row: string): Promise<boolean> {
+  return !Array.isArray(await $.session.messages({ after: row }))
+}
+
+/**
+ * The typed turns a rewind took out, newest first until one still in the conversation: they leave the receipts and
+ * history, and the pane shows the last turn that remains.
+ * @param $ the engine interface
+ * @returns the rewound turns' numbers
+ */
+export async function noteRewind($: EngineInterface, isForced: boolean = false): Promise<ReadonlySet<number>> {
+  // The wall clock, not the engine's: a throttle, not a time anything is drawn with.
+  const now = Date.now()
+
+  if (!isForced && now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
+  rewindCheckedAt = now
+  const list = await read($, receipts)
+  // The newest few turns, read together; a rewind further back is found 5 turns at a time, at the checks after.
+  const turnNos = [...new Set(list.map(r => r.turnNo))]
+    .filter(n => !rewound.has(n))
+    .toSorted((a, b) => b - a)
+    .slice(0, REWIND_DEPTH)
+  let gone: number[] = []
+
+  try {
+    // A turn's last answer row stands for it; a turn that wrote none cannot be told apart, and ends the run.
+    const answers = turnNos.map(n => list.findLast(r => r.turnNo === n && r.answer !== '')?.answer)
+    const isGoneEach = await Promise.all(answers.map(async a => (a === undefined ? false : isGone($, a))))
+    const stays = isGoneEach.indexOf(false)
+
+    gone = turnNos.slice(0, stays < 0 ? turnNos.length : stays)
+  } catch (error: unknown) {
+    // The engine would not read the conversation: no rewind is told this time, and the pane draws as it was.
+    $.ui.log(`cockpit: rewind not checked: ${String(error)}`, { to: 'debug' })
+
+    return rewound
+  }
+  if (gone.length === 0) return rewound
+
+  for (const n of gone) rewound.add(n)
+  $.ui.log(`cockpit: turns ${gone.join(', ')} rewound out of the conversation`, { to: 'debug' })
+  // A draw reads state and never writes it: the rewound turns leave the receipts and history just after it.
+  $.clock.after(0, () => void redrawRewound($).catch((error: unknown) => $.ui.log(`cockpit: rewound turns not dropped: ${String(error)}`, { to: 'debug' })))
+
+  return rewound
+}
+
+/**
+ * Just after the draw that found a rewind: the rewound turns leave, and every site draws again without them.
+ * @param $ the engine interface
+ */
+async function redrawRewound($: EngineInterface): Promise<void> {
+  await applyRewind($)
+  $.ui.invalidate('ui.render')
+}
+
+/**
+ * The rewound turns leave the receipts and history; the next typed turn takes the number after the last that remains.
+ * @param $ the engine interface
+ */
+export async function applyRewind($: EngineInterface): Promise<void> {
+  if (rewound.size === 0) return
+
+  await update($, receipts, l => l.filter(r => !rewound.has(r.turnNo)))
+  await dropTurns($, [...rewound])
+}
+
+/** The last turn a rewind left: the number the next typed turn follows, or the log's own when no rewind took it. */
+const lastRemaining = (log: StepLog): number => {
+  if (!rewound.has(log.turnNo)) return log.turnNo
+
+  let n = log.turnNo
+
+  while (n > 0 && rewound.has(n)) n--
+
+  return n
 }
 
 /**

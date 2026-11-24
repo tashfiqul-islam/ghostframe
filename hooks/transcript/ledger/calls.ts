@@ -1,8 +1,9 @@
 // The main loop's tool calls, observed: each call's time (`tool.call`), and a check that asked the person
 // (`tool.check`). What a finished call adds to the turn: the tally, test counts, what shipped.
+import { noticeSink } from '../../cockpit/switch'
 import type { EngineInterface, On } from 'claude-code'
 
-import { logAgentStep, logAgentStepEnd, logAsk, logStepEnd, logStepStart } from '../../cockpit/log'
+import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepStart } from '../../cockpit/log'
 import { runnerOf } from '../../shared/calls/describe'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
@@ -73,7 +74,7 @@ export function registerCalls(on: On): void {
         // A subagent's call is its own: its `[ AGENTS ]` row says what it does now, and its own log gets the step.
         await logAgentStep($, agentId, e, sessionCwd())
       } catch (error: unknown) {
-        $.ui.log(`cockpit: agent step failed: ${String(error)}`)
+        $.ui.log(`cockpit: agent step failed: ${String(error)}`, noticeSink())
       }
 
       let done: Awaited<ReturnType<typeof next>> | undefined
@@ -86,7 +87,7 @@ export function registerCalls(on: On): void {
         try {
           await logAgentStepEnd($, agentId, e, done, sessionCwd())
         } catch (error: unknown) {
-          $.ui.log(`cockpit: agent step failed: ${String(error)}`)
+          $.ui.log(`cockpit: agent step failed: ${String(error)}`, noticeSink())
         }
       }
     }
@@ -164,6 +165,9 @@ export function registerCalls(on: On): void {
         await updateAsked($, list => [...list.filter(x => x !== id), id].slice(-100))
         await logAsk($, id)
       }
+
+      // Refused by a check, not by the person (13.7): its step settles `blocked`.
+      if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') logBlocked(id, verdict)
     } catch {
       // A note that fails costs the row its `needs you`, nothing more.
     }

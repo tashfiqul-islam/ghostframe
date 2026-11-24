@@ -15,7 +15,8 @@ test('capsule, trigger 1: a block of text that stays opens with the capsule of t
 
   const answer = site('AssistantMessage', 'm11-answer', 100, { text: answerOf(11), isFirstOfReply: true })
   const first = await rowsOf($, answer)
-  expect(first[0]).toMatch(/^│ worked · 5 steps · 2 shell · 1 edit · 1 fetch · 1 agent · 1 failure +16s$/)
+  // The worked node (7.13): the stretch's steps and its agents; its failure drew its own row when it settled (13.1).
+  expect(first[0]).toMatch(/^ {9}16s ◇  worked   [⣀-⣿]+   5 steps · 1 agent$/)
   expect(first.some(r => r.includes('the shell said hi'))).toBe(true)
   // Drawn again (a resize, a scroll), the block is as it was: a capsule is never updated.
   expect(await rowsOf($, answer)).toEqual(first)
@@ -43,7 +44,7 @@ test('capsule, trigger 2: a step that starts after five silent minutes draws the
   // Ten minutes in, with nothing drawn on the left since the start: the capsule of the two steps before it.
   await run('s3', T0 + 10 * 60_000)
   const rows = await rowsOf($, groupOf(shell('s3'), 100))
-  expect(rows).toEqual([expect.stringMatching(/^│ worked · 2 steps · 2 shell +4m 01s$/)])
+  expect(rows).toEqual([expect.stringMatching(/^ {6}4m 01s ◇  worked   [⣀-⣿]+   2 steps$/)])
   // Drawn again later (a resize, a scroll), it is the same row: it comes from the steps, not from the moment.
   clock.now += 60 * 60_000
   expect(await rowsOf($, groupOf(shell('s3'), 100))).toEqual(rows)
@@ -60,25 +61,28 @@ test('capsule, trigger 3: a turn that ends without any text draws its capsule an
   await $.turn.complete({ answer: '', durationMs: 2_000, isAborted: false, turnId: 'quiet', reason: 'answer' })
 
   const row = await rowsOf($, groupOf({ id: 'q1', tool: 'Bash', input: { command: 'echo hi' } }, 100))
-  expect(row).toEqual([expect.stringMatching(/^│ worked · 1 step · 1 shell +1s$/), expect.stringMatching(/^─ done ─+ 2s$/)])
+  expect(row).toEqual([
+    expect.stringMatching(/^ {10}1s ◇  worked   [⣀-⣿]+   1 step$/),
+    expect.stringMatching(/^ {13}│$/),
+    expect.stringMatching(/^ {10}2s ✓  DONE   [⣀-⣿]+   1 step$/)
+  ])
   // The footer names no turn (phase 5), so it draws nothing.
   expect(await rowsOf($, site('TurnDuration', 'td-quiet', 100, { word: 'Baked', durationMs: 2_000 }))).toEqual([])
 })
 
-test('a failure draws its row at once at a narrow width: `✕ failed`, its clock, the decisive line, nothing cut but the subject', ON, async ($, on) => {
+test('a failure draws its `×` node at once at a narrow width: its result, its own time, the decisive line under it', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock)
   await mixedTurn($, clock, 13)
 
   const rows = await rowsOf($, groupOf(must(MIXED(13)[3]), 60, true))
-  expect(rows[0]).toMatch(/^✕ failed · shell · ls \/nope · exit 2 +7s$/)
-  expect(rows[0]?.length).toBe(58)
-  expect(rows[1]).toBe("    ls: cannot access '/nope': No such file or directory")
+  expect(rows[0]).toBe('             ×  shell ls /nope   exit 2   1s')
+  expect(rows[1]).toBe("             │  └ ls: cannot access '/nope': No such file …")
   // A step that passed leaves no row.
   expect(await rowsOf($, groupOf(must(MIXED(13)[0]), 60))).toEqual([])
 })
 
-test('the live area in fallback is whole: the step`s kind word and subject, `step n · its time · the turn`s time`', ON, async ($, on) => {
+test('the live area in fallback is whole: the live line, then the running step as a branch under it (screen 31)', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock)
   await $.prompt.submit({ text: 'go', wait: false, origin: { kind: 'composer' } })
@@ -89,8 +93,10 @@ test('the live area in fallback is whole: the step`s kind word and subject, `ste
   const spinner = site('Spinner', 'spin', 100, { word: 'Sauteing', message: null, suffix: '…', mode: 'tool-use' })
   clock.now = T0 + 5_000
   const rows = await rowsOf($, spinner)
-  expect(rows[0]).toMatch(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] waiting +5s$/)
-  expect(rows[0]?.length).toBe(94)
+  expect(rows[0]).toBe('             ┊')
+  expect(rows[1]).toMatch(/^ {10}5s [⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]  Reading   1 step$/)
+  // The read has settled; nothing runs under the live line.
+  expect(rows).toHaveLength(2)
 })
 
 test('/steps where no dock exists opens the inline inspector, focused, closing on Escape; it draws one section', ON, async ($, on) => {
@@ -108,9 +114,9 @@ test('/steps where no dock exists opens the inline inspector, focused, closing o
     viewport: view(100)
   })
   const rows = (await inline.findAll({ type: 'Text' })).map(t => t.text)
-  expect(rows.some(r => /^┄ \[ STEPS · TURN \d+ \] ┄+ 5 steps · 1 failed$/.test(r))).toBe(true)
-  // One section: no head, no other section.
-  expect(rows.some(r => /\[ (NOW|LAST|FILES|SOURCES) \]/.test(r))).toBe(false)
+  expect(rows.some(r => /^ {3}STEPS · TURN \d+ +5 steps · 1 failed *$/.test(r))).toBe(true)
+  // One card: no head card, no tabs.
+  expect(rows.some(r => /TIMELINE|DONE|LIVE/.test(r))).toBe(false)
   await inline.unmount()
 })
 
@@ -129,22 +135,24 @@ test('C.2 in fallback: one blank row above the first event row after the prompt,
   await $.turn.start({ text: 'list both', turnId: 'two' })
   await $.session.append(respond([text('Listing it twice.'), use('ls15', 'Bash', { command: 'ls /nope' })], 'c15-1'))
   await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15' } as never)
-  await $.session.append(respond([use('ls15b', 'Bash', { command: 'ls /nope' })], 'c15-2'))
-  await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: 'ls15b' } as never)
+  // A second key: the same command failing again would be the same failure, and draw no row (13.1).
+  await $.session.append(respond([use('ls15b', 'Bash', { command: 'ls /nope2' })], 'c15-2'))
+  await $.tool.call({ tool: 'Bash', command: 'ls /nope2', tool_use_id: 'ls15b' } as never)
   await $.session.append(respond([text(answerOf(15))], 'm15-answer'))
   await $.turn.complete({ answer: answerOf(15), durationMs: 3_000, isAborted: false, turnId: 'two', reason: 'answer' })
 
-  // Two failing commands: the first event row of the turn has a blank row above it (the narration left), the second none.
+  // Two failing commands, two keys: the first event row of the turn has a blank row above it (the narration left), the second none.
   expect(await topOf(groupOf(failing('ls15'), 100, true))).toBe(1)
-  expect(await topOf(groupOf(failing('ls15b'), 100, true))).toBe(0)
+  expect(await topOf(groupOf({ id: 'ls15b', tool: 'Bash', input: { command: 'ls /nope2' } }, 100, true))).toBe(0)
   // The answer's capsule touches the event row above it.
   const answer = await $.ui.mount(site('AssistantMessage', 'm15-answer', 100, { text: answerOf(15), isFirstOfReply: true }))
   const boxes = await answer.findAll({ type: 'Box' })
-  expect(boxes.some(b => b.props['marginTop'] === 0 && b.text.startsWith('│ worked'))).toBe(true)
+  expect(boxes.every(b => (b.props['marginTop'] ?? 0) === 0)).toBe(true)
+  expect((await answer.findAll({ type: 'Text' })).find(t => t.text.trim().length > 0)?.text).toMatch(/◇  worked/)
   await answer.unmount()
 })
 
-test('the inspector offers the keys that work on one section: s, c, p, n (E.46); never the section keys', ON, async ($, on) => {
+test('the inspector offers the keys that work on its card: s, c, p, n (8.13); never the tabs', ON, async ($, on) => {
   const clock = { now: T0 }
   fallbackEngine(on, clock, true)
   await mixedTurn($, clock, 16)
@@ -162,8 +170,8 @@ test('the inspector offers the keys that work on one section: s, c, p, n (E.46);
   await inline.press({ key: 'key-s' })
   await inline.redraw()
   expect(await keysNow()).toEqual(['s', 'c', 'b'])
-  const labels = (await inline.findAll({ type: 'Button' })).filter(b => b.props['hotkey'] !== undefined).map(b => b.text)
-  expect(labels).toEqual(['fit', 'copy', 'back'])
+  // The card's own key row says what they do (8.13).
+  expect((await inline.findAll({ type: 'Text' })).some(t => /^ {3}s fit   c copy   b back   esc close/.test(t.text))).toBe(true)
 
   // `b` goes back to the fitted section, and its keys come back.
   await inline.press({ key: 'key-b' })
@@ -183,7 +191,7 @@ test('a failure row drawn while its step settles has its detail: the output is k
   const ui = await $.ui.mount(groupOf(call, 100, true))
   await $.tool.call({ tool: 'Bash', command: 'ls /nope', tool_use_id: call.id } as never)
   await ui.redraw()
-  const rows = [...new Set((await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => /^(✕ failed| {4}\S)/.test(t)))]
+  const rows = [...new Set((await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => /^ {13}[×│]  /.test(t)))]
   await ui.unmount()
-  expect(rows).toEqual([expect.stringMatching(/^✕ failed · shell · ls \/nope · exit 2/), "    ls: cannot access '/nope': No such file or directory"])
+  expect(rows).toEqual([expect.stringMatching(/^ {13}×  shell ls \/nope   exit 2/), "             │  └ ls: cannot access '/nope': No such file or directory"])
 })

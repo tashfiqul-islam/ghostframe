@@ -23,6 +23,38 @@ export function relPath(p: string, cwd: string | undefined): string {
 }
 
 /**
+ * Whether a path as shown (`relPath`) is outside the session's folder: the home folder's `~/…`, an absolute path, or
+ * one that climbs out (`../x`). Such a file is listed, never diffed or counted (8.5).
+ */
+// The home folder as a path or a shell names it, at a path's start.
+const HOME_VAR = /^(?:~|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\}|\$HOME|\$\{HOME\})(?=\/|$)/i
+
+/** Whether a path starts at the home folder (`~/…`, `%USERPROFILE%\…`, `$HOME/…`). */
+export const isAtHome = (path: string): boolean => HOME_VAR.test(path.replaceAll('\\', '/'))
+
+export const isOffProject = (shown: string): boolean => /^(?:~|\.\.|[A-Za-z]:|)(?:\/|$)/.test(shown)
+
+/**
+ * Where a path is on disk, for a `$.fs` call: `~` (and `%USERPROFILE%`, `$env:USERPROFILE`, `$HOME`) is the home
+ * folder, on Windows and POSIX alike; an absolute path stays; any other is from the session's folder.
+ * @param path the path, as shown or as a call named it
+ * @param cwd the session's folder
+ * @param home the home folder, absolute
+ * @returns the absolute path
+ * @throws when the path is in the home folder and no home folder is known: never joined onto the session's folder
+ */
+export function onDisk(path: string, cwd: string, home: string | undefined): string {
+  const slashed = path.replaceAll('\\', '/')
+  const lead = HOME_VAR.exec(slashed)?.[0]
+
+  if (lead !== undefined && home === undefined) throw new Error(`no home folder to expand ${lead} in ${path}`)
+
+  const p = lead === undefined || home === undefined ? slashed : `${home.replaceAll('\\', '/').replace(/\/+$/, '')}${slashed.slice(lead.length)}`
+
+  return /^(?:[A-Za-z]:)?\//.test(p) ? p : `${cwd.replaceAll('\\', '/').replace(/\/+$/, '')}/${p}`
+}
+
+/**
  * Clip a path in the middle at folder boundaries: keep its head (`~/AppData`, `src`)
  * and as many trailing segments as fit (`~/AppData/…/Temp/notebook-scratch.txt`).
  * Falls back to a plain middle clip when even the file name doesn't fit.
@@ -116,7 +148,7 @@ const cleanHost = (host: string) =>
     .toLowerCase()
 
 /** The host the URL parser reads (no `user@`, keeps a port), without `www.`; not a URL → undefined. */
-function urlHost(url: string): string | undefined {
+export function urlHost(url: string): string | undefined {
   try {
     const { host } = new URL(url.trim())
 

@@ -1,21 +1,24 @@
 // The Cockpit pane (spec C.1, E.37; corrections A, B and K): its seat at the width rule, `/cockpit`, and its drawing.
+import { isFailedMark } from './steps/log'
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
-import { paneLines } from './fit'
 import { readDetails } from './keys/details'
-import { drawPane, hintRows } from './keys/draw'
-import { allRows, detailRows, diffRows } from './keys/views'
-import { AGENT_NOTE, copiedNote, hasCopied, noteRing, noteViewed, readViewTick, viewNow, wholeNow } from './keys/view'
-import type { Line } from './line'
+import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
+import { assemblePane, firstHunk } from './v8/assemble'
+import { drawPaneV8, isKeyElement, ringPastKeys } from './v8/draw'
+import { countsOf, INSPECTOR_KEYS, inspectorRows } from './v8/views'
+import { pluginVersion } from './version'
+import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
-import { readLog, readRoster, readSecond } from './log'
+import { noteRewind, readLog, readRoster, readSecond } from './log'
 import { DOCK_MIN, paneColumns, terminalColumns } from './seat'
-import { OFF_NOTE, isOn, readEnvOnce } from './switch'
+import { answered } from './commands'
+import { isOn, noticeSink, OFF_NOTE, readEnvOnce } from './switch'
 import { readWork } from './work'
 import { PANE, STEPS, docked } from './mode'
 import { readHistory, readPin, storedTurnCount } from './history/store'
 import { pinFromCommand } from './keys/view'
-import { INSPECTOR_ROWS, inspectorLines } from './fallback/inspector'
+import { INSPECTOR_ROWS } from './fallback/inspector'
 import { copyFromCommand, stepsAllText } from './copy'
 import { keepSwitch, switchNotice } from './tui'
 
@@ -249,7 +252,7 @@ export function markStartSeated(): void {
  * @param error what the engine answered
  */
 export function logSeatError($: EngineInterface, error: unknown): void {
-  $.ui.log(`cockpit: seat change failed: ${String(error)}`)
+  $.ui.log(`cockpit: seat change failed: ${String(error)}`, noticeSink())
 }
 
 /**
@@ -283,7 +286,7 @@ export function registerPane(on: On): void {
 
       setDocked($, false)
 
-      return { text: 'pane closed' }
+      return answered($, PANE, e.args, 'Pane closed', true)
     }
 
     const { columns, isFullscreen } = e.presentation
@@ -293,7 +296,10 @@ export function registerPane(on: On): void {
     leftAt = undefined
     const opened = await openAt($, columns)
 
-    return { text: opened.isPlaced ? `pane open · ${paneColumns(columns)} columns` : `pane not placed · ${opened.reason}` }
+    // `/cockpit` toggles (7.15): docked, it names the terminal's width, the one the person sees, not the pane's.
+    return opened.isPlaced
+      ? answered($, PANE, e.args, `Pane docked · ${columns} columns`, true)
+      : answered($, PANE, e.args, `Pane not placed · ${opened.reason}`, false)
   })
 
   // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
@@ -310,7 +316,11 @@ export function registerPane(on: On): void {
     if (words.at(-1) === 'all') {
       const n = words.length > 1 ? Number(words[0]) : (await readLog($)).turnNo
 
-      return { text: Number.isInteger(n) && n >= 1 ? await stepsAllText($, n, e.presentation.columns) : '/steps n all takes a turn number' }
+      if (!Number.isInteger(n) || n < 1) return answered($, STEPS, e.args, '/steps n all takes a turn number', false)
+
+      const said = await stepsAllText($, n, e.presentation.columns)
+
+      return answered($, STEPS, e.args, said.text, said.isOk)
     }
 
     const text = await pinFromCommand($, e.args)
@@ -320,7 +330,7 @@ export function registerPane(on: On): void {
 
     // Docked, the pane already shows it. An inline pane already open takes the open again: the same pane, focused.
     if (docked() || !isPinned) {
-      return { text }
+      return answered($, STEPS, e.args, text, isPinned)
     }
 
     const { columns, isFullscreen } = e.presentation
@@ -332,7 +342,7 @@ export function registerPane(on: On): void {
     paneBody = opened.isPlaced ? paneColumns(columns) : undefined
     if (opened.isPlaced) ownCloses = 0
 
-    return { text: opened.isPlaced ? text : `${text} · pane not placed · ${opened.reason}` }
+    return opened.isPlaced ? answered($, STEPS, e.args, text, true) : answered($, STEPS, e.args, `${text} · pane not placed · ${opened.reason}`, false)
   })
 
   // `/copy` stays the engine's (the last answer); Cockpit answers the forms it adds (E.24, G.78) and passes the rest on.
@@ -341,12 +351,26 @@ export function registerPane(on: On): void {
 
     const said = await copyFromCommand($, e.args, e.presentation.columns)
 
-    return said === undefined ? next(e) : { text: said }
+    // A copy that could not be made says so (`There is no code block 9 …`, `Not copied · …`): an error row (7.15).
+    return said === undefined ? next(e) : answered($, 'copy', e.args, said.text, said.isOk)
   })
 
-  // The focus ring moved in the pane: `c` copies what it is on.
-  on('ui.focus', (_$, e, next) => {
-    if (e.component === 'Pane' && e.requestId === PANE) noteRing(e.element)
+  // The focus ring moved in the pane: `c` copies what it is on, and the row under it is the selected row (6.2), so a
+  // move redraws; on the Files tab that row also opens its file's first hunk in place (8.5). A hidden key Button is
+  // never a stop: the ring goes on to a row instead.
+  on('ui.focus', ($, e, next) => {
+    if (e.component === 'Pane' && e.requestId === PANE) {
+      const was = ringNow()
+      const past = isKeyElement(e.element) ? ringPastKeys(was) : undefined
+
+      if (isKeyElement(e.element) && past === undefined) return {}
+      const element = past ?? e.element
+
+      noteRing(element)
+      if (was !== element) $.ui.invalidate('ui.render')
+
+      return past === undefined ? next(e) : next({ ...e, element: past })
+    }
 
     return next(e)
   }).catch((_$, e, next) => next(e)) // a ring that cannot be noted never stops the ring
@@ -372,10 +396,12 @@ export function registerPane(on: On): void {
   // switch the copy before this one kept.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     await readEnvOnce($)
+    // A rewind puts its prompt back in the box, and this line draws: the pane looks for the rewind (7.1).
+    if (isOn() && docked() && !(await readLog($)).isTurnRunning) await noteRewind($)
 
     const notice = isOn()
       ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
-          $.ui.log(`cockpit: /tui note not read: ${String(error)}`)
+          $.ui.log(`cockpit: /tui note not read: ${String(error)}`, noticeSink())
 
           return undefined
         })
@@ -436,9 +462,9 @@ export function registerPane(on: On): void {
       $.ui.invalidate('ui.render')
     }
 
-    // Every section, fitted to the body so the engine never scrolls it (E.37); or, in the focused pane, a view (E.44)
-    // as tall as it needs, which the engine scrolls. Reading `second` redraws this each second while a turn or a
-    // background agent runs; reading the view's counter, when a key changes the view.
+    // The v8 pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
+    // C). Reading `second` redraws this each second while a turn or a background agent runs; reading the view's
+    // counter, when a key changes the view.
     await readSecond($)
     await readViewTick($)
     const view = viewNow(e.props.isFocused)
@@ -447,55 +473,88 @@ export function registerPane(on: On): void {
     const work = await readWork($)
     const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
     const isCovered = e.props.isPromptCovered === true
-    const now = isTicking || hasCopied() ? await $.clock.now() : 0
+    const now = isTicking || hasCopied() ? await $.clock.now() : (log.last?.endedAt ?? 0)
 
     if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
 
     const pinNo = await readPin($)
     const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
-    const isPinned = pinned !== undefined
+    // A rewind that took the shown turn out of the conversation: the pane shows the last turn that remains (7.1).
+    const rewound = log.isTurnRunning ? new Set<number>() : await noteRewind($)
+    const remains = rewound.has(log.turnNo) ? ((await readHistory($)).findLast(r => !rewound.has(r.turnNo)) ?? null) : undefined
     const isInspector = placement === 'inline' && askedInline === 'steps'
-    const fitTo =
-      (isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows) -
-      (e.props.isFocused ? hintRows(view, bodyColumns, isPinned, isInspector, e.props.view.agentId !== undefined) : 0)
-    const shown =
-      pinned !== undefined
-        ? { ...log, steps: pinned.steps, dropped: pinned.dropped, turnNo: pinned.turnNo }
-        : log.steps.length > 0 || log.prev === null
-          ? log
-          : { ...log, steps: log.prev.steps, dropped: log.prev.dropped, turnNo: log.prev.turnNo }
-    // The agent whose steps [ STEPS ] lists (A1): the one the engine has in view, else one it would not show.
-    const viewed = e.props.view.agentId
-    noteViewed(viewed)
-    const agentId = viewed ?? (view.kind === 'agent' ? view.id : undefined)
-    const agent = agentId === undefined ? undefined : roster.find(a => a.id === agentId)
-    const agentView = agent === undefined ? undefined : { agent, note: viewed === undefined && view.kind === 'agent' ? view.note : AGENT_NOTE }
-    let lines: Line[]
+    const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
+    const viewedId = e.props.view.agentId
+    noteViewed(viewedId)
+    const details = [...(await readDetails($)), ...(pinned?.details ?? [])]
 
-    if (view.kind === 'all') {
-      lines = allRows(shown, bodyColumns)
-    } else if (view.kind === 'diff') {
-      lines = diffRows(view.path, view.patch, bodyColumns, view.note)
-    } else if (view.kind === 'step') {
-      const detail = (await readDetails($)).find(d => d.id === view.id) ?? pinned?.details.find(d => d.id === view.id)
-      const at = shown.steps.findIndex(s => s.id === view.id)
-      const step = shown.steps[at]
-      // A step of an agent's own log is numbered in it, and named by the agent.
-      const owner = step === undefined ? roster.find(a => a.log?.some(s => s.id === view.id) === true) : undefined
-      const ownAt = owner?.log?.findIndex(s => s.id === view.id) ?? -1
-      const ownStep = owner?.log?.[ownAt]
-      lines =
-        step !== undefined
-          ? detailRows(step, detail, shown.dropped + at + 1, shown.turnNo, bodyColumns)
-          : owner !== undefined && ownStep !== undefined
-            ? detailRows(ownStep, detail, (owner.logDropped ?? 0) + ownAt + 1, shown.turnNo, bodyColumns, `AGENT ${owner.name}`)
-            : []
-    } else if (isInspector) {
-      lines = inspectorLines(log, bodyColumns, fitTo, pinned)
-    } else {
-      lines = paneLines(log, isTicking ? now : 0, bodyColumns, fitTo, isCovered, { roster, work }, wholeNow(), pinned, agentView)
+    if (isInspector) {
+      const steps = pinned?.steps ?? log.steps
+      const rows = steps.map(s => ({
+        glyph: s.isRunning ? ('current' as const) : isFailedMark(s) ? ('failed' as const) : ('ok' as const),
+        kind: s.kind,
+        subject: s.subject,
+        result: s.isRunning ? 'running' : s.result,
+        tone: s.isRunning ? ('accent' as const) : isFailedMark(s) ? ('err' as const) : ('dim' as const),
+        ms: details.find(d => d.id === s.id)?.ms ?? undefined
+      }))
+      const failed = steps.filter(isFailedMark).length
+
+      // Every step (`s`): the card grows and the engine scrolls it; `b` and `s` go back.
+      const isAll = view.kind === 'all'
+      const keys: [string, string][] = isAll
+        ? [
+            ['s', 'fit'],
+            ['c', 'copy'],
+            ['b', 'back'],
+            ['esc', 'close']
+          ]
+        : INSPECTOR_KEYS.map(([k, a]): [string, string] => [k, a])
+      const card = inspectorRows(
+        pinned?.turnNo ?? log.turnNo,
+        steps.length,
+        failed,
+        rows,
+        isAll ? rows.length + 6 : Math.min(INSPECTOR_ROWS, fitTo),
+        bodyColumns,
+        keys
+      )
+
+      return drawPaneV8($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
     }
 
-    return drawPane($, e, lines, view, copiedNote(now), isPinned, isInspector, viewed !== undefined)
+    // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
+    const ringed = e.props.isFocused && tabNow() === 'files' ? ringNow() : undefined
+    const selectedPath = ringed?.startsWith('file:') === true ? ringed.slice('file:'.length) : undefined
+    const selectedPatch = selectedPath === undefined ? undefined : (await fileView($, selectedPath)).patch
+    const selectedFile = selectedPath === undefined || selectedPatch === undefined ? undefined : { path: selectedPath, hunk: firstHunk(selectedPatch) }
+    // Where a file's hunk shows, its counts are that diff's (8.5): the selected file's row; a patch with no hunk is
+    // no diff, and that file keeps its steps' tally.
+    const diffCounts =
+      selectedPath !== undefined && selectedPatch?.some(l => l.startsWith('@@')) === true ? new Map([[selectedPath, countsOf(selectedPatch)]]) : undefined
+    const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
+    const pane = assemblePane({
+      width: bodyColumns,
+      rows: fitTo,
+      now,
+      isFocused: e.props.isFocused,
+      isCovered,
+      log,
+      roster,
+      work,
+      details,
+      flow: await readFlow($),
+      pinned,
+      remains,
+      view,
+      tab: tabNow(),
+      isUrlsShown: urlsShown(),
+      viewed,
+      version: pluginVersion(),
+      selectedFile,
+      diffCounts,
+      note: copiedNote(now)
+    })
+    return drawPaneV8($, e, pane.lines)
   })
 }

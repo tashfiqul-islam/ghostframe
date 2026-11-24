@@ -14,6 +14,8 @@ tests may have several files, each named for what it covers (`reply/tables`, `re
 - `shared/`, `cockpit/`, `transcript/`: as in `hooks/`.
 - `plugin/`: tests of the whole plugin rather than one module: a turn drawn across every site, every site at
   narrow widths, the specimen render, what `register.tsx` leaves to the engine.
+- `fixtures/`: recorded data a test replays, each file saying where it came from: `session-flood` is a real turn's
+  455 tool calls, for the failure rules (spec 13.1); `live` is the live checks' session, turn by turn.
 - `support/`: helpers more than one test file uses, each defined in exactly one file and imported from it (no
   barrels): `respond` (a stored response), `view` (viewport sizes), `engine` (an engine stub that draws a marker),
   `text` (the text a tree draws), `cockpit` and `docked` (Cockpit on, its pane docked, a fixed-on-the-second-run

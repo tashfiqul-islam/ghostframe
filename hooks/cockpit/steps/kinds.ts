@@ -1,5 +1,6 @@
 // A step's kind word, subject and fix key (spec E.12), read off the call's tool and input.
-import { describe, mcpName, TEST_CMD, runnerOf } from '../../shared/calls/describe'
+import { describe, mcpName, TEST_CMD } from '../../shared/calls/describe'
+import { commitSubject, subjectCommand } from './failures'
 import { relPath } from '../../shared/url'
 
 export const KIND_W = 9 // the kind word's 8 cells and a space
@@ -67,7 +68,13 @@ export function kindOf(tool: string, input: unknown): string {
 export function subjectOf(tool: string, input: unknown, cwd: string | undefined): string {
   const i = rec(input)
 
-  if (isShell(tool)) return command(input)
+  // The command only (13.4): its `cd <dir> &&` prefix is the drawer's `in <dir>`; of a joined command, the statement
+  // its failure key comes from, without the redirections and formatting pipes that only shape its output.
+  if (isShell(tool)) {
+    const whole = typeof i['command'] === 'string' ? i['command'] : command(input)
+
+    return commitSubject(whole) ?? subjectCommand(command(input), tool === 'PowerShell' ? 'pwsh' : 'bash', kindOf(tool, input) === 'test', cwd)
+  }
 
   switch (tool) {
     case 'Read': {
@@ -102,9 +109,4 @@ export function subjectOf(tool: string, input: unknown, cwd: string | undefined)
       return describe(tool, input, cwd)?.target ?? ''
     }
   }
-}
-
-/** What a later step must share to fix a failed one: its kind and subject, and for a test run, its runner. */
-export function fixKey(kind: string, subject: string, input: unknown): string {
-  return kind === 'test' ? `test:${runnerOf(command(input)) ?? subject}` : `${kind}:${subject}`
 }

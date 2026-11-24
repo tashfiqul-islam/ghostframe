@@ -1,6 +1,8 @@
 // Cockpit's part of the left (spec E.1, E.3, E.5, E.32, E.33, E.47): docked, the quiet transcript's `↗` rows and
 // receipts and the one-row live area; in fallback (Cockpit on, no pane docked), the same quiet transcript with a
 // capsule per stretch of work and a row per failure, and the whole live area (fallback/).
+import type { LogStep, StepLog } from '../../types'
+import { runOf } from './commands'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import type { Receipt, RosterAgent } from '../../types'
@@ -9,18 +11,27 @@ import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
-import { liveRow } from './head'
 import { readFrame, readLog, readReceipts, readRoster } from './log'
+import { readWork } from './work'
+import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
-import { receiptRows, shipRows } from './quiet'
-import { capsuleCount, drawAgentFailure, drawBlockCapsule, drawFallbackCalls, drawFallbackLive, footerCapsule } from './fallback/draw'
+import { insteadRows, refusalRows } from './v8/events'
+import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from './v8/left'
+import { liveArea } from './v8/live'
+import { receiptCounts } from './v8/receipt'
+import { shipEventRows } from './v8/ships'
+import { spineOnly, textCells } from '../shared/look/spine'
+import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, footerCapsule } from './fallback/draw'
 
 import { readFlow, isNarrationAt } from '../shared/flow'
-import { shellText } from '../shared/calls/ships'
 import { turnOfCall, turnView } from './fallback/facts'
 import { isKeptNarration, keptRecords, storedReceiptList } from './history/store'
 import { isOn } from './switch'
-import { diffFrame, noteUnfolded, outputFrame, sentenceRows, stepRow, unfolded } from './unfolded'
+import { noteUnfolded, unfolded } from './unfolded'
+import { noticeRow, sentenceRows } from './v8/events'
+import { stepLineRow } from './v8/left'
+import { diffCard } from '../shared/look/code'
+import { clockTime } from '../shared/look/format'
 
 /**
  * Whether the left is quiet now (phase 4): Cockpit on, its pane docked, and its tab shown when the running turn
@@ -117,6 +128,14 @@ function rowMode(site: RowSite): LeftMode {
 export const isQuietRow = (row: RowSite): boolean => rowMode(row) !== 'full'
 
 /**
+ * The v8 text column's width for a transcript row (6.1): 86 beside the pane and wide, 78 with no pane under 110.
+ * @param row the row's render
+ * @returns the cells
+ */
+// In ctrl+o the engine hides the pane (correction D): the row is as wide as the terminal, narrow below 110 like fallback's.
+export const leftCells = (row: RowSite): number => textCells(row.viewport?.columns, !isFallbackRow(row) && !(isOn() && unfolded()))
+
+/**
  * Whether a quiet row draws in fallback: with capsules and failure rows, since no pane shows the steps.
  * @param row the row's render request
  * @returns whether it does
@@ -127,9 +146,6 @@ export const isFallbackRow = (row: RowSite): boolean => rowMode(row) === 'fallba
 let columns: number | undefined
 /** How many times the width has changed: a wait for it to hold starts again when this moves. */
 let widthChanges = 0
-
-/** The terminal's columns as last drawn; undefined before any draw. */
-export const columnsNow = (): number | undefined => columns
 
 /** A count that moves each time the terminal's width changes. */
 export const widthTick = (): number => widthChanges
@@ -199,9 +215,6 @@ export function noteView($: EngineInterface, isExpanded: boolean | undefined): v
   if (isOn()) noteUnfolded($, isExpanded)
 }
 
-/** The kinds whose output the ctrl+o view shows in a frame under their row. */
-const OUTPUT_KINDS = new Set(['shell', 'test'])
-
 /**
  * A call's rows in the ctrl+o view (E.4, F.8): its step row, inset under the sentence that announced it, then its
  * diff (an edit or a write) or its output (a command, a test) in a frame. A launch of several agents is one step
@@ -224,14 +237,11 @@ export async function drawUnfoldedCall($: EngineInterface, e: RenderInput<'ToolU
   if (step.id !== p.tool_use_id) return <ui.Box />
 
   const detail = view.details.find(d => d.id === step.id)
-  const below =
-    detail !== undefined && detail.patch.length > 0
-      ? diffFrame(step.subject, detail.patch, width)
-      : OUTPUT_KINDS.has(step.kind)
-        ? outputFrame(shellText(p.output), width)
-        : []
+  // A diff in place under an edit (screen 30); a command's output stays in the pane's step drawer.
+  const below = detail !== undefined && detail.patch.length > 0 ? diffCard(detail.patch, step.subject, width) : []
+  const line = stepLineOf(step, detail?.ms ?? undefined)
 
-  return <ui.Box flexDirection="column">{drawRows(ui, [stepRow(step, detail?.ms, width), ...below])}</ui.Box>
+  return <ui.Box flexDirection="column">{drawRows(ui, [stepLineRow(line, width), ...below])}</ui.Box>
 }
 
 /**
@@ -273,24 +283,17 @@ export async function drawUnfoldedSentence(
 
   // A resumed transcript has no flow: a sentence history kept as narration draws without its clock.
   if (f === undefined && (await isKeptNarration($, e.requestId))) {
-    return (
-      <ui.Box flexDirection="column" marginTop={1}>
-        {drawRows(ui, sentenceRows(e.props.text.trim(), undefined, width))}
-      </ui.Box>
-    )
+    return <ui.Box flexDirection="column">{drawRows(ui, sentenceRows('', e.props.text.trim(), width))}</ui.Box>
   }
 
   if (f === undefined || f.turn === null || !isNarrationAt(flow, at)) return undefined
 
   const view = await turnView($, f.turn)
   const next = flow.slice(at + 1).find(g => g.turn === f.turn && g.kind === 'tool')
-  const clock = next === undefined ? undefined : view?.startOf(next.key)
+  const startAt = next === undefined ? undefined : view?.startOf(next.key)
+  const clock = startAt === undefined || view?.startedAt === null || view?.startedAt === undefined ? '' : clockTime(view.startedAt + startAt)
 
-  return (
-    <ui.Box flexDirection="column" marginTop={1}>
-      {drawRows(ui, sentenceRows(e.props.text.trim(), clock, width))}
-    </ui.Box>
-  )
+  return <ui.Box flexDirection="column">{drawRows(ui, sentenceRows(clock, e.props.text.trim(), width))}</ui.Box>
 }
 
 /**
@@ -313,7 +316,17 @@ export async function drawQuietCall($: EngineInterface, e: RenderInput<'ToolUse'
 
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
-  const rows = shipRows(calls, id => steps.find(s => s.id === id)?.clock, width)
+  // In the order fallback draws them, so a mode switch keeps them where they were: instead, `↗`, ⊘ and ▍.
+  const rows = [
+    ...insteadRows(turnOf(log, [p.tool_use_id]), [p.tool_use_id], width),
+    ...shipEventRows(
+      calls,
+      id => steps.find(s => s.id === id)?.clock,
+      width,
+      id => steps.find(s => s.id === id)?.commit
+    ),
+    ...refusalRows(steps, [p.tool_use_id], width)
+  ]
 
   return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }
@@ -353,16 +366,45 @@ async function noTextReceipt(
 
   if (receipt === undefined || turn === null || turn === undefined) return undefined
 
-  const capsule = isFallbackNow ? await footerCapsule($, turn, width) : undefined
-  const rows = receiptRows(receipt, width, isFallbackNow ? { capsules: await capsuleCount($, turn) } : undefined)
+  if (receipt.state === 'interrupted') return undefined
 
-  if (rows.length === 0) return undefined
+  // A turn with no answer text gets one worked node (7.13): its last stretch's in fallback, the whole turn's docked.
+  const worked = isFallbackNow ? await footerCapsule($, turn, width) : [workedRow(receiptCounts(receipt), width)]
+  const rows = receiptRowsOf(receipt, width, isFallbackNow)
 
-  return receiptTree($, ui, receipt.turnNo, turn, [...(capsule === undefined ? [] : [capsule]), ...rows.slice(0, -1)], rows.at(-1) ?? [])
+  return receiptTree($, ui, receipt.turnNo, turn, [...worked, ...rows.slice(0, -1)], rows.at(-1) ?? [])
 }
 
 /**
- * A receipt's tree: one blank row above, the rows above it, then the receipt itself as a Button: a click pins its turn
+ * A receipt's rows (7.8, 7.12): the spine's blank row; docked, the failure card for what still fails and a blank row;
+ * then the receipt. In fallback each failure drew its own row when it settled (13.1), so no card repeats them.
+ * @param r the receipt
+ * @param width the text column's cells
+ * @param isFallbackNow whether the row draws in fallback
+ * @returns the rows, the receipt last
+ */
+function receiptRowsOf(r: Receipt, width: number, isFallbackNow: boolean): Part[][] {
+  // A result that only repeats its subject (`exit 3`) is said once.
+  const open = r.open.map(f => ({ where: `${f.kind} ${f.subject}`, said: f.result === f.subject ? '' : f.result }))
+  // In fallback the first three failure keys drew their rows as they settled, and the worked node above the answer
+  // counted the rest (13.1).
+  const card = isFallbackNow || open.length === 0 ? [] : [...failureCard(open.length, '', open, '', r.turnNo, width), spineOnly()]
+
+  return [spineOnly(), ...card, receiptRow(receiptCounts(r), width)]
+}
+
+/**
+ * The steps of the one turn that holds a site's calls: the live log's or the turn before's, never both, so a step's
+ * neighbour is always of its own turn (a `└ instead` line never points into another turn).
+ */
+function turnOf(log: StepLog, ids: readonly string[]): readonly LogStep[] {
+  const has = (steps: readonly LogStep[]) => steps.some(s => ids.includes(s.id) || s.calls?.some(c => ids.includes(c)) === true)
+
+  return has(log.steps) ? log.steps : (log.prev?.steps ?? [])
+}
+
+/**
+ * A receipt's tree: the rows above it, the rows above it, then the receipt itself as a Button: a click pins its turn
  * in the pane (E.45; probe 25: a Button there is pressed by a click).
  * @param $ the engine interface
  * @param ui the surface's elements
@@ -383,7 +425,7 @@ function receiptTree(
   const { Box, Button } = ui
 
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column">
       {drawRows(ui, above)}
       <Button key={`receipt:${turn}`} plain onPress={() => void pinAndSay($, turnNo)}>
         {drawRow(ui, own, 'receipt')}
@@ -411,7 +453,11 @@ export async function drawQuietGroup($: EngineInterface, e: RenderInput<'ToolGro
   const log = await readLog($)
   const steps = [...log.steps, ...(log.prev?.steps ?? [])]
   const clockOf = (id: string) => steps.find(s => s.id === id || s.calls?.includes(id) === true)?.clock
-  const rows = shipRows(e.props.calls, clockOf, width)
+  const rows = [
+    ...insteadRows(turnOf(log, ids), ids, width),
+    ...shipEventRows(e.props.calls, clockOf, width, id => steps.find(s => s.id === id)?.commit),
+    ...refusalRows(steps, ids, width)
+  ]
 
   return withTail(ui, <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>, tail)
 }
@@ -445,8 +491,7 @@ export async function drawTurnReceipt(
   width: number
 ): Promise<RenderElement | undefined> {
   const receipt = (await receiptsNow($)).findLast(r => r.turn === turn)
-  const fallback = isFallbackRow(e) && receipt !== undefined ? { capsules: await capsuleCount($, turn) } : undefined
-  const rows = receipt === undefined ? [] : receiptRows(receipt, width, fallback)
+  const rows = receipt === undefined || receipt.state === 'interrupted' ? [] : receiptRowsOf(receipt, width, isFallbackRow(e))
 
   if (rows.length === 0) return undefined
 
@@ -502,18 +547,26 @@ export async function drawAnswerReceipt(
  */
 export async function drawLive($: EngineInterface, e: RenderInput<'Spinner', 'terminal'>): Promise<RenderElement | undefined> {
   if (e.viewport === undefined) return undefined
-  if (isFallback()) return drawFallbackLive($, $.ui.resolve(e), e.viewport.columns)
-  if (!isQuiet()) return undefined
+
+  const isFallbackNow = isFallback()
+
+  if (!isFallbackNow && !isQuiet()) return undefined
 
   const now = await $.clock.now()
   const ui = $.ui.resolve(e)
-  const { Box } = ui
-  // The transcript's frame: its last column stays empty, and it never passes 120 (C.1).
-  const width = Math.min(e.viewport.columns - 1, 120)
+  const rows = liveArea(
+    await readLog($),
+    await readRoster($),
+    (await readWork($)).todo,
+    now,
+    await readFrame($),
+    e.viewport.columns,
+    isFallbackNow,
+    e.props.message
+  )
 
-  return <Box>{drawRows(ui, [liveRow(await readLog($), now, await readFrame($), width)])}</Box>
+  return <ui.Box flexDirection="column">{drawRows(ui, rows)}</ui.Box>
 }
-
 /**
  * Cockpit's part of a block of Claude's text that stays, in fallback: the capsule that opens it (E.3 case 1).
  * @param $ the engine interface
@@ -559,4 +612,82 @@ export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMe
   const failed = isFallbackRow(e) && task !== undefined ? await drawAgentFailure($, ui, task, width) : undefined
 
   return failed ?? <ui.Box />
+}
+
+// When each command's output row first drew (7.15: its clock labels its `/` node). shortcut: kept in the module, so a
+// reload draws a command again with the reload's time; fine, the clock is a label, not a record.
+const commandClocks = new Map<string, number>()
+
+/**
+ * A slash command's output while Cockpit is on (7.15): one row, its clock, `✓` or `×`, the whole command as typed and
+ * what it says; `/steps n all` then prints the turn's step rows under it. The engine echoes the command above the row
+ * (`> /copy`) and that echo has no site to hide, so the row carries the command rather than a `/` node repeating it.
+ * The run is Cockpit's own record (commands.ts): the row's props carry no arguments and the engine's `<plugin>: `
+ * prefix. Undefined for a command Cockpit did not answer, which the engine draws.
+ * @param $ the engine interface
+ * @param e the output's render
+ * @returns the rows' tree, or undefined
+ */
+export async function drawCommandOutput($: EngineInterface, e: RenderInput<'CommandOutput', 'terminal'>): Promise<RenderElement | undefined> {
+  if (!isOn()) return undefined
+
+  const run = await runOf($, e.requestId, e.props.text, $.plugin.name)
+
+  if (run === undefined) return undefined
+
+  const at = commandClocks.get(e.requestId) ?? (await $.clock.now())
+
+  remember(commandClocks, e.requestId, at, ROWS_MAX)
+
+  const ui = $.ui.resolve(e)
+  const clock = clockTime(at)
+  const isOk = run.isOk && !e.props.isErrored
+  const words = run.command.split(/\s+/)
+  // `/steps n all`, or `/steps all` for the live turn.
+  const isAll = run.command.startsWith('/steps ') && words.at(-1) === 'all' && isOk
+  const steps = !isAll ? Number.NaN : words.length > 2 ? Number(words[1]) : (await readLog($)).turnNo
+  const lines = Number.isInteger(steps) ? await stepsAllLines($, steps) : undefined
+
+  if (lines !== undefined && lines.total > 0) {
+    return (
+      <ui.Box flexDirection="column">{drawRows(ui, [...stepsAllRows(clock, run.command, steps, lines.total, lines.shown, leftCells(e)), spineOnly()])}</ui.Box>
+    )
+  }
+
+  return <ui.Box flexDirection="column">{drawRows(ui, [slashOutputRow(clock, isOk, run.command, run.text), spineOnly()])}</ui.Box>
+}
+
+// A plugin's hot-reload note, as the engine words it or as the ledger shortens it.
+const RELOAD_NOTE = /^\s*[\w.@/-]+:? reloaded(?: ·| \()\s*\d+ hooks?\b/
+
+/**
+ * A notice from the engine while Cockpit is on (7.10, 13.3): grey and one line on the spine, `●` with its clock.
+ * @param $ the engine interface
+ * @param e the notice's render
+ * @returns the row's tree, or undefined while Cockpit is off
+ */
+export async function drawNotice($: EngineInterface, e: RenderInput<'InfoNotice', 'terminal'>): Promise<RenderElement | undefined> {
+  if (!isOn()) return undefined
+
+  const ui = $.ui.resolve(e)
+
+  // A plugin's hot-reload note (the engine's, shortened by the ledger to `ghostframe reloaded · 19 hooks`) is a
+  // diagnostic: the debug log's, never the left's (13.3).
+  if (RELOAD_NOTE.test(e.props.text)) {
+    $.ui.log(`cockpit: ${e.props.text.trim()}`, { to: 'debug' })
+
+    return <ui.Box />
+  }
+  const at = commandClocks.get(e.requestId) ?? (await $.clock.now())
+
+  remember(commandClocks, e.requestId, at, ROWS_MAX)
+
+  const text = [e.props.text.replace(/\s+/g, ' ').trim(), ...(e.props.command ? [e.props.command] : [])].join(' · ')
+  const isWarning = /context|compact/i.test(text) && /%/.test(text)
+
+  return (
+    <ui.Box flexDirection="column">
+      {drawRows(ui, [noticeRow(isWarning ? 'warning' : 'notice', text, leftCells(e), isWarning ? '' : clockTime(at)), spineOnly()])}
+    </ui.Box>
+  )
 }

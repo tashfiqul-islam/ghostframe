@@ -1,14 +1,10 @@
-// Fallback's event rows (spec E.5, E.13): with no pane to show it, every failure draws at once, as the step settles:
-// `✕ failed · test · bun test width · 2 of 14` on the turn clock, and up to three of the error's decisive lines under
-// it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
+// Fallback's event rows (spec E.5, E.13, 13.1): with no pane to show it, every failure draws at once, as the step
+// settles, as v8's `×` node with its decisive line under it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
 // draws what these return.
 import type { LogStep } from '../../../types'
 import type { Part } from '../../shared/parts'
-import { formatSpan } from '../../shared/time'
-import { C } from '../../shared/tokens'
-import { edgeRow } from '../quiet'
 import { isTurnFailure } from '../steps/log'
-import { cut } from '../steps/rows'
+import { detailRow, failureRow } from '../v8/events'
 
 /** What a failure row says, kept from its first draw: a row is never amended, even once a later step fixes it. */
 export type Failure = { kind: string; subject: string; result: string; clock: number; lines: string[] }
@@ -45,25 +41,16 @@ export function failureOf(step: LogStep, excerpt: readonly string[]): Failure | 
 }
 
 /**
- * The rows of a failure: `✕ failed · kind · subject · result` with the clock on the time edge (a result that only
- * repeats the subject is said once), then its detail rows at column 4, muted.
+ * The rows of a failure in fallback (screen 31, 13.1): the `×` node with its title and result, its own time when it
+ * is known, then a `└` line with its first decisive line.
  * @param f the failure
- * @param width the transcript's frame
+ * @param width the text column's cells
+ * @param ms the step's own time, when its detail kept it
  * @returns the rows, top to bottom
  */
-export function failureRows(f: Failure, width: number): Part[][] {
-  const result = f.result.length === 0 || f.result === f.subject ? '' : ` · ${f.result}`
+export function failureRows(f: Failure, width: number, ms?: number): Part[][] {
+  const title = f.result === f.subject ? f.kind : `${f.kind} ${f.subject}`
+  const first = f.lines[0]
 
-  return [
-    edgeRow(
-      [
-        { t: '✕ ', color: C.err },
-        { t: 'failed', color: C.err, bold: true },
-        { t: ` · ${f.kind} · ${f.subject}${result}`, color: C.text }
-      ],
-      formatSpan(f.clock),
-      width
-    ),
-    ...f.lines.map(l => [{ t: `    ${cut(l, width - 4)}`, color: C.muted }])
-  ]
+  return [failureRow(title, f.result, ms, width), ...(first === undefined ? [] : [detailRow(first, width)])]
 }

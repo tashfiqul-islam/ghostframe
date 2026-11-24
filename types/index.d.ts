@@ -82,10 +82,27 @@ export type LogStep = {
   done?: number
   failed?: number
   ended?: string[]
+  /**
+   * A call refused before it ran (spec 13.7, 13.8): `blocked` by a system (a hook, the classifier, the sandbox, a
+   * policy), `denied` by the person. Neither is a failure. `why` names who refused it and the reason, or the
+   * person's words for a denial. Absent for a call that ran.
+   */
+  state?: 'blocked' | 'denied'
+  why?: string
+  /** What a commit step committed (spec 7.10): its short hash and subject, read from Git when its output had none. */
+  commit?: { sha: string; subject: string }
 }
 
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
 export type LastTurn = { state: 'done' | 'failed' | 'interrupted'; story: string; wait: string; durationMs: number; endedAt: number | null }
+
+/** Cockpit's own slash commands as they ran (spec 7.15). */
+export type CommandRuns = {
+  runs: { id: number; command: string; text: string; isOk: boolean }[]
+}
+
+/** An interrupted turn as the next one's pane names it (screen 06). */
+export type CutTurn = { turnNo: number; steps: number; files: number; startedAt: number | null }
 
 /** The steps of the most recent earlier turn that had any, shown while a turn has none (`[ STEPS · TURN n ]`). */
 export type PrevSteps = { turnNo: number; steps: LogStep[]; dropped: number }
@@ -118,6 +135,12 @@ export type StepLog = {
   last: LastTurn | null
   prev: PrevSteps | null
   /**
+   * The typed turn before this one, when it was interrupted (spec 8.3, screen 06): its number, its steps, the files it
+   * changed and its start (wall clock, ms). Known only once this turn starts: Esc sends nothing a row could draw
+   * from, and an interrupted turn raises no TurnDuration. Absent when the turn before ended as it should.
+   */
+  cut?: CutTurn
+  /**
    * The files agents changed and the pages they read since the last receipt (phase 11, B3), as their steps' subjects:
    * the next receipt counts them beside the main loop's own, then they clear. Absent before phase 11.
    */
@@ -141,8 +164,19 @@ export type Receipt = {
   state: LastTurn['state'] | 'waiting'
   agents: number
   steps: number
+  /** Failures and fixes counted by key (spec 13.1), not by attempt. */
   failures: number
   fixed: number
+  /** Steps a system refused (spec 13.7); absent in a receipt kept before phase 12. */
+  blocked?: number
+  /** The turn's activity as the receipt's braille trace draws it (spec 7.12), levels 0 to 6; absent before phase 12. */
+  levels?: number[]
+  /** The turn's steps by kind word (spec 7.12, 7.13); absent before phase 12. */
+  kinds?: Record<string, number>
+  /** What left the machine, as the receipt ends (`a1f3c2e`, `PR #23`); absent before phase 12. */
+  shipped?: string
+  /** How many of its sources the answer cited (spec 7.12); absent before phase 12. */
+  cited?: number
   files: number
   /** The agents the turn's launches started, and the pages it fetched (E.32); absent in a receipt kept before phase 9. */
   launched?: number
@@ -229,6 +263,8 @@ export type StepDetail = {
   lines: number
   excerpt: string[]
   patch: string[]
+  /** A failed command's exit code, as its outcome gave it (`Exit code 1`); absent when it gave none. */
+  exit?: number
   /** The agent whose own call it is (phase 11); absent for the main loop's. */
   agent?: string
 }
@@ -295,6 +331,7 @@ declare module 'claude-code' {
       viewTick: Shaped<number>
       history: Shaped<TurnRecord[]>
       pin: Shaped<number | null>
+      commandRuns: Shaped<CommandRuns>
     }
   }
 }

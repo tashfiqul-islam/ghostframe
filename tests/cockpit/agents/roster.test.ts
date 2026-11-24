@@ -22,11 +22,12 @@ test('a wake-up (the same id again, no call) leaves the row as it is: it never m
 test('a report ends an agent: done with its head, failed with its reason', () => {
   let roster = addAgent([], start('a'))
   roster = endAgent(roster, { id: 'a', status: 'completed', text: '\n**4 findings** in two files', at: T + 1_000 })
-  expect(roster[0]).toMatchObject({ state: 'done', kind: 'done', subject: '4 findings in two files', endedAt: T + 1_000 })
+  // Done, it says it reported and how much it did, never the report's own words (8.9).
+  expect(roster[0]).toMatchObject({ state: 'done', kind: 'reported', subject: '· 0 steps', endedAt: T + 1_000 })
 
   // A later report of a finished agent brings its newer head and end; it never runs again.
   const again = endAgent(roster, { id: 'a', status: 'completed', text: '5 findings', at: T + 9_000 })
-  expect(again[0]).toMatchObject({ state: 'done', subject: '5 findings', endedAt: T + 9_000 })
+  expect(again[0]).toMatchObject({ state: 'done', kind: 'reported', subject: '· 0 steps', endedAt: T + 9_000 })
 
   const failed = endAgent(addAgent([], start('b')), { id: 'b', status: 'failed', text: '', at: T })
   expect(failed[0]).toMatchObject({ state: 'failed', subject: 'failed' })
@@ -37,7 +38,7 @@ test('agents still running when the turn ends: background ones run on; interrupt
 
   expect(endTurnAgents(roster, false, T + 1).map(a => a.state)).toEqual(['running', 'running'])
   expect(endTurnAgents(roster, true, T + 1).map(a => [a.state, a.subject])).toEqual([
-    ['running', 'reading its brief'],
+    ['running', ''],
     ['failed', 'interrupted']
   ])
 })
@@ -60,7 +61,7 @@ test('the engine`s list settles a run whose report never came: killed or gone is
     T + 5
   )
   expect(settled.map(a => [a.id, a.state, a.subject])).toEqual([
-    ['a', 'running', 'reading its brief'],
+    ['a', 'running', ''],
     ['b', 'failed', 'stopped'],
     ['c', 'done', ''],
     ['d', 'failed', 'stopped']

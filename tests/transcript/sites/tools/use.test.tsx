@@ -408,7 +408,7 @@ test('docked: a fetch`s row draws nothing; a push still leaves its `↗` row', O
   expect(await draw('f1', 'WebFetch', { url: 'https://bun.sh/docs', prompt: 'x' }, { url: 'https://bun.sh/docs', code: 200 })).toEqual([])
   expect(await draw('s1', 'WebSearch', { query: 'bun' }, { results: [] })).toEqual([])
   expect(await draw('p1', 'Bash', { command: 'git push -u origin fix/ci' }, { stdout: '', stderr: ' * [new branch]      fix/ci -> fix/ci\n' })).toContainEqual(
-    '↗ pushed fix/ci'
+    '             ↗  pushed   fix/ci · origin'
   )
   await pane.unmount()
 })

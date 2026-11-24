@@ -5,13 +5,14 @@ import type { EngineInterface, On } from 'claude-code'
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
 import { logCited, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
-import { isOn } from '../../cockpit/switch'
+import { isOn, noticeSink } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
 import { readFlow, updateFlow } from '../../shared/flow'
 import { capTurns } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
+import { claudeFootnotes } from '../v8/markdown'
 import { NO_CAPS, hasCaps, withMcp, withSkill } from '../live'
 import { firstKey } from './flow'
 import {
@@ -70,6 +71,8 @@ async function noteFlow($: EngineInterface, content: Content, row: string | unde
   const items: FlowStamp[] = []
   const links: string[] = []
   const earlier = turnCites(await readFlow($), turn)
+  // Cockpit's Sources marks are the footnotes Claude wrote (7.4, 8.7), the same numbers the left draws.
+  const footnotes: { url: string; title: string }[] = []
 
   for (const b of content) {
     if (b.type === 'text' && typeof b.text === 'string' && b.text.trim().length > 0) {
@@ -78,6 +81,7 @@ async function noteFlow($: EngineInterface, content: Content, row: string | unde
       items.push({ turn, kind: 'text', key: firstKey(b.text), ...(row === undefined ? {} : { row }), ...(own.length > 0 ? { cites: own } : {}) })
       earlier.push(...own.filter(c => !earlier.some(x => x.url === c.url)))
       links.push(...own.map(c => c.url))
+      footnotes.push(...claudeFootnotes(b.text).notes.map(f => ({ url: f.url, title: '' })))
     } else if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
       items.push({ turn, kind: 'tool', key: b.id, tool: b.name })
     }
@@ -86,9 +90,9 @@ async function noteFlow($: EngineInterface, content: Content, row: string | unde
   if (items.length > 0) await updateFlow($, list => capTurns([...list, ...items], FLOW_MAX, turn))
   if (links.length > 0) {
     await updateTally($, t => ({ ...t, sources: [...new Set([...t.sources, ...links])] }))
-    // Cockpit's `[ SOURCES ]` marks its pages as the answer numbers them.
-    await logCited($, earlier)
   }
+  // Cockpit's Sources marks its pages as Claude's own footnotes number them.
+  if (footnotes.length > 0) await logCited($, footnotes)
 }
 
 // The opener fixes its capability line now: what the turn used so far, plus the skills
@@ -256,7 +260,7 @@ export function registerSession(on: On): void {
     try {
       await restorePrompts($)
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`)
+      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`, noticeSink())
     }
 
     await startCockpit($, e)
@@ -264,7 +268,7 @@ export function registerSession(on: On): void {
     try {
       await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`)
+      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`, noticeSink())
     }
 
     return next(e)
@@ -334,7 +338,7 @@ export function registerSession(on: On): void {
       try {
         await notePending($, 'compact')
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`)
+        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`, noticeSink())
       }
     }
 

@@ -1,12 +1,15 @@
 // What a typed turn worked on, for `[ TODO ]`, `[ FILES ]` and `[ SOURCES ]` (spec E.41 to E.43), kept in $.state.
 // hooks/cockpit/log.ts calls these as the main loop's calls end and its turns start.
+import { noticeSink } from './switch'
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { FileChange, TurnRecord, TurnWork } from '../../types'
 import { filesFromCommand, filesFromDiff, noteFiles } from './sections/files'
 import type { Counted } from './sections/files'
-import { noteSources } from './sections/sources'
+import { isAtHome, onDisk } from '../shared/url'
+import { noteSources, sameUrl } from './sections/sources'
+import type { SourcePage } from '../../types'
 import { noteTodo, startTodo } from './sections/todo'
 import type { Outcome } from './steps/log'
 
@@ -123,14 +126,15 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
     return { root, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
     copy = null
-    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`)
+    $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, noticeSink())
 
     return undefined
   }
 }
 
 /**
- * What a shell step changed on disk: the working copy's movement since the last diff, else the command's targets.
+ * What a shell step changed on disk: the working copy's movement since the last diff and its targets outside the
+ * project, else the command's targets.
  * @param $ the engine interface
  * @param command the shell command
  * @param cwd the session's folder
@@ -149,9 +153,27 @@ async function shellFiles(
   // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
   // main loop's may take the other's `◇` mark. The counts stay right: calls are noted one at a time (`noteWork`).
   return now !== undefined && before !== undefined
-    ? files => filesFromDiff(files, before, now.files, now.root, cwd, isAgent)
+    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, cwd, isAgent), command, cwd, isAgent, true)
     : files => filesFromCommand(files, command, cwd, isAgent)
 }
+
+/** Each page's place in the order its fetch started this turn (8.7), by `sameUrl`: fetches in parallel end out of order. */
+let fetchOrder = new Map<string, number>()
+
+/**
+ * A call is about to run: a fetch takes its place in the turn's fetch order.
+ * @param tool the call's tool
+ * @param input the call's input
+ */
+export function noteFetchStart(tool: string, input: unknown): void {
+  const url = tool === 'WebFetch' && typeof input === 'object' && input !== null && 'url' in input && typeof input.url === 'string' ? input.url : undefined
+
+  if (url !== undefined && !fetchOrder.has(sameUrl(url))) fetchOrder.set(sameUrl(url), fetchOrder.size)
+}
+
+/** The pages in the order their fetches started; one with no start seen (a resume) keeps its place after them. */
+const inFetchOrder = (pages: readonly SourcePage[]): SourcePage[] =>
+  pages.toSorted((a, b) => (fetchOrder.get(sameUrl(a.url)) ?? Infinity) - (fetchOrder.get(sameUrl(b.url)) ?? Infinity))
 
 /**
  * A typed turn starts: its files, pages and citations start empty; the to-do list stays unless every item was done.
@@ -161,6 +183,7 @@ async function shellFiles(
  */
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
+  fetchOrder = new Map()
   lastDiff = (await diffNow($, cwd))?.files
   startDiff = lastDiff === undefined ? undefined : { root: copy?.root ?? '', files: lastDiff }
   await update($, work, w => {
@@ -212,7 +235,7 @@ async function noteWorkNow($: EngineInterface, tool: string, input: unknown, out
       todo: todo.items,
       isRevised: todo.isRevised,
       files: isOk ? noteFiles(files, tool, input, outcome.result, cwd, isAgent) : files,
-      sources: outcome.deny === undefined ? noteSources(w.sources, tool, input, outcome, isAgent) : w.sources
+      sources: outcome.deny === undefined ? inFetchOrder(noteSources(w.sources, tool, input, outcome, isAgent)) : w.sources
     }
   })
 }
@@ -227,6 +250,25 @@ export async function noteCited($: EngineInterface, cited: readonly { url: strin
 }
 
 const DIFF_MAX = 400 // diff rows a file's diff view keeps
+
+/** The home folder, read once: where `~` is for a `$.fs` call. */
+let home: Promise<string | undefined> | undefined
+
+/**
+ * Where a path is on disk, for a `$.fs` call: `~` and the home variables expand to the home folder (`USERPROFILE` on
+ * Windows, `HOME` on POSIX, read only for such a path); any other relative path is from the session's folder.
+ * @param $ the engine interface
+ * @param path the path, as shown or as a call named it
+ * @param cwd the session's folder
+ * @returns the absolute path
+ */
+export async function diskPath($: EngineInterface, path: string, cwd: string): Promise<string> {
+  if (!isAtHome(path)) return onDisk(path, cwd, undefined)
+
+  home ??= (async () => (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')))()
+
+  return onDisk(path, cwd, await home)
+}
 
 /**
  * One file's diff against HEAD as unified rows from its first `@@`, for a FILES row no Write or Edit patch covers (a
@@ -247,12 +289,13 @@ export async function workDiff($: EngineInterface, path: string): Promise<string
 
     if (from >= 0) return rows.slice(from, from + DIFF_MAX).filter((r, i, all) => i < all.length - 1 || r.length > 0)
 
-    const text = await $.fs.read(`${cwd}/${path}`)
+    const text = await $.fs.read(await diskPath($, path, cwd))
     const lines = text.replace(/\n$/, '').split('\n')
 
     return [`@@ -0,0 +1,${lines.length} @@`, ...lines.map(l => `+${l}`)].slice(0, DIFF_MAX)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`)
+    // A diff that cannot be read is the debug log's, never the main screen's, Cockpit on or off.
+    $.ui.log(`cockpit: no diff for ${path}: ${String(error)}`, { to: 'debug' })
 
     return []
   }

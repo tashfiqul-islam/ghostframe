@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { stepOf } from '../../../../hooks/transcript/activity/steps'
 import { VIEW } from '../../../support/view'
+import { ON, VIEW as COCKPIT_VIEW } from '../../../support/cockpit'
 import { PLAN, TODOS } from '../../../support/states'
 
 test('diff card off by default; only a new file under 12 lines; ctrl+o is the engine', async ($, on) => {
@@ -273,4 +274,26 @@ test('an approved plan is one line; the task list a frame; ctrl+o and unreadable
   const asked = await result('AskUserQuestion', { questions: [], answers: {} })
   expect(await asked.findAll({ type: 'Text' })).toHaveLength(0)
   await asked.unmount()
+})
+
+test("Cockpit on: a shell call's result row draws no [ TESTS ] card, docked or in fallback (live check, step 2)", ON, async ($, on) => {
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  on('tool.call', () => ({ result: { stdout: ' 0 pass\n 3 fail\n', stderr: '', interrupted: false } }))
+  const command = 'sed -i "4s/toBe(3)/toBe(4)/" src/width.test.ts && bun test'
+
+  await $.tool.call({ tool: 'Bash', command, tool_use_id: 'c1' } as never)
+
+  for (const viewport of [COCKPIT_VIEW, { columns: 100, rows: 40, isFullscreen: true }]) {
+    const row = await $.ui.mount({
+      plugin: 'ghostframe',
+      surface: 'terminal',
+      component: 'ToolResult',
+      viewport,
+      props: { tool_use_id: 'c1', tool: 'Bash', isErrored: true, output: { stdout: ' 0 pass\n 3 fail\n', stderr: '' } }
+    })
+
+    expect(await row.find({ type: 'Text', text: /^TESTS$/ })).toBeUndefined()
+    expect(await row.findAll({ type: 'Text' })).toHaveLength(0)
+    await row.unmount()
+  }
 })

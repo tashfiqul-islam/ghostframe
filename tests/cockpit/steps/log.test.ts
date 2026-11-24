@@ -1,6 +1,17 @@
 import { expect, test } from 'claude-code/testing'
 
-import { clearAgentWork, endLaunched, endTurn, newLog, newTurn, noteAgentWork, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import {
+  clearAgentWork,
+  endLaunched,
+  endTurn,
+  isShownFailure,
+  newLog,
+  newTurn,
+  noteAgentWork,
+  receiptOf,
+  settleStep,
+  startStep
+} from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 const launch = (ids: readonly string[]): StepLog => {
@@ -125,4 +136,33 @@ test('a receipt clears only the agents` work it counted: what ended after it wai
   const log = { ...newLog(null, null), agentWork: { files: ['a.ts', 'b.ts'], pages: ['example.com'] } }
   expect(clearAgentWork(log, counted).agentWork).toEqual({ files: ['b.ts'], pages: [] })
   expect(clearAgentWork({ ...log, agentWork: counted }, counted).agentWork).toBeUndefined()
+})
+
+test('13.1: with calls in parallel, the failure that settles first draws the row, and a later one never takes it', () => {
+  const fail = { isError: true as const, text: 'Exit code 2\nls: cannot access' }
+  const ls = (id: string, path: string) => ({ id, tool: 'Bash', input: { command: `ls ${path}` } })
+  let log = newTurn(newLog(null, null), 't1', 0)
+
+  // A and B run the same command, and C, D and E three others, all at once; B fails first.
+  for (const [id, path] of [
+    ['a', '/x'],
+    ['b', '/x'],
+    ['c', '/y'],
+    ['d', '/z'],
+    ['e', '/w']
+  ] as const)
+    log = startStep(log, { ...ls(id, path), at: 0 })
+  log = settleStep(log, { ...ls('b', '/x'), outcome: fail, at: 1_000 })
+  const shownB = isShownFailure(log.steps, 1)
+  for (const [id, path, at] of [
+    ['a', '/x', 2_000],
+    ['e', '/w', 3_000],
+    ['c', '/y', 4_000],
+    ['d', '/z', 5_000]
+  ] as const)
+    log = settleStep(log, { ...ls(id, path), outcome: fail, at })
+
+  expect(shownB).toBe(true)
+  // B keeps its row; A repeats its key; E and C are the second and third keys; D is the fourth, counted, not drawn.
+  expect(log.steps.map((_, i) => isShownFailure(log.steps, i))).toEqual([false, true, true, false, true])
 })

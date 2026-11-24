@@ -1,7 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { paneColumns } from '../../hooks/cockpit/seat'
-import { ON, PANE } from '../support/cockpit'
+import { ON, PANE, SLOW } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 import { MIXED, answerOf, fallbackEngine, groupOf, mixedTurn, must, rowsOf, site } from '../support/fallback'
 
@@ -50,7 +50,7 @@ function numbers(rows: readonly string[]): Record<string, number> {
   return out
 }
 
-test('docked → fallback → docked in fullscreen: a finished turn gains its capsule and failure row, then gives them back', ON, async ($, on) => {
+test('docked → fallback → docked in fullscreen: a finished turn gains its worked node and failure row, then gives them back', ON, async ($, on) => {
   $global = $
   isPlaced = false
   const clock = { now: T }
@@ -58,28 +58,29 @@ test('docked → fallback → docked in fullscreen: a finished turn gains its ca
   await dock($)
   await mixedTurn($, clock, 1)
 
-  // Docked: no capsule; the receipt says the steps, with the failure nothing fixed above it.
+  // Docked: no worked node; the receipt says the steps, with the failure card for what still fails above it (7.8).
   const docked = await answer($, 1, 127)
-  expect(docked.some(r => r.startsWith('│ worked'))).toBe(false)
-  expect(docked.at(-2)).toMatch(/^✕ still failing · shell · ls \/nope · exit 2 +7s$/)
-  expect(docked.at(-1)).toMatch(/^─ failed ─+ 5 steps · 1 failure · 1 agent · 1 file · 1 source · 17s$/)
+  expect(docked.some(r => /◇  worked/.test(r))).toBe(false)
+  expect(docked).toContainEqual(expect.stringMatching(/^ {13}│ {4}× shell ls \/nope +exit 2 *$/))
+  expect(docked.at(-1)).toMatch(/^ +17s ×  FAILED   [⣀-⣿]+   5 steps · 1 still failing · 1 file · 1 source · 1 agent$/)
   expect(await failing(1, 127)).toEqual([])
 
   // The pane leaves (closed, or the window narrowed): the same rows, drawn again, are fallback's.
   await undock($)
   const fallback = await answer($, 1, 100)
-  expect(fallback[0]).toMatch(/^│ worked · 5 steps · 2 shell · 1 edit · 1 fetch · 1 agent · 1 failure +16s$/)
-  expect(fallback.some(r => r.includes('still failing'))).toBe(false)
-  expect(fallback.at(-1)).toMatch(/^─ failed ─+ 1 failure · 1 agent · 1 file · 1 source · 17s$/)
-  expect((await failing(1, 100))[0]).toMatch(/^✕ failed · shell · ls \/nope · exit 2 +7s$/)
+  expect(fallback[0]).toMatch(/^ {9}16s ◇  worked   [⣀-⣿]+   5 steps · 1 agent$/)
+  // The failure drew its own row when it settled (13.1): no card repeats it.
+  expect(fallback.some(r => /│ {4}×/.test(r))).toBe(false)
+  expect(fallback.at(-1)).toMatch(/^ +17s ×  FAILED   [⣀-⣿]+   5 steps · 1 still failing · 1 file · 1 source · 1 agent$/)
+  expect((await failing(1, 100))[0]).toBe('             ×  shell ls /nope   exit 2   1s')
 
-  // The pane comes back: the capsule and the failure row go, the docked receipt and `still failing` come back.
+  // The pane comes back: the worked node and the failure row go, the docked receipt and its card come back.
   await dock($)
   expect(await answer($, 1, 127)).toEqual(docked)
   expect(await failing(1, 127)).toEqual([])
 
   // No count changed in either mode.
-  expect(numbers(fallback)).toEqual({ ...numbers(docked), step: 5 })
+  expect(numbers(fallback)).toEqual(numbers(docked))
 })
 
 test('one turn drawn at 200, 120, 100, 150 and 200 columns: no step lost, the same counts at every width', ON, async ($, on) => {
@@ -118,12 +119,12 @@ test('a turn run with no pane placed draws quiet once the pane docks: no pane is
   const clock = { now: T }
   fallbackEngine(on, clock, true)
   await mixedTurn($, clock, 5)
-  expect((await answer($, 5, 100))[0]).toMatch(/^│ worked · 5 steps/)
+  expect((await answer($, 5, 100))[0]).toMatch(/◇  worked   [⣀-⣿]+   5 steps/)
 
   await dock($)
   const docked = await answer($, 5, 127)
-  expect(docked.some(r => r.startsWith('│ worked'))).toBe(false)
-  expect(docked.at(-1)).toMatch(/^─ failed ─+ 5 steps · 1 failure/)
+  expect(docked.some(r => /◇  worked/.test(r))).toBe(false)
+  expect(docked.at(-1)).toMatch(/×  FAILED   [⣀-⣿]+   5 steps · 1 still failing/)
 })
 
 test('a row depends only on the mode and its data: drawn under a new request (a reload, a resume) it is the same', ON, async ($, on) => {
@@ -134,7 +135,7 @@ test('a row depends only on the mode and its data: drawn under a new request (a 
   await mixedTurn($, clock, 3)
 
   const first = await answer($, 3, 100)
-  expect(first[0]).toMatch(/^│ worked · 5 steps/)
+  expect(first[0]).toMatch(/◇  worked   [⣀-⣿]+   5 steps/)
   expect(await answer($, 3, 100)).toEqual(first)
   // A row the module never saw (its memory gone, as after a reload) draws the same capsule: it comes from the turn's data.
   expect((await answer($, 3, 100, 'after-reload'))[0]).toEqual(first[0])
@@ -162,7 +163,7 @@ test('on the main screen a printed row stays as printed: the pane coming back do
     } as never)
 
   const printed = await main(100)
-  expect(printed[0]).toMatch(/^│ worked · 5 steps/)
+  expect(printed[0]).toMatch(/◇  worked   [⣀-⣿]+   5 steps/)
 
   await dock($)
   expect(await main(100)).toEqual(printed)
@@ -238,7 +239,7 @@ function dragEngine(on: On, clock: ReturnType<typeof mock.clock>) {
   return { log, drawAt, drag, ask: () => (isAsked = true), mountWith: (m: typeof $mount) => ($mount = m) }
 }
 
-test('four live drag cycles: an unasked pane leaves at its first draw below 144, never inline, never a stale open; one open at start', ON, async ($, on) => {
+test('four live drag cycles: an unasked pane leaves at its first draw below 144, never inline, never a stale open; one open at start', SLOW, async ($, on) => {
   const clock = mock.clock(on)
   const d = dragEngine(on, clock)
   d.mountWith(raised => $.ui.mount(raised as never))
@@ -424,5 +425,5 @@ test('/tui: the switch is kept as the command runs and said once by the next dra
   await hint(true)
   await hint(false)
   await hint(false)
-  expect(said).toEqual(['fullscreen off · no dock on the main screen · capsules from here · /steps opens the log above the prompt'])
+  expect(said).toEqual(['fullscreen off · no dock on the main screen · worked nodes from here · /steps opens the log above the prompt'])
 })

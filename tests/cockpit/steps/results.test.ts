@@ -2,21 +2,13 @@ import { expect, test } from 'claude-code/testing'
 
 import { newLog, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { Outcome } from '../../../hooks/cockpit/steps/log'
-import { stepRows } from '../../../hooks/cockpit/steps/rows'
 
-/** The result column of one settled shell step, as `[ STEPS ]` draws it at 72 columns. */
+/** The result word of one settled shell step, as the step log keeps it. */
 function shellResult(command: string, outcome: Outcome): string {
   const input = { command }
   const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool: 'Bash', input, at: 0 }), { id: 'a', tool: 'Bash', input, outcome, at: 1_000 })
-  const row =
-    stepRows(log, 72, 10)[1]
-      ?.map(p => p.t)
-      .join('') ?? ''
 
-  return row
-    .slice(11, -9)
-    .replace(/^.*? {2,}/, '')
-    .trim()
+  return log.steps[0]?.result ?? ''
 }
 
 const out = (stdout: string): Outcome => ({ result: { stdout, stderr: '' }, text: stdout })
@@ -63,4 +55,48 @@ test('ls: `N items`, `1 item`, or `empty`', () => {
 
 test('other commands keep their last line of output', () => {
   expect(shellResult('echo one', out('one\n'))).toBe('one')
+})
+
+/** The result of one settled call of another tool that errored, as the step log keeps it. */
+function errorResult(tool: string, input: Record<string, unknown>, text: string): string {
+  const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool, input, at: 0 }), { id: 'a', tool, input, outcome: { isError: true, text }, at: 1_000 })
+
+  return log.steps[0]?.result ?? ''
+}
+
+test('13.6: an edit tool`s own guards read `not read` and `file changed`; a longer error is just `failed`', () => {
+  const edit = { file_path: 'a.ts', old_string: 'a', new_string: 'b' }
+  expect(errorResult('Edit', edit, '<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>')).toBe('not read')
+  expect(errorResult('Edit', edit, '<tool_use_error>File has been modified since read, either by the user or by a linter.</tool_use_error>')).toBe(
+    'file changed'
+  )
+  expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'EACCES: permission denied, open a.ts')).toBe('failed')
+  expect(errorResult('Write', { file_path: 'a.ts', content: '' }, 'disk full')).toBe('disk full')
+})
+
+test('5.7, 13.6: a result is a short word, never raw output: JSON, a path, a hash with its subject or `exit 0` read `done`', () => {
+  expect(shellResult('Get-Content package.json', out('{ "name": "cockpit-live", "private": true, "type": "module" }\n'))).toBe('done')
+  expect(shellResult('git log --oneline -1', out('d0cf00d chore: start\n'))).toBe('done')
+  expect(shellResult("Select-String -Path src/width.test.ts -Pattern 'ascii'", out(String.raw`src\width.test.ts:4:test('ascii', () => {})`))).toBe('done')
+  expect(shellResult('pwsh -c "exit 0"', out('exit 0\n'))).toBe('done')
+  expect(shellResult('bun --version', out('1.4.4\n'))).toBe('1.4.4')
+})
+
+test('a test run that then commits keeps the commit: its result is the hash, so the receipt ends `↗ <sha>` (live check, step 1)', () => {
+  const command = 'bun test 2>&1 | tail -4 && git add src/width.ts && git commit -q -m "fix(width): count cells"'
+  const input = { command }
+  const outcome: Outcome = { result: { stdout: ' 3 pass\n 0 fail\n', stderr: '' }, commit: { sha: '56ac82c', subject: 'fix(width): count cells' } }
+  const log = settleStep(startStep(newLog('t1', 0), { id: 'a', tool: 'Bash', input, at: 0 }), { id: 'a', tool: 'Bash', input, outcome, at: 1_000 })
+
+  expect(log.steps[0]).toMatchObject({ kind: 'test', result: '56ac82c', mark: '±' })
+  // A failing run is still the failure: `&&` means nothing was committed.
+  expect(shellResult(command, { result: { stdout: ' 1 pass\n 2 fail\n', stderr: '' } })).toBe('2 of 3 fail')
+})
+
+test('17. a multi-line output with no rule of its own reads `done`, never its last line (`---HEAD---`, an agent`s cat)', () => {
+  const command = 'cat -n src/width.ts && echo ---DIFF--- && git diff HEAD -- src/width.ts && echo ---HEAD---'
+  const text = '     1\t// Counts the cells\n     2\texport const width = 1\n---DIFF---\n---HEAD---'
+
+  expect(shellResult(command, { result: { stdout: text, stderr: '' } })).toBe('done')
+  expect(shellResult('bun --version', { result: { stdout: '1.4.4\n', stderr: '' } })).toBe('1.4.4')
 })
