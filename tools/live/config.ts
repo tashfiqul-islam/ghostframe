@@ -14,5 +14,5 @@ export const SETTINGS: string = env('LIVE_SETTINGS', 'D:\\Projects\\cockpit-test
 /** The throwaway repo the checks work in. */
 export const LIVE_REPO: string = env('LIVE_REPO', 'D:\\Projects\\cockpit-live')
 
-/** Where runs are saved: one folder per run. */
-export const OUT: string = join(import.meta.dirname, 'out')
+/** Where runs are saved, one folder per run: outside any worktree, so removing one cannot take its runs. */
+export const OUT: string = env('LIVE_OUT', join(import.meta.dirname, 'out'))

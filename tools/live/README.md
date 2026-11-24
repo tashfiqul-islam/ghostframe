@@ -25,7 +25,9 @@ killed session makes the next launch fall back to the classic renderer.
 Every run writes `out/<run>/`: `report.md` and `report.json`, and per suite a folder of captures, each saved as a `.txt`
 of the rows and an `.html` page that draws every cell in its colours, plus the engine's `debug.log` for that session.
 
-Paths can be changed with `LIVE_CLAUDE`, `LIVE_SETTINGS` and `LIVE_REPO`.
+Paths can be changed with `LIVE_CLAUDE`, `LIVE_SETTINGS`, `LIVE_REPO` and `LIVE_OUT` (the runs' folder, `tools/live/out`
+by default). Set `LIVE_OUT` outside the worktree when running from one: `git worktree remove` deletes ignored files, so
+runs saved inside it go with it.
 
 ## Files
 

@@ -1,6 +1,6 @@
 // Runs the live checks: `bun run.ts` for all of them, or `bun run.ts 2 7` for the suites holding those steps. Each
 // suite gets a fresh copy of the throwaway repo (repo.ts) and a fresh session; `--keep-repo` keeps the repo as it is.
-// Results go to tools/live/out/<run>/report.md and report.json, beside every capture's .txt and .html.
+// Results go to $LIVE_OUT/<run>/ (tools/live/out by default): report.md and report.json, beside each capture.
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
