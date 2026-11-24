@@ -93,9 +93,13 @@ export function groupsOf(steps: readonly TimedStep[], sentences: readonly Senten
                 ? 'shipped'
                 : 'ok'
     const decisive = failed ?? blocked ?? denied ?? shipped ?? own.at(-1) ?? first
-    // A group with no sentence of its own is named by the step that decides it: the failing one, if one fails.
+    // A group with no sentence of its own is named by the step that decides it: the failing one, if one fails. A fix's
+    // own row names its step, so it reads as the rerun of the × above it.
+    const isOwnFix = to - from === 1 && isFix(from)
     const title =
-      said !== undefined && (said.at === from || (k > 0 && launch === undefined)) ? titleOf(said.text) : `${decisive.step.kind} ${decisive.step.subject}`
+      !isOwnFix && said !== undefined && (said.at === from || (k > 0 && launch === undefined))
+        ? titleOf(said.text)
+        : `${decisive.step.kind} ${decisive.step.subject}`
     const tone: Tone = running
       ? 'accent'
       : failed !== undefined || (blocked === undefined && denied !== undefined)

@@ -117,4 +117,6 @@ test('5. with a working sentence, the passing rerun of a failure is its own ✓ 
     ['ok', '3 pass'],
     ['shipped', 'e59cf61']
   ])
+  // The rerun's row names its own step, not the sentence that holds it (live, round 6: `✓ Bun's built-in stringWid…`).
+  expect(groups[2]?.title).toBe('test bun test')
 })
