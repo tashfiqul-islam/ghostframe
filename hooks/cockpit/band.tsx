@@ -1,7 +1,8 @@
 // The band above the prompt with no pane docked (7.11, 9.2): while background agents still run after Claude's answer,
 // one line, `◇◇◇  Waiting on 3 agents` in the agent colour, its count updating in place. The engine draws no spinner
 // row while only background agents run, so the left has no live line for it; docked, the pane head says it and the
-// band is left to the engine.
+// band is left to the engine. The `[-]` at the band's right end is the engine's collapse toggle (ctrl+x ctrl+a), drawn
+// beside any band row in the five cells `bodyColumns` leaves out; Cockpit cannot remove it.
 import type { On } from 'claude-code'
 
 import { GLYPH } from '../shared/look/glyphs'
