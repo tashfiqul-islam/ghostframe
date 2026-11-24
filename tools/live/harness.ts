@@ -12,6 +12,8 @@ export class Step {
   readonly id: string
   readonly results: Result[] = []
   readonly captures: string[] = []
+  /** The captures themselves, for the checks every screen gets (`screenChecks`). */
+  readonly caps: Capture[] = []
 
   constructor(id: string) {
     this.id = id
@@ -39,6 +41,7 @@ export class Step {
   /** Keeps a capture's page for the report. */
   keep(cap: Capture & { html: string }): Capture {
     this.captures.push(cap.html)
+    this.caps.push(cap)
 
     return cap
   }

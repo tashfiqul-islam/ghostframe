@@ -42,8 +42,9 @@ export type Start = { cols: number; rows: number; out: string; cwd?: string; set
 // The variables a parent Claude Code session sets for its children; a child that inherits them thinks it is nested.
 const PARENT_ENV = /^(CLAUDECODE|CLAUDE_PID|CLAUDE_CODE_(CHILD_|ENTRYPOINT|MESSAGING_|SESSION_|SSE_PORT|PLUGIN_DIRS))/
 
-// What must hold still for a screen to be settled: its text, without the digits and braille that tick.
-const stillOf = (cap: Capture): string => textOf(cap).replace(/[\d⠀-⣿]/g, '#')
+// What must hold still for a screen to be settled: its text, without the digits, braille and spinner glyphs that tick
+// (the engine's model mark cycles through `·✢✳✶✻✽`).
+const stillOf = (cap: Capture): string => textOf(cap).replace(/[\d⠀-⣿·✢✳✶✻✽*]/g, '#')
 
 const settle = (ms: number): Promise<void> => new Promise(done => setTimeout(done, ms))
 
@@ -163,6 +164,7 @@ export class Session {
   async waitSettled(predicate: (cap: Capture) => boolean, timeoutMs: number, what: string): Promise<Capture> {
     let seen = ''
     let since = Date.now()
+    let heldSince: number | undefined
 
     return this.waitFor(
       cap => {
@@ -171,6 +173,15 @@ export class Session {
         if (now !== seen) {
           seen = now
           since = Date.now()
+        }
+        heldSince = predicate(cap) ? (heldSince ?? Date.now()) : undefined
+
+        // Something on screen may keep redrawing (an engine mark, a status line); a state that has held for 30 s is
+        // settled all the same, and the run log says so.
+        if (heldSince !== undefined && Date.now() - heldSince >= 30_000) {
+          console.log(`  settled without stillness: ${what}`)
+
+          return true
         }
 
         return predicate(cap) && Date.now() - since >= 1500

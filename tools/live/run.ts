@@ -8,11 +8,16 @@ import { LIVE_REPO, OUT } from './config.ts'
 import { Step, turnsSent, type Result } from './harness.ts'
 import { resetRepo } from './repo.ts'
 import { Session } from './session.ts'
-import { SUITES, type Suite } from './steps.ts'
+import { screenChecks, SUITES, type Suite } from './steps.ts'
 
 const wanted = process.argv.slice(2).filter(a => !a.startsWith('--'))
 const isKeepRepo = process.argv.includes('--keep-repo')
-const suites = wanted.length === 0 ? SUITES : SUITES.filter(s => s.steps.some(id => wanted.includes(id)) || wanted.includes(s.id))
+const isNarrowOnly = process.argv.includes('--narrow')
+const isWideOnly = process.argv.includes('--wide')
+const suites = (wanted.length === 0 ? SUITES : SUITES.filter(s => s.steps.some(id => wanted.includes(id)) || wanted.includes(s.id))).map(s => ({
+  ...s,
+  widths: s.widths.filter(w => (isNarrowOnly ? w < 144 : isWideOnly ? w >= 144 : true))
+}))
 const run = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 const out = join(OUT, run)
 const results: Result[] = []
@@ -20,23 +25,26 @@ const captures: Record<string, string[]> = {}
 const times: Record<string, number> = {}
 const startedAt = Date.now()
 
-async function runSuite(suite: Suite): Promise<void> {
+async function runSuite(suite: Suite, cols: number): Promise<void> {
   const began = Date.now()
+  const at = `${suite.id}${cols}`
   const steps = new Map<string, Step>()
   const stepOf = (id: string): Step => {
-    const step = steps.get(id) ?? new Step(id)
+    const key = `${id}@${cols}`
+    const step = steps.get(key) ?? new Step(key)
 
-    steps.set(id, step)
+    steps.set(key, step)
 
     return step
   }
+  const rows = cols >= 200 ? 50 : 40
 
-  console.log(`suite ${suite.id} (steps ${suite.steps.join(', ')}) at ${suite.cols}×${suite.rows}`)
+  console.log(`suite ${at} (steps ${suite.steps.join(', ')}) at ${cols}×${rows}`)
   if (!isKeepRepo) console.log(`  reset ${LIVE_REPO} (had ${resetRepo(LIVE_REPO).join(', ') || 'nothing'})`)
-  const s = await Session.start({ cols: suite.cols, rows: suite.rows, out: join(out, suite.id) })
+  const s = await Session.start({ cols, rows, out: join(out, at) })
 
   try {
-    await suite.run(s, stepOf)
+    await suite.run(s, stepOf, cols)
   } catch (error) {
     const last = [...steps.values()].at(-1) ?? stepOf(suite.steps[0] ?? suite.id)
 
@@ -45,13 +53,14 @@ async function runSuite(suite: Suite): Promise<void> {
     await s.close()
   }
   for (const step of steps.values()) {
+    screenChecks(step)
     results.push(...step.results)
     captures[step.id] = step.captures
   }
-  times[suite.id] = Date.now() - began
+  times[at] = Date.now() - began
 }
 
-for (const suite of suites) await runSuite(suite)
+for (const suite of suites) for (const cols of suite.widths) await runSuite(suite, cols)
 
 const mark = (r: Result): string => (r.pass === null ? 'note' : r.pass ? 'pass' : 'FAIL')
 const minutes = (ms: number): string => `${Math.floor(ms / 60_000)}m ${String(Math.round((ms % 60_000) / 1000)).padStart(2, '0')}s`
@@ -63,12 +72,16 @@ const lines = [
 ]
 
 for (const suite of suites) {
-  lines.push(`## Suite ${suite.id} · ${suite.cols} columns · ${minutes(times[suite.id] ?? 0)}`, '')
-  for (const id of suite.steps) {
-    lines.push(`### Step ${id}`, '')
-    for (const r of results.filter(x => x.step === id)) lines.push(`- **${mark(r)}** ${r.check}: ${r.saw}`)
-    for (const html of captures[id] ?? []) lines.push(`- capture: ${html}`)
-    lines.push('')
+  for (const cols of suite.widths) {
+    lines.push(`## Suite ${suite.id} · ${cols} columns · ${minutes(times[`${suite.id}${cols}`] ?? 0)}`, '')
+    for (const id of suite.steps) {
+      const key = `${id}@${cols}`
+
+      lines.push(`### Step ${id} at ${cols}`, '')
+      for (const r of results.filter(x => x.step === key)) lines.push(`- **${mark(r)}** ${r.check}: ${r.saw}`)
+      for (const html of captures[key] ?? []) lines.push(`- capture: ${html}`)
+      lines.push('')
+    }
   }
 }
 writeFileSync(join(out, 'report.md'), `${lines.join('\n')}\n`)

@@ -83,8 +83,9 @@ export function layoutOf(cap: Capture): Layout {
     for (let y = 0; y < bottom; y++) if (cap.cells[y]?.[x]?.ch === '│') bars++
     if (bars >= Math.max(8, bottom * 0.8) && (divider === undefined || x > divider)) divider = x
   }
-  // A pane is at least 40 cells; a `│` column further left is the spine.
-  if (divider !== undefined && cap.cols - divider < 40) divider = undefined
+  // A pane is at least 40 cells and at most 45% of the width (6.2), so its divider is past the middle; a `│` column
+  // further left is the left's spine.
+  if (divider !== undefined && (cap.cols - divider < 40 || divider < cap.cols / 2)) divider = undefined
 
   return divider === undefined
     ? { left: { x0: 0, x1: cap.cols, y0: 0, y1: bottom }, pane: undefined, divider }
