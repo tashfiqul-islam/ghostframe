@@ -9,7 +9,8 @@ conventional commits on `main`, so the PR title you squash-merge decides what th
 2. release-please keeps one release PR open, titled `chore(release): ghostframe X.Y.Z`. It bumps `version` in
    `.claude-plugin/plugin.json` and adds the new section to `CHANGELOG.md`.
 3. Merging that PR runs the workflow again. It tags the merge commit `vX.Y.Z` and publishes the GitHub Release
-   with the same notes.
+   with the same notes. It also tags the same commit `ghostframe--vX.Y.Z`: Claude Code resolves a dependency's
+   version range against `<plugin>--v<version>` tags, so a plugin that depends on ghostframe can pin a range.
 
 The version lives in one place, `.claude-plugin/plugin.json`. The Cockpit pane reads it for its wordmark, and Claude
 Code reads it to decide whether an installed copy is out of date. The marketplace entry has no `version` on purpose:
