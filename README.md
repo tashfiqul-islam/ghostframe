@@ -69,7 +69,7 @@ decisive line; the fix shows as its own step.
 [Usage →](docs/guide/usage.md#the-pane)
 
 </td>
-<td width="56%"><img src="docs/assets/readme-live.png" alt="The pane while a turn runs: LIVE, the failed test, the fix and the rerun on the timeline"></td>
+<td width="56%"><img src="docs/assets/readme-live.png" alt="The pane while a turn runs: LIVE, the failed test with its decisive line, and the next step running"></td>
 </tr>
 <tr>
 <td width="44%" valign="middle">
