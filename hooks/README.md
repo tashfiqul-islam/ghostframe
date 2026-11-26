@@ -1,9 +1,10 @@
 # hooks/
 
 The plugin's code. The engine loads one hooks module per plugin, named in `hooks.json`: `register.tsx`, which only
-composes the two features. Everything else sits in three layers: `shared/` (helpers both features use), `cockpit/`
-(the pane beside the transcript, off by default) and `transcript/` (how the conversation itself is drawn). The
-engine runs these `.ts` files as they are; there is no build step.
+composes the features. Everything else sits in four layers: `shared/` (helpers the features use), `cockpit/`
+(the pane beside the transcript, off by default), `transcript/` (how the conversation itself is drawn) and
+`statusline/` (the command that installs the status line; the status line program itself is the repo-root
+[`statusline/`](../statusline/README.md)). The engine runs these `.ts` files as they are; there is no build step.
 
 ## Layout
 
@@ -35,6 +36,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/v8/`: Cockpit v8's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
   draws, built on `shared/look/`. The left's rows Cockpit owns (event rows, the receipt, the worked node, the live
   line, slash command rows) and the pane's components (tabs, head card, timeline, drawer, the other views, the keys).
+- `statusline/`: `/ghostframe-statusline install | uninstall | status`, and its pure plan: the `statusLine` entry's
+  span in settings.json, the new text with only that entry changed, and the diff shown before anything is written.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
 - `transcript/v8/`: Cockpit v8's left (spec section 7), pure: the turn header, your message as a card, the thought
   row, the answer's markdown (headings, lists, quotes, task items, footnotes), code and diff cards, tables, the note
@@ -56,7 +59,8 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/` imports `cockpit/`, `shared/`, `types/` and `claude-code`. It never imports `transcript/`.
 - `transcript/` imports `transcript/`, `shared/`, `types/`, `claude-code`, and from the cockpit only its public
   modules: `cockpit/feature`, `cockpit/left`, `cockpit/log`, `cockpit/switch`.
-- Only `register.tsx` composes both features.
+- `statusline/` imports `statusline/`, `shared/`, `types/` and `claude-code`.
+- Only `register.tsx` composes the features.
 - Import from the module that defines a name: no `index.ts` barrels, no `export … from`.
 - The engine's own rules: `$` is passed only to top-level function declarations (never through an object or
   closure), and each engine event is hooked once per plugin. An atom is read and written in the file that declares

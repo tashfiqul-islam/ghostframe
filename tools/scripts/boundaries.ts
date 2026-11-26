@@ -3,6 +3,7 @@
 //   hooks/shared/**      shared/**, the repo-root types/, `claude-code`
 //   hooks/cockpit/**     cockpit/**, shared/**, types/, `claude-code`
 //   hooks/transcript/**  transcript/**, shared/**, types/, `claude-code`, and the cockpit's public surface only
+//   hooks/statusline/**  statusline/**, shared/**, types/, `claude-code`
 //   hooks/register.tsx   anything under hooks/ (it composes the features)
 // and no file may re-export (`export … from`, `export *`): every import names the module that defines it. It also
 // checks hooks/README.md against the folders under hooks/: every folder it names exists, and every folder is named;
@@ -20,7 +21,8 @@ type Area = { readonly prefix: string; readonly allowed: readonly string[] }
 const AREAS: readonly Area[] = [
   { prefix: 'hooks/shared/', allowed: ['hooks/shared/', 'types/'] },
   { prefix: 'hooks/cockpit/', allowed: ['hooks/cockpit/', 'hooks/shared/', 'types/'] },
-  { prefix: 'hooks/transcript/', allowed: ['hooks/transcript/', 'hooks/shared/', 'types/', ...COCKPIT_PUBLIC] }
+  { prefix: 'hooks/transcript/', allowed: ['hooks/transcript/', 'hooks/shared/', 'types/', ...COCKPIT_PUBLIC] },
+  { prefix: 'hooks/statusline/', allowed: ['hooks/statusline/', 'hooks/shared/', 'types/'] }
 ]
 
 const IMPORT = /^\s*(?:import|export)\s[^'"]*?\sfrom\s+['"]([^'"]+)['"]|^\s*import\s+['"]([^'"]+)['"]/gm
@@ -63,7 +65,7 @@ export function violations(files: ReadonlyMap<string, string>): string[] {
 }
 
 // A hooks folder as hooks/README.md names it: `shared/`, `transcript/sites/reply/`, … (backticked, ending in a slash).
-const README_FOLDER = /`((?:shared|cockpit|transcript)(?:\/[a-z0-9-]+)*)\/`/g
+const README_FOLDER = /`((?:shared|cockpit|transcript|statusline)(?:\/[a-z0-9-]+)*)\/`/g
 
 /**
  * Where hooks/README.md and the folders under hooks/ disagree, so the README cannot go stale: a folder it names
@@ -153,7 +155,7 @@ export function strayLiterals(files: ReadonlyMap<string, string>): string[] {
   const out: string[] = []
 
   for (const [file, text] of files) {
-    if (!file.startsWith('hooks/')) continue
+    if (!file.startsWith('hooks/') && !file.startsWith('statusline/')) continue
 
     for (const [i, line] of text.split('\n').entries()) {
       if (!PALETTES.has(file) && HEX.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) out.push(`${file}:${i + 1} holds a colour hex: use shared/look/palette.ts`)
@@ -236,10 +238,12 @@ if (process.argv.includes('--self-test')) {
   const root = process.cwd()
   const hooks = join(root, 'hooks')
   const files = sources(root, hooks)
+  // The status line program draws with the same palette: its sources (not its specs) hold no colour hex either.
+  const statusline = new Map([...sources(root, join(root, 'statusline'))].filter(([f]) => !f.endsWith('.spec.ts')))
   const found = [
     ...violations(files),
     ...loggedRows(files),
-    ...strayLiterals(files),
+    ...strayLiterals(new Map([...files, ...statusline])),
     ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))
   ]
 
