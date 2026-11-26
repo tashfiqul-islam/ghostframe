@@ -2,8 +2,9 @@ import { expect, test } from 'claude-code/testing'
 
 import { respond } from '../../../support/respond'
 import { VIEW } from '../../../support/view'
+import { OFF } from '../../../support/cockpit'
 
-test('the final answer after an activity row gets one blank row; after a drawn card, none; decided once', async ($, on) => {
+test('the final answer after an activity row gets one blank row; after a drawn card, none; decided once', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   let out = ' 5 pass\n 0 fail'
@@ -59,7 +60,7 @@ test('the final answer after an activity row gets one blank row; after a drawn c
   await prose.unmount()
 })
 
-test('one blank row after a card: prose right below it takes no margin of its own', async ($, on) => {
+test('one blank row after a card: prose right below it takes no margin of its own', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('tool.call', () => ({ result: { stdout: ' 5 pass\n 0 fail', stderr: '', interrupted: false } }))

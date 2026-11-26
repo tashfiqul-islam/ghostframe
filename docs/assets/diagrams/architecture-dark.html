@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How a turn is drawn · ghostframe</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --color-paper: #0b0b0e;
+        --color-ink: #ececf1;
+        --color-muted: #b2b2bc;
+        --color-accent: #fab387;
+        --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+        --font-serif: 'Instrument Serif', 'Noto Serif', serif;
+        --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+        color-scheme: dark;
+      }
+      body {
+        font-family: var(--font-sans);
+        background: var(--color-paper);
+        color: var(--color-ink);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 2rem;
+      }
+      .frame {
+        max-width: 960px;
+        width: 100%;
+      }
+      .diagram-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+        margin-bottom: 0.5rem;
+      }
+      h1 {
+        font-family: var(--font-serif);
+        font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        color: var(--color-ink);
+        margin-bottom: 1.5rem;
+      }
+      svg {
+        width: 100%;
+        min-width: 960px;
+        display: block;
+      }
+      @media print {
+        .diagram-container {
+          overflow-x: visible;
+        }
+        svg {
+          min-width: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <p class="eyebrow">Architecture · ghostframe</p>
+      <h1>How a turn is drawn</h1>
+      <div class="diagram-container">
+        <svg viewBox="0 96 960 504" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="architecture-dark-title architecture-dark-desc">
+          <title id="architecture-dark-title">How a turn is drawn</title>
+          <desc id="architecture-dark-desc">
+            Claude Code raises events; ghostframe records them in turn state, and pure renderers return element trees that Claude Code draws at its render
+            sites.
+          </desc>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#B2B2BC" /></marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#FAB387" />
+            </marker>
+            <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8FB8DE" /></marker>
+          </defs>
+          <rect x="0" y="96" width="960" height="504" fill="#0B0B0E" />
+          <rect x="200" y="136" width="224" height="304" rx="8" fill="rgba(236,236,241,0.02)" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <rect x="216" y="140" width="72" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="252.0"
+            y="149"
+            fill="#8C8899"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.14em"
+          >
+            CLAUDE CODE
+          </text>
+          <rect x="456" y="136" width="464" height="304" rx="8" fill="rgba(236,236,241,0.02)" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <rect x="472" y="140" width="148" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="546.0"
+            y="149"
+            fill="#8C8899"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.14em"
+          >
+            GHOSTFRAME · HOOKS MODULE
+          </text>
+          <path d="M 404,200 H 476" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 660,200 H 716" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 808,232 V 328" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 404,348 H 716" fill="none" stroke="#B2B2BC" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)" />
+          <path d="M 716,372 H 404" fill="none" stroke="#FAB387" stroke-width="1.4" marker-end="url(#arrow-accent)" />
+          <path d="M 220,360 H 168" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <rect x="418.0" y="180" width="44" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="440"
+            y="189"
+            fill="#8C8899"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            LISTEN
+          </text>
+          <rect x="666.0" y="180" width="44" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="688"
+            y="189"
+            fill="#8C8899"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            RECORD
+          </text>
+          <rect x="816" y="274" width="32" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="832"
+            y="283"
+            fill="#8C8899"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            READ
+          </text>
+          <rect x="526.0" y="328" width="68" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="560"
+            y="337"
+            fill="#8C8899"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            ASK TO DRAW
+          </text>
+          <rect x="520.0" y="380" width="80" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="560"
+            y="389"
+            fill="#FAB387"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            ELEMENT TREES
+          </text>
+          <rect x="176.0" y="340" width="36" height="12" rx="2" fill="#0B0B0E" />
+          <text
+            x="194"
+            y="349"
+            fill="#8C8899"
+            font-size="8"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.06em"
+          >
+            DRAWS
+          </text>
+          <rect x="40" y="328" width="128" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="40" y="328" width="128" height="64" rx="6" fill="rgba(236,236,241,0.03)" stroke="rgba(236,236,241,0.3)" stroke-width="1" />
+          <rect x="48" y="336" width="28" height="12" rx="2" fill="transparent" stroke="#8C8899" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="62.0"
+            y="345"
+            fill="#8C8899"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            TTY
+          </text>
+          <text x="104.0" y="366.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Your terminal
+          </text>
+          <text x="104.0" y="382.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">cells · SGR</text>
+          <rect x="220" y="168" width="184" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="220" y="168" width="184" height="64" rx="6" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <rect x="228" y="176" width="28" height="12" rx="2" fill="transparent" stroke="#ECECF1" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="242.0"
+            y="185"
+            fill="#ECECF1"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            EVT
+          </text>
+          <text x="312.0" y="206.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Events
+          </text>
+          <text x="312.0" y="222.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">
+            turn · tool.call · agent
+          </text>
+          <rect x="220" y="328" width="184" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="220" y="328" width="184" height="64" rx="6" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <rect x="228" y="336" width="32" height="12" rx="2" fill="transparent" stroke="#ECECF1" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="244.0"
+            y="345"
+            fill="#ECECF1"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            SITE
+          </text>
+          <text x="312.0" y="366.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Render sites
+          </text>
+          <text x="312.0" y="382.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">
+            left · Pane · AbovePrompt
+          </text>
+          <rect x="476" y="168" width="184" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="476" y="168" width="184" height="64" rx="6" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <rect x="484" y="176" width="32" height="12" rx="2" fill="transparent" stroke="#ECECF1" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="500.0"
+            y="185"
+            fill="#ECECF1"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            HOOK
+          </text>
+          <text x="568.0" y="206.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Ledger and hooks
+          </text>
+          <text x="568.0" y="222.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">
+            transcript/ledger
+          </text>
+          <rect x="716" y="168" width="184" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="716" y="168" width="184" height="64" rx="6" fill="rgba(236,236,241,0.05)" stroke="#B2B2BC" stroke-width="1" />
+          <rect x="724" y="176" width="36" height="12" rx="2" fill="transparent" stroke="#B2B2BC" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="742.0"
+            y="185"
+            fill="#B2B2BC"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            STATE
+          </text>
+          <text x="808.0" y="206.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Turn state
+          </text>
+          <text x="808.0" y="222.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">
+            $.state · $.store
+          </text>
+          <rect x="716" y="328" width="184" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="716" y="328" width="184" height="64" rx="6" fill="rgba(250,179,135,0.1)" stroke="#FAB387" stroke-width="1" />
+          <rect x="724" y="336" width="32" height="12" rx="2" fill="transparent" stroke="#FAB387" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="740.0"
+            y="345"
+            fill="#FAB387"
+            font-size="7"
+            font-family="'JetBrains Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            PURE
+          </text>
+          <text x="808.0" y="366.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Renderers
+          </text>
+          <text x="808.0" y="382.0" fill="#B2B2BC" font-size="9" font-family="'JetBrains Mono', ui-monospace, monospace" text-anchor="middle">
+            cockpit/rows · shared/look
+          </text>
+          <text x="908" y="480" fill="#FAB387" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif" text-anchor="end">
+            data in, rows out: nothing here writes to the terminal
+          </text>
+          <path d="M 852,468 Q 852,432 828,400" fill="none" stroke="rgba(250,179,135,0.5)" stroke-width="1" stroke-dasharray="4,3" />
+          <circle cx="828" cy="400" r="2" fill="#FAB387" />
+          <text x="40" y="480" fill="#ECECF1" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif" text-anchor="start">
+            outside the tested range, every site is handed back
+          </text>
+          <path d="M 120,468 Q 140,440 240,400" fill="none" stroke="rgba(236,236,241,0.4)" stroke-width="1" stroke-dasharray="4,3" />
+          <circle cx="240" cy="400" r="2" fill="#ECECF1" />
+          <line x1="40" y1="520" x2="920" y2="520" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <text x="40" y="536" fill="#B2B2BC" font-size="8" font-family="'JetBrains Mono', ui-monospace, monospace" letter-spacing="0.18em">LEGEND</text>
+          <rect x="40" y="552" width="14" height="10" rx="2" fill="rgba(250,179,135,0.1)" stroke="#FAB387" stroke-width="1" />
+          <text x="60" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Pure renderer</text>
+          <rect x="148.775" y="552" width="14" height="10" rx="2" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <text x="168.775" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Component</text>
+          <rect x="238.85000000000002" y="552" width="14" height="10" rx="2" fill="rgba(236,236,241,0.05)" stroke="#B2B2BC" stroke-width="1" />
+          <text x="258.85" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">State</text>
+          <rect x="310.225" y="552" width="14" height="10" rx="2" fill="rgba(236,236,241,0.03)" stroke="rgba(236,236,241,0.3)" stroke-width="1" />
+          <text x="330.225" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Terminal</text>
+          <line x1="395.625" y1="558" x2="423.625" y2="558" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <text x="431.625" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Call</text>
+          <line x1="478.325" y1="558" x2="506.325" y2="558" stroke="#FAB387" stroke-width="1.2" marker-end="url(#arrow-accent)" />
+          <text x="514.325" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">What gets drawn</text>
+          <line x1="612.45" y1="558" x2="640.45" y2="558" stroke="#B2B2BC" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arrow)" />
+          <text x="648.45" y="560" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Request</text>
+        </svg>
+      </div>
+    </div>
+  </body>
+</html>

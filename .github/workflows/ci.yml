@@ -18,10 +18,12 @@ defaults:
     shell: bash
 
 env:
-  # The CLI is the mod's runtime and test runner. Bump both lines together:
-  # the checksum comes from downloads.claude.ai/claude-code-releases/<version>/manifest.json.
+  # The CLI is the mod's runtime and test runner. Bump these lines together: each checksum is its platform's in
+  # downloads.claude.ai/claude-code-releases/<version>/manifest.json. The weekly canary tests the latest release.
   CLAUDE_CODE_VERSION: 2.1.329
-  CLAUDE_CODE_SHA256: 30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d
+  CLAUDE_CODE_SHA256_LINUX_X64: 30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d
+  CLAUDE_CODE_SHA256_DARWIN_ARM64: 8c1729568b19cdadedd0a978bf692f9f279ef554c8a333c4e132b94fd8725550
+  CLAUDE_CODE_SHA256_WIN32_X64: 527162bb4578e3dc36319fa913a530d5dc1f752115a6a4fd139981702bf282d0
   DISABLE_AUTOUPDATER: '1'
 
 jobs:
@@ -41,19 +43,14 @@ jobs:
         id: setup
         uses: $/.github/actions/setup
         with:
-          tools: bun actionlint zizmor shellcheck lychee
+          tools: bun actionlint zizmor shellcheck lychee rumdl
 
       - name: Install Claude Code CLI (pinned, checksum-verified)
         id: cli
-        run: |
-          mkdir -p "$RUNNER_TEMP/bin" "$RUNNER_TEMP/claude-config"
-          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/bin/claude" \
-            "https://downloads.claude.ai/claude-code-releases/${CLAUDE_CODE_VERSION}/linux-x64/claude"
-          echo "${CLAUDE_CODE_SHA256}  $RUNNER_TEMP/bin/claude" | sha256sum --check --strict -
-          chmod +x "$RUNNER_TEMP/bin/claude"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          # An empty config dir: the gates need no login and read no user settings.
-          echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/claude-config" >> "$GITHUB_ENV"
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ env.CLAUDE_CODE_SHA256_LINUX_X64 }}
 
       # The gate (`mise run check` locally), one step per tool so a failure names itself. Where a
       # tool speaks GitHub's annotation format, errors land inline on the PR diff. The plugin's own
@@ -73,12 +70,12 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools typecheck:tools
 
-      - name: Check the Cockpit spec regenerates byte for byte (mockgen)
+      - name: Check the first Cockpit spec regenerates byte for byte (mockgen)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           bun tools/mockgen/gen/build.ts "$RUNNER_TEMP/cockpit-v7.md"
-          cmp docs/design/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
-          sha256sum docs/design/cockpit-v7.md
+          cmp docs/design/history/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
+          sha256sum docs/design/history/cockpit-v7.md
 
       - name: Validate plugin (claude plugin validate)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
@@ -113,20 +110,27 @@ jobs:
           mapfile -t scripts < <(git ls-files '*.sh')
           if (( ${#scripts[@]} )); then shellcheck "${scripts[@]}"; else echo "No shell scripts."; fi
 
-      - name: Check docs links and anchors (lychee, offline)
+      - name: Lint the Markdown and check its links and anchors (rumdl, lychee offline)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: mise run lint-docs
 
-  # The status line runs wherever Claude Code does, so its renderer's unit tests (statusline/*.spec.ts, bun test) run
-  # on all three systems: paths, git and the temp folder differ between them. They need Bun alone, not the CLI.
-  statusline:
-    name: Status line (${{ matrix.os }})
+  # ghostframe runs wherever Claude Code does, so its tests run on all three systems: paths, shells, git and the temp
+  # folder differ between them. The plugin's tests (claude plugin test, the pinned CLI) and the status line's specs
+  # (bun test). The live checks need a signed-in session, so they run by hand: docs/development/live-checks.md.
+  tests:
+    name: Tests (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, macos-15]
+        include:
+          - os: ubuntu-24.04
+            sha256: LINUX_X64
+          - os: windows-2025
+            sha256: WIN32_X64
+          - os: macos-15
+            sha256: DARWIN_ARM64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read # check out this repo
     steps:
@@ -141,7 +145,17 @@ jobs:
           tools: bun
           install: 'false'
 
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ matrix.sha256 == 'WIN32_X64' && env.CLAUDE_CODE_SHA256_WIN32_X64 || matrix.sha256 == 'DARWIN_ARM64' && env.CLAUDE_CODE_SHA256_DARWIN_ARM64 || env.CLAUDE_CODE_SHA256_LINUX_X64 }}
+
+      - name: Run the plugin's tests (claude plugin test)
+        run: claude plugin test .
+
       - name: Run the status line's unit tests (bun test)
+        if: ${{ !cancelled() }}
         run: bun test ./statusline
 
   dependencies:

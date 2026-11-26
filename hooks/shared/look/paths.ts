@@ -22,7 +22,7 @@ export type PathRoots = { project?: string | undefined; home?: string | undefine
 /**
  * A path as Cockpit shows it (13.2). A `~/…` path keeps its `~` and is never read against the project; a project path
  * never gets one, even when the project is under the home folder. A worktree beside the project
- * (`D:\Projects\ghostframe-v8`) is not inside it.
+ * (`D:\Projects\ghostframe-old`) is not inside it.
  * @param p the path as the tool gave it
  * @param roots the project root and the home folder
  * @returns the path to show, before any cut

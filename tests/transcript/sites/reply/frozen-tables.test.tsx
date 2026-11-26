@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { splitBlocks } from '../../../../hooks/transcript/blocks/split'
 import type { Found } from '../../../support/engine'
+import { OFF } from '../../../support/cockpit'
 
 const VIEW = { columns: 160, rows: 65 }
 
@@ -46,7 +47,7 @@ function aboveLastRow(lines: string[]): string[] {
 }
 
 // Streams every prefix of a long reply: seconds of draws, past the default 5 s on a CI runner.
-test('a reply taller than the window streams with every line above its last block unchanged', { timeoutMs: 30_000 }, async ($, on) => {
+test('a reply taller than the window streams with every line above its last block unchanged', { ...OFF, timeoutMs: 30_000 }, async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
 
@@ -106,7 +107,7 @@ test('a reply taller than the window streams with every line above its last bloc
   await live.unmount()
 })
 
-test('a table keeps its streamed layout when the turn completes, even when the reply fits the window', async ($, on) => {
+test('a table keeps its streamed layout when the turn completes, even when the reply fits the window', OFF, async ($, on) => {
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
 

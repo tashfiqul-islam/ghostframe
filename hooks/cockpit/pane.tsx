@@ -4,9 +4,9 @@ import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 
 import { readDetails } from './keys/details'
 import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
-import { assemblePane, firstHunk } from './v8/assemble'
-import { drawPaneV8, isKeyElement, ringPastKeys } from './v8/draw'
-import { countsOf, INSPECTOR_KEYS, inspectorRows } from './v8/views'
+import { assemblePane, firstHunk } from './rows/assemble'
+import { drawPane, isKeyElement, ringPastKeys } from './rows/draw'
+import { countsOf, INSPECTOR_KEYS, inspectorRows } from './rows/views'
 import { pluginVersion } from './version'
 import { readFlow } from '../shared/flow'
 import { noteColumns, setDocked, widthTick } from './left'
@@ -21,6 +21,7 @@ import { pinFromCommand } from './keys/view'
 import { INSPECTOR_ROWS } from './fallback/inspector'
 import { copyFromCommand, stepsAllText } from './copy'
 import { keepSwitch, switchNotice } from './tui'
+import { dormantText, isDormant } from '../shared/engine'
 
 export type On = Parameters<Register>[0]
 
@@ -273,6 +274,7 @@ export function registerPane(on: On): void {
   })
 
   on('command.run', { command: PANE }, async ($, e) => {
+    if (isDormant()) return { text: dormantText() }
     if (!isOn()) {
       return { text: OFF_NOTE }
     }
@@ -306,6 +308,7 @@ export function registerPane(on: On): void {
   // With no pane placed it also opens one, with the keyboard (E.46): where no dock exists the engine seats it
   // inline, the inspector, and Escape closes it; from 110 columns in fullscreen an asked open docks it (amendment 5).
   on('command.run', { command: STEPS }, async ($, e) => {
+    if (isDormant()) return { text: dormantText() }
     if (!isOn()) {
       return { text: OFF_NOTE }
     }
@@ -462,7 +465,7 @@ export function registerPane(on: On): void {
       $.ui.invalidate('ui.render')
     }
 
-    // The v8 pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
+    // The pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
     // C). Reading `second` redraws this each second while a turn or a background agent runs; reading the view's
     // counter, when a key changes the view.
     await readSecond($)
@@ -520,7 +523,7 @@ export function registerPane(on: On): void {
         keys
       )
 
-      return drawPaneV8($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
+      return drawPane($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
     }
 
     // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
@@ -555,6 +558,6 @@ export function registerPane(on: On): void {
       diffCounts,
       note: copiedNote(now)
     })
-    return drawPaneV8($, e, pane.lines)
+    return drawPane($, e, pane.lines)
   })
 }

@@ -1,0 +1,79 @@
+name: Canary
+run-name: 'Canary · latest Claude Code · ${{ github.event_name }}'
+
+# ghostframe draws through Claude Code's plugin API and render sites, which change with the engine. Once a week, and on
+# demand, this runs the checks against the latest Claude Code instead of the pinned one, so an engine change shows up
+# here, not in someone's session. A failure means: read the run, then bump CLAUDE_CODE_VERSION in ci.yml once fixed.
+# The live checks need a signed-in session and stay manual; their own unit tests run here.
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  canary:
+    name: Latest Claude Code (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise)
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Install the latest Claude Code (checked against its release manifest)
+        id: cli
+        uses: $/.github/actions/claude
+        with:
+          version: latest
+
+      - name: Validate plugin (claude plugin validate)
+        run: claude plugin validate .
+
+      - name: Run the plugin's tests (claude plugin test)
+        if: ${{ !cancelled() }}
+        run: claude plugin test .
+
+      - name: Run the status line's unit tests (bun test)
+        if: ${{ !cancelled() }}
+        run: bun test ./statusline
+
+      - name: Run the live checks' own unit tests (bun test, no session)
+        if: ${{ !cancelled() && runner.os == 'Linux' }}
+        run: |
+          bun install --cwd tools/live --frozen-lockfile --ignore-scripts
+          cd tools/live && bun test
+
+      - name: Say which Claude Code was tested, and whether it is inside ghostframe's range
+        if: ${{ always() && steps.cli.outputs.version != '' }}
+        env:
+          TESTED: ${{ steps.cli.outputs.version }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          where=$(bun tools/scripts/engines.ts --report "$TESTED")
+          echo "### Claude Code $TESTED" >> "$GITHUB_STEP_SUMMARY"
+          echo "$where" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$JOB_STATUS" != success ]; then echo "::error title=Canary failed on Claude Code $TESTED::$where"; fi

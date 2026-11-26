@@ -1,0 +1,14 @@
+{
+  "name": "ghostframe-screenshots",
+  "private": true,
+  "description": "Renders the README's screenshots from the live harness's captures. A dev tool only, in its own package so neither the plugin nor the tools/ gate installs it.",
+  "type": "module",
+  "scripts": {
+    "shots": "bun screenshots.ts",
+    "diagrams": "bun diagrams.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.4",
+    "playwright-core": "1.65.0"
+  }
+}

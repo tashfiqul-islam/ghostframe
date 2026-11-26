@@ -1,5 +1,5 @@
-// Cockpit's step log: one turn's tool calls as steps (spec E.12, E.37, E.39, H.5; amendments 1 and 2; v8 13).
-// Pure: hooks/cockpit/log.ts keeps the log in $.state and hooks/cockpit/v8/ draws it.
+// Cockpit's step log: one turn's tool calls as steps (spec E.12, E.37, E.39, H.5; amendments 1 and 2; spec 13).
+// Pure: hooks/cockpit/log.ts keeps the log in $.state and hooks/cockpit/rows/ draws it.
 import type { LastTurn, Receipt, StepLog, LogStep } from '../../../types'
 import { DENIED } from '../../shared/calls/describe'
 import { levelsOf } from '../../shared/look/trace'

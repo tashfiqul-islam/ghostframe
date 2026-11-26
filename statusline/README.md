@@ -24,7 +24,7 @@ It runs on Bun, outside the plugin's hooks: `/ghostframe-statusline install` bun
 | `GF_SLAB=1`        | The #111117 slab and its 2-cell margin                                     |
 | `GF_MAXW`          | The widest W draws at (default 210)                                        |
 | `GF_PADDING`       | The `padding` the statusLine entry sets, when it is not 0                  |
-| `GF_DEBUG=1`       | A log in the temp folder, `ghostframe-statusline-debug.log` (never stderr) |
+| `GF_DEBUG=1`       | A log in the per-user cache folder, `debug.log` (never stderr)             |
 | `GF_FIXTURE`       | For the live checks: a JSON file laid over Claude Code's, to force a state |
 
 ## Checks

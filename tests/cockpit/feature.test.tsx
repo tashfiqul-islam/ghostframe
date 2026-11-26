@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE, T0 } from '../support/cockpit'
+import { OFF, ON, PANE, T0 } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 
-// Phase 5, agents, in the v8 pane (8.3, 8.9): agent.spawn, a subagent's tool.call and agent.report drive the roster; on the
+// Phase 5, agents, in the pane (8.3, 8.9): agent.spawn, a subagent's tool.call and agent.report drive the roster; on the
 // timeline a launch is one group with its agents as `├ ◇ name` bars under it, each with its running or last sub-step.
 const ASYNC = { result: { status: 'async_launched', agentId: 'x', description: 'x' }, text: 'launched' }
 
@@ -145,7 +145,7 @@ test('a report that never came: the engine`s list settles the agent at the next 
   expect(rows).toContainEqual(expect.stringMatching(/AGENTS 0$/))
 })
 
-test('off: agents spawn and report exactly as they would, and no pane rows are drawn', async ($, on) => {
+test('off: agents spawn and report exactly as they would, and no pane rows are drawn', OFF, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   await $.turn.start({ text: 'audit it', turnId: 't1' })

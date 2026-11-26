@@ -1,0 +1,82 @@
+name: Bug report
+description: Something ghostframe draws or does is wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. A screenshot or a live-check capture is the fastest way to see what went wrong.
+        For a security problem, don't open an issue: see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      description: The prompt or keys, the terminal width, anything else that matters.
+      placeholder: |
+        1. Start Claude Code in a 150-column terminal
+        2. Ask for …
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Was the pane docked?
+      options:
+        - Docked (the pane beside the conversation)
+        - Fallback (no pane)
+        - Cockpit off
+        - Status line only
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: width
+    attributes:
+      label: Terminal width
+      description: In columns. `echo $COLUMNS` in bash, `$Host.UI.RawUI.WindowSize.Width` in PowerShell.
+      placeholder: '200'
+    validations:
+      required: true
+  - type: input
+    id: ghostframe
+    attributes:
+      label: ghostframe version
+      description: The pane's last row shows it, or `claude plugin list`.
+      placeholder: '1.0.0'
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      description: '`claude --version`'
+      placeholder: '2.1.332'
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows 11, macOS 15, Ubuntu 24.04 …
+    validations:
+      required: true
+  - type: input
+    id: terminal
+    attributes:
+      label: Terminal and font
+      placeholder: Windows Terminal with JetBrainsMono Nerd Font, the VS Code terminal …
+    validations:
+      required: true
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot or capture
+      description: Drop an image here, or attach a live-check capture (the .html or .txt). Check it for anything private first.

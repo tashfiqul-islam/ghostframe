@@ -6,6 +6,7 @@ import { textAt } from '../../../support/text'
 import { REPLY, TABLE_ONLY } from '../../../support/releases'
 import { respondText } from '../../../support/respond'
 import type { Engine, On } from '../../../support/engine'
+import { OFF } from '../../../support/cockpit'
 
 /** Every line the reply's own blocks drew (one Text per block, lines joined by \n). */
 async function lines(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
@@ -28,7 +29,7 @@ const CHIPS = [
 ].join('\n')
 
 for (const columns of [120, 70]) {
-  test(`at ${columns} columns, a chip before , ; ) mid-cell or at the end never shifts later columns`, async ($, on) => {
+  test(`at ${columns} columns, a chip before , ; ) mid-cell or at the end never shifts later columns`, OFF, async ($, on) => {
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
     const ui = await $.ui.mount({
       plugin: 'ghostframe',
@@ -64,7 +65,7 @@ const WRAPPY = [
   '| v1.4.2 | fixes two regressions and a hang |'
 ].join('\n')
 
-test('at 60 columns, rows that wrap keep a blank line between them, streaming and settled', async ($, on) => {
+test('at 60 columns, rows that wrap keep a blank line between them, streaming and settled', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -92,7 +93,7 @@ test('at 60 columns, rows that wrap keep a blank line between them, streaming an
   await live.unmount()
 })
 
-test('a narrow table streamed row by row: no drawn row moves, blank lines only land below them', async ($, on) => {
+test('a narrow table streamed row by row: no drawn row moves, blank lines only land below them', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   await $.turn.start({ text: 'x', turnId: 't1' })
@@ -144,7 +145,7 @@ async function draw($: Engine, on: On, text: string, columns = 140) {
 
 const isNote = (l: string) => /^\s*┄┄┄┄ [¹²³⁴⁵⁶⁷⁸⁹]/.test(l)
 
-test('the on-screen reply (no web tools): our table, (post¹) markers, footnote lines, no frame', async ($, on) => {
+test('the on-screen reply (no web tools): our table, (post¹) markers, footnote lines, no frame', OFF, async ($, on) => {
   const rows = await draw($, on, REPLY)
   const body = rows.join('\n')
 
@@ -176,7 +177,7 @@ test('the on-screen reply (no web tools): our table, (post¹) markers, footnote 
   expect(head.indexOf('Contributors') + 'Contributors'.length).toBe(v144.indexOf(' 39 ') + 3)
 })
 
-test('without a Sources list: the footnote line sits directly under the table', async ($, on) => {
+test('without a Sources list: the footnote line sits directly under the table', OFF, async ($, on) => {
   const rows = await draw($, on, TABLE_ONLY)
   const last = rows.findIndex(l => /^\s*v1\.4\.2\s/.test(l))
   const note = rows.findIndex(isNote)
@@ -189,7 +190,7 @@ test('without a Sources list: the footnote line sits directly under the table', 
   expect(rows[note]).toContain('³ bun.com · bun-v1.4.2')
 })
 
-test('cells: only a link → its URL label; a link in prose → text + marker; "(post (url))" → "(post¹)"', async ($, on) => {
+test('cells: only a link → its URL label; a link in prose → text + marker; "(post (url))" → "(post¹)"', OFF, async ($, on) => {
   const md = [
     'Where each one lives:',
     '',
@@ -214,7 +215,7 @@ test('cells: only a link → its URL label; a link in prose → text + marker; "
   expect(note).not.toContain('bun-v1.4.4')
 })
 
-test('table markers continue the reply’s numbering: a paragraph above takes ¹', async ($, on) => {
+test('table markers continue the reply’s numbering: a paragraph above takes ¹', OFF, async ($, on) => {
   const md = [
     'Bun ships often ([blog](https://bun.com/blog)).',
     '',
@@ -229,7 +230,7 @@ test('table markers continue the reply’s numbering: a paragraph above takes ¹
   expect(rows.filter(isNote).join(' ')).toContain('² bun.com · bun-v1.4.4')
 })
 
-test('a Sources list whose every source has a marker draws nothing of its own', async ($, on) => {
+test('a Sources list whose every source has a marker draws nothing of its own', OFF, async ($, on) => {
   const md = `${TABLE_ONLY}\n\nSources:\n- [post](https://bun.com/blog/bun-v1.4.4)\n- [post](https://bun.com/blog/bun-v1.4.3)`
   const rows = await draw($, on, md)
 
@@ -253,7 +254,7 @@ test('a block left to the engine never leaves a footnote line behind', async ($,
   expect(rows.some(l => /[¹²³]/.test(l))).toBe(false)
 })
 
-test('a marker cut off with its cell (line limit, narrow) gets no footnote entry', async ($, on) => {
+test('a marker cut off with its cell (line limit, narrow) gets no footnote entry', OFF, async ($, on) => {
   const rows = await draw($, on, TABLE_ONLY, 60)
   const note = rows.find(isNote) ?? ''
   const table = rows.filter(l => !isNote(l)).join('\n')
@@ -266,7 +267,7 @@ test('a marker cut off with its cell (line limit, narrow) gets no footnote entry
   for (const m of ['¹', '²', '³']) if (!table.includes(m)) expect(note).not.toContain(m)
 })
 
-test('with a link in the opening line too: numbering follows reading order, every entry has its marker', async ($, on) => {
+test('with a link in the opening line too: numbering follows reading order, every entry has its marker', OFF, async ($, on) => {
   const withLead = REPLY.replace(
     'the GitHub releases page I read earlier',
     'the [GitHub releases page](https://github.com/oven-sh/bun/releases) I read earlier'
@@ -293,7 +294,7 @@ test('with a link in the opening line too: numbering follows reading order, ever
   expect(rows[lead + 1]).toBe(notes[0])
 })
 
-test('the on-screen turn as sent: every numbered note has its marker; the listed-only source has none', async ($, on) => {
+test('the on-screen turn as sent: every numbered note has its marker; the listed-only source has none', OFF, async ($, on) => {
   const rows = await draw($, on, REPLY)
   const notes = rows.filter(l => /^\s*┄┄┄┄ /.test(l))
   const body = rows.filter(l => !/^\s*┄┄┄┄ /.test(l)).join('\n')

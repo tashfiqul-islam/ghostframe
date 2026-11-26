@@ -17,8 +17,8 @@ import { isStartRow } from '../../ledger/session'
 import { openerCaps, openerThought, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
 import { spineOnly } from '../../../shared/look/spine'
 import type { Part } from '../../../shared/parts'
-import { answerRows, claudeFootnotes, footnoteRows } from '../../v8/markdown'
-import { thoughtRow } from '../../v8/turn'
+import { answerRows, claudeFootnotes, footnoteRows } from '../../rows/markdown'
+import { thoughtRow } from '../../rows/turn'
 
 /** A thought shorter than this draws no thought row (7.3): it would only say `<1s`. */
 const THOUGHT_SHOWN_MS = 1_000
@@ -29,6 +29,7 @@ import { drawnAs, messageOf, replyGap } from './message'
 import { isHiddenNarration } from './narration'
 import { drawSummary } from './summary'
 import { tableDraws } from './tables'
+import { dormantFor } from '../../../shared/engine'
 
 /**
  * Adds Claude's reply drawing (`AssistantMessage`).
@@ -39,6 +40,8 @@ export function registerReply(on: On): void {
   // one measure. Plain paragraphs and headings are laid out here (exact widths, code
   // chips); anything else goes through the engine's Markdown, links and all.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 

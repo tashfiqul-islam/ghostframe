@@ -15,11 +15,11 @@ import { readFrame, readLog, readReceipts, readRoster } from './log'
 import { readWork } from './work'
 import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
-import { insteadRows, refusalRows } from './v8/events'
-import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from './v8/left'
-import { liveArea } from './v8/live'
-import { receiptCounts } from './v8/receipt'
-import { shipEventRows } from './v8/ships'
+import { insteadRows, refusalRows } from './rows/events'
+import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from './rows/left'
+import { liveArea } from './rows/live'
+import { receiptCounts } from './rows/receipt'
+import { shipEventRows } from './rows/ships'
 import { spineOnly, textCells } from '../shared/look/spine'
 import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, footerCapsule } from './fallback/draw'
 
@@ -28,8 +28,8 @@ import { turnOfCall, turnView } from './fallback/facts'
 import { isKeptNarration, keptRecords, storedReceiptList } from './history/store'
 import { isOn } from './switch'
 import { noteUnfolded, unfolded } from './unfolded'
-import { noticeRow, sentenceRows } from './v8/events'
-import { stepLineRow } from './v8/left'
+import { noticeRow, sentenceRows } from './rows/events'
+import { stepLineRow } from './rows/left'
 import { diffCard } from '../shared/look/code'
 import { clockTime } from '../shared/look/format'
 
@@ -128,7 +128,7 @@ function rowMode(site: RowSite): LeftMode {
 export const isQuietRow = (row: RowSite): boolean => rowMode(row) !== 'full'
 
 /**
- * The v8 text column's width for a transcript row (6.1): 86 beside the pane and wide, 78 with no pane under 110.
+ * The text column's width for a transcript row (6.1): 86 beside the pane and wide, 78 with no pane under 110.
  * @param row the row's render
  * @returns the cells
  */

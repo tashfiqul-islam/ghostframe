@@ -1,5 +1,5 @@
-// The files a turn changed (spec E.42; v8 8.7): in order of first change, with their +/− lines updated in place and
-// whether each is new or deleted. Pure: hooks/cockpit/work.ts keeps the list and hooks/cockpit/v8/views.ts draws it.
+// The files a turn changed (spec E.42; spec 8.7): in order of first change, with their +/− lines updated in place and
+// whether each is new or deleted. Pure: hooks/cockpit/work.ts keeps the list and hooks/cockpit/rows/views.ts draws it.
 import type { FileChange } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { patchCounts } from '../../shared/calls/results'

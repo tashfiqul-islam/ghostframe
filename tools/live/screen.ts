@@ -152,7 +152,7 @@ export function htmlOf(cap: Capture): string {
 </style>
 <h1>${escapeHtml(cap.name)} · ${cap.cols}×${cap.rows}</h1>
 <div class="screen">
-${rows.join('\n')}
+${rows.join('')}
 </div>
 `
 }

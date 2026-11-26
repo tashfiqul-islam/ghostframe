@@ -1,6 +1,6 @@
 // Cockpit's `[ TODO ]` (spec E.41): the session's to-do list from TodoWrite, TaskCreate and TaskUpdate, its items
 // in the order they first appeared and changed in place. Pure: hooks/cockpit/work.ts keeps the list and
-// hooks/cockpit/v8/views.ts draws it.
+// hooks/cockpit/rows/views.ts draws it.
 import type { TodoItem } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 

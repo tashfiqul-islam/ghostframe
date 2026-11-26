@@ -2,7 +2,7 @@
 
 The plugin's code. The engine loads one hooks module per plugin, named in `hooks.json`: `register.tsx`, which only
 composes the features. Everything else sits in four layers: `shared/` (helpers the features use), `cockpit/`
-(the pane beside the transcript, off by default), `transcript/` (how the conversation itself is drawn) and
+(the pane beside the transcript, on by default), `transcript/` (how the conversation itself is drawn) and
 `statusline/` (the command that installs the status line; the status line program itself is the repo-root
 [`statusline/`](../statusline/README.md)). The engine runs these `.ts` files as they are; there is no build step.
 
@@ -13,7 +13,7 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `shared/`: colour tokens, the grid and layout math, text width and clipping, the rule, time formats, `Part` helpers,
   the LRU and turn caps, URL and path labels, and the flow (Claude's blocks and calls in stored order, with what
   narration is), which both features read.
-- `shared/look/`: Cockpit v8's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
+- `shared/look/`: Cockpit's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
   draws with), the glyphs, the formats (clock, day, duration, counts, state words), the one path formatter and the
   cuts from the middle, the `cd` prefix, kind words and short result words, and the small parts every row is built
   from (a dim run, spaces, a kind cell, the result tones).
@@ -33,13 +33,13 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/fallback/`: the left with no pane docked (E.3, E.5, E.33, E.46): the capsule and where each stretch of
   work ends (worked out from the turn's flow and steps at every draw, amendment 10), failure rows, the live area, and
   the inline inspector's size.
-- `cockpit/v8/`: Cockpit v8's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
+- `cockpit/rows/`: Cockpit's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
   draws, built on `shared/look/`. The left's rows Cockpit owns (event rows, the receipt, the worked node, the live
   line, slash command rows) and the pane's components (tabs, head card, timeline, drawer, the other views, the keys).
 - `statusline/`: `/ghostframe-statusline install | uninstall | status`, and its pure plan: the `statusLine` entry's
   span in settings.json, the new text with only that entry changed, and the diff shown before anything is written.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
-- `transcript/v8/`: Cockpit v8's left (spec section 7), pure: the turn header, your message as a card, the thought
+- `transcript/rows/`: Cockpit's left (spec section 7), pure: the turn header, your message as a card, the thought
   row, the answer's markdown (headings, lists, quotes, task items, footnotes), code and diff cards, tables, the note
   and the plan card, built on `shared/look/`.
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
@@ -86,7 +86,7 @@ loop. Render sites are hooked by the folder that draws them.
 
 While the cockpit is on, `Spinner`, `ToolGroup`, `ToolUse`, `TurnDuration`, `UserMessage` and `AssistantMessage` ask
 `cockpit/left` first: the quiet left, docked or in fallback (no pane docked: a worked node per stretch of work, a row
-per failure, the whole live area; `cockpit/fallback/`), each row drawn by `cockpit/v8/` and `transcript/v8/`. In fullscreen a row drawn again after the pane leaves or comes
+per failure, the whole live area; `cockpit/fallback/`), each row drawn by `cockpit/rows/` and `transcript/rows/`. In fullscreen a row drawn again after the pane leaves or comes
 back takes the mode now (amendment 10); on the main screen it keeps its first draw's. In the ctrl+o view each call is a
 step line with its diff card, and narration a sentence row. Narration draws nothing, and each turn's receipt ends its last answer block, keyed by the engine's turn id;
 `TurnDuration` draws nothing, since the turns an agent's reports start share one footer, or have none. Docked, the engine's agent rows draw nothing: an agent's `UserMessage` (its
@@ -99,8 +99,8 @@ message or its finished notice), the `ToolUse` of an `Agent` call, and each `Age
   `on('ui.render', { component }, …)` hook; call it from `register.tsx`. Pure layout goes in the matching
   `transcript/` folder, drawing helpers in `transcript/draw/`.
 - **A cockpit view:** its pure updates in `cockpit/sections/` (or a folder of its own, like `agents/`, if it needs
-  several files), its state in `cockpit/log.ts` or `cockpit/work.ts`, its rows in `cockpit/v8/views.ts`, assembled into
-  the pane by `cockpit/v8/assemble.ts`. Anything the transcript must call goes in one of the cockpit's public modules.
+  several files), its state in `cockpit/log.ts` or `cockpit/work.ts`, its rows in `cockpit/rows/views.ts`, assembled into
+  the pane by `cockpit/rows/assemble.ts`. Anything the transcript must call goes in one of the cockpit's public modules.
 - **A shared helper:** only when both features use it; it goes in `shared/` (or `shared/calls/` for tool-call
   parsing) and imports nothing from a feature.
 - **An engine event:** add it to the ledger module that owns its kind (session, turns, calls, capabilities); an
@@ -108,8 +108,8 @@ message or its finished notice), the `ToolUse` of an `Agent` call, and each `Age
 
 ## See also
 
-- [The Cockpit v8 spec](../docs/design/cockpit-v8.md), the source of truth; its build decisions are its section 14.
-- [The Cockpit v7 design](../docs/design/cockpit-v7.md), which v8 replaced where they differ, its
-  [amendments](../docs/design/cockpit-v7-amendments.md) and its
-  [feasibility report and phase plan](../docs/design/cockpit-v7-feasibility.md).
+- [The Cockpit spec](../docs/design/cockpit.md), the source of truth; its build decisions are its section 14.
+- [The first Cockpit spec](../docs/design/history/cockpit-v7.md), which the spec replaced where they differ, its
+  [amendments](../docs/design/history/cockpit-v7-amendments.md) and its
+  [feasibility report and phase plan](../docs/design/history/cockpit-v7-feasibility.md).
 - [How the tests are laid out](../tests/README.md).

@@ -2,10 +2,10 @@ import { expect, test } from 'claude-code/testing'
 
 import { stepOf } from '../../../../hooks/transcript/activity/steps'
 import { VIEW } from '../../../support/view'
-import { ON, VIEW as COCKPIT_VIEW } from '../../../support/cockpit'
+import { OFF, ON, VIEW as COCKPIT_VIEW } from '../../../support/cockpit'
 import { PLAN, TODOS } from '../../../support/states'
 
-test('diff card off by default; only a new file under 12 lines; ctrl+o is the engine', async ($, on) => {
+test('diff card off by default; only a new file under 12 lines; ctrl+o is the engine', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const result = (output: unknown, isExpanded?: boolean) =>
@@ -63,7 +63,7 @@ test('shell output: no lines by default; ctrl+o is the engine, without its own n
   await open.unmount()
 })
 
-test('a test run draws a [ TESTS ] card with the change since the last run; unreadable output keeps the activity rows', async ($, on) => {
+test('a test run draws a [ TESTS ] card with the change since the last run; unreadable output keeps the activity rows', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let out = ' 10 pass\n 2 fail\n'
   on('tool.call', () => ({ result: { stdout: out, stderr: '', interrupted: false } }))
@@ -98,7 +98,7 @@ test('a test run draws a [ TESTS ] card with the change since the last run; unre
   await plain.unmount()
 })
 
-test('a commit draws a [ SHIPPED ] card', async ($, on) => {
+test('a commit draws a [ SHIPPED ] card', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('tool.call', () => ({
     result: { stdout: '[main a1b2c3d] fix(toast): dedupe by key\n 3 files changed, 48 insertions(+), 12 deletions(-)', stderr: '', interrupted: false }
@@ -118,7 +118,7 @@ test('a commit draws a [ SHIPPED ] card', async ($, on) => {
   await ui.unmount()
 })
 
-test("final evidence: only a turn's last test run and last shipping call draw cards", async ($, on) => {
+test("final evidence: only a turn's last test run and last shipping call draw cards", OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   let out = ' 69 pass\n 6 fail\n'
@@ -175,7 +175,7 @@ async function cardLinesOf(ui: { findAll: (q: { type: string }) => Promise<{ pro
   return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
 }
 
-test('a card streams stable: once drawn, no line changes and none repeats while the turn goes on', async ($, on) => {
+test('a card streams stable: once drawn, no line changes and none repeats while the turn goes on', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   let now = 0
@@ -238,7 +238,7 @@ test('a card streams stable: once drawn, no line changes and none repeats while 
   await card.unmount()
 })
 
-test('an approved plan is one line; the task list a frame; ctrl+o and unreadable plans are the engine', async ($, on) => {
+test('an approved plan is one line; the task list a frame; ctrl+o and unreadable plans are the engine', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const result = (tool: string, output: unknown, isExpanded = false) =>

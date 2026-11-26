@@ -1,0 +1,56 @@
+name: Release
+run-name: 'Release · ${{ github.ref_name }}'
+
+# release-please (release-please-config.json) keeps one release PR open from the conventional commits on
+# main: it bumps .claude-plugin/plugin.json and writes CHANGELOG.md. Merging that PR tags vX.Y.Z and
+# publishes the GitHub Release. docs/development/releasing.md has the whole process.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR and release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The app's secrets live in this environment, which only main can use (wizard: tools/scripts/release-app-wizard.sh).
+    environment: release
+    # The job writes nothing with GITHUB_TOKEN. It acts with the release app's token instead: a PR opened
+    # with GITHUB_TOKEN starts no workflows, so the release PR would never get main's required checks.
+    permissions: {}
+    steps:
+      - name: Mint a token for the release app
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write # commit the version bump, create the tag and the release
+          permission-pull-requests: write # open and update the release PR
+          permission-issues: write # the release PR's labels
+
+      - name: Open or update the release PR, or tag and publish a merged one
+        id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # Claude Code resolves a dependency's version range against <plugin>--v<version> tags
+      # (code.claude.com/docs/en/plugins/dependencies), so each release also gets that tag, at the same commit.
+      - name: Tag the release for Claude Code's dependency resolution (ghostframe--vX.Y.Z)
+        if: ${{ steps.release.outputs.release_created == 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" -f "ref=refs/tags/ghostframe--v$VERSION" -f "sha=$SHA"

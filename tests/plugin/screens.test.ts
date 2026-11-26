@@ -1,15 +1,15 @@
-// Screen tests (Phase 12): each feeds the v8 renderers the data a spec screen shows, and compares the rows they draw
+// Screen tests (Phase 12): each feeds the renderers the data a spec screen shows, and compares the rows they draw
 // with that screen's text block in section 12, character for character. Colours are checked against the tokens.
 // Where a screen holds rows Cockpit does not draw (the engine's dialog, a turn before the one shown, the engine's own
-// blank rows), the test compares the rows it does draw; docs/design/cockpit-v8.md section 14 says why for each.
+// blank rows), the test compares the rows it does draw; docs/design/cockpit.md section 14 says why for each.
 import { expect, test } from 'claude-code/testing'
 
 import { GLYPH } from '../../hooks/shared/look/glyphs'
 import { PILL, TINT, TOKEN } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'
 import { screen, shown } from '../support/screens'
-import { screen01, screen03, screen04, screen13, screen16, screen22, screen30, screen31 } from '../support/v8left'
-import { pane01, pane03, pane04, pane13, pane16, pane22, pane23, pane29 } from '../support/v8pane'
+import { screen01, screen03, screen04, screen13, screen16, screen22, screen30, screen31 } from '../support/leftScreens'
+import { pane01, pane03, pane04, pane13, pane16, pane22, pane23, pane29 } from '../support/paneScreens'
 
 const find = (rows: readonly (readonly Part[])[], t: string) => rows.flat().find(p => p.t === t)
 

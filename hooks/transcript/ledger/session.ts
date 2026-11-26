@@ -12,7 +12,7 @@ import { readFlow, updateFlow } from '../../shared/flow'
 import { capTurns } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
-import { claudeFootnotes } from '../v8/markdown'
+import { claudeFootnotes } from '../rows/markdown'
 import { NO_CAPS, hasCaps, withMcp, withSkill } from '../live'
 import { firstKey } from './flow'
 import {

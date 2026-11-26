@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { vw } from '../../hooks/shared/text'
 import { textAt } from '../support/text'
 import { respond } from '../support/respond'
+import { SLOW } from '../support/cockpit'
 import { FOOTNOTED, SOURCED } from '../support/sources'
 
 // One transcript holding every component, rendered at 140, 90 and 60 columns and written
@@ -154,7 +155,7 @@ const CALLS: Call[] = [
 ]
 const NARRATE_AFTER = 'f1' // the narration block sits between the fetch and the edit
 
-test('specimen: every component at 140, 90 and 60 columns, written for review', async ($, on) => {
+test('specimen: every component at 140, 90 and 60 columns, written for review', SLOW, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let now = Date.UTC(2026, 10, 17, 8, 30)
   on('clock.now', () => ({ value: (now += 700) }))

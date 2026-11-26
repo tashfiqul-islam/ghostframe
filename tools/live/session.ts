@@ -2,11 +2,18 @@
 // as its screen. A script types, presses keys, waits for the screen and captures it; each capture is saved under
 // tools/live/out/<run>/ as a .txt of the rows and an .html of the cells in colour.
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 
-import { Unicode11Addon } from '@xterm/addon-unicode11'
-import { Terminal } from '@xterm/headless'
+import type * as Addon from '@xterm/addon-unicode11'
+import type * as Headless from '@xterm/headless'
 import { spawn, type IPty } from 'node-pty'
+
+// The xterm packages are CommonJS bundles whose named exports Node's ESM loader cannot see; required, they load under
+// Node and Bun alike. On Linux the harness runs under Node: there, node-pty delivers no output under Bun.
+const require = createRequire(import.meta.url)
+const { Unicode11Addon }: typeof Addon = require('@xterm/addon-unicode11')
+const { Terminal }: typeof Headless = require('@xterm/headless')
 
 import { CLAUDE, LIVE_REPO, SETTINGS } from './config.ts'
 import { captureOf, htmlOf, textOf, type Capture } from './screen.ts'
@@ -37,7 +44,8 @@ export function keyBytes(name: string): string {
 }
 
 /** How a session starts. */
-export type Start = { cols: number; rows: number; out: string; cwd?: string; settings?: string }
+/** A session to start. `debug: false` writes no debug log, so the engine draws no "Debug mode" row (the README's screens). */
+export type Start = { cols: number; rows: number; out: string; cwd?: string; settings?: string; debug?: boolean }
 
 // The variables a parent Claude Code session sets for its children; a child that inherits them thinks it is nested.
 const PARENT_ENV = /^(CLAUDECODE|CLAUDE_PID|CLAUDE_CODE_(CHILD_|ENTRYPOINT|MESSAGING_|SESSION_|SSE_PORT|PLUGIN_DIRS))/
@@ -52,7 +60,7 @@ const settle = (ms: number): Promise<void> => new Promise(done => setTimeout(don
 export class Session {
   /** When the screen last changed, in ms since the epoch. */
   changedAt: number = Date.now()
-  private readonly term: Terminal
+  private readonly term: Headless.Terminal
   private readonly proc: IPty
   private readonly out: string
   private exited: number | undefined
@@ -69,7 +77,7 @@ export class Session {
 
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_ENV.test(k) && k !== 'NO_COLOR') env[k] = v
     // Each session writes the engine's debug log (Cockpit's `{ to: 'debug' }` notes among it) beside its captures.
-    const args = ['--settings', start.settings ?? SETTINGS, '--debug-file', join(this.out, 'debug.log')]
+    const args = ['--settings', start.settings ?? SETTINGS, ...(start.debug === false ? [] : ['--debug-file', join(this.out, 'debug.log')])]
 
     this.proc = spawn(CLAUDE, args, {
       name: 'xterm-256color',
@@ -97,7 +105,16 @@ export class Session {
   static async start(start: Start): Promise<Session> {
     const s = new Session(start)
 
-    await s.waitFor(cap => /❯|>\s/.test(textOf(cap)) && Date.now() - s.changedAt > 1500, 60_000, 'the first prompt')
+    const first = await s.waitFor(cap => /❯|>\s/.test(textOf(cap)) && Date.now() - s.changedAt > 1500, 60_000, 'the first prompt')
+
+    // A folder Claude Code has not been told to trust opens on its trust dialog, whose `❯ No, exit` reads like a prompt.
+    // Trusting it is the person's call, so the run stops here and says how, rather than typing into the dialog.
+    if (/Is this a project you created or one you trust\?/.test(textOf(first).replace(/\s+/g, ' '))) {
+      await s.close()
+      throw new Error(
+        `Claude Code asks whether to trust ${start.cwd ?? LIVE_REPO}: run ${CLAUDE} there once, choose "Yes, I trust this folder", then run the checks again`
+      )
+    }
 
     return s
   }

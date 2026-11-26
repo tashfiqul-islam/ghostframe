@@ -7,11 +7,7 @@ import { join } from 'node:path'
 
 const FILES: Record<string, string> = {
   'package.json': '{ "name": "cockpit-live", "private": true, "type": "module" }\n',
-  'src/width.ts': [
-    '// Counts the cells a string takes. Bug: counts code units, so "é" written as e + U+0301 is 2.',
-    'export const width = (s: string): number => s.length',
-    ''
-  ].join('\n'),
+  'src/width.ts': ['// Cells a string takes. Bug: counts UTF-16 code units.', 'export const width = (s: string): number => s.length', ''].join('\n'),
   'src/width.test.ts': [
     "import { expect, test } from 'bun:test'",
     "import { width } from './width'",
@@ -59,6 +55,11 @@ export function resetRepo(root: string): string[] {
     writeFileSync(join(root, path), text)
   }
   git(root, 'init', '-q')
+  // Its own identity, unsigned: the checks never depend on (or sign with) the machine's git setup, and a fresh Linux
+  // or macOS box has no global identity at all.
+  git(root, 'config', 'user.name', 'Live checks')
+  git(root, 'config', 'user.email', 'live-checks@example.invalid')
+  git(root, 'config', 'commit.gpgsign', 'false')
   git(root, 'add', '-A')
   git(root, 'commit', '-q', '-m', 'chore: start')
   // A remote, so Claude tries `git push` (step 4) and the hook blocks it; `.invalid` never resolves, nothing is sent.

@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { VIEW } from '../../../support/view'
 import type { Found } from '../../../support/engine'
+import { OFF } from '../../../support/cockpit'
 
 // The report that showed the staircase: a table whose last prose cell is still streaming.
 const HEAD = `Phase 3 fixes and Phase 4 are both built.
@@ -23,7 +24,7 @@ async function lines(ui: { findAll: (q: { type: string }) => Promise<Found[]> })
 
 const textAt = (n: number) => `${HEAD}${CELL.slice(0, n)} |`
 
-test('a table whose last prose cell streams: every render is a fresh render, no line repeats', async $ => {
+test('a table whose last prose cell streams: every render is a fresh render, no line repeats', OFF, async $ => {
   const mount = (text: string) =>
     $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', viewport: VIEW, props: { text, isFirstOfReply: true } })
 

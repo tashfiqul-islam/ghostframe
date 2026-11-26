@@ -14,9 +14,9 @@ import type { Part } from '../shared/parts'
 import { readHistory } from './history/store'
 import { turnView } from './fallback/facts'
 import { readLog, readReceipts } from './log'
-import { sentenceRows } from './v8/events'
-import { stepLineRow } from './v8/left'
-import type { StepLine } from './v8/left'
+import { sentenceRows } from './rows/events'
+import { stepLineRow } from './rows/left'
+import type { StepLine } from './rows/left'
 
 /** A message of the session, as `$.session.messages` gives it with `last`: its role, text and id. */
 type Message = { role: 'user' | 'assistant'; text: string; uuid?: string | undefined; toolResults?: readonly unknown[] | undefined }

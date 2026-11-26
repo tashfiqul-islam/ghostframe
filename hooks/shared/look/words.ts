@@ -24,7 +24,7 @@ export const commandOf = (input: unknown): string => stripCd((s(obj(input)?.['co
 
 /**
  * A call's kind word (5.6): `read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp`. Tools
- * outside that list keep v7's word, cut to 6 cells (`ask`, `plan`, `skill`).
+ * outside that list keep the first spec's word, cut to 6 cells (`ask`, `plan`, `skill`).
  * @param tool the tool's name
  * @param input its input
  * @returns the word

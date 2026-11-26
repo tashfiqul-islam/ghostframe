@@ -42,7 +42,13 @@ async function runSuite(suite: Suite, cols: number): Promise<void> {
   console.log(`suite ${at} (steps ${suite.steps.join(', ')}) at ${cols}×${rows}`)
   if (!isKeepRepo) console.log(`  reset ${LIVE_REPO} (had ${resetRepo(LIVE_REPO).join(', ') || 'nothing'})`)
   const dir = join(out, at)
-  const s = await Session.start({ cols, rows, out: dir, ...(suite.settings === undefined ? {} : { settings: suite.settings(dir) }) })
+  const s = await Session.start({
+    cols,
+    rows,
+    out: dir,
+    ...(suite.settings === undefined ? {} : { settings: suite.settings(dir) }),
+    ...(suite.debug === undefined ? {} : { debug: suite.debug })
+  })
 
   try {
     await suite.run(s, stepOf, cols)

@@ -14,8 +14,8 @@ test('13.2: every row of the table', () => {
 })
 
 test('13.2: a worktree beside the project is not inside it; the worktree as the project is', () => {
-  expect(showPath('D:\\Projects\\ghostframe-v8\\hooks\\runtime.ts', roots)).toBe('D:/Projects/ghostframe-v8/hooks/runtime.ts')
-  expect(showPath('D:\\Projects\\ghostframe-v8\\hooks\\runtime.ts', { ...roots, project: 'D:\\Projects\\ghostframe-v8' })).toBe('hooks/runtime.ts')
+  expect(showPath('D:\\Projects\\ghostframe-old\\hooks\\runtime.ts', roots)).toBe('D:/Projects/ghostframe-old/hooks/runtime.ts')
+  expect(showPath('D:\\Projects\\ghostframe-old\\hooks\\runtime.ts', { ...roots, project: 'D:\\Projects\\ghostframe-old' })).toBe('hooks/runtime.ts')
   expect(showPath('d:/projects/ghostframe/hooks/x.ts', roots)).toBe('hooks/x.ts')
 })
 

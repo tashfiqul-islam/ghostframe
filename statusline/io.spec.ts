@@ -1,12 +1,12 @@
 // The status line's I/O: git's answer, the rate-limit cache across sessions, the icons setting, colour depth.
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { ansi, depthOf, xterm256 } from './ansi.ts'
 import { factsOf, limitsOf } from './facts.ts'
-import { gitOf, iconsOn, parseStatus, readLimits, writeLimits } from './io.ts'
+import { cacheDir, gitOf, iconsOn, isOwnFile, parseStatus, readLimits, writeLimits } from './io.ts'
 import { len, render } from './render.ts'
 import { NORMAL, PRESSURE } from './samples.ts'
 import type { Seg } from './render.ts'
@@ -26,18 +26,18 @@ describe('git', () => {
   test('outside a repository: null, cached, and nothing thrown', () => {
     const outside = mkdtempSync(join(tmpdir(), 'gf-not-a-repo-'))
 
-    expect(gitOf(outside, NOW)).toBeNull()
-    expect(gitOf(outside, NOW + 1000)).toBeNull()
+    expect(gitOf(outside, NOW, dir)).toBeNull()
+    expect(gitOf(outside, NOW + 1000, dir)).toBeNull()
   })
 
   test('this repository: a branch, and the answer reused within 5 s', () => {
     const root = join(import.meta.dir, '..')
-    const first = gitOf(root, NOW)
+    const first = gitOf(root, NOW, dir)
 
     expect(first?.branch).toBeTruthy()
     const t0 = performance.now()
 
-    expect(gitOf(root, NOW + 4000)).toEqual(first)
+    expect(gitOf(root, NOW + 4000, dir)).toEqual(first)
     expect(performance.now() - t0).toBeLessThan(15)
   })
 })
@@ -69,6 +69,62 @@ describe('the rate-limit cache', () => {
     writeFileSync(file, '[1,2]')
     expect(readLimits(file)).toBeNull()
     expect(factsOf({}, null, limitsOf(undefined, readLimits(file), NOW), NOW).five.pct).toBeNull()
+  })
+})
+
+describe('the cache folder (SECURITY.md, T7)', () => {
+  test('per user, by each system’s convention: LOCALAPPDATA, ~/Library/Caches, XDG_CACHE_HOME or ~/.cache', () => {
+    expect(cacheDir({ LOCALAPPDATA: 'C:\\Users\\ada\\AppData\\Local' }, 'win32', 'C:\\Users\\ada')).toBe('C:\\Users\\ada\\AppData\\Local\\ghostframe\\cache')
+    expect(cacheDir({}, 'win32', 'C:\\Users\\ada')).toBe('C:\\Users\\ada\\AppData\\Local\\ghostframe\\cache')
+    expect(cacheDir({ XDG_CACHE_HOME: '/x/cache' }, 'darwin', '/Users/ada')).toBe('/Users/ada/Library/Caches/ghostframe')
+    expect(cacheDir({ XDG_CACHE_HOME: '/x/cache' }, 'linux', '/home/ada')).toBe('/x/cache/ghostframe')
+    expect(cacheDir({}, 'linux', '/home/ada')).toBe('/home/ada/.cache/ghostframe')
+    // An empty or relative XDG_CACHE_HOME is ignored, as the XDG Base Directory spec says; so is a relative LOCALAPPDATA.
+    expect(cacheDir({ XDG_CACHE_HOME: '' }, 'linux', '/home/ada')).toBe('/home/ada/.cache/ghostframe')
+    expect(cacheDir({ XDG_CACHE_HOME: 'cache' }, 'linux', '/home/ada')).toBe('/home/ada/.cache/ghostframe')
+    expect(cacheDir({ LOCALAPPDATA: 'Local' }, 'win32', 'C:\\Users\\ada')).toBe('C:\\Users\\ada\\AppData\\Local\\ghostframe\\cache')
+  })
+
+  test('a cache file is read only when it is a regular file the current user owns', () => {
+    const file = { uid: 1000, isFile: () => true }
+
+    expect(isOwnFile(file, 1000)).toBe(true)
+    expect(isOwnFile(file, 1001)).toBe(false)
+    expect(isOwnFile({ uid: 1000, isFile: () => false }, 1000)).toBe(false)
+    // No user ids (Windows): the per-user folder is the boundary.
+    expect(isOwnFile(file, undefined)).toBe(true)
+  })
+
+  test('the first write creates the folder; on Linux and macOS only its user can read the folder or the file', () => {
+    const cache = join(mkdtempSync(join(tmpdir(), 'gf-cache-')), 'ghostframe')
+    const file = join(cache, 'limits.json')
+
+    writeLimits({ five_hour: { used_percentage: 12, resets_at: Math.floor((NOW + 3600e3) / 1000) } }, file)
+    expect(readLimits(file)?.five_hour?.used_percentage).toBe(12)
+    gitOf(join(import.meta.dir, '..'), NOW, cache)
+    expect(readdirSync(cache).filter(f => f.startsWith('git-')).length).toBe(1)
+    expect(readdirSync(cache).some(f => f.endsWith('.tmp'))).toBe(false)
+    if (process.platform !== 'win32') {
+      expect(statSync(cache).mode & 0o777).toBe(0o700)
+      expect(statSync(file).mode & 0o777).toBe(0o600)
+    }
+  })
+
+  test('a link planted where a cache file goes is not followed', () => {
+    const cache = mkdtempSync(join(tmpdir(), 'gf-cache-'))
+    const target = join(cache, 'elsewhere.json')
+    const link = join(cache, 'limits.json')
+
+    writeFileSync(target, JSON.stringify({ five_hour: { used_percentage: 99, resets_at: Math.floor((NOW + 3600e3) / 1000) } }))
+    try {
+      symlinkSync(target, link)
+    } catch {
+      // Windows without the symlink privilege: no link can be planted, so there is nothing to follow.
+      expect(process.platform).toBe('win32')
+      return
+    }
+    expect(existsSync(link)).toBe(true)
+    expect(readLimits(link)).toBeNull()
   })
 })
 
@@ -118,6 +174,21 @@ describe('colour depth', () => {
           .join('\n')
           .includes('\x1b')
       ).toBe(false)
+    }
+  })
+
+  test('text from outside (a folder name, say) carries no control characters to the terminal, only the row’s own SGR', () => {
+    // A folder name may hold ESC and BEL on Linux and macOS: here an OSC 8 link and a cursor move hidden in a repo name.
+    const evil = 'repo\x1b]8;;https://evil.example\x07click\x1b]8;;\x07\x1b[2Jend\x9b'
+
+    for (const depth of ['truecolor', '256', 'none'] as const) {
+      // oxlint-disable-next-line no-control-regex -- the row's own SGR escapes are what may stay
+      const rest = ansi([{ t: evil, fg: '#ECECF1' }], depth).replaceAll(/\x1b\[[\d;]*m/g, '')
+
+      // oxlint-disable-next-line no-control-regex -- C0 and C1 controls are what must be gone
+      expect(/[\x00-\x1f\x7f-\x9f]/.test(rest)).toBe(false)
+      expect(rest).toContain('repo')
+      expect(rest).toContain('end')
     }
   })
 

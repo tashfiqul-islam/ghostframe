@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { PANE } from '../support/cockpit'
 
-// Cockpit is off by default; this test turns it on.
+// Cockpit is on by default; this test says so with ON.
 test('from tool.call to the pane: the main loop`s calls are the turn`s [ STEPS ]', { options: { cockpit: true } }, async ($, on) => {
   let now = 1_000_000
   on('clock.now', () => ({ value: (now += 1_000) }))

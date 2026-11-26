@@ -1,5 +1,5 @@
-// The pages a turn read (spec E.43; v8 8.8): each with its title and HTTP status, in order of first read. Pure:
-// hooks/cockpit/work.ts keeps the pages and hooks/cockpit/v8/views.ts draws them.
+// The pages a turn read (spec E.43; spec 8.8): each with its title and HTTP status, in order of first read. Pure:
+// hooks/cockpit/work.ts keeps the pages and hooks/cockpit/rows/views.ts draws them.
 import type { SourcePage } from '../../../types'
 import { num, obj, s } from '../../shared/calls/fields'
 

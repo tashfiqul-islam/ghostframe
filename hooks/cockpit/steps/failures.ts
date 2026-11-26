@@ -9,7 +9,7 @@ export type FailureKey = { program: string; sub: string; target: string }
 
 // The tools whose first argument that is not a flag is a subcommand (13.1).
 const WITH_SUBCOMMANDS = new Set(['bun', 'npm', 'pnpm', 'yarn', 'git', 'gh', 'cargo', 'go', 'docker', 'kubectl'])
-// The kinds whose error is a failure (13.1); a fetch or a search never is (amendment 6). v7's `notebook` is an edit.
+// The kinds whose error is a failure (13.1); a fetch or a search never is (amendment 6). the first spec's `notebook` is an edit.
 const FAILURE_KINDS = new Set(['test', 'shell', 'edit', 'write', 'agent', 'notebook'])
 
 /** Whether a step of this kind can fail (13.1). */

@@ -1,14 +1,25 @@
 {
   "name": "ghostframe",
-  "version": "0.2.0",
-  "description": "A grid look for the Claude Code transcript: gutter labels, peach rails, ruled turns and framed cards for tools, tests and commits.",
+  "version": "1.0.0",
+  "description": "The cockpit for Claude Code: a turn timeline, a docked pane with the turn's steps, files, sources, to-do and agents, and a two-row status line.",
+  "author": {
+    "name": "Tashfiqul Islam",
+    "url": "https://github.com/tashfiqul-islam"
+  },
+  "homepage": "https://github.com/tashfiqul-islam/ghostframe#readme",
+  "repository": "https://github.com/tashfiqul-islam/ghostframe",
+  "license": "MIT",
+  "keywords": ["cockpit", "tui", "terminal-ui", "transcript", "status-line", "statusline"],
+  "engines": {
+    "claude-code": ">=2.1.329 <2.2.0"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "cockpit": {
       "type": "boolean",
       "title": "Cockpit pane",
-      "description": "Unfinished: the Cockpit pane beside the transcript (steps, agents, files). Off by default. GHOSTFRAME_COCKPIT=1 turns it on for one session.",
-      "default": false
+      "description": "The Cockpit pane beside the transcript (timeline, files, sources, to-do, agents). On by default. GHOSTFRAME_COCKPIT=0 turns it off for one session, GHOSTFRAME_COCKPIT=1 on.",
+      "default": true
     },
     "statuslineIcons": {
       "type": "boolean",

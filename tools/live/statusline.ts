@@ -59,7 +59,7 @@ const pressure = (): object => {
 }
 
 /** The row the mark's top half sits on: `▄▀▀▀▀▄` from the indent. */
-const markRow = (cap: Capture): number =>
+export const markRow = (cap: Capture): number =>
   textOf(cap)
     .split('\n')
     .findIndex(r => r.slice(INDENT, INDENT + 6) === '▄▀▀▀▀▄')
@@ -116,7 +116,8 @@ export const statusline: Suite = {
     checkRows(step, normal, cols, 'normal')
 
     writeFileSync(fixture, JSON.stringify(pressure()))
-    const hot = await s.waitFor(cap => cap.cells[markRow(cap)]?.some(c => c.bg === STATUS.tileHot) === true, 15_000, 'the hot tile')
+    // The fixture's context, 88%: a real budget past 85% turns a tile hot before the fixture lands.
+    const hot = await s.waitFor(cap => markRow(cap) >= 0 && rowText(cap, markRow(cap), 0, cols).includes('88%'), 15_000, "the fixture's 88% context")
 
     step.keep(await s.capture('statusline-pressure'))
     checkRows(step, hot, cols, 'pressure')

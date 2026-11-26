@@ -1,8 +1,8 @@
 // Cockpit: the pane beside the transcript. The seat: it opens at session start and docks at the width rule (seat.ts,
 // pane.tsx). The step log: the turn's steps (steps/, log.ts). The quiet left: docked, the transcript keeps the
 // conversation, the event rows and the receipt (left.tsx). Agents: the roster from `agent.spawn` and `agent.report`
-// (agents/). Every row is drawn by the v8 renderers (v8/, ../transcript/v8/).
-// Spec: docs/design/cockpit-v8.md; docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
+// (agents/). Every row is drawn by the renderers (rows/, ../transcript/rows/).
+// Spec: docs/design/cockpit.md; docs/design/history/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
 import { readVersion } from './version'
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 
@@ -11,7 +11,8 @@ import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
 import { registerBand } from './band'
 import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
-import { isEnvSet, isOn, noticeSink, setEnvOn, setOptionOn } from './switch'
+import { envSwitchOf, isOn, noticeSink, setEnvSwitch, setOptionOn } from './switch'
+import { checkEngineOnce } from '../shared/engine'
 
 type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 
@@ -23,8 +24,9 @@ type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
  */
 export async function startCockpit($: EngineInterface, e: SessionStart): Promise<void> {
   markStarted()
+  await checkEngineOnce($)
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
-  setEnvOn(await isEnvSet($))
+  setEnvSwitch(await envSwitchOf($))
   await $.command.register({
     name: STEPS,
     description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live; /steps <n> all prints its steps'

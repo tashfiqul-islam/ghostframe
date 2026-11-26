@@ -1,10 +1,10 @@
 // Fallback's event rows (spec E.5, E.13, 13.1): with no pane to show it, every failure draws at once, as the step
-// settles, as v8's `×` node with its decisive line under it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
+// settles, as the `×` node with its decisive line under it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
 // draws what these return.
 import type { LogStep } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { isTurnFailure } from '../steps/log'
-import { detailRow, failureRow } from '../v8/events'
+import { detailRow, failureRow } from '../rows/events'
 
 /** What a failure row says, kept from its first draw: a row is never amended, even once a later step fixes it. */
 export type Failure = { kind: string; subject: string; result: string; clock: number; lines: string[] }
@@ -15,14 +15,17 @@ const DECISIVE = /error|fail|expect|received|assert|exception|panic|not found|no
 
 /**
  * The decisive lines of a failure's output: the lines that name the error or its place, in order, at most three;
- * else its last line. A line that only repeats the result, or the exit code, is left out.
+ * else its last line. A line that only repeats the result, the exit code, or holds no letter or digit (a lone `}`,
+ * `];`, a rule of dashes) is left out.
  * @param excerpt the last rows of the output
  * @param said what the row already says (its subject and result)
  * @returns at most three lines
  */
 export function decisive(excerpt: readonly string[], said: readonly string[]): string[] {
   // The tool's own wrapper tags (`<tool_use_error>`) are not part of the error.
-  const lines = excerpt.map(l => l.replace(/<\/?[a-z_-]+>/gi, '').trim()).filter(l => l.length > 0 && !/^(error:\s*)?exit code\b/i.test(l) && !said.includes(l))
+  const lines = excerpt
+    .map(l => l.replace(/<\/?[a-z_-]+>/gi, '').trim())
+    .filter(l => /[\p{L}\p{N}]/u.test(l) && !/^(error:\s*)?exit code\b/i.test(l) && !said.includes(l))
   const named = lines.filter(l => DECISIVE.test(l))
 
   return (named.length > 0 ? named : lines.slice(-1)).slice(0, DETAIL_MAX)

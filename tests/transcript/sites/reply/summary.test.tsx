@@ -1,8 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
 import { VIEW } from '../../../support/view'
+import { OFF } from '../../../support/cockpit'
 
-test('a summary row: dim text in the content column, no bullet', async ($, on) => {
+test('a summary row: dim text in the content column, no bullet', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const ui = await $.ui.mount({

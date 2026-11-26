@@ -6,6 +6,7 @@ import { WIDER_NOTE, figureLines } from '../../../../hooks/transcript/figure/dra
 import { partsWidth } from '../../../../hooks/shared/parts'
 import { vw } from '../../../../hooks/shared/text'
 import { HOOKS } from '../../../support/figures'
+import { OFF } from '../../../support/cockpit'
 
 // Verbatim from https://mdxcn.dev/llms.txt `## MDX`: one fence per recipe type in the
 // mdxcn skill's recipes.md that has fenced ASCII (Flow has none).
@@ -49,7 +50,7 @@ async function rows(ui: { findAll: (q: { type: string }) => Promise<{ props: Rec
 }
 
 for (const [name, body] of Object.entries(FENCES)) {
-  test(`figure: ${name} parses and draws in our frame, every row the measure`, async ($, on) => {
+  test(`figure: ${name} parses and draws in our frame, every row the measure`, OFF, async ($, on) => {
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
     const blocks = splitBlocks(fenced(body))
     const fig = blocks.find(b => b.kind === 'figure')
@@ -82,7 +83,7 @@ for (const [name, body] of Object.entries(FENCES)) {
   })
 }
 
-test('a streaming figure: the frame opens at the measure, drawn rows never change, the bottom only when the fence closes', async ($, on) => {
+test('a streaming figure: the frame opens at the measure, drawn rows never change, the bottom only when the fence closes', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const FULL = fenced(FENCES['timeline'] ?? '')
   const ui = await $.ui.mount({
@@ -128,7 +129,7 @@ test('a streaming figure: the frame opens at the measure, drawn rows never chang
   await ui.unmount()
 })
 
-test('a figure wider than the frame is cut at the right, never wrapped, with a dim note on the bottom rule', async ($, on) => {
+test('a figure wider than the frame is cut at the right, never wrapped, with a dim note on the bottom rule', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const wide = '+' + '-'.repeat(60) + ' [ WIDE ] ' + '-'.repeat(60) + '+'
   const body = [wide, '|' + ' '.repeat(128) + '|', '| ' + 'x'.repeat(126) + ' |', '| short row' + ' '.repeat(118) + '|', '+' + '-'.repeat(128) + '+'].join('\n')
@@ -154,7 +155,7 @@ test('a figure wider than the frame is cut at the right, never wrapped, with a d
 })
 
 for (const columns of [90, 70, 50]) {
-  test(`narrow at ${columns} columns: a figure takes the full width less the inset`, async ($, on) => {
+  test(`narrow at ${columns} columns: a figure takes the full width less the inset`, OFF, async ($, on) => {
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
     const ui = await $.ui.mount({
       plugin: 'ghostframe',
@@ -209,7 +210,7 @@ async function stream($: Parameters<TestBody>[0], columns: number) {
   }
 }
 
-test('streaming a looped Steps figure: rows never change, the bracket arrives whole', async ($, on) => {
+test('streaming a looped Steps figure: rows never change, the bracket arrives whole', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const { rows, sawBracketOpen } = await stream($, 120)
   expect(sawBracketOpen).toBe(true)
@@ -218,7 +219,7 @@ test('streaming a looped Steps figure: rows never change, the bracket arrives wh
   expect(rows[rows.length - 1]).toMatch(/^\+┄+\+$/)
 })
 
-test('streaming a looped Steps figure in narrow mode: no bracket, the ↺ line under it at close', async ($, on) => {
+test('streaming a looped Steps figure in narrow mode: no bracket, the ↺ line under it at close', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const { rows, all, sawBracketOpen } = await stream($, 80)
   expect(sawBracketOpen).toBe(false)

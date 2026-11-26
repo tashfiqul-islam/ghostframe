@@ -1,0 +1,17 @@
+{
+  "name": "ghostframe",
+  "description": "ghostframe, the cockpit for Claude Code.",
+  "owner": {
+    "name": "Tashfiqul Islam",
+    "url": "https://github.com/tashfiqul-islam"
+  },
+  "plugins": [
+    {
+      "name": "ghostframe",
+      "source": "./",
+      "description": "The cockpit for Claude Code: a turn timeline, a docked pane with the turn's steps, files, sources, to-do and agents, and a two-row status line.",
+      "category": "productivity",
+      "tags": ["cockpit", "tui", "terminal-ui", "status-line"]
+    }
+  ]
+}

@@ -147,15 +147,15 @@ function sources(root: string, dir: string, out: Map<string, string> = new Map()
   return out
 }
 
-// The two palettes: Cockpit v8's (spec section 2) and the transcript's with Cockpit off, kept as it is on main.
+// The two palettes: Cockpit's (spec section 2) and the transcript's with Cockpit off, kept as it is on main.
 const PALETTES = new Set(['hooks/shared/look/palette.ts', 'hooks/shared/tokens.ts'])
-// The folders Cockpit v8 draws from, where a status glyph is always GLYPH's (spec section 4), never a literal.
-const V8_FOLDERS = ['hooks/shared/look/', 'hooks/cockpit/v8/', 'hooks/transcript/v8/']
+// The folders Cockpit draws from, where a status glyph is always GLYPH's (spec section 4), never a literal.
+const LOOK_FOLDERS = ['hooks/shared/look/', 'hooks/cockpit/rows/', 'hooks/transcript/rows/']
 const HEX = /['"`]#[0-9a-fA-F]{6}\b/
 const STATUS_GLYPH = /['"`][^'"`\n]*[✓×⊘◇◆●✕✗↗▸◼±][^'"`\n]*['"`]/
 
 /**
- * Colour hexes outside the two palettes, and status glyph literals in v8's folders outside its glyph table.
+ * Colour hexes outside the two palettes, and status glyph literals in the renderers' folders outside its glyph table.
  * @param files every source, by path
  * @returns one message per stray literal
  */
@@ -167,7 +167,7 @@ export function strayLiterals(files: ReadonlyMap<string, string>): string[] {
 
     for (const [i, line] of text.split('\n').entries()) {
       if (!PALETTES.has(file) && HEX.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) out.push(`${file}:${i + 1} holds a colour hex: use shared/look/palette.ts`)
-      if (V8_FOLDERS.some(f => file.startsWith(f)) && file !== 'hooks/shared/look/glyphs.ts' && STATUS_GLYPH.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) {
+      if (LOOK_FOLDERS.some(f => file.startsWith(f)) && file !== 'hooks/shared/look/glyphs.ts' && STATUS_GLYPH.test(line) && !/^\s*(?:\/\/|\/?\*)/.test(line)) {
         out.push(`${file}:${i + 1} holds a status glyph: use shared/look/glyphs.ts`)
       }
     }
@@ -236,12 +236,12 @@ function selfTest(): void {
 
   const literals = new Map([
     ['hooks/shared/look/palette.ts', "const a = '#0B0B0E'"],
-    ['hooks/cockpit/v8/row.ts', 'const ok = GLYPH.ok\n// ✓ in a comment'],
+    ['hooks/cockpit/rows/row.ts', 'const ok = GLYPH.ok\n// ✓ in a comment'],
     ['hooks/transcript/prose.ts', "const tick = '✓'"]
   ])
 
   if (strayLiterals(literals).length > 0) fail(`allowed literals were refused: ${strayLiterals(literals).join('; ')}`)
-  if (strayLiterals(new Map([['hooks/cockpit/v8/row.ts', "const a = '#ffffff'\nconst b = '× failed'"]])).length !== 2) fail('a stray literal passed')
+  if (strayLiterals(new Map([['hooks/cockpit/rows/row.ts', "const a = '#ffffff'\nconst b = '× failed'"]])).length !== 2) fail('a stray literal passed')
 
   console.log(
     `boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, "ghostframe:" prefixes caught, stray literals caught)`

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE } from '../../../support/cockpit'
+import { OFF, ON, PANE } from '../../../support/cockpit'
 import { textAt } from '../../../support/text'
 import { VIEW } from '../../../support/view'
 import { engine, engineText } from '../../../support/engine'
@@ -11,7 +11,7 @@ import { respond } from '../../../support/respond'
 
 // ─── A clock that fails mid-call ────────────────────────────────────
 
-test('a clock that fails at a call’s start or end: the step still settles, no time from 0', async ($, on) => {
+test('a clock that fails at a call’s start or end: the step still settles, no time from 0', OFF, async ($, on) => {
   engine(on)
   let now = new Date(2026, 10, 17, 2, 10).getTime()
   let down = false
@@ -62,7 +62,7 @@ test('a clock that fails at a call’s start or end: the step still settles, no 
 
 // ─── A long turn keeps its first step ───────────────────────────────
 
-test('a turn with 450 steps keeps its activity head on its first step', { timeoutMs: 60_000 }, async ($, on) => {
+test('a turn with 450 steps keeps its activity head on its first step', { ...OFF, timeoutMs: 60_000 }, async ($, on) => {
   engine(on)
   let now = 0
   on('clock.now', () => ({ value: (now += 100) }))
@@ -91,7 +91,7 @@ test('a turn with 450 steps keeps its activity head on its first step', { timeou
   await first.unmount()
 })
 
-test('rows: ours when readable, the engine when expanded or unknown', async ($, on) => {
+test('rows: ours when readable, the engine when expanded or unknown', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const base = { tool_use_id: 'x1', isRunning: false, isErrored: false, isInterrupted: false }
@@ -115,7 +115,7 @@ test('rows: ours when readable, the engine when expanded or unknown', async ($, 
   }
 })
 
-test('a turn that opens on tools: `claude` on its first step (the activity header)', async ($, on) => {
+test('a turn that opens on tools: `claude` on its first step (the activity header)', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({
@@ -154,7 +154,7 @@ test('a turn that opens on tools: `claude` on its first step (the activity heade
   await second.unmount()
 })
 
-test('an unknown tool that opens the turn: `claude` beside the engine row', async ($, on) => {
+test('an unknown tool that opens the turn: `claude` beside the engine row', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({
@@ -177,7 +177,7 @@ test('an unknown tool that opens the turn: `claude` beside the engine row', asyn
   await ui.unmount()
 })
 
-test('a settled turn: the first step draws the fold row, the rest of the fold draws nothing, the latest five stay', async ($, on) => {
+test('a settled turn: the first step draws the fold row, the rest of the fold draws nothing, the latest five stay', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let now = 0
   on('clock.now', () => ({ value: (now += 100) }))
@@ -237,7 +237,7 @@ test('a settled turn: the first step draws the fold row, the rest of the fold dr
   expect(await open.find({ type: 'Text', text: /^engine$/ })).toBeDefined()
   await open.unmount()
 })
-test('rhythm: narration and the activity row after it have one blank row between them', async ($, on) => {
+test('rhythm: narration and the activity row after it have one blank row between them', OFF, async ($, on) => {
   on('ui.render', engineText as never)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('tool.call', () => ({ result: { stdout: 'a', stderr: '', interrupted: false } }))
@@ -279,7 +279,7 @@ test('rhythm: narration and the activity row after it have one blank row between
   expect(next[0]).toMatch(/● shell +list the rest/)
 })
 
-test('a browser run is one frame across its rows; the next block and the close rule end it', async ($, on) => {
+test('a browser run is one frame across its rows; the next block and the close rule end it', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let now = 0
   on('clock.now', () => ({ value: (now += 100) }))

@@ -2,10 +2,25 @@
 // continue the session of steps 1 and 4), sends the exact prompt, presses the exact keys, captures, and checks
 // structure only: glyphs, rows, regions and colours, never Claude's wording.
 import { widthOf } from '../../hooks/shared/look/width.ts'
-import { at, colourIs, hasReceipt, headers, isDialogUp, layoutOf, leftRows, paneRows, pillOf, receipts, rowsMatching, selectedRow } from './checks.ts'
+import {
+  at,
+  colourIs,
+  hasReceipt,
+  headers,
+  isDialogUp,
+  layoutOf,
+  leftRows,
+  paneRows,
+  pillOf,
+  receipts,
+  rowsMatching,
+  selectedRow,
+  timelineRows
+} from './checks.ts'
 import { focusPane, slash, startTurn, turn, waitIdle, type Step } from './harness.ts'
 import { rowText, textOf, type Capture } from './screen.ts'
 import type { Session } from './session.ts'
+import { shots } from './shots.ts'
 import { statusline } from './statusline.ts'
 
 /** A group of steps run in one session, at each of its widths (200 and 100 columns unless it names one). */
@@ -15,6 +30,8 @@ export type Suite = {
   steps: string[]
   /** A settings file of its own, written into the suite's capture folder; the live settings when absent. */
   settings?: (dir: string) => string
+  /** False to start the session without a debug log (see Start). */
+  debug?: boolean
   run: (s: Session, step: (id: string) => Step, cols: number) => Promise<void>
 }
 
@@ -39,29 +56,6 @@ function turnRows(cap: Capture): string[] {
 
 // The spine is column 13 of the left (6.1: 2 margin, 10 label, 1 space).
 const SPINE = 13
-
-/** The pane's timeline rows: below the ruler, a glyph in column 2; the result is columns 51–70 (6.2), read by cell. */
-function timelineRows(cap: Capture): { y: number; text: string; glyph: string; result: string; isLong: boolean }[] {
-  const pane = layoutOf(cap).pane
-
-  if (pane === undefined) return []
-  const rows = paneRows(cap)
-  const ruler = rows.findIndex(r => /┬─+┬/.test(r))
-
-  if (ruler < 0) return []
-
-  return rows.slice(ruler + 1).flatMap((text, i) => {
-    const y = pane.y0 + ruler + 1 + i
-    const glyph = at(cap, y, pane.x0 + 2).ch
-
-    if (!/[✓×!◇●↗⊘▸◼▍]/.test(glyph)) return []
-    const result = rowText(cap, y, pane.x0 + 51, pane.x0 + 71).trim()
-    // Right-aligned in 20 cells, a result of at most 14 leaves columns 51–56 blank.
-    const isLong = rowText(cap, y, pane.x0 + 51, pane.x0 + 57).trim() !== '' && at(cap, y, pane.x0 + 50).ch !== ' '
-
-    return [{ y, text, glyph, result, isLong }]
-  })
-}
 
 /** At this width no pane docks (under 144 columns, nobody asked): a pane check is a note there. */
 const noPane = (step: Step, check: string, cols: number): void => step.note(check, `no pane at ${cols} columns`)
@@ -804,5 +798,6 @@ export const SUITES: Suite[] = [
   flood('H', 200, '9'),
   rewind,
   flood('J', 100, '12'),
-  statusline
+  statusline,
+  shots
 ]

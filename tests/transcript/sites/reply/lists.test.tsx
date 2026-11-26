@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { VIEW } from '../../../support/view'
 import { textAt } from '../../../support/text'
 import { engineText } from '../../../support/engine'
+import { OFF } from '../../../support/cockpit'
 
 /** Every visible line of a reply's own blocks (the one-Text-per-block holders). */
 async function linesOf(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
@@ -12,7 +13,7 @@ async function linesOf(ui: { findAll: (q: { type: string }) => Promise<{ props: 
     .map(l => l.trimEnd())
 }
 
-test('a list draws `·` and numbers muted, a hanging indent, chips and bright bold; the title as a heading', async ($, on) => {
+test('a list draws `·` and numbers muted, a hanging indent, chips and bright bold; the title as a heading', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const long = 'this item is long enough that it has to wrap onto a second line under its own text, not under the marker'
   const text = `**Why it's close**\n- the limit is \`5000 ms\` per test\n- **slower** now: ${long}\n  - nested one\n2. numbered`
@@ -39,7 +40,7 @@ test('a list draws `·` and numbers muted, a hanging indent, chips and bright bo
   await ui.unmount()
 })
 
-test('a list streams stable: a finished item never re-lays out, a half-written last item never sends the list to the engine', async ($, on) => {
+test('a list streams stable: a finished item never re-lays out, a half-written last item never sends the list to the engine', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const FULL = [
     '**Findings**',
@@ -72,7 +73,7 @@ test('a list streams stable: a finished item never re-lays out, a half-written l
   await ui.unmount()
 })
 
-test('a list item with a link gets its marker; the list gets one footnote line under it', async ($, on) => {
+test('a list item with a link gets its marker; the list gets one footnote line under it', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const text = '- see anthropics/claude-code#108931 (https://github.com/anthropics/claude-code/issues/108931)\n- and https://bun.com/docs/test'
   const ui = await $.ui.mount({
@@ -91,7 +92,7 @@ test('a list item with a link gets its marker; the list gets one footnote line u
   await ui.unmount()
 })
 
-test('rhythm: a bulleted list running into a numbered one gets one blank row between', async ($, on) => {
+test('rhythm: a bulleted list running into a numbered one gets one blank row between', OFF, async ($, on) => {
   on('ui.render', engineText as never)
   const text = 'Two kinds:\n\n- alpha\n- beta\n1. first\n2. second'
   const ui = await $.ui.mount({

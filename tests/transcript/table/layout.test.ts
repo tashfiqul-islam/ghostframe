@@ -7,6 +7,7 @@ import { MAX_LINES, cellLines, padding } from '../../../hooks/transcript/table/c
 import { parseTable } from '../../../hooks/transcript/table/parse'
 import type { Cell, Table } from '../../../hooks/transcript/table/parse'
 import { textAt } from '../../support/text'
+import { OFF } from '../../support/cockpit'
 
 const STATUS = [
   '| Item | Status |',
@@ -136,7 +137,7 @@ test('a pipe table inside a code fence stays code', async () => {
   expect(splitBlocks(fenced).map(b => b.kind)).toEqual(['markdown'])
 })
 
-test('alignment is per cell: numbers right, text left, even inside a numeric column', async ($, on) => {
+test('alignment is per cell: numbers right, text left, even inside a numeric column', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const md = ['| Check | Before |', '|---|---:|', '| flush time | 123456789 ms |', '| toasts | 2 |', '| docs | see notes |'].join('\n')
   const ui = await $.ui.mount({
