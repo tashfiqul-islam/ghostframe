@@ -29,6 +29,7 @@ import { drawnAs, messageOf, replyGap } from './message'
 import { isHiddenNarration } from './narration'
 import { drawSummary } from './summary'
 import { tableDraws } from './tables'
+import { dormantFor } from '../../../shared/engine'
 
 /**
  * Adds Claude's reply drawing (`AssistantMessage`).
@@ -39,6 +40,8 @@ export function registerReply(on: On): void {
   // one measure. Plain paragraphs and headings are laid out here (exact widths, code
   // chips); anything else goes through the engine's Markdown, links and all.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 

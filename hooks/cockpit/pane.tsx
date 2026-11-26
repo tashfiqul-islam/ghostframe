@@ -21,6 +21,7 @@ import { pinFromCommand } from './keys/view'
 import { INSPECTOR_ROWS } from './fallback/inspector'
 import { copyFromCommand, stepsAllText } from './copy'
 import { keepSwitch, switchNotice } from './tui'
+import { dormantText, isDormant } from '../shared/engine'
 
 export type On = Parameters<Register>[0]
 
@@ -273,6 +274,7 @@ export function registerPane(on: On): void {
   })
 
   on('command.run', { command: PANE }, async ($, e) => {
+    if (isDormant()) return { text: dormantText() }
     if (!isOn()) {
       return { text: OFF_NOTE }
     }
@@ -306,6 +308,7 @@ export function registerPane(on: On): void {
   // With no pane placed it also opens one, with the keyboard (E.46): where no dock exists the engine seats it
   // inline, the inspector, and Escape closes it; from 110 columns in fullscreen an asked open docks it (amendment 5).
   on('command.run', { command: STEPS }, async ($, e) => {
+    if (isDormant()) return { text: dormantText() }
     if (!isOn()) {
       return { text: OFF_NOTE }
     }

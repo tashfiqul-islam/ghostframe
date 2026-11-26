@@ -14,6 +14,7 @@ import { afterNarration, browserOpenAbove, flowPlace, isBrowserTool } from '../.
 import { sessionCwd } from '../../ledger/session'
 import { readFlow } from '../../../shared/flow'
 import { openerCaps, readAsked, readFirstTools, readSteps, readStreaming, readTurn } from '../../ledger/state'
+import { dormantFor } from '../../../shared/engine'
 
 /**
  * Adds a folded group's drawing (`ToolGroup`).
@@ -23,6 +24,8 @@ export function registerToolGroup(on: On): void {
   // A folded group of reads/searches: one timeline row per call, when every call is
   // one we can read and the group holds nothing but calls. Expanded → the engine.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 

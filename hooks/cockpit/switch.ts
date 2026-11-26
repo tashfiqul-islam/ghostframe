@@ -1,5 +1,6 @@
 // Cockpit's on switch, read by every part of it.
 import type { EngineInterface } from 'claude-code'
+import { isDormant } from '../shared/engine'
 
 // Cockpit is on unless turned off: the `cockpit` option (/config, `pluginConfigs`; the manifest's default is on),
 // overridden for one session by GHOSTFRAME_COCKPIT=0 or =1. Off, it opens nothing and draws nothing.
@@ -9,7 +10,8 @@ let isOptionOn = false
 let envSwitch: boolean | undefined
 export const OFF_NOTE = 'cockpit is off · enable with /config (Cockpit pane) or GHOSTFRAME_COCKPIT=1'
 
-export const isOn = (): boolean => envSwitch ?? isOptionOn
+// Dormant (shared/engine: the engine is outside the tested range), Cockpit is off whatever the switch says.
+export const isOn = (): boolean => !isDormant() && (envSwitch ?? isOptionOn)
 
 /**
  * Where the plugin's own notices go (spec 13.3): the debug log while Cockpit is on, so the left holds only the

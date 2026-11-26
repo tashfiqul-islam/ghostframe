@@ -19,6 +19,7 @@ import { readShips, readSteps, readTestRuns } from '../../ledger/state'
 import { cardCalls, mergeShips, previousRun, shippedFrame, testsFrame } from '../../outcome'
 import { planLine, tasksFrame } from '../../states'
 import { quietEvent } from './quiet'
+import { dormantFor } from '../../../shared/engine'
 
 // Tools whose result rows we draw (the step row already carries the result).
 const OWN = new Set([
@@ -85,6 +86,8 @@ export function registerToolResult(on: On): void {
   // nothing for the rest. A shell's output never shows here: the row's result says how
   // it went, and ctrl+o (expanded) is the engine's output, without its own notes.
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     const lay = layout(e.viewport?.columns)
     const width = lay?.width
     const { tool, output, isErrored } = e.props

@@ -19,6 +19,7 @@ import { sessionCwd } from '../../ledger/session'
 import { readFlow } from '../../../shared/flow'
 import { openerCaps, readAsked, readFirstTools, readSteps, readStreaming, readTurn } from '../../ledger/state'
 import { quietEvent } from './quiet'
+import { dormantFor } from '../../../shared/engine'
 
 /**
  * Adds a standalone call's drawing (`ToolUse`).
@@ -28,6 +29,8 @@ export function registerToolUse(on: On): void {
   // A standalone call's row. ctrl+o (expanded) stays the engine's; a tool we can't read is
   // the engine's row, in the gutter grid.
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 

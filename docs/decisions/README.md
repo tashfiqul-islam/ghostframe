@@ -15,3 +15,4 @@ Short records of decisions already made: the context, the decision, and what fol
 | [0009](0009-half-block-ghost-mark.md)            | The status line mark is the half-block ghost                       |
 | [0010](0010-status-line-on-bun.md)               | The status line runs on Bun, not compiled executables              |
 | [0011](0011-mascot-outside-ghost-inside.md)      | The mascot outside the terminal, the ghost inside it               |
+| [0012](0012-engine-range.md)                     | ghostframe is dormant outside a tested range of Claude Code        |

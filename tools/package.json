@@ -8,7 +8,7 @@
     "typecheck:tools": "tsrs -p .",
     "lint": "cd .. && oxlint -c tools/oxlint.config.ts --type-aware --deny-warnings",
     "lint:ci": "cd .. && oxlint -c tools/oxlint.config.ts --deny-warnings --format github",
-    "boundaries": "cd .. && bun tools/scripts/boundaries.ts --self-test && bun tools/scripts/boundaries.ts && bun tools/scripts/screens.ts --check",
+    "boundaries": "cd .. && bun tools/scripts/boundaries.ts --self-test && bun tools/scripts/boundaries.ts && bun tools/scripts/screens.ts --check && bun tools/scripts/engines.ts --self-test && bun tools/scripts/engines.ts --check",
     "screens": "cd .. && bun tools/scripts/screens.ts",
     "fmt": "cd .. && oxfmt",
     "fmt:check": "cd .. && oxfmt --check",

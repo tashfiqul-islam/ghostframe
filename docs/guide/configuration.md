@@ -27,6 +27,18 @@ Case does not matter. For example, in PowerShell:
 $env:GHOSTFRAME_COCKPIT = '0'; claude
 ```
 
+## The Claude Code range
+
+ghostframe 1.0 is tested with Claude Code from 2.1.329 up to, not including, 2.2.0: `plugin.json`'s
+`engines["claude-code"]` is `>=2.1.329 <2.2.0`. On a Claude Code outside that range ghostframe is dormant: it draws
+nothing, Claude Code looks as it does without it, and the session says so once. The status line keeps working.
+
+| Variable                    | Effect                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `GHOSTFRAME_ENGINE_CHECK=0` | Skips the check: ghostframe runs on any Claude Code. Its look may break on one it was not tested with. |
+
+[ADR 0012](../decisions/0012-engine-range.md) explains the range.
+
 ## The status line's variables
 
 Set these in the `env` of your settings, or in the environment Claude Code starts in.

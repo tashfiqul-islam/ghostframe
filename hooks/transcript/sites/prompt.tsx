@@ -22,6 +22,7 @@ import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
 import { messageCard, turnHeader } from '../rows/turn'
 import type { Header } from '../rows/turn'
+import { dormantFor } from '../../shared/engine'
 
 // Which submit stamp each turn rule shows, by the row's request: the same prompt typed
 // twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
@@ -163,6 +164,8 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 export function registerPrompt(on: On): void {
   // User prompt: peach rail over the full height, text verbatim. Task notifications get the tree look.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 

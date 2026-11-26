@@ -89,7 +89,7 @@ uninstalling.
 
 | What        | Needs                                                                                                                                                                       |
 | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Claude Code | The terminal CLI. Tested with 2.1.329 in CI and 2.1.332 live. Older versions are untested.                                                                                  |
+| Claude Code | The terminal CLI, 2.1.329 up to (not including) 2.2.0. CI tests 2.1.329, live checks ran on 2.1.332. Outside that range ghostframe stays dormant.                           |
 | System      | Windows is tested live. macOS and Linux run the tests in CI only.                                                                                                           |
 | Terminal    | True colour is best. The status line falls back to 256 colours and respects `NO_COLOR`.                                                                                     |
 | Font        | A [Nerd Font](https://www.nerdfonts.com/) for the status line's icons. Without one, turn **Status line icons** off in `/config`, and it draws the same layout without them. |

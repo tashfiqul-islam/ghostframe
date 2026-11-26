@@ -43,7 +43,8 @@ ghostframe draws only through the engine's plugin API (render sites, `$.ui`, `$.
 `$.process`, `$.command`). What the engine owns stays the engine's: permission dialogs and question cards, the
 `ctrl+o` view's frame, the prompt and its hints, the divider, fonts. The spec's [section 10](design/cockpit.md#10-what-the-engine-owns)
 lists each. ghostframe depends on this API and its render sites, which is why CI pins the Claude Code version it tests
-with ([compatibility](guide/install.md#requirements)).
+with, and why ghostframe is dormant on an engine outside its tested range: every site hands its row back
+([ADR 0012](decisions/0012-engine-range.md)).
 
 ## Off means off
 

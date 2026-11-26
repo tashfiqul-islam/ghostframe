@@ -67,10 +67,10 @@ claude plugin marketplace remove ghostframe
 
 ## Requirements
 
-| What        | Needs                                                                                                 |
-| ----------- | ----------------------------------------------------------------------------------------------------- |
-| Claude Code | The terminal CLI. Tested with 2.1.329 in CI and 2.1.332 live. Older versions are untested.            |
-| System      | Windows is tested live; macOS and Linux run the tests in CI.                                          |
-| Font        | A Nerd Font for the status line's icons, or turn the icons off ([Configuration](configuration.md)).   |
-| Width       | The pane docks from 144 columns, or from 110 after `/cockpit`. The status line needs 90 for two rows. |
-| Bun         | For the status line only.                                                                             |
+| What        | Needs                                                                                                                                                         |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude Code | The terminal CLI, 2.1.329 up to (not including) 2.2.0. Outside that range ghostframe stays dormant ([Configuration](configuration.md#the-claude-code-range)). |
+| System      | Windows is tested live; macOS and Linux run the tests in CI.                                                                                                  |
+| Font        | A Nerd Font for the status line's icons, or turn the icons off ([Configuration](configuration.md)).                                                           |
+| Width       | The pane docks from 144 columns, or from 110 after `/cockpit`. The status line needs 90 for two rows.                                                         |
+| Bun         | For the status line only.                                                                                                                                     |

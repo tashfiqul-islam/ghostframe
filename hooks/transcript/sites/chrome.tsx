@@ -18,6 +18,7 @@ import { readCloses } from '../ledger/state'
 import { lastClosedTurn } from '../ledger/turns'
 import { spinnerWord } from '../live'
 import { commandNotice } from '../notices'
+import { dormantFor, isDormant } from '../../shared/engine'
 
 const WARNING = /paused|warn|limit|low|error|fail|denied|stale/i
 const SAME_TURN_MS = 250
@@ -45,6 +46,7 @@ const claimClose = (row: string, durationMs: number, list: readonly TurnClose[])
 export function registerChrome(on: On): void {
   // Mode labels at the right of the prompt footer: grid cells split by │.
   on('ui.render', { component: 'SessionMode' }, ($, e, next) => {
+    if (isDormant()) return next(e)
     if (e.surface !== 'terminal') {
       return next(e)
     }
@@ -73,6 +75,8 @@ export function registerChrome(on: On): void {
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 
@@ -123,6 +127,8 @@ export function registerChrome(on: On): void {
   // The spinner (§5.11): props only. The verb says what the turn does; the engine keeps
   // its own time, tokens and `esc` hint. A state's own message stands.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
     await readEnvOnce($)
 
@@ -143,6 +149,8 @@ export function registerChrome(on: On): void {
   })
   // Slash-command output: muted, behind a small › (errors keep the engine's red).
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     // Cockpit's left: the command as a `/` node with its clock and one quiet row (7.15).
     const drawn = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
 
@@ -175,6 +183,8 @@ export function registerChrome(on: On): void {
   // Info notice under the logo: one line in the content column, `› text · /command`,
   // muted text and dim marks, clipped at the measure (§0.2). No measure → the old row.
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
+    // Dormant (shared/engine): the engine draws its own row.
+    if (await dormantFor($)) return next(e)
     if (e.surface !== 'terminal') {
       return next(e)
     }

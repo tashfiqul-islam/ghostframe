@@ -9,6 +9,13 @@
 - **Cockpit is off.** `/cockpit` then says `cockpit is off`. Check the **Cockpit pane** option in `/config`, and that
   `GHOSTFRAME_COCKPIT` is not set to `0`, `false`, `off` or `no` in your environment or your settings' `env`.
 
+## ghostframe draws nothing, and the session says it is tested with another Claude Code
+
+Your Claude Code is outside ghostframe's tested range (`>=2.1.329 <2.2.0` for 1.0), so ghostframe stays out of the
+way rather than draw a broken UI. `claude --version` says which you run. Update ghostframe
+(`claude plugin update ghostframe@ghostframe`) for a newer range, or set `GHOSTFRAME_ENGINE_CHECK=0` to try it anyway.
+[Configuration](configuration.md#the-claude-code-range) has the details.
+
 ## The status line shows empty boxes
 
 Its icons need a Nerd Font. Set your terminal's font to one, such as JetBrainsMono Nerd Font, or turn **Status line

@@ -67,8 +67,13 @@ jobs:
           bun install --cwd tools/live --frozen-lockfile --ignore-scripts
           cd tools/live && bun test
 
-      - name: Say which Claude Code was tested
-        if: ${{ always() }}
+      - name: Say which Claude Code was tested, and whether it is inside ghostframe's range
+        if: ${{ always() && steps.cli.outputs.version != '' }}
         env:
           TESTED: ${{ steps.cli.outputs.version }}
-        run: echo "### Claude Code ${TESTED:-not installed}" >> "$GITHUB_STEP_SUMMARY"
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          where=$(bun tools/scripts/engines.ts --report "$TESTED")
+          echo "### Claude Code $TESTED" >> "$GITHUB_STEP_SUMMARY"
+          echo "$where" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$JOB_STATUS" != success ]; then echo "::error title=Canary failed on Claude Code $TESTED::$where"; fi

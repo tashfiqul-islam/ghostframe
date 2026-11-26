@@ -10,6 +10,9 @@
   "repository": "https://github.com/tashfiqul-islam/ghostframe",
   "license": "MIT",
   "keywords": ["cockpit", "tui", "terminal-ui", "transcript", "status-line", "statusline"],
+  "engines": {
+    "claude-code": ">=2.1.329 <2.2.0"
+  },
   "types": "./types/index.d.ts",
   "userConfig": {
     "cockpit": {
