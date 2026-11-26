@@ -27,7 +27,7 @@ try {
     })
     // Each family the diagrams draw with must have loaded; a fallback face would change every measured width.
     const missing = await page.evaluate(() =>
-      ["600 12px 'Hanken Grotesk'", "9px 'Geist Mono'", "italic 14px 'Instrument Serif'"].filter(f => !document.fonts.check(f))
+      ["600 12px 'Hanken Grotesk'", "9px 'JetBrains Mono'", "italic 14px 'Instrument Serif'"].filter(f => !document.fonts.check(f))
     )
     if (missing.length > 0) throw new Error(`${file}: fonts not loaded: ${missing.join(', ')}`)
     const out = join(dir, file.replace(/\.html$/, '.png'))
