@@ -728,6 +728,8 @@ Cockpit designs around these and does not redraw them.
 
 ## 11. Design history
 
+Cockpit went through several design rounds before this one. The first written spec, its amendments and its feasibility report are kept in [history/](history/). This table lists what this design changed from the first spec.
+
 | First spec                                                                                               | Now                                                                                        |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Turn rule `─ [ TURN n ] ─── 09:23` (amendment 12)                                                        | Turn header `HH:MM:SS ◆  TURN n  ───` with the clock in the label column (7.1)             |
