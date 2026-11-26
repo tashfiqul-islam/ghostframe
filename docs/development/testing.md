@@ -41,8 +41,17 @@ feed the renderers each screen's data and compare their rows with it. `boundarie
 
 ## CI
 
-`.github/workflows/ci.yml` runs the gate on Ubuntu with a pinned, checksum-verified Claude Code, and the status line's
-specs on Ubuntu, Windows and macOS. `pr.yml` checks the PR title against the commit rules.
+`.github/workflows/ci.yml` runs the gate on Ubuntu with a pinned, checksum-verified Claude Code, and **Tests** on
+Ubuntu, Windows and macOS: the plugin's tests with the same pinned CLI, and the status line's specs. `pr.yml` checks the
+PR title against the commit rules.
+
+`.github/workflows/canary.yml` runs every Monday, and by hand, against the **latest** Claude Code on all three systems:
+plugin validation, the plugin's tests, the status line's specs, and the live checks' own unit tests. ghostframe draws
+through the engine's plugin API, so an engine change should fail there first. When it fails, fix what changed, then
+raise `CLAUDE_CODE_VERSION` and its three checksums in `ci.yml` (each from that version's `manifest.json`).
+
+`.github/actions/claude` installs the CLI for every job: the binary for the runner's platform, checked against the
+checksum pinned in `ci.yml`, or for `latest` against the release's own manifest.
 
 ## The live checks
 

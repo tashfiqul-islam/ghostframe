@@ -1,0 +1,66 @@
+name: Install Claude Code
+description: >-
+  Download the Claude Code CLI for this runner (Linux x64, macOS arm64 or x64, Windows x64), check its SHA-256, put it
+  on PATH, and point CLAUDE_CONFIG_DIR at an empty folder so nothing reads a login or user settings. A pinned version
+  is checked against the checksum this repository pins; `latest` against the release's own manifest.
+
+inputs:
+  version:
+    description: "A version such as 2.1.329, or 'latest'."
+    required: true
+  sha256:
+    description: "The binary's SHA-256 for this runner's platform. Required unless version is 'latest'."
+    required: false
+    default: ''
+
+outputs:
+  version:
+    description: The version installed.
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download, verify and install Claude Code ${{ inputs.version }}
+      id: install
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        PINNED_SHA256: ${{ inputs.sha256 }}
+        RUNNER_OS_NAME: ${{ runner.os }}
+        RUNNER_ARCH_NAME: ${{ runner.arch }}
+      # It writes only a fixed path under RUNNER_TEMP and constants to GITHUB_PATH and GITHUB_ENV, never an input.
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        base=https://downloads.claude.ai/claude-code-releases
+        case "$RUNNER_OS_NAME/$RUNNER_ARCH_NAME" in
+          Linux/X64) platform=linux-x64 binary=claude ;;
+          macOS/ARM64) platform=darwin-arm64 binary=claude ;;
+          macOS/X64) platform=darwin-x64 binary=claude ;;
+          Windows/X64) platform=win32-x64 binary=claude.exe ;;
+          *) echo "::error::No Claude Code build for $RUNNER_OS_NAME/$RUNNER_ARCH_NAME"; exit 1 ;;
+        esac
+
+        version="$VERSION"
+        if [ "$version" = latest ]; then
+          version=$(curl --fail --silent --show-error --location "$base/latest")
+          expected=$(curl --fail --silent --show-error --location "$base/$version/manifest.json" |
+            bun -e "const m = await Bun.stdin.json(); console.log(m.platforms['$platform'].checksum)")
+        else
+          expected="$PINNED_SHA256"
+        fi
+        if ! [[ "$expected" =~ ^[0-9a-f]{64}$ ]]; then echo "::error::No SHA-256 for Claude Code $version on $platform"; exit 1; fi
+
+        bin="$RUNNER_TEMP/claude-bin"
+        mkdir -p "$bin" "$RUNNER_TEMP/claude-config"
+        curl --fail --silent --show-error --location --output "$bin/$binary" "$base/$version/$platform/$binary"
+        if command -v sha256sum > /dev/null; then actual=$(sha256sum "$bin/$binary" | cut -d' ' -f1); else actual=$(shasum -a 256 "$bin/$binary" | cut -d' ' -f1); fi
+        if [ "$actual" != "$expected" ]; then echo "::error::Checksum mismatch for Claude Code $version on $platform: $actual"; exit 1; fi
+        chmod +x "$bin/$binary"
+
+        echo "$bin" >> "$GITHUB_PATH"
+        # An empty config dir: the checks need no login and read no user settings.
+        echo "CLAUDE_CONFIG_DIR=$RUNNER_TEMP/claude-config" >> "$GITHUB_ENV"
+        echo "DISABLE_AUTOUPDATER=1" >> "$GITHUB_ENV"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "Installed Claude Code $version ($platform), SHA-256 $actual"
