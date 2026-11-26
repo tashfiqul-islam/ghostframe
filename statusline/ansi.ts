@@ -1,15 +1,20 @@
-// Rows of segments to terminal text: 24-bit colour, or the nearest of the 256 colours where the terminal lacks it.
+// Rows of segments to terminal text: 24-bit colour, or the nearest of the 256 colours where the terminal lacks it, or
+// plain text when NO_COLOR asks for it.
 import type { Seg } from './render.ts'
 
-/** How many colours the terminal draws. */
-export type Depth = 'truecolor' | '256'
+/** How many colours the terminal draws; `none` only when the person opts out with NO_COLOR. */
+export type Depth = 'truecolor' | '256' | 'none'
 
 /**
- * Whether the terminal draws 24-bit colour: COLORTERM says so, or it is a terminal known to.
+ * The colour depth. NO_COLOR set to anything non-empty is the person's opt-out (no-color.org): no colour. Otherwise
+ * 24-bit where COLORTERM says so or the terminal is known to draw it, else 256 colours: a failed detection never
+ * drops to none.
  * @param env the environment
  * @returns the colour depth
  */
 export function depthOf(env: Record<string, string | undefined>): Depth {
+  if ((env['NO_COLOR'] ?? '') !== '') return 'none'
+
   const ct = (env['COLORTERM'] ?? '').toLowerCase()
 
   if (ct === 'truecolor' || ct === '24bit') return 'truecolor'
@@ -48,14 +53,18 @@ const color = (hex: string, layer: 38 | 48, depth: Depth): string =>
   depth === 'truecolor' ? `\x1b[${layer};2;${rgb(hex).join(';')}m` : `\x1b[${layer};5;${xterm256(hex)}m`
 
 /**
- * One row as terminal text: each segment resets, then sets its bold, foreground and background.
+ * One row as terminal text: each segment resets, then sets its bold, foreground and background. At depth `none`, the
+ * segments' text alone, the same glyphs in the same cells.
  * @param segs the row
  * @param depth the colour depth
- * @returns the text with SGR escapes, ending in a reset
+ * @returns the text with SGR escapes, ending in a reset, or plain text
  */
 export const ansi = (segs: readonly Seg[], depth: Depth): string =>
-  segs
-    .map(
-      x => `\x1b[0m${x.b === true ? '\x1b[1m' : ''}${x.fg !== undefined ? color(x.fg, 38, depth) : ''}${x.bg !== undefined ? color(x.bg, 48, depth) : ''}${x.t}`
-    )
-    .join('') + '\x1b[0m'
+  depth === 'none'
+    ? segs.map(x => x.t).join('')
+    : segs
+        .map(
+          x =>
+            `\x1b[0m${x.b === true ? '\x1b[1m' : ''}${x.fg !== undefined ? color(x.fg, 38, depth) : ''}${x.bg !== undefined ? color(x.bg, 48, depth) : ''}${x.t}`
+        )
+        .join('') + '\x1b[0m'

@@ -45,8 +45,9 @@ The design assumes:
 - **A Nerd Font for the icons** (branch, PR, cache). Without one, turn them off: ghostframe's `statuslineIcons`
   option (`/config`), or `GF_ICONS=0`. The layout is identical without them.
 - **24-bit colour.** Detected from `COLORTERM`, `WT_SESSION` (Windows Terminal) and known terminals; anywhere else the
-  nearest of the 256 colours is used, never no colour. `NO_COLOR` in Claude Code's environment makes Claude Code drop
-  every colour from its whole screen, the status line included: unset it to see the design.
+  nearest of the 256 colours is used: a failed detection never means no colour. `NO_COLOR` set to anything non-empty
+  is your opt-out (no-color.org), and both Claude Code and the status line honour it: the line prints plain text, with
+  the same glyphs in the same cells. Unset it to see the design.
 
 Nothing here changes your terminal's settings.
 
