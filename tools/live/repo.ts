@@ -55,6 +55,11 @@ export function resetRepo(root: string): string[] {
     writeFileSync(join(root, path), text)
   }
   git(root, 'init', '-q')
+  // Its own identity, unsigned: the checks never depend on (or sign with) the machine's git setup, and a fresh Linux
+  // or macOS box has no global identity at all.
+  git(root, 'config', 'user.name', 'Live checks')
+  git(root, 'config', 'user.email', 'live-checks@example.invalid')
+  git(root, 'config', 'commit.gpgsign', 'false')
   git(root, 'add', '-A')
   git(root, 'commit', '-q', '-m', 'chore: start')
   // A remote, so Claude tries `git push` (step 4) and the hook blocks it; `.invalid` never resolves, nothing is sent.

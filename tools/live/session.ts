@@ -98,7 +98,16 @@ export class Session {
   static async start(start: Start): Promise<Session> {
     const s = new Session(start)
 
-    await s.waitFor(cap => /❯|>\s/.test(textOf(cap)) && Date.now() - s.changedAt > 1500, 60_000, 'the first prompt')
+    const first = await s.waitFor(cap => /❯|>\s/.test(textOf(cap)) && Date.now() - s.changedAt > 1500, 60_000, 'the first prompt')
+
+    // A folder Claude Code has not been told to trust opens on its trust dialog, whose `❯ No, exit` reads like a prompt.
+    // Trusting it is the person's call, so the run stops here and says how, rather than typing into the dialog.
+    if (/Is this a project you created or one you trust\?/.test(textOf(first).replace(/\s+/g, ' '))) {
+      await s.close()
+      throw new Error(
+        `Claude Code asks whether to trust ${start.cwd ?? LIVE_REPO}: run ${CLAUDE} there once, choose "Yes, I trust this folder", then run the checks again`
+      )
+    }
 
     return s
   }

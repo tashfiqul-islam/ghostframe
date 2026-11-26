@@ -18,7 +18,22 @@ bun run.ts 2 7        # the suites that hold steps 2 and 7
 - A signed-in Claude Code: each step sends real prompts and uses your plan's budget.
 - A settings file and a throwaway project. The defaults are Windows paths; set `LIVE_CLAUDE`, `LIVE_SETTINGS`,
   `LIVE_REPO` and `LIVE_OUT` to change them.
-- Windows so far: it has run on ConPTY only. node-pty also runs on macOS and Linux, untested here.
+- The project folder trusted once: start `claude` in it and choose **Yes, I trust this folder**. Until then Claude
+  Code opens on its trust dialog, and the run stops there and says so; trusting a folder is your call, never the
+  harness's.
+
+## On macOS and Linux
+
+The checks run on Windows (ConPTY) every time. On Linux (WSL, Ubuntu) node-pty installs and Claude Code starts in the
+pseudo-terminal; what differs, and what to do:
+
+| What                                   | On macOS and Linux                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Paths                                  | Set `LIVE_CLAUDE`, `LIVE_SETTINGS`, `LIVE_REPO` and `LIVE_OUT`; the defaults are Windows paths.        |
+| The settings file                      | `CLAUDE_CODE_PLUGIN_DIRS` must name the repository's path on that machine.                             |
+| Git identity                           | None needed: the throwaway repo sets its own (`Live checks`, unsigned).                                |
+| The repo's guard hook (steps 4 and 11) | It runs `pwsh`. Install PowerShell 7, or those steps see the hook fail instead of blocking `git push`. |
+| Folder trust                           | Needed once per machine, as above.                                                                     |
 
 ## What it writes
 
