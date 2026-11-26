@@ -43,14 +43,14 @@ nothing, Claude Code looks as it does without it, and the session says so once. 
 
 Set these in the `env` of your settings, or in the environment Claude Code starts in.
 
-| Variable           | Effect                                                                |
-| ------------------ | --------------------------------------------------------------------- |
-| `GF_ICONS=0` / `1` | Icons off or on, over the `statuslineIcons` option.                   |
-| `GF_SLAB=1`        | A dark slab behind the status line, with a 2-cell margin.             |
-| `GF_MAXW`          | The widest the status line draws (default 210 columns).               |
-| `GF_PADDING`       | The `padding` your `statusLine` entry sets, when it is not 0.         |
-| `GF_DEBUG=1`       | A log in the system's temp folder: `ghostframe-statusline-debug.log`. |
-| `NO_COLOR`         | Any non-empty value: no colour at all.                                |
+| Variable           | Effect                                                        |
+| ------------------ | ------------------------------------------------------------- |
+| `GF_ICONS=0` / `1` | Icons off or on, over the `statuslineIcons` option.           |
+| `GF_SLAB=1`        | A dark slab behind the status line, with a 2-cell margin.     |
+| `GF_MAXW`          | The widest the status line draws (default 210 columns).       |
+| `GF_PADDING`       | The `padding` your `statusLine` entry sets, when it is not 0. |
+| `GF_DEBUG=1`       | A log, `debug.log`, in the status line's cache folder.        |
+| `NO_COLOR`         | Any non-empty value: no colour at all.                        |
 
 The status line draws 24-bit colour where the terminal says it can (`COLORTERM=truecolor`, Windows Terminal, iTerm2,
 WezTerm, VS Code, Ghostty and others), and the nearest of 256 colours elsewhere.

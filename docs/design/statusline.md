@@ -103,8 +103,9 @@ Nothing here changes your terminal's settings.
 - **A limit at 85% and up and ahead of pace:** "ahead of pace ↻ 38m" in red; it shortens to "ahead ↻38m", then
   "↻ 38m", then "↻38m".
 - **Labels:** CONTEXT, 5-HOUR and WEEK shorten to CTX, 5H and WK before any note is dropped.
-- **The rate limits** of the last session are kept in the temp folder (`ghostframe-statusline-limits.json`) and fill
-  the 5-hour and week tiles on a new session's first frame, until their reset time passes.
+- **The rate limits** of the last session are kept in your cache folder (`limits.json`; see
+  [SECURITY.md, T7](../../SECURITY.md#threats-and-mitigations)) and fill the 5-hour and week tiles on a new session's
+  first frame, until their reset time passes.
 
 ### The mark
 

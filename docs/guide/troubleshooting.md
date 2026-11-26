@@ -29,8 +29,8 @@ icons** off in `/config`. The layout stays the same without them.
 3. The status line runs on Bun. If `bun` is not on your `PATH`, the installer says so and changes nothing.
 4. After updating the plugin, run `/ghostframe-statusline install` again to rebuild it.
 
-To see what it does, set `GF_DEBUG=1` in your settings' `env`. It then writes `ghostframe-statusline-debug.log` in
-the system's temp folder. It never writes to the terminal's error output, so it never breaks the status line.
+To see what it does, set `GF_DEBUG=1` in your settings' `env`. It then writes `debug.log` in its cache folder:
+`%LOCALAPPDATA%\ghostframe\cache` on Windows, `~/Library/Caches/ghostframe` on macOS, `$XDG_CACHE_HOME/ghostframe` (or `~/.cache/ghostframe`) on Linux. It never writes to the terminal's error output, so it never breaks the status line.
 
 ## The status line is cut with "…"
 
