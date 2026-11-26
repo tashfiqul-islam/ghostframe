@@ -33,8 +33,8 @@ type Kind = 'screen' | 'sheet' | 'statusline' | 'session'
 
 /** Each image: the capture it comes from (captures/<capture>.html), where it goes from this folder, and what it shows. */
 const SHOTS: readonly { capture: string; out: string; kind: Kind }[] = [
-  { capture: 'readme-settled', out: 'readme-settled.png', kind: 'screen' },
   { capture: 'readme-hero', out: 'readme-hero.png', kind: 'screen' },
+  { capture: 'readme-live', out: 'readme-live.png', kind: 'screen' },
   { capture: 'readme-files', out: 'readme-files.png', kind: 'screen' },
   { capture: 'readme-hero', out: 'readme-statusline.png', kind: 'statusline' },
   { capture: 'statusline-200-normal', out: '../design/statusline/session-200-normal.png', kind: 'session' },

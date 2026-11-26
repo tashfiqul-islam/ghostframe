@@ -25,8 +25,8 @@ The README's screenshots, the status line spec's (`docs/design/statusline/*.png`
    bun sheet.ts
    ```
 
-2. Copy the captures into `captures/` under the names `SHOTS` uses: from `<run>\P200\`, `01-readme-hero.html`
-   becomes `readme-hero.html` (and so on); from `<run>\S200\` and `<run>\S100\`, `01-statusline-normal.html` becomes
+2. Copy the captures into `captures/` under the names `SHOTS` uses: from `<run>\P200\`, `01-readme-live.html`
+   becomes `readme-live.html` (and so on); from `<run>\S200\` and `<run>\S100\`, `01-statusline-normal.html` becomes
    `statusline-200-normal.html` and `02-statusline-pressure.html` becomes `statusline-200-pressure.html` or
    `statusline-100-pressure.html`. `sheet.ts` writes its capture in place.
 3. Check the captures for anything personal before you commit them: a path with your user name, an email address.

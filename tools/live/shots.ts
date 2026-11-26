@@ -15,10 +15,7 @@ import { markRow } from './statusline.ts'
 import type { Suite } from './steps.ts'
 
 const ROOT = join(import.meta.dirname, '..', '..').replaceAll('\\', '/')
-// The left's text column is 86 cells at any width (spec 6.1), so the diff card shows about 70 characters of a line:
-// the fix is asked to keep its lines short, so the README's diff is drawn whole rather than cut at the card's edge.
-const PROMPT =
-  'the width tests fail: run them, read src/width.ts and its test, fix it keeping every line under 60 characters, run the tests again, show the diff, then commit'
+const PROMPT = 'the width tests fail: run them, read src/width.ts and its test, fix it, run the tests again, show the diff, then commit'
 
 /**
  * The suite's settings: the base live settings with this worktree as the plugin, Cockpit left to its default, and the
@@ -72,7 +69,7 @@ async function midTurn(s: Session, step: Step): Promise<void> {
   }
 }
 
-/** Step 14: the hero (mid-turn), the settled turn, and the Files tab. */
+/** Step 14: the turn mid-way (readme-live), settled (readme-hero, the README's hero), and on the Files tab. */
 export const shots: Suite = {
   id: 'P',
   widths: [200],
@@ -86,16 +83,16 @@ export const shots: Suite = {
     await s.waitFor(c => markRow(c) >= 0, 30_000, 'the status line')
     await startTurn(s, PROMPT)
     await midTurn(s, step)
-    const hero = step.keep(await s.capture('readme-hero'))
+    const live = step.keep(await s.capture('readme-live'))
 
     step.expect(
-      'hero: mid-turn (no receipt yet), the pane docked, the status line drawn',
-      !hasReceipt(hero) && layoutOf(hero).pane !== undefined && markRow(hero) >= 0,
-      `${timelineRows(hero).length} timeline rows`
+      'live: mid-turn (no receipt yet), the pane docked, the status line drawn',
+      !hasReceipt(live) && layoutOf(live).pane !== undefined && markRow(live) >= 0,
+      `${timelineRows(live).length} timeline rows`
     )
 
     await waitIdle(s, step)
-    step.keep(await s.capture('readme-settled'))
+    step.keep(await s.capture('readme-hero'))
     await focusPane(s)
     await s.key('2')
     await s.waitSettled(() => true, 30_000, 'the Files tab')

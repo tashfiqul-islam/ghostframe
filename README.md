@@ -11,7 +11,7 @@ your session costs.
 [![License: MIT](https://img.shields.io/github/license/tashfiqul-islam/ghostframe)](LICENSE)
 [![Claude Code 2.1.329](https://img.shields.io/badge/Claude%20Code-tested%202.1.329-D97757)](.github/workflows/ci.yml)
 
-![Cockpit at 200 columns after a turn: the commit, Claude's answer with its diff and the DONE receipt on the left, the turn's timeline with its fixed failure in the pane, and the status line at the bottom](docs/assets/readme-settled.png)
+![Cockpit at 200 columns after a turn: the commit, Claude's answer with its diff and the DONE receipt on the left, the turn's timeline with its fixed failure in the pane, and the status line at the bottom](docs/assets/readme-hero.png)
 
 ## What it is
 
@@ -41,7 +41,7 @@ caches of git's answer and your budgets in the system's temp folder.
 
 The spec says exactly how each part looks and behaves: [docs/design/cockpit.md](docs/design/cockpit.md).
 
-![The same turn while it runs: the pane is LIVE, the failed test is on its timeline, and the live line counts the steps](docs/assets/readme-hero.png)
+![The same turn while it runs: the pane is LIVE, the failed test is on its timeline, and the live line counts the steps](docs/assets/readme-live.png)
 
 ### The status line
 
