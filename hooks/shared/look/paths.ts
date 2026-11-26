@@ -54,8 +54,13 @@ export function splitPath(p: string): { folder: string; file: string } {
   return at < 0 ? { folder: '', file: p } : { folder: p.slice(0, at + 1), file: p.slice(at + 1) }
 }
 
-/** The head of `s` that fits `n` cells, cut hard. */
-function headOf(s: string, n: number): string {
+/**
+ * The head of `s` that fits `n` cells, cut hard.
+ * @param s the string
+ * @param n the cells it may take
+ * @returns its head, at most `n` cells
+ */
+export function headOf(s: string, n: number): string {
   let out = ''
   let w = 0
 

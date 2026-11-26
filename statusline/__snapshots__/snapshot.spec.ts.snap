@@ -1,0 +1,65 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`normal at 260 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   +9.3k −524          ▏  41%  CONTEXT                                  ▏  34%  5-HOUR                       ↻ 2h 14m   ▏  8%   WEEK                            ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   cache 4m            ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 260 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   PR #23              ▏  88%  CONTEXT                compacts at 95%   ▏  91%  5-HOUR           ahead of pace  ↻ 38m   ▏  76%  WEEK                            ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   changes requested   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 200 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   +9.3k −524          ▏  41%  CONTEXT                             ▏  34%  5-HOUR                   ↻ 2h 14m   ▏  8%   WEEK                       ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   cache 4m            ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 200 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   PR #23              ▏  88%  CONTEXT           compacts at 95%   ▏  91%  5-HOUR       ahead of pace  ↻ 38m   ▏  76%  WEEK                       ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   changes requested   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 160 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   +9.3k −524          ▏  41%  CONTEXT                ▏  34%  5-HOUR     ↻ 2h 14m   ▏  8%   WEEK          ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   cache 4m            ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 160 columns 1`] = `
+"▄▀▀▀▀▄    Opus 5.5       │   ghostframe   │   PR #23              ▏  88%  CONTEXT       at 95%   ▏  91%  5-HOUR   ahead ↻38m   ▏  76%  WEEK          ↻ Mon  
+▀▀▀▀▀▀    ▮▮▮▮▮ medium   │   main ●       │   changes requested   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 140 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  +9.3k −524  ▏  41%  CTX                     ▏  34%  5H                      ▏  8%   WK                    
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      cache       ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 140 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  PR #23    ▏  88%  CTX    compacts at 95%   ▏  91%  5H         ahead ↻38m   ▏  76%  WK                     
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      changes   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 120 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  +9.3k −524  ▏  41%  CTX              ▏  34%  5H               ▏  8%   WK              
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      cache       ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 120 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  PR #23    ▏  88%  CTX      at 95%   ▏  91%  5H   ahead ↻38m   ▏  76%  WK              
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      changes   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 100 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  +9.3k −524  ▏  41%  CTX        ▏  34%  5H        ▏  8%   WK       
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      cache       ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`pressure at 100 columns 1`] = `
+"▄▀▀▀▀▄  Opus 5.5  ghostframe  PR #23    ▏  88%  CTX        ▏  91%  5H ↻ 38m   ▏  76%  WK        
+▀▀▀▀▀▀  ▮▮▮▮▮     main ●      changes   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮   ▏  ▮▮▮▮▮▮▮▮▮▮▮▮▮  "
+`;
+
+exports[`normal at 80 columns 1`] = `"Opus 5.5 · ghostframe main ● · ctx 41% · 5h 34% · wk 8%"`;
+
+exports[`pressure at 80 columns 1`] = `"Opus 5.5 · ghostframe main ● · ctx 88% · 5h 91% · wk 76%"`;
