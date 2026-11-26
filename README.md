@@ -13,19 +13,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/tashfiqul-islam/ghostframe/ci.yml?branch=main&label=ci&style=flat-square&labelColor=0B0B0E"></a>
-  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><img alt="Version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Ftashfiqul-islam%2Fghostframe%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&prefix=v&label=version&color=FAB387&style=flat-square&labelColor=0B0B0E"></a>
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7EC8BE?style=flat-square&labelColor=0B0B0E"></a>
-  <a href="docs/guide/compatibility.md"><img alt="Claude Code 2.1.329 to 2.1.x" src="https://img.shields.io/badge/claude%20code-2.1.329%20%E2%80%93%202.1.x-D97757?style=flat-square&labelColor=0B0B0E"></a>
-  <a href="docs/guide/compatibility.md"><img alt="Windows, Linux and macOS" src="https://img.shields.io/badge/platforms-windows%20%C2%B7%20linux%20%C2%B7%20macos-8C8899?style=flat-square&labelColor=0B0B0E"></a>
+  <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+</p>
+
+<!-- The version is the only semver on its line: release-please's marker rewrites the first one it finds. -->
+<!-- tools/scripts/engines.ts --check fails if the Claude Code range here disagrees with plugin.json's engines. -->
+<p align="center">
+  v1.0.0 <!-- x-release-please-version -->
+  · <a href="LICENSE">MIT</a> · Claude Code 2.1.329 to 2.1.x · <a href="docs/guide/compatibility.md">Windows, macOS, Linux</a>
 </p>
 
 <p align="center">
-  <a href="#02-install"><code>[ install ]</code></a>&nbsp;
-  <a href="#01-features"><code>[ features ]</code></a>&nbsp;
-  <a href="#03-keys"><code>[ keys ]</code></a>&nbsp;
-  <a href="docs/README.md"><code>[ docs ]</code></a>&nbsp;
-  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><code>[ changelog ]</code></a>
+  <a href="#02-install">Install</a> ·
+  <a href="#01-features">Features</a> ·
+  <a href="#03-keys">Keys</a> ·
+  <a href="docs/README.md">Docs</a> ·
+  <a href="https://github.com/tashfiqul-islam/ghostframe/releases">Changelog</a>
 </p>
 
 <p align="center">

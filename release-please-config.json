@@ -23,7 +23,10 @@
     ".": {
       "package-name": "ghostframe",
       "release-as": "1.0.0",
-      "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }]
+      "extra-files": [
+        { "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" },
+        { "type": "generic", "path": "README.md" }
+      ]
     }
   }
 }
