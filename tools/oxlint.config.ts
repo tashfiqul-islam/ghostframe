@@ -47,8 +47,9 @@ const config: OxlintConfig = defineConfig({
       }
     },
     {
-      // The live-check harness drives one terminal step by step: each key waits for the screen before the next.
-      files: ['**/live/**'],
+      // The live-check harness drives one terminal step by step: each key waits for the screen before the next. The
+      // screenshot script drives one browser page the same way, one capture after another.
+      files: ['**/live/**', '**/docs/assets/**'],
       rules: {
         'no-await-in-loop': 'off',
         'unicorn/consistent-function-scoping': 'off'

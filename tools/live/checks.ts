@@ -216,3 +216,26 @@ export function selectedRow(cap: Capture): { y: number; bar: Cell; backgrounds: 
 
   return undefined
 }
+
+/** The pane's timeline rows: below the ruler, a glyph in column 2; the result is columns 51–70 (6.2), read by cell. */
+export function timelineRows(cap: Capture): { y: number; text: string; glyph: string; result: string; isLong: boolean }[] {
+  const pane = layoutOf(cap).pane
+
+  if (pane === undefined) return []
+  const rows = paneRows(cap)
+  const ruler = rows.findIndex(r => /┬─+┬/.test(r))
+
+  if (ruler < 0) return []
+
+  return rows.slice(ruler + 1).flatMap((text, i) => {
+    const y = pane.y0 + ruler + 1 + i
+    const glyph = at(cap, y, pane.x0 + 2).ch
+
+    if (!/[✓×!◇●↗⊘▸◼▍]/.test(glyph)) return []
+    const result = rowText(cap, y, pane.x0 + 51, pane.x0 + 71).trim()
+    // Right-aligned in 20 cells, a result of at most 14 leaves columns 51–56 blank.
+    const isLong = rowText(cap, y, pane.x0 + 51, pane.x0 + 57).trim() !== '' && at(cap, y, pane.x0 + 50).ch !== ' '
+
+    return [{ y, text, glyph, result, isLong }]
+  })
+}

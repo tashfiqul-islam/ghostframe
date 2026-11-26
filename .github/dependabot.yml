@@ -18,3 +18,21 @@ updates:
     groups:
       dev-tools:
         patterns: ['*']
+  - package-ecosystem: bun
+    directory: /tools/live
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      live-checks:
+        patterns: ['*']
+  - package-ecosystem: bun
+    directory: /docs/assets
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      screenshots:
+        patterns: ['*']

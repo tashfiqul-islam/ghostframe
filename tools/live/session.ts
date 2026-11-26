@@ -37,7 +37,8 @@ export function keyBytes(name: string): string {
 }
 
 /** How a session starts. */
-export type Start = { cols: number; rows: number; out: string; cwd?: string; settings?: string }
+/** A session to start. `debug: false` writes no debug log, so the engine draws no "Debug mode" row (the README's screens). */
+export type Start = { cols: number; rows: number; out: string; cwd?: string; settings?: string; debug?: boolean }
 
 // The variables a parent Claude Code session sets for its children; a child that inherits them thinks it is nested.
 const PARENT_ENV = /^(CLAUDECODE|CLAUDE_PID|CLAUDE_CODE_(CHILD_|ENTRYPOINT|MESSAGING_|SESSION_|SSE_PORT|PLUGIN_DIRS))/
@@ -69,7 +70,7 @@ export class Session {
 
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !PARENT_ENV.test(k) && k !== 'NO_COLOR') env[k] = v
     // Each session writes the engine's debug log (Cockpit's `{ to: 'debug' }` notes among it) beside its captures.
-    const args = ['--settings', start.settings ?? SETTINGS, '--debug-file', join(this.out, 'debug.log')]
+    const args = ['--settings', start.settings ?? SETTINGS, ...(start.debug === false ? [] : ['--debug-file', join(this.out, 'debug.log')])]
 
     this.proc = spawn(CLAUDE, args, {
       name: 'xterm-256color',

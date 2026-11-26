@@ -59,7 +59,7 @@ const pressure = (): object => {
 }
 
 /** The row the mark's top half sits on: `▄▀▀▀▀▄` from the indent. */
-const markRow = (cap: Capture): number =>
+export const markRow = (cap: Capture): number =>
   textOf(cap)
     .split('\n')
     .findIndex(r => r.slice(INDENT, INDENT + 6) === '▄▀▀▀▀▄')
