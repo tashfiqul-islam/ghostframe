@@ -12,8 +12,9 @@ const PERSONAL = { type: 'command', command: 'bun ~/.claude/ghostframe-statuslin
 type Disk = Map<string, string>
 
 // The engine interface as the command uses it, on an in-memory disk: env, fs, process.run and ui.log.
-function machine(disk: Disk, hasBun = true): { $: EngineInterface; runs: string[][] } {
+function machine(disk: Disk, hasBun = true, buildError = ''): { $: EngineInterface; runs: string[][]; logs: string[] } {
   const runs: string[][] = []
+  const logs: string[] = []
   const $ = {
     plugin: { root: 'D:/plugins/ghostframe' },
     env: { get: async (name: string) => (name === 'USERPROFILE' ? HOME : undefined) },
@@ -34,15 +35,20 @@ function machine(disk: Disk, hasBun = true): { $: EngineInterface; runs: string[
       run: async (argv: string[]) => {
         runs.push([...argv])
         if (!hasBun) throw new Error('spawn bun ENOENT')
+        if (argv[1] === 'build' && buildError !== '') return { exitCode: 1, stdout: '', stderr: buildError }
         if (argv[1] === 'build') disk.set(argv.at(-1) ?? '', '// bundled')
 
         return { exitCode: 0, stdout: '1.4.4', stderr: '' }
       }
     },
-    ui: { log: () => undefined }
+    ui: {
+      log: (text: string) => {
+        logs.push(text)
+      }
+    }
   }
 
-  return { $: $ as unknown as EngineInterface, runs }
+  return { $: $ as unknown as EngineInterface, runs, logs }
 }
 
 const settings = (statusLine: unknown): string => `${JSON.stringify({ model: 'opus', statusLine, theme: 'dark' }, null, 2)}\n`
@@ -123,4 +129,50 @@ test('status names another status line, and an unknown option says what the opti
 
   expect(await runStatusline($, 'status', yes)).toContain('run another status line')
   expect(await runStatusline($, 'remove', yes)).toContain('install | uninstall | status')
+})
+
+// The engine draws each transcript row on one line and labels it with the plugin's name itself: live, a newline drew
+// as a replacement character and our own "ghostframe:" made it "ghostframe: ghostframe:".
+// oxlint-disable-next-line no-control-regex -- control characters are what it looks for
+const CONTROL = /[\u0000-\u001f\u007f]/
+
+test('every message is one line with no control characters, and none adds its own "ghostframe:"', async () => {
+  const messages: string[] = []
+  const tabbed = '{\r\n\t"model": "opus",\r\n\t"statusLine": {"type": "command", "command": "bun ~/.claude/ghostframe-statusline.ts"}\r\n}\r\n'
+  const cases: [Disk, boolean, string, string, () => Promise<boolean>][] = [
+    [new Map([[SETTINGS, settings(PERSONAL)]]), true, '', 'install', yes],
+    [new Map([[SETTINGS, settings(PERSONAL)]]), true, '', 'install', no],
+    [new Map([[SETTINGS, tabbed]]), true, '', 'install', yes],
+    [new Map([[SETTINGS, settings(PERSONAL)]]), false, '', 'install', yes],
+    [new Map([[SETTINGS, settings(PERSONAL)]]), true, 'error: a\n  at main.ts:1\n\tsecond', 'install', yes],
+    [new Map([[SETTINGS, '{ "model": ']]), true, '', 'install', yes],
+    [new Map([[SETTINGS, settings(PERSONAL)]]), true, '', 'status', yes],
+    [new Map([[SETTINGS, settings(PERSONAL)]]), true, '', 'bogus', yes]
+  ]
+
+  for (const [disk, hasBun, buildError, verb, confirm] of cases) {
+    const { $, logs } = machine(disk, hasBun, buildError)
+
+    messages.push(await runStatusline($, verb, confirm), ...logs)
+    if (verb === 'install' && confirm === yes && hasBun && buildError === '' && disk.get(SETTINGS)?.includes('statusline.js') === true) {
+      messages.push(await runStatusline($, 'uninstall', yes), ...logs)
+    }
+  }
+
+  expect(messages.length).toBeGreaterThan(20)
+  for (const m of messages) {
+    expect(CONTROL.test(m)).toBe(false)
+    expect(/^\s*ghostframe:/i.test(m)).toBe(false)
+  }
+})
+
+test('the diff is one transcript row per line, its - and + prefixes kept', async () => {
+  const { $, logs } = machine(new Map([[SETTINGS, settings(PERSONAL)]]))
+
+  await runStatusline($, 'install', no)
+
+  expect(logs[0]).toBe(`Installing ghostframe\u2019s status line changes ${SETTINGS}:`)
+  expect(logs).toContain('-     "command": "bun ~/.claude/ghostframe-statusline.ts",')
+  expect(logs).toContain(`+     "command": "bun ${HOME}/.claude/ghostframe/statusline.js",`)
+  expect(logs.every(l => !l.includes('\n'))).toBe(true)
 })

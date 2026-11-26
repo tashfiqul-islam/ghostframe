@@ -19,6 +19,25 @@ const OURS = '/ghostframe/statusline.js'
 
 type Paths = { config: string; settings: string; dir: string; script: string; previous: string }
 
+// A transcript row holds one line, and the engine already labels it with the plugin's name: control characters become
+// spaces (a newline drew as "�" live), and no text of ours starts with "ghostframe:".
+// oxlint-disable-next-line no-control-regex -- control characters are what it removes
+const CONTROL = /[\u0000-\u001f\u007f]+/g
+const flat = (text: string): string => text.replaceAll(CONTROL, ' ').trim()
+
+/**
+ * Logs text to the transcript, one dim row per line: a diff keeps its `-` and `+` prefixes and its indent.
+ * @param $ the engine interface
+ * @param text the text, of any number of lines
+ */
+function say($: EngineInterface, text: string): void {
+  for (const line of text.split(/\r?\n/)) {
+    const notice = line.replaceAll('\t', '  ').replaceAll(CONTROL, ' ').trimEnd() || ' '
+
+    $.ui.log(notice)
+  }
+}
+
 /** Asks the person to approve a change; true to write it. */
 export type Confirm = (question: string) => Promise<boolean>
 
@@ -77,7 +96,7 @@ async function apply($: EngineInterface, confirm: Confirm, p: Paths, text: strin
 
   if (!plan.isChange) return null
 
-  $.ui.log(`ghostframe: ${what} changes ${p.settings}:\n${plan.diff}`)
+  say($, `${what} changes ${p.settings}:\n${plan.diff}`)
 
   if (!(await confirm(`${what}: write this change to your user settings? A backup is kept.`))) return 'Cancelled. settings.json was not changed.'
 
@@ -91,7 +110,7 @@ async function apply($: EngineInterface, confirm: Confirm, p: Paths, text: strin
 
 async function install($: EngineInterface, confirm: Confirm): Promise<string> {
   if (!(await hasBun($))) {
-    return 'ghostframe: the status line runs on Bun, and `bun` is not on PATH. Install it (https://bun.sh), then run /ghostframe-statusline install again.'
+    return 'The status line runs on Bun, and `bun` is not on PATH. Install it (https://bun.sh), then run /ghostframe-statusline install again.'
   }
 
   const p = await pathsOf($)
@@ -99,18 +118,23 @@ async function install($: EngineInterface, confirm: Confirm): Promise<string> {
   const current = currentOf(text)
   const built = await $.process.run(['bun', 'build', `${$.plugin.root}/statusline/main.ts`, '--target=bun', '--outfile', p.script])
 
-  if (built.exitCode !== 0) return `ghostframe: the status line did not build, so nothing was changed:\n${built.stderr || built.stdout}`
+  if (built.exitCode !== 0) {
+    say($, built.stderr || built.stdout)
+
+    return 'The status line did not build (the build output is above), so nothing was changed.'
+  }
 
   // Keep what was there before, once: a second install must not overwrite it with ghostframe's own entry.
   if (!isOurs(current)) await $.fs.write(p.previous, `${JSON.stringify({ statusLine: current }, null, 2)}\n`)
 
   const done = await apply($, confirm, p, text, entryOf(p.script), 'Installing ghostframe’s status line')
 
+  // The outcome first: the engine's command row shows only the start of the text.
   return [
-    `Built ${p.script}.`,
     done ?? 'settings.json already runs it; nothing else changed.',
+    `Built ${p.script}.`,
     'Project settings (.claude/settings.json) can also set statusLine, and win over user settings.'
-  ].join('\n')
+  ].join(' ')
 }
 
 async function uninstall($: EngineInterface, confirm: Confirm): Promise<string> {
@@ -155,13 +179,13 @@ export async function runStatusline($: EngineInterface, args: string, confirm: C
   const verb = args.trim().split(/\s+/)[0] ?? ''
 
   try {
-    if (verb === 'install') return await install($, confirm)
-    if (verb === 'uninstall') return await uninstall($, confirm)
-    if (verb === 'status' || verb === '') return await status($)
+    if (verb === 'install') return flat(await install($, confirm))
+    if (verb === 'uninstall') return flat(await uninstall($, confirm))
+    if (verb === 'status' || verb === '') return flat(await status($))
 
-    return `Unknown option "${verb}". Use: /${COMMAND} install | uninstall | status`
+    return flat(`Unknown option "${verb}". Use: /${COMMAND} install | uninstall | status`)
   } catch (error: unknown) {
-    return `ghostframe: ${verb} stopped, settings.json unchanged: ${String(error)}`
+    return flat(`${verb} stopped, settings.json unchanged: ${String(error)}`)
   }
 }
 
