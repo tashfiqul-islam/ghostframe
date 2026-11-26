@@ -13,7 +13,7 @@
     "fmt": "cd .. && oxfmt",
     "fmt:check": "cd .. && oxfmt --check",
     "commitlint": "commitlint --config commitlint.config.ts",
-    "mockgen": "bun mockgen/gen/build.ts ../docs/design/cockpit-v7.md",
+    "mockgen": "bun mockgen/gen/build.ts ../docs/design/history/cockpit-v7.md",
     "validate": "cd .. && claude plugin validate .",
     "test": "cd .. && claude plugin test .",
     "check": "bun run typecheck && bun run boundaries && bun run lint && bun run fmt:check && bun run validate && bun run test && bun run test:statusline",

@@ -1,7 +1,7 @@
 // Screen tests (Phase 12): each feeds the v8 renderers the data a spec screen shows, and compares the rows they draw
 // with that screen's text block in section 12, character for character. Colours are checked against the tokens.
 // Where a screen holds rows Cockpit does not draw (the engine's dialog, a turn before the one shown, the engine's own
-// blank rows), the test compares the rows it does draw; docs/design/cockpit-v8.md section 14 says why for each.
+// blank rows), the test compares the rows it does draw; docs/design/cockpit.md section 14 says why for each.
 import { expect, test } from 'claude-code/testing'
 
 import { GLYPH } from '../../hooks/shared/look/glyphs'

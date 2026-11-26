@@ -1,5 +1,7 @@
 # Cockpit v7: amendments
 
+> History: the amendments to Cockpit's first written spec, kept as written. Superseded by [cockpit.md](../cockpit.md).
+
 These override [cockpit-v7.md](cockpit-v7.md). The spec is kept byte for byte as generated (`bun tools/mockgen/gen/build.ts docs/design/cockpit-v7.md`, or `bun run --cwd tools mockgen`, reproduces it), so changes are recorded here and not edited into it. Where an amendment and the spec disagree, the amendment wins.
 
 ## Decisions (owner, 2026-11-21)

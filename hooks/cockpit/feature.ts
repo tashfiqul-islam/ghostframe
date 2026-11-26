@@ -2,7 +2,7 @@
 // pane.tsx). The step log: the turn's steps (steps/, log.ts). The quiet left: docked, the transcript keeps the
 // conversation, the event rows and the receipt (left.tsx). Agents: the roster from `agent.spawn` and `agent.report`
 // (agents/). Every row is drawn by the v8 renderers (v8/, ../transcript/v8/).
-// Spec: docs/design/cockpit-v8.md; docs/design/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
+// Spec: docs/design/cockpit.md; docs/design/history/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
 import { readVersion } from './version'
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
 

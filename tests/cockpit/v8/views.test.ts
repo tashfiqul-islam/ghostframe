@@ -187,8 +187,8 @@ test('14. a hint row keeps at least 4 cells before the wordmark; whole hints dro
   ]
 
   for (const keys of [sources, agents]) {
-    const row = shown([hintRow(keys, '0.2.0', P, 'copied')])[0] ?? ''
-    const mark = row.indexOf('ghostframe v0.2.0')
+    const row = shown([hintRow(keys, '1.0.0', P, 'copied')])[0] ?? ''
+    const mark = row.indexOf('ghostframe v1.0.0')
 
     expect(mark).toBeGreaterThan(0)
     expect(row.slice(mark - 4, mark)).toBe('    ')

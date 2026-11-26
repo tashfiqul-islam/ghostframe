@@ -12,7 +12,7 @@ import type { Part } from '../../hooks/shared/parts'
 export const P = 72
 
 /** The version the screens' wordmark shows (the manifest's at the time the canvas was drawn). */
-export const VERSION = '0.1.0'
+export const VERSION = '1.0.0'
 
 /** A sparkline's levels, read off the cells a screen draws. */
 export const sparkOf = (cells: string): number[] => Array.from(cells, c => SPARK.indexOf(c))

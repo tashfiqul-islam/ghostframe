@@ -11,7 +11,7 @@
     "docs/design/brand/**",
     "tools/node_modules/**",
     "tools/bun.lock",
-    "docs/design/cockpit-v7.md",
+    "docs/design/history/cockpit-v7.md",
     "docs/design/statusline-preview.ts",
     "tools/mockgen/tpl/**",
     "tests/support/screens.ts"

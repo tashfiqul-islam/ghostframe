@@ -1,5 +1,7 @@
 # Cockpit v7: feasibility
 
+> History: the feasibility report and phase plan for Cockpit's first written spec, kept as written. Superseded by [cockpit.md](../cockpit.md).
+
 What the probes of [cockpit-v7.md](cockpit-v7.md) section I.4 found, what each finding means for every component, and the order to build in. Read [cockpit-v7-amendments.md](cockpit-v7-amendments.md) first: it overrides the spec.
 
 ## How the probes were run

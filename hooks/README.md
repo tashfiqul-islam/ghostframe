@@ -13,7 +13,7 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `shared/`: colour tokens, the grid and layout math, text width and clipping, the rule, time formats, `Part` helpers,
   the LRU and turn caps, URL and path labels, and the flow (Claude's blocks and calls in stored order, with what
   narration is), which both features read.
-- `shared/look/`: Cockpit v8's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
+- `shared/look/`: Cockpit's shared rules (spec sections 2, 4, 5, 13.2 to 13.6): the palette (every hex Cockpit
   draws with), the glyphs, the formats (clock, day, duration, counts, state words), the one path formatter and the
   cuts from the middle, the `cd` prefix, kind words and short result words, and the small parts every row is built
   from (a dim run, spaces, a kind cell, the result tones).
@@ -33,13 +33,13 @@ The folders are the index. Each folder below holds files of one responsibility, 
 - `cockpit/fallback/`: the left with no pane docked (E.3, E.5, E.33, E.46): the capsule and where each stretch of
   work ends (worked out from the turn's flow and steps at every draw, amendment 10), failure rows, the live area, and
   the inline inspector's size.
-- `cockpit/v8/`: Cockpit v8's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
+- `cockpit/v8/`: Cockpit's renderers (spec sections 7 to 9), pure: each returns the rows the pane or the left
   draws, built on `shared/look/`. The left's rows Cockpit owns (event rows, the receipt, the worked node, the live
   line, slash command rows) and the pane's components (tabs, head card, timeline, drawer, the other views, the keys).
 - `statusline/`: `/ghostframe-statusline install | uninstall | status`, and its pure plan: the `statusLine` entry's
   span in settings.json, the new text with only that entry changed, and the diff shown before anything is written.
 - `transcript/`: prose, citations, claims, notices and frames, outcome cards, the browser frame, the caps line.
-- `transcript/v8/`: Cockpit v8's left (spec section 7), pure: the turn header, your message as a card, the thought
+- `transcript/v8/`: Cockpit's left (spec section 7), pure: the turn header, your message as a card, the thought
   row, the answer's markdown (headings, lists, quotes, task items, footnotes), code and diff cards, tables, the note
   and the plan card, built on `shared/look/`.
 - `transcript/activity/`: the folded activity rows: step model, rule, fold, row layout, diff data.
@@ -108,8 +108,8 @@ message or its finished notice), the `ToolUse` of an `Agent` call, and each `Age
 
 ## See also
 
-- [The Cockpit v8 spec](../docs/design/cockpit-v8.md), the source of truth; its build decisions are its section 14.
-- [The Cockpit v7 design](../docs/design/cockpit-v7.md), which v8 replaced where they differ, its
-  [amendments](../docs/design/cockpit-v7-amendments.md) and its
-  [feasibility report and phase plan](../docs/design/cockpit-v7-feasibility.md).
+- [The Cockpit spec](../docs/design/cockpit.md), the source of truth; its build decisions are its section 14.
+- [The first Cockpit spec](../docs/design/history/cockpit-v7.md), which the spec replaced where they differ, its
+  [amendments](../docs/design/history/cockpit-v7-amendments.md) and its
+  [feasibility report and phase plan](../docs/design/history/cockpit-v7-feasibility.md).
 - [How the tests are laid out](../tests/README.md).

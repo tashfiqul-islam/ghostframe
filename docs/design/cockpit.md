@@ -1,12 +1,12 @@
-# Cockpit v8
+# Cockpit
 
-The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the conversation on the left, the work on the right. This document is the written form of the **Cockpit v8** design canvas (https://claude.ai/artifact/TmpUf8DEVeWyyAHrER5KA2): one design-system board and 33 screens, each with a note. The canvas shows what it looks like; this document says exactly what to build.
+The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the conversation on the left, the work on the right. This document is the written form of the **Cockpit** design canvas (https://claude.ai/artifact/TmpUf8DEVeWyyAHrER5KA2): one design-system board and 33 screens, each with a note. The canvas shows what it looks like; this document says exactly what to build.
 
-**Precedence.** v8 replaces the look of [cockpit-v7.md](cockpit-v7.md) and of [cockpit-v7-amendments.md](cockpit-v7-amendments.md) wherever they differ (section 11 lists each case). It keeps every v7 fact about the engine: the corrections A–M, the probes, the render sites, the store budget, the switching thresholds. Where this document and the canvas differ, this document wins and the difference is a bug in the canvas.
+**Precedence.** This document replaces the look of the first spec, [history/cockpit-v7.md](history/cockpit-v7.md), and of its [amendments](history/cockpit-v7-amendments.md) wherever they differ (section 11 lists each case). It keeps every fact the first spec records about the engine: the corrections A–M, the probes, the render sites, the store budget, the switching thresholds. Where this document and the canvas differ, this document wins and the difference is a bug in the canvas.
 
-**References.** "Amendment 8" and "correction C" are in `cockpit-v7-amendments.md`. "v7 E.21" is section E.21 of `cockpit-v7.md`. "Screen 03" is board `S03Failed` on the canvas and section 12.3 here.
+**References.** "Amendment 8" and "correction C" are in the first spec's amendments. "E.21" is section E.21 of the first spec. "Screen 03" is board `S03Failed` on the canvas and section 12.3 here.
 
-**Unchanged from v7.** The Cockpit switch (`GHOSTFRAME_COCKPIT=1`) stays off by default, and with it off every row draws exactly as on main. Drawn rows never change after their first draw, except where amendment 10 redraws a row in the mode the session switched to.
+**The switch.** Cockpit is on by default (the `cockpit` option in `/config`). `GHOSTFRAME_COCKPIT=0` turns it off for one session and `GHOSTFRAME_COCKPIT=1` on. With it off every row draws exactly as on main. Drawn rows never change after their first draw, except where amendment 10 redraws a row in the mode the session switched to.
 
 ## Contents
 
@@ -20,7 +20,7 @@ The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the con
 8. The pane: components
 9. Behaviour
 10. What the engine owns
-11. What v8 replaces in v7
+11. Design history
 12. The screens, 01–33
 13. Real-session polish (Phase 12)
 
@@ -148,7 +148,7 @@ One meaning each. Nothing outside this table is drawn by Cockpit.
 | `¹²³⁴` / `·` | machine / dim                    | a cited source's number / an uncited source                       |
 | `⎿ ※ ↺`      | the engine's                     | engine rows: interrupted, compacted, resumed                      |
 
-`✕` (v7) is replaced by `×` everywhere. The rounded boxes (`╭ ╮ ╰ ╯`) and `✻` on the screens are the engine's dialogs and welcome header, not Cockpit's.
+`✕` (the first spec) is replaced by `×` everywhere. The rounded boxes (`╭ ╮ ╰ ╯`) and `✻` on the screens are the engine's dialogs and welcome header, not Cockpit's.
 
 ## 5. Formats
 
@@ -210,7 +210,7 @@ The kind word names the tool family, in `muted`, 6 cells, left-aligned:
 
 `read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp` `ask` `plan` `skill`
 
-- `ask` is `AskUserQuestion`, `plan` the plan tools, `skill` the `Skill` tool: v7's words, kept.
+- `ask` is `AskUserQuestion`, `plan` the plan tools, `skill` the `Skill` tool: the first spec's words, kept.
 
 - `test` is a shell command that runs tests (`bun test`, `vitest`, `pytest`, `go test`, `cargo test`).
 - `mcp` steps read `mcp · <server> <tool>`, for example `mcp · linear create issue`, from the tool name `mcp__<server>__<tool>`.
@@ -391,7 +391,7 @@ A one-row card: `▲ NOTE` in `machine`, bold, then one sentence in `text`. Used
              │    2  Set LANG=C.UTF-8 for that job only
 ```
 
-`PLAN` (machine, bold), the step count, the engine's approve keys at the right, numbered steps. Cyan because the plan is the machine's. The keys shown are the engine's own (v7 E.17); Cockpit invents none.
+`PLAN` (machine, bold), the step count, the engine's approve keys at the right, numbered steps. Cyan because the plan is the machine's. The keys shown are the engine's own (E.17); Cockpit invents none.
 
 ### 7.10 Event rows
 
@@ -417,7 +417,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 - A `└` detail line under the row says the one thing that explains it.
 - A `×` event row such as `Batch 6 tests` draws in fallback only; docked, failures show in the failure card (7.8, 13.1).
 - A `⊘ BLOCKED` row names the hook event and its reason. The engine never names the hook's script, so `guard-main.sh` shows only when the reason says it. Its `└` line draws only when what Claude did instead is already known as the row draws (13.7).
-- `↗` rows draw the moment the call returns (v7 E.5).
+- `↗` rows draw the moment the call returns (E.5).
 - A WAITING countdown updates in place; the row does not move.
 - Notices (`●`, the context `!`) are grey and one line. The memory notice carries its clock in the label.
 
@@ -441,7 +441,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 
 - Label: the turn's duration (the same value the pane head shows). The glyph, the state word (bold), a braille trace of the turn's activity (bucketed, in the trace steps), then the counts in dim, in the order the screens draw them: steps, fixed, still failing, files, blocked (screen 13), sources (`n sources, m cited` when not every one is cited), `n agents`, `n browser` and `n mcp`, then `↗` and the commit hash or PR.
 - **One receipt per typed turn.** While background agents still run after an answer, no receipt is drawn: the pane head's summary says `Waiting on n agents`, or with no pane docked the band above the prompt (7.11). The receipt draws under the answer of the first engine turn that ends with no agent running, and moves under a later one's when a late report turn answers after it (an agent that finished before its report reached Claude): it is always under the turn's last answer, and counts the whole turn from its header: every step (the report turns' too), the agents its launches started, its whole time. `WAITING` is only for rate limits and retries.
-- Narrow, the counts drop in v7 E.32's order (commit, sources, files, agents, steps). The state word never drops.
+- Narrow, the counts drop in E.32's order (commit, sources, files, agents, steps). The state word never drops.
 - Drawn at `TurnDuration`, anchored to the turn's answer row (amendment 8), or to its last call row when the turn wrote no text (amendment 10).
 - No receipt for an interrupted turn (correction G).
 - `no steps` when the turn made none.
@@ -452,7 +452,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
       2m 44s ◇  worked   ⣀⣤⣴⣶⣿⣶⣤⣴⣿⣷   23 steps · 3 agents · 1 fixed
 ```
 
-The v8 name for v7's capsule. `◇` and `worked` in dim, a trace, the counts.
+The new name for the first spec's capsule. `◇` and `worked` in dim, a trace, the counts.
 
 - **Fallback (no pane docked):** each finished turn gets one worked node above its answer (amendment 9's triggers).
 - **Docked:** a turn that wrote no answer text gets one worked node, below its `↗` rows and directly above its receipt, so the receipt tree reads node, then receipt. The `↗` rows draw as their calls return (7.10), before the node exists (screen 16). A turn with any answer text gets none.
@@ -643,7 +643,7 @@ One row per step: glyph, kind (6 cells), subject, result, the step's own duratio
 ### 8.12 Key hints and the wordmark
 
 ```text
-  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v1.0.0
 ```
 
 The pane's second-to-last row: the engine keeps the dock's last row (section 14). Keys in accent, actions in dim, 4 cells apart, and at least 4 cells before the wordmark: hints that do not fit drop whole from the end, never cut (screen 26 drops `1 timeline`). They show only while the pane has the keyboard. The wordmark `ghostframe` (`wordmark`) and the version (`wordmarkVersion`) sit at the right on every view, ending on the last cell but one; screen 24 alone draws none, and its test keeps the canvas's row. The version is read once at session start from `.claude-plugin/plugin.json`; it is `dev` when the manifest has none or cannot be read.
@@ -726,9 +726,9 @@ Cockpit designs around these and does not redraw them.
 
 **ctrl+o.** Cockpit draws its own turn header and message card for a prompt, not the engine's row. Under 110 columns it uses the narrow text column (6.1). A step row carries its result word and, for an edit, its diff card (7.5); there is no output frame, and a command's output stays in the step's detail in the pane.
 
-## 11. What v8 replaces in v7
+## 11. Design history
 
-| v7                                                                                                       | v8                                                                                         |
+| First spec                                                                                               | Now                                                                                        |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | Turn rule `─ [ TURN n ] ─── 09:23` (amendment 12)                                                        | Turn header `HH:MM:SS ◆  TURN n  ───` with the clock in the label column (7.1)             |
 | Day `Sun 22 Nov · 09:02` in the rule (amendment 12)                                                      | `· Tue` after the label (5.1)                                                              |
@@ -741,10 +741,10 @@ Cockpit designs around these and does not redraw them.
 | `[ STEPS ]` never lists agents (amendment 1)                                                             | Kept for every step list; the timeline shows agents as bars under their launch group (8.3) |
 | ctrl+o durations in tenths below ten seconds (amendment 11)                                              | Whole seconds, `<1s` (5.2)                                                                 |
 | `esc: prompt` hint                                                                                       | Never shown while an agent is in view (already amendment 13)                               |
-| Tab and section keys from v7 E.44                                                                        | `1`–`5` tabs (8.1); the rest per 9.5                                                       |
+| Tab and section keys from E.44                                                                           | `1`–`5` tabs (8.1); the rest per 9.5                                                       |
 | Plugin notices on the left                                                                               | The debug log only (`$.ui.log` with `{ to: 'debug' }`)                                     |
 
-Everything not in this table keeps v7 and its amendments.
+Everything not in this table keeps the first spec and its amendments.
 
 ## 12. The screens, 01–33
 
@@ -841,7 +841,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.2 · Live, three agents, pane focused
@@ -934,7 +934,7 @@ The pane (72 columns):
 
 
 
-  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v1.0.0
 ```
 
 #### 12.3 · A failed turn, step opened
@@ -1011,7 +1011,7 @@ The pane (72 columns):
 
 
 
-  tab move    enter open    1–5 tabs                  ghostframe v0.1.0
+  tab move    enter open    1–5 tabs                  ghostframe v1.0.0
 ```
 
 #### 12.4 · Needs you: a permission prompt
@@ -1104,7 +1104,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.5 · Plan mode
@@ -1178,7 +1178,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.6 · Interrupted, then a new turn
@@ -1257,7 +1257,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.7 · Compacted, then resumed
@@ -1336,7 +1336,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.8 · A 312-step, 51-minute turn
@@ -1427,7 +1427,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.9 · A past turn pinned while another runs
@@ -1519,7 +1519,7 @@ The pane (72 columns):
 
 
 
-  l live    p previous    n next    s all             ghostframe v0.1.0
+  l live    p previous    n next    s all             ghostframe v1.0.0
 ```
 
 #### 12.10 · A fresh session, first turn
@@ -1585,7 +1585,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.11 · Rate limited mid-turn
@@ -1593,7 +1593,7 @@ The pane (72 columns):
 Board `S11RateLimit` · a pause, not a failure · warn colour · when it resumes and what you can do now
 
 - **SHOWS** ‘! WAITING · rate limited · resumes at 14:05 · or /model to switch’ on the spine with one plain detail line. Pane: NEEDS YOU, the wait as a warn bar, a drawer saying it is a pause.
-- **DATA** The engine’s rate-limit error (v7 E.21); the resume time comes from it.
+- **DATA** The engine’s rate-limit error (E.21); the resume time comes from it.
 - **RULES** Warn, never red; no failure counted; the turn continues by itself.
 
 The left (127 columns):
@@ -1654,7 +1654,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.12 · Claude asks a question
@@ -1662,7 +1662,7 @@ The pane (72 columns):
 Board `S12Question` · the engine’s question card sits in the left region · the pane says what it is waiting for
 
 - **SHOWS** The engine’s question card in the left region, options with descriptions; no row of the left’s own for it. Pane: NEEDS YOU with ‘Asking you’ selected.
-- **DATA** The AskUserQuestion call; the card is the engine’s (v7 E.16).
+- **DATA** The AskUserQuestion call; the card is the engine’s (E.16).
 - **ENGINE** Card drawn by Claude Code (AskUserQuestion), left region only; status line hidden (correction C).
 - **RULES** Cockpit never duplicates the options; it only says what is pending.
 
@@ -1747,7 +1747,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.13 · Memory, a blocking hook, a context warning
@@ -1755,7 +1755,7 @@ The pane (72 columns):
 Board `S13Notices` · notices sit on the spine as grey ● rows · a hook block is ⊘, not a failure
 
 - **SHOWS** ● Memory saved (grey notice with its clock); ⊘ BLOCKED by a hook (PreToolUse, its reason naming guard-main.sh) with what Claude did instead, a line that draws live only when already known as the row draws (13.7); ! Context 82% notice; receipt counts ‘1 blocked’.
-- **DATA** Memory saves (v7 E.26), hook output (v7 E.27), context warnings (v7 E.22).
+- **DATA** Memory saves (E.26), hook output (E.27), context warnings (E.22).
 - **RULES** ⊘ = a system said no (hook, classifier, sandbox, policy). It is warn, not red, and is never a failure. Notices are grey and one line.
 
 The left (127 columns):
@@ -1818,7 +1818,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.14 · A message queued while Claude works
@@ -1907,7 +1907,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.15 · The API is overloaded, retrying
@@ -1915,7 +1915,7 @@ The pane (72 columns):
 Board `S15ApiRetry` · a retry is a warn row with a countdown and the attempt number · never red
 
 - **SHOWS** ‘! WAITING · API overloaded · retrying in 8s · attempt 2 of 10’ with ‘Nothing is lost’. Pane: still LIVE, the wait as a warn bar against the now-line.
-- **DATA** The engine’s retry error (v7 E.21); attempt and delay come from it.
+- **DATA** The engine’s retry error (E.21); attempt and delay come from it.
 - **RULES** A retry is not a failure. The countdown updates in place; the row does not move.
 
 The left (127 columns):
@@ -1974,7 +1974,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 ### Answers and tools
@@ -2044,7 +2044,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.17 · A turn with only prose
@@ -2110,7 +2110,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.18 · A long explanatory answer
@@ -2118,7 +2118,7 @@ The pane (72 columns):
 Board `S18LongAnswer` · every markdown element: headings, numbered and nested lists, a quote, task items, a footnote
 
 - **SHOWS** Every markdown element in one answer: bright lead, ## and ### headings with dim markers, a numbered list (cyan numerals), bullets with a nested bullet, a quote (▏ in cyan), task items [x] [ ], an inline footnote [1].
-- **DATA** The answer block as Claude wrote it (v7 E.7); nothing is rewritten.
+- **DATA** The answer block as Claude wrote it (E.7); nothing is rewritten.
 - **RULES** Reading column 86. Heading and list markers stay visible but dim; backticks and `**` are dropped. No boxes around prose.
 
 The left (127 columns):
@@ -2193,7 +2193,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.19 · Commit, pull request, merge
@@ -2201,8 +2201,8 @@ The pane (72 columns):
 Board `S19Git` · everything that leaves your machine gets an ↗ row at once, on both halves
 
 - **SHOWS** ↗ committed / pushed / opened PR #23 / merged, each the moment it happens; ✓ CI passed with its checks; receipt ‘↗ PR #23 merged’. Pane: the long CI wait as one bar.
-- **DATA** tool.call for git and gh; each ↗ row as the call returns (v7 E.5).
-- **RULES** ✓ CI passed is the one success that gets a row on the left, because you asked Claude to wait for it. ↗ for anything that leaves the machine, always drawn at once (v7 E.5). Commit hashes and PR numbers are bright.
+- **DATA** tool.call for git and gh; each ↗ row as the call returns (E.5).
+- **RULES** ✓ CI passed is the one success that gets a row on the left, because you asked Claude to wait for it. ↗ for anything that leaves the machine, always drawn at once (E.5). Commit hashes and PR numbers are bright.
 
 The left (127 columns):
 
@@ -2266,7 +2266,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.20 · Web research with eight sources
@@ -2274,7 +2274,7 @@ The pane (72 columns):
 Board `S20Research` · footnotes in the answer match the numbers in Sources · a 404 is the page’s problem, not the turn’s
 
 - **SHOWS** The answer cites [1][4], [3], [2]; footnote lines at the end. Pane on the Sources tab: 8 pages, 4 cited first with ¹–⁴, the rest ·, a 404 in red.
-- **DATA** WebFetch and WebSearch calls of the turn; footnotes from the answer (v7 E.9).
+- **DATA** WebFetch and WebSearch calls of the turn; footnotes from the answer (E.9).
 - **RULES** The numbers in the answer and in Sources are the same numbers. Cited pages re-sort to answer order at turn end only.
 
 The left (127 columns):
@@ -2337,7 +2337,7 @@ The pane (72 columns):
 
 
 
-  enter copy url    u urls    1 timeline              ghostframe v0.1.0
+  enter copy url    u urls    1 timeline              ghostframe v1.0.0
 ```
 
 #### 12.21 · Browser and MCP tools
@@ -2405,7 +2405,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 #### 12.22 · Slash commands
@@ -2413,7 +2413,7 @@ The pane (72 columns):
 Board `S22Slash` · commands get a / node in cyan · output is quiet, one line, and says what exists when a number is wrong
 
 - **SHOWS** Each command as one row with its clock, ✓ or ×, the command as typed and what it says; /steps 7 all prints the step rows (kind, subject, result, own duration) with ‘… 16 more’; /copy code 1 → ✓ one line; /copy code 9 → × ‘there is no code block 9 · the last answer has 1’; /cockpit → ✓.
-- **DATA** Cockpit’s own slash commands (v7 E.24).
+- **DATA** Cockpit’s own slash commands (E.24).
 - **RULES** Command output is one quiet line, except /steps n all. A wrong number always says what exists.
 
 The left (127 columns):
@@ -2479,7 +2479,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 ### Pane tabs
@@ -2574,7 +2574,7 @@ The pane (72 columns):
 
 
 
-  enter diff    c copy path    1 timeline             ghostframe v0.1.0
+  enter diff    c copy path    1 timeline             ghostframe v1.0.0
 ```
 
 #### 12.24 · The Sources tab
@@ -2735,7 +2735,7 @@ The pane (72 columns):
 
 
 
-  1 timeline    1–5 other tabs                        ghostframe v0.1.0
+  1 timeline    1–5 other tabs                        ghostframe v1.0.0
 ```
 
 #### 12.26 · The Agents tab
@@ -2827,7 +2827,7 @@ The pane (72 columns):
 
 
 
-  enter open conversation    tab move                 ghostframe v0.1.0
+  enter open conversation    tab move                 ghostframe v1.0.0
 ```
 
 #### 12.27 · An agent’s conversation open
@@ -2921,7 +2921,7 @@ The pane (72 columns):
 
 
 
-  m back to main    tab move    enter open step       ghostframe v0.1.0
+  m back to main    tab move    enter open step       ghostframe v1.0.0
 ```
 
 #### 12.28 · A full diff in the pane
@@ -3012,7 +3012,7 @@ The pane (72 columns):
 
 
 
-  b back    c copy    ↑↓ scroll    n next file        ghostframe v0.1.0
+  b back    c copy    ↑↓ scroll    n next file        ghostframe v1.0.0
 ```
 
 #### 12.29 · Every step, one opened
@@ -3103,7 +3103,7 @@ The pane (72 columns):
 
 
 
-  s fit    enter output    c copy    p n turns        ghostframe v0.1.0
+  s fit    enter output    c copy    p n turns        ghostframe v1.0.0
 ```
 
 ### Modes and widths
@@ -3337,7 +3337,7 @@ The pane (72 columns):
 
 
 
-                                                      ghostframe v0.1.0
+                                                      ghostframe v1.0.0
 ```
 
 ## 13. Real-session polish (Phase 12)
@@ -3348,7 +3348,7 @@ Rules found in real sessions after Phase 11. Each applies docked, in fallback an
 
 A step is a **failure** when all of these hold:
 
-- its kind is `test`, `shell`, `edit`, `write` or `agent`; v7's `notebook` kind counts as `edit`. A `fetch` or `search` never is (amendment 6), nor a `read`;
+- its kind is `test`, `shell`, `edit`, `write` or `agent`; the first spec's `notebook` kind counts as `edit`. A `fetch` or `search` never is (amendment 6), nor a `read`;
 - the tool reported an error (`isError`), or a command exited non-zero;
 - it was not blocked (13.7), denied (13.8) or interrupted;
 - it is not a negative answer. `grep`, `rg`, `git diff --exit-code` or `--quiet`, `diff`, `cmp`, `test` and `[` exiting 1 mean "no" or "differs"; exit 2 and up are those tools' own errors. The engine hands an errored shell call back as one text with no stderr apart, so the exit code decides; when an outcome does carry `stderr`, a non-empty one makes it a failure. The step is `✓`, with the result `differs` for `diff`, `cmp` and `git diff`, otherwise `no match`.
@@ -3472,7 +3472,7 @@ Blocked steps get `⊘` (warn) in the pane, the result `blocked`, and a detail l
 
 ### 13.8 `DENIED`
 
-When the person refuses a permission, the step is **denied**: a row on the left `▍  DENIED   shell rm -rf dist` (`▍` and `DENIED` in err, then the step's kind and command), the result `denied` in the pane. The plugin gets no reason with a denial, so the row names none. A denial is the person's decision, not a failure, and is counted as neither. (Not drawn on the canvas; the row follows v7 E.5.)
+When the person refuses a permission, the step is **denied**: a row on the left `▍  DENIED   shell rm -rf dist` (`▍` and `DENIED` in err, then the step's kind and command), the result `denied` in the pane. The plugin gets no reason with a denial, so the row names none. A denial is the person's decision, not a failure, and is counted as neither. (Not drawn on the canvas; the row follows E.5.)
 
 ### 13.9 One clock
 
@@ -3480,17 +3480,17 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 
 ## 14. Build decisions (Phase 12)
 
-- **One palette for Cockpit; the transcript's own stays for Cockpit off.** `hooks/shared/look/palette.ts` holds section 2 and is the only palette any Cockpit-on row draws from; no module of `cockpit/` or `transcript/v8/` imports another. `hooks/shared/tokens.ts` is not a Cockpit palette: it is main's transcript palette, kept unchanged because with Cockpit off every row must draw exactly as on main. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in v8's folders outside `shared/look/glyphs.ts`.
+- **One palette for Cockpit; the transcript's own stays for Cockpit off.** `hooks/shared/look/palette.ts` holds section 2 and is the only palette any Cockpit-on row draws from; no module of `cockpit/` or `transcript/v8/` imports another. `hooks/shared/tokens.ts` is not a Cockpit palette: it is main's transcript palette, kept unchanged because with Cockpit off every row must draw exactly as on main. `tools/scripts/boundaries.ts` refuses a hex anywhere else, and a status glyph literal in the renderers' folders outside `shared/look/glyphs.ts`.
 - **Section 2 gained the colours the spec already drew with.** 7.3, 7.12 and 8.12 named three hexes section 2 did not list (the trace's low end `#2E3A39`, the wordmark's `#3A4846` and `#56706B`), and the trace's gradient from that low end to `machine` made five more at run time. They are now section 2's `wordmark` and `wordmarkVersion` tokens and its seven trace steps, fixed values rather than a computed blend, so every hex Cockpit draws is listed there.
-- **Kind words `ask`, `plan`, `skill` joined 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep v7's words (each within 6 cells): 5.6's list had no word for them, and inventing one would be worse than keeping the known one.
+- **Kind words `ask`, `plan`, `skill` joined 5.6.** `AskUserQuestion`, the plan tools and `Skill` keep the first spec's words (each within 6 cells): 5.6's list had no word for them, and inventing one would be worse than keeping the known one.
 - **One short line is its own result** (13.6). 13.6 listed only `bun --version` → `1.4.4`; it now states the rule that example follows: a one-line output of at most 14 cells shows that line.
-- **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the v7 rule). The project root is checked first, so a project under the home folder never gets a `~`.
+- **The home folder.** No engine API gives the home folder; the path formatter takes it when a caller knows it and otherwise recognises `X:/Users/<name>`, `/Users/<name>` and `/home/<name>` (the first spec's rule). The project root is checked first, so a project under the home folder never gets a `~`.
 - **Negative answers read the exit code** (13.1). 13.1 asked for exit 1 "with nothing on stderr", but the engine hands an errored shell call back as one text, without stderr apart from stdout. So the exit code decides, and a non-empty `stderr` counts only when an outcome carries one. `git diff --quiet` joined `--exit-code`, and `test` and `[` read `no match`, since 13.1 offers only `no match` and `differs`.
-- **Blocked against denied** (13.7 now lists the settings rule and the organization's ceiling). A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <script> · <message>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern v7 already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
+- **Blocked against denied** (13.7 now lists the settings rule and the organization's ceiling). A `tool.check` verdict of `deny` on a main-loop call (a `PreToolUse` hook, a settings rule, the organization's ceiling) marks the call blocked, its detail `by a hook · <script> · <message>` or `by a rule · <rule>`. A refusal in the engine's own person-denial words (the `DENIED` pattern the first spec already used) is a denial; any other `deny` (the auto-mode classifier, the sandbox) is blocked. Not verified live: the classifier's exact refusal text.
 - **The hook's script name** (7.10, 13.7). The check's verdict names the hook event, and its reason carries the engine's `PreToolUse:<tool> hook error: [<command>]: <message>`. The row names the script from that command (`guard-main.ps1`) and the hook's own message, never the engine's wrapper (live check, turn 4).
 - **What Claude did instead** (7.10, 13.7). The `└` line under `⊘ BLOCKED` needs what Claude did next, which is not known when the row first draws, and rows never change. It draws instead at the next step's own site, `└ instead  <kind> <subject>`, the first moment it is known; a refused step Claude follows only with its answer has none. Screen 13's prose line `└ Claude switched to a branch instead.` is the canvas's wording.
 - **One clock is the typed turn's, with one receipt** (7.12, 13.9). Phase 12 first gave each engine turn its own receipt and time, so turn 7 (three agents) drew `16s ! WAITING`, `11s ! WAITING` and `35s × FAILED`. A typed turn now has one receipt, drawn when its last engine turn ends with no agent running, its time the whole turn's; until then the live line says what it waits on.
-- **Failure kinds** (13.1). v7's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not.
+- **Failure kinds** (13.1). the first spec's `notebook` kind is an edit for 13.1, so a failed notebook edit is a failure; a failed `read` is not.
 - **The left's renderers live by who draws them.** Rows Cockpit owns (receipt, worked node, live line, event rows, slash rows, the failure card) are in `hooks/cockpit/v8/`; rows the transcript's sites draw (turn header, message cards, thought row, the answer's markdown, code, table, note and plan cards) are in `hooks/transcript/v8/`, since the transcript may read Cockpit but Cockpit may not read the transcript. Both build every row with `shared/look/spine.ts`, so the label, spine and text column line up.
 - **Cards may run into their right pad** (6.1). 6.1 kept a 2-cell inner pad on every card row; screen 01's note ends on the card's last cell, so a row with nothing held at its right end now may use the right pad.
 - **Source line breaks are row breaks** (7.4). Screen 01 breaks after the lead sentence at 86 cells while screen 31 runs the same words on at 78, so a paragraph's own line breaks are kept as row breaks, and only then do words wrap.
@@ -3527,7 +3527,7 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **`m` is bound only while an agent is in view.** It answers with `$.ui.view`, which the engine allows only while an agent's conversation is shown; bound everywhere, it called the engine on every press.
 - **The docked worked node sits below the `↗` rows** (7.13, screen 16). 7.13 and screen 16 put it above them; both now show it below. The `↗` rows draw as their calls return (7.10), before the turn ends, and rows never move, so the node now sits directly above the receipt and the receipt tree reads node, then receipt.
 - **Fallback's `+ n more` sits under its rows, above the worked node** (13.1, round 6). It sat above the receipt, after the answer, apart from the rows it counts (the live run's step 12 at 100 columns). A fallback failure row draws as its step settles and never changes, so the third row cannot count failures still to come; instead each stretch of work counts, where its worked node closes it, the keys that first failed in it and drew no row. The answer starts a stretch's end, so the count is drawn before it. Docked, the same turn draws 7.8's card on the answer, unchanged. A stretch an interrupt cuts off closes no worked node, so its unshown keys are counted only by the receipt's `n still failing`.
-- **PowerShell's failure keys** (13.1). The spec named only `VAR=value`. This session's own turn (455 steps, 80 errors, most of them exploratory PowerShell) drew 34 rows on v7 and keyed 52 failures on v8 before these rules: `$t = …` keyed on `$t`, `[IO.File]::…` on whatever came first, and each redirected gate run on its output file. With them it keys 19, 15 fixed, 4 still failing (tests/plugin/flood.test.tsx).
+- **PowerShell's failure keys** (13.1). The spec named only `VAR=value`. This session's own turn (455 steps, 80 errors, most of them exploratory PowerShell) drew 34 rows under the first spec and keyed 52 failures under this one before these rules: `$t = …` keyed on `$t`, `[IO.File]::…` on whatever came first, and each redirected gate run on its output file. With them it keys 19, 15 fixed, 4 still failing (tests/plugin/flood.test.tsx).
 - **Redirections and folder options are not targets** (13.1): `bun run --cwd tools check *> $env:TEMP\g.txt` failing and `bun run --cwd tools check > "$TEMP/g.txt"` passing are the same step, so the second must fix the first.
 - **A write fixes a failed edit of the same file** (13.1): Claude often follows a refused edit with a write of the whole file, and both leave it changed.
 - **Short results for the edit tools' guards** (13.6): `not read` and `file changed`; any other error longer than 14 cells reads `failed`, as 13.6 says a result is never a sentence.
@@ -3546,12 +3546,12 @@ The receipt's label, the pane head's duration and range, the live line's elapsed
 - **A step line is width-aware.** It fits the text column it is drawn in (86 cells, or 78 narrow), cutting the subject first and the result word never.
 - **The `/copy` phrasing** follows 7.15: `Copied code block 1 · 2 lines · ts`, `There is no code block 3 · the last answer has 2`, `Not copied · <reason>`.
 - **Slash commands draw one row each** (7.15, screen 22). The engine echoes a command above its output (`> /copy`, without arguments) and no site hides the echo, so Cockpit's `/` node was a second copy of it. The output row now carries the clock, `✓` or `×`, the whole command as typed and the words. The engine hands the output row empty arguments and its own `ghostframe:` prefix, so Cockpit keeps each run it answered (cockpit/commands.ts) and draws from that.
-- **`AFTER REWIND` is a label state** (7.1). The ledger has drawn it since v7 when the previous typed prompt's row leaves the conversation; 7.1 did not list it. It is the engine's own record of a rewind, so it stays, and 7.1 now says how it is found.
+- **`AFTER REWIND` is a label state** (7.1). The ledger has drawn it since the first spec when the previous typed prompt's row leaves the conversation; 7.1 did not list it. It is the engine's own record of a rewind, so it stays, and 7.1 now says how it is found.
 - **Agent rows say what is known** (8.9). A starting agent showed an invented `▸ start reading its brief`, a finished one its report's first line (a path, an escape), and the launch's drawer the call's JSON. An agent now shows nothing until its first step, `✓ reported · n steps` once done, and the drawer its description and brief.
-- **`/tui` names worked nodes** (`worked nodes from here`) where v7 said capsules.
+- **`/tui` names worked nodes** (`worked nodes from here`) where the first spec said capsules.
 - **Engine notices are drawn as `●` rows** (7.10) on the left while Cockpit is on; Cockpit's own diagnostics go to the debug log, never the transcript.
 - **Two more refusal names** (13.7): `by the sandbox` and `by a policy`. The engine's `deny` verdicts include the sandbox's and a permission mode's, which 13.7 did not name; each says which, rather than all reading `by the classifier`.
-- **Step marks stay glyphs in the stored step log.** A settled step's `mark` is `✕`, `✓`, `±` or `↗`, as v7 stored it in history and the store budget counts; renaming them would break every kept turn. Code tests a mark by name (`isFailedMark`, `isShipMark`), and only `shared/look/glyphs.ts` draws a glyph.
+- **Step marks stay glyphs in the stored step log.** A settled step's `mark` is `✕`, `✓`, `±` or `↗`, as the first spec stored it in history and the store budget counts; renaming them would break every kept turn. Code tests a mark by name (`isFailedMark`, `isShipMark`), and only `shared/look/glyphs.ts` draws a glyph.
 - **Renderers built and tested but not yet drawn live.** The agent conversation's header and its steps on the spine (7.1, screen 27: `agentHeader`, `stepNodeRow`), the plan card and its PLAN node (7.9, screen 05: `planCard`, `planRow`) and the `✓ CI passed` row (7.10, screen 19: `passedRow`) draw their screens' rows in the screen tests, but no render site calls them yet: the engine's agent view, the plan tools and a CI run's checks each need a site this phase did not wire. Until then those rows are the engine's own.
 - **A subject's paths read as 13.2 shows them** (13.2, 13.4, 13.8). A path argument in a command's subject goes through the one path formatter (`Remove-Item src/width.test.ts`, not `-LiteralPath 'D:\Projects\cockpit-live\src\width.test.ts'`); PowerShell's `-LiteralPath` and `-Path` names before a path and `-Confirm:$false`, which only answers a prompt, are left out. A commit step is named after its commit statement, its message's first line in place of a here-string. A denied step's timeline row is `▍` in err with the result `denied`.
 - **Waiting on agents, by mode** (7.11, 9.2, the owner's decision A). The engine draws no spinner row while only background agents run, so the left has no live line to say it. Docked, the pane head says `Waiting on n agents` and the left stays quiet; with no pane docked, the band above the prompt (`AbovePrompt`) draws `◇◇◇  Waiting on 3 agents`. The `[-]` at the band's right end is the engine's, not Cockpit's: the band's collapse toggle (ctrl+x ctrl+a), drawn in the five cells the engine keeps beside any plugin's band row. It has no meaning in this spec, and no plugin can remove it short of drawing nothing in the band.

@@ -73,12 +73,12 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools typecheck:tools
 
-      - name: Check the Cockpit spec regenerates byte for byte (mockgen)
+      - name: Check the first Cockpit spec regenerates byte for byte (mockgen)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           bun tools/mockgen/gen/build.ts "$RUNNER_TEMP/cockpit-v7.md"
-          cmp docs/design/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
-          sha256sum docs/design/cockpit-v7.md
+          cmp docs/design/history/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
+          sha256sum docs/design/history/cockpit-v7.md
 
       - name: Validate plugin (claude plugin validate)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
