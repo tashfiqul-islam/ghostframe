@@ -27,14 +27,15 @@ bun run.ts 2 7        # the suites that hold steps 2 and 7
 The checks run on Windows (ConPTY) every time. On Linux (WSL, Ubuntu) node-pty installs and Claude Code starts in the
 pseudo-terminal; what differs, and what to do:
 
-| What                                   | On macOS and Linux                                                                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runtime                                | Run it with Node 22.6 or later: `node --experimental-strip-types run.ts`. Under Bun, node-pty delivers no output on Linux, so Claude Code looks as if it exits at once. macOS is untested. |
-| Paths                                  | Set `LIVE_CLAUDE`, `LIVE_SETTINGS`, `LIVE_REPO` and `LIVE_OUT`; the defaults are Windows paths.                                                                                            |
-| The settings file                      | `CLAUDE_CODE_PLUGIN_DIRS` must name the repository's path on that machine.                                                                                                                 |
-| Git identity                           | None needed: the throwaway repo sets its own (`Live checks`, unsigned).                                                                                                                    |
-| The repo's guard hook (steps 4 and 11) | It runs `pwsh`. Install PowerShell 7, or those steps see the hook fail instead of blocking `git push`.                                                                                     |
-| Folder trust                           | Needed once per machine, as above.                                                                                                                                                         |
+| What                                   | On macOS and Linux                                                                                                                                                                                                         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime                                | Run it with Node 22.6 or later: `node --experimental-strip-types run.ts`. Under Bun, node-pty delivers no output on Linux, so Claude Code looks as if it exits at once. macOS is untested.                                 |
+| Paths                                  | Set `LIVE_CLAUDE`, `LIVE_SETTINGS`, `LIVE_REPO` and `LIVE_OUT`; the defaults are Windows paths.                                                                                                                            |
+| The settings file                      | `CLAUDE_CODE_PLUGIN_DIRS` must name the repository's path on that machine.                                                                                                                                                 |
+| Git identity                           | None needed: the throwaway repo sets its own (`Live checks`, unsigned).                                                                                                                                                    |
+| The repo's guard hook (steps 4 and 11) | It runs `pwsh`. Install PowerShell 7, or those steps see the hook fail instead of blocking `git push`.                                                                                                                     |
+| Folder trust                           | Needed once per machine, as above.                                                                                                                                                                                         |
+| Questions                              | The harness answers permission dialogs only. In WSL without `pwsh`, step 1\'s turn stopped on a question card Claude asked (the failing guard hook is the likely cause), so install `pwsh` before the prompt-driven steps. |
 
 ## What it writes
 

@@ -11,11 +11,11 @@ tests the latest release.
 
 ## Systems
 
-| System  | Cockpit                                                        | Status line                       |
-| ------- | -------------------------------------------------------------- | --------------------------------- |
-| Windows | Tested live (Windows Terminal), and in CI                      | Tested live, and in CI            |
-| Linux   | In CI; the live checks ran in WSL (Ubuntu), steps listed below | In CI; the live checks ran in WSL |
-| macOS   | In CI only, untested live                                      | In CI only, untested live         |
+| System  | Cockpit                                                                                                                 | Status line                                   |
+| ------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Windows | Tested live (Windows Terminal), and in CI                                                                               | Tested live, and in CI                        |
+| Linux   | In CI. Live in WSL (Ubuntu): Claude Code starts and Cockpit draws its pane; the scripted turns have not run through yet | In CI. Live in WSL: step 13 passes (44 of 44) |
+| macOS   | In CI only, untested live                                                                                               | In CI only, untested live                     |
 
 "In CI" means the plugin's tests and the status line's specs pass there, with the pinned Claude Code. They check the
 rows ghostframe builds, not how a terminal draws them.
