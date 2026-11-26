@@ -12,3 +12,7 @@ exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen
 "README.md" = ["MD033", "MD041"]
 # A PR body opens with its first section; the PR title is its heading.
 ".github/pull_request_template.md" = ["MD041"]
+
+[MD033]
+# A <picture> switches a diagram between its dark and light versions; nothing else needs HTML.
+allowed-elements = ["picture", "source", "img", "p"]

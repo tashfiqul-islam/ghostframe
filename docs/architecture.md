@@ -6,22 +6,12 @@ build step for the plugin: the engine runs the `.ts` files as they are.
 
 ## Data flow
 
-```mermaid
-flowchart LR
-  subgraph engine["Claude Code (the engine)"]
-    events["events<br/>session, turn, prompt, tool.call, tool.check, agent"]
-    sites["render sites<br/>UserMessage, AssistantMessage, ToolUse, Pane, AbovePrompt, …"]
-  end
-  events --> ledger["transcript/ledger<br/>and cockpit's hooks"]
-  ledger --> store[("state<br/>$.state atoms, $.store history")]
-  sites --> left["cockpit/left<br/>transcript/sites"]
-  sites --> pane["cockpit/pane"]
-  store --> left
-  store --> pane
-  left --> rows["renderers, pure<br/>cockpit/rows, transcript/rows<br/>on shared/look"]
-  pane --> rows
-  rows --> out["rows the engine draws<br/>the left, the pane, the band"]
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/diagrams/architecture-dark.png">
+    <img src="assets/diagrams/architecture-light.png" width="960" alt="How a turn is drawn: Claude Code raises events; ghostframe's ledger records them in turn state; when Claude Code asks a render site to draw, pure renderers return element trees, and Claude Code draws them to your terminal">
+  </picture>
+</p>
 
 1. **Events in.** `hooks/register.tsx` composes the features. The transcript's ledger (`hooks/transcript/ledger/`)
    owns the engine's events: session start and resume, turns, prompts, tool calls and checks. It calls the cockpit's

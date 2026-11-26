@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trust boundaries · ghostframe</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --color-paper: #0b0b0e;
+        --color-ink: #ececf1;
+        --color-muted: #b2b2bc;
+        --color-accent: #fab387;
+        --font-sans: 'Hanken Grotesk', system-ui, sans-serif;
+        --font-serif: 'Instrument Serif', 'Noto Serif', serif;
+        --font-mono: 'Geist Mono', ui-monospace, monospace;
+        color-scheme: dark;
+      }
+      body {
+        font-family: var(--font-sans);
+        background: var(--color-paper);
+        color: var(--color-ink);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 2rem;
+      }
+      .frame {
+        max-width: 1280px;
+        width: 100%;
+      }
+      .diagram-container {
+        width: 100%;
+        overflow-x: auto;
+      }
+      .eyebrow {
+        font-family: var(--font-mono);
+        font-size: 0.66rem;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+        margin-bottom: 0.5rem;
+      }
+      h1 {
+        font-family: var(--font-serif);
+        font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem);
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        color: var(--color-ink);
+        margin-bottom: 1.5rem;
+      }
+      svg {
+        width: 100%;
+        min-width: 1280px;
+        display: block;
+      }
+      @media print {
+        .diagram-container {
+          overflow-x: visible;
+        }
+        svg {
+          min-width: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <p class="eyebrow">Secure paved road · ghostframe</p>
+      <h1>Trust boundaries</h1>
+      <div class="diagram-container">
+        <svg viewBox="0 56 1280 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="trust-boundaries-dark-title trust-boundaries-dark-desc">
+          <title id="trust-boundaries-dark-title">Trust boundaries</title>
+          <desc id="trust-boundaries-dark-desc">
+            Untrusted text reaches ghostframe only through Claude Code; it reads the project, changes settings only through the installer's confirmed diff,
+            never reads credentials and makes no network requests.
+          </desc>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#B2B2BC" /></marker>
+            <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#FAB387" />
+            </marker>
+            <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8FB8DE" /></marker>
+          </defs>
+          <rect x="0" y="56" width="1280" height="600" fill="#0B0B0E" />
+          <rect x="40" y="160" width="176" height="264" rx="8" fill="rgba(236,236,241,0.02)" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <rect x="56" y="164" width="88" height="12" rx="2" fill="#0B0B0E" />
+          <text x="100.0" y="173" fill="#8C8899" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">
+            UNTRUSTED TEXT
+          </text>
+          <rect
+            x="248"
+            y="96"
+            width="992"
+            height="448"
+            rx="8"
+            fill="rgba(250,179,135,0.03)"
+            stroke="rgba(250,179,135,0.5)"
+            stroke-width="1"
+            stroke-dasharray="4,4"
+          />
+          <rect x="264" y="100" width="140" height="12" rx="2" fill="#0B0B0E" />
+          <text x="334.0" y="109" fill="#FAB387" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">
+            YOUR MACHINE · YOUR USER
+          </text>
+          <rect x="280" y="160" width="456" height="264" rx="8" fill="rgba(236,236,241,0.02)" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <rect x="296" y="164" width="116" height="12" rx="2" fill="#0B0B0E" />
+          <text x="354.0" y="173" fill="#8C8899" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.14em">
+            CLAUDE CODE SESSION
+          </text>
+          <path d="M 196,328 H 304" fill="none" stroke="#8FB8DE" stroke-width="1.2" marker-end="url(#arrow-link)" />
+          <path d="M 464,316 H 552" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 552,340 H 464" fill="none" stroke="#FAB387" stroke-width="1.4" marker-end="url(#arrow-accent)" />
+          <path d="M 360,296 V 216 Q 360,208 368,208 H 800" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 800,224 H 424 Q 416,224 416,232 V 296" fill="none" stroke="#B2B2BC" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)" />
+          <path d="M 712,320 H 800" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 712,344 H 752 Q 760,344 760,352 V 440 Q 760,448 768,448 H 800" fill="none" stroke="#B2B2BC" stroke-width="1.2" marker-end="url(#arrow)" />
+          <path d="M 1000,448 H 1056" fill="none" stroke="#FAB387" stroke-width="1.4" marker-end="url(#arrow-accent)" />
+          <path d="M 632,360 V 524" fill="none" stroke="#B2B2BC" stroke-width="1" stroke-dasharray="4,3" />
+          <line x1="624" y1="528" x2="640" y2="528" stroke="rgba(236,236,241,0.55)" stroke-width="2" />
+          <path d="M 1000,208 H 1040" fill="none" stroke="#B2B2BC" stroke-width="1" stroke-dasharray="4,3" />
+          <line x1="1044" y1="200" x2="1044" y2="216" stroke="rgba(236,236,241,0.55)" stroke-width="2" />
+          <rect x="208.0" y="308" width="48" height="12" rx="2" fill="#0B0B0E" />
+          <text x="232" y="317" fill="#8FB8DE" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            AS TEXT
+          </text>
+          <rect x="486.0" y="296" width="44" height="12" rx="2" fill="#0B0B0E" />
+          <text x="508" y="305" fill="#8C8899" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            EVENTS
+          </text>
+          <rect x="468.0" y="348" width="80" height="12" rx="2" fill="#0B0B0E" />
+          <text x="508" y="357" fill="#FAB387" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            ELEMENT TREES
+          </text>
+          <rect x="546.0" y="188" width="68" height="12" rx="2" fill="#0B0B0E" />
+          <text x="580" y="197" fill="#8C8899" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            STATUS JSON
+          </text>
+          <rect x="554.0" y="232" width="52" height="12" rx="2" fill="#0B0B0E" />
+          <text x="580" y="241" fill="#8C8899" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            SGR TEXT
+          </text>
+          <rect x="722.0" y="300" width="68" height="12" rx="2" fill="#0B0B0E" />
+          <text x="756" y="309" fill="#8C8899" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            ARGV · READ
+          </text>
+          <rect x="768" y="380" width="72" height="12" rx="2" fill="#0B0B0E" />
+          <text x="804" y="389" fill="#8C8899" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            ON COMMAND
+          </text>
+          <rect x="1004.0" y="428" width="48" height="12" rx="2" fill="#0B0B0E" />
+          <text x="1028" y="437" fill="#FAB387" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            CONFIRM
+          </text>
+          <rect x="640" y="496" width="76" height="12" rx="2" fill="#0B0B0E" />
+          <text x="678" y="505" fill="#B2B2BC" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            NO NETWORK
+          </text>
+          <rect x="1002.0" y="188" width="36" height="12" rx="2" fill="#0B0B0E" />
+          <text x="1020" y="197" fill="#B2B2BC" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.06em">
+            NEVER
+          </text>
+          <rect x="60" y="296" width="136" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="60" y="296" width="136" height="64" rx="6" fill="rgba(178,178,188,0.1)" stroke="#8C8899" stroke-width="1" />
+          <rect x="68" y="304" width="28" height="12" rx="2" fill="transparent" stroke="#8C8899" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="82.0" y="313" fill="#8C8899" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            EXT
+          </text>
+          <text x="128.0" y="334.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Repos and pages
+          </text>
+          <text x="128.0" y="350.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">names · output</text>
+          <rect x="304" y="296" width="160" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="304" y="296" width="160" height="64" rx="6" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <rect x="312" y="304" width="32" height="12" rx="2" fill="transparent" stroke="#ECECF1" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="328.0" y="313" fill="#ECECF1" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            HOST
+          </text>
+          <text x="384.0" y="334.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Claude Code
+          </text>
+          <text x="384.0" y="350.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">plugin API</text>
+          <rect x="552" y="296" width="160" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="552" y="296" width="160" height="64" rx="6" fill="rgba(250,179,135,0.1)" stroke="#FAB387" stroke-width="1" />
+          <rect x="560" y="304" width="32" height="12" rx="2" fill="transparent" stroke="#FAB387" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="576.0" y="313" fill="#FAB387" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            HOOK
+          </text>
+          <text x="632.0" y="334.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            ghostframe hooks
+          </text>
+          <text x="632.0" y="350.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">
+            hooks/register.tsx
+          </text>
+          <rect x="800" y="176" width="200" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="800" y="176" width="200" height="64" rx="6" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <rect x="808" y="184" width="32" height="12" rx="2" fill="transparent" stroke="#ECECF1" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="824.0" y="193" fill="#ECECF1" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            PROC
+          </text>
+          <text x="900.0" y="214.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Status line
+          </text>
+          <text x="900.0" y="230.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">
+            git · caches in TMPDIR
+          </text>
+          <rect x="800" y="296" width="200" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="800" y="296" width="200" height="64" rx="6" fill="rgba(236,236,241,0.05)" stroke="#B2B2BC" stroke-width="1" />
+          <rect x="808" y="304" width="32" height="12" rx="2" fill="transparent" stroke="#B2B2BC" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="824.0" y="313" fill="#B2B2BC" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            READ
+          </text>
+          <text x="900.0" y="334.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Project and git
+          </text>
+          <text x="900.0" y="350.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">
+            argv, never a shell
+          </text>
+          <rect x="800" y="416" width="200" height="64" rx="6" fill="#0B0B0E" />
+          <rect
+            x="800"
+            y="416"
+            width="200"
+            height="64"
+            rx="6"
+            fill="rgba(250,179,135,0.05)"
+            stroke="rgba(250,179,135,0.5)"
+            stroke-width="1"
+            stroke-dasharray="4,4"
+          />
+          <rect x="808" y="424" width="32" height="12" rx="2" fill="transparent" stroke="#FAB387" stroke-opacity="0.5" stroke-width="0.8" />
+          <text x="824.0" y="433" fill="#FAB387" font-size="7" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle" letter-spacing="0.08em">
+            GATE
+          </text>
+          <text x="900.0" y="454.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Installer
+          </text>
+          <text x="900.0" y="470.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">
+            diff · confirm · backup
+          </text>
+          <rect x="1056" y="416" width="160" height="64" rx="6" fill="#0B0B0E" />
+          <rect x="1056" y="416" width="160" height="64" rx="6" fill="rgba(236,236,241,0.05)" stroke="#B2B2BC" stroke-width="1" />
+          <rect x="1064" y="424" width="32" height="12" rx="2" fill="transparent" stroke="#B2B2BC" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="1080.0"
+            y="433"
+            fill="#B2B2BC"
+            font-size="7"
+            font-family="'Geist Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            FILE
+          </text>
+          <text x="1136.0" y="454.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            settings.json
+          </text>
+          <text x="1136.0" y="470.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">
+            statusLine only
+          </text>
+          <rect x="1056" y="176" width="160" height="64" rx="6" fill="#0B0B0E" />
+          <rect
+            x="1056"
+            y="176"
+            width="160"
+            height="64"
+            rx="6"
+            fill="rgba(236,236,241,0.02)"
+            stroke="rgba(236,236,241,0.2)"
+            stroke-width="1"
+            stroke-dasharray="4,3"
+          />
+          <rect x="1064" y="184" width="32" height="12" rx="2" fill="transparent" stroke="#8C8899" stroke-opacity="0.5" stroke-width="0.8" />
+          <text
+            x="1080.0"
+            y="193"
+            fill="#8C8899"
+            font-size="7"
+            font-family="'Geist Mono', ui-monospace, monospace"
+            text-anchor="middle"
+            letter-spacing="0.08em"
+          >
+            KEYS
+          </text>
+          <text x="1136.0" y="214.0" fill="#ECECF1" font-size="12" font-weight="600" font-family="'Hanken Grotesk', system-ui, sans-serif" text-anchor="middle">
+            Credentials
+          </text>
+          <text x="1136.0" y="230.0" fill="#B2B2BC" font-size="9" font-family="'Geist Mono', ui-monospace, monospace" text-anchor="middle">never read</text>
+          <text x="1216" y="276" fill="#ECECF1" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif" text-anchor="end">
+            shared /tmp: caches can be planted (T7)
+          </text>
+          <path d="M 1000,264 Q 964,262 948,244" fill="none" stroke="rgba(236,236,241,0.4)" stroke-width="1" stroke-dasharray="4,3" />
+          <circle cx="948" cy="244" r="2" fill="#ECECF1" />
+          <text x="1216" y="516" fill="#FAB387" font-size="14" font-style="italic" font-family="'Instrument Serif', 'Noto Serif', serif" text-anchor="end">
+            nothing ghostframe runs crosses this line
+          </text>
+          <path d="M 1100,522 Q 1080,536 1072,544" fill="none" stroke="rgba(250,179,135,0.5)" stroke-width="1" stroke-dasharray="4,3" />
+          <circle cx="1072" cy="544" r="2" fill="#FAB387" />
+          <line x1="40" y1="576" x2="1240" y2="576" stroke="rgba(236,236,241,0.1)" stroke-width="0.8" />
+          <text x="40" y="592" fill="#B2B2BC" font-size="8" font-family="'Geist Mono', ui-monospace, monospace" letter-spacing="0.18em">LEGEND</text>
+          <rect x="40" y="608" width="14" height="10" rx="2" fill="rgba(250,179,135,0.1)" stroke="#FAB387" stroke-width="1" />
+          <text x="60" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">ghostframe</text>
+          <rect x="134.75" y="608" width="14" height="10" rx="2" fill="#14141B" stroke="#ECECF1" stroke-width="1" />
+          <text x="154.75" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Process</text>
+          <rect x="215.475" y="608" width="14" height="10" rx="2" fill="rgba(236,236,241,0.05)" stroke="#B2B2BC" stroke-width="1" />
+          <text x="235.475" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Data</text>
+          <rect
+            x="282.175"
+            y="608"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(250,179,135,0.05)"
+            stroke="rgba(250,179,135,0.5)"
+            stroke-width="1"
+            stroke-dasharray="3,2"
+          />
+          <text x="302.175" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Privileged gate</text>
+          <rect
+            x="400.3"
+            y="608"
+            width="14"
+            height="10"
+            rx="2"
+            fill="rgba(236,236,241,0.02)"
+            stroke="rgba(236,236,241,0.2)"
+            stroke-width="1"
+            stroke-dasharray="3,2"
+          />
+          <text x="420.3" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Never touched</text>
+          <line x1="509.07500000000005" y1="614" x2="537.075" y2="614" stroke="#8FB8DE" stroke-width="1.2" marker-end="url(#arrow-link)" />
+          <text x="545.075" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Untrusted in</text>
+          <line x1="629.1750000000001" y1="614" x2="657.1750000000001" y2="614" stroke="#FAB387" stroke-width="1.2" marker-end="url(#arrow-accent)" />
+          <text x="665.1750000000001" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Drawn or written</text>
+          <line x1="767.9750000000001" y1="614" x2="791.9750000000001" y2="614" stroke="#B2B2BC" stroke-width="1" stroke-dasharray="4,3" />
+          <line x1="793.9750000000001" y1="608" x2="793.9750000000001" y2="620" stroke="rgba(236,236,241,0.55)" stroke-width="2" />
+          <text x="803.9750000000001" y="616" fill="#B2B2BC" font-size="8.5" font-family="'Hanken Grotesk', system-ui, sans-serif">Blocked</text>
+        </svg>
+      </div>
+    </div>
+  </body>
+</html>

@@ -69,22 +69,12 @@ ghostframe has no server, no background service and no network code. It never wr
 session: Cockpit returns element trees and Claude Code draws them. Only the status line writes terminal text, through
 one function (`statusline/ansi.ts`).
 
-```mermaid
-flowchart LR
-  subgraph you["Your machine, your user"]
-    cc["Claude Code session"] -->|events, render sites| hooks["ghostframe hooks module"]
-    hooks -->|element trees| cc
-    hooks -->|git, argv only| git["git"]
-    hooks -->|reads| project["Project files"]
-    cc -->|status JSON on stdin| sl["Status line process"]
-    sl -->|git, argv only| git
-    sl -->|caches| tmp[("System temp folder")]
-    sl -->|SGR text| cc
-    inst["Installer, on request"] -->|diff, confirm, backup| settings[("Claude Code settings.json")]
-  end
-  repo["A repository you open"] -.->|file names, branches, output| cc
-  web["Pages Claude fetches"] -.->|titles| cc
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/trust-boundaries-dark.png">
+    <img src="docs/assets/diagrams/trust-boundaries-light.png" width="960" alt="Trust boundaries: text from repositories and pages reaches ghostframe only through Claude Code; ghostframe reads the project with argument lists, changes settings.json only through the installer's confirmed diff, never reads credentials and makes no network requests">
+  </picture>
+</p>
 
 ### What it protects
 

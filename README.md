@@ -166,28 +166,12 @@ ghostframe is a hooks module that Claude Code loads into your session. It listen
 each turn did, and draws through the engine's own render sites, so it never writes to your terminal behind Claude
 Code's back.
 
-```text
-+------------------------- [ A TURN ] -------------------------+
-|                                                              |
-| repeat: 2-4 per event                                        |
-|                                                              |
-| 1  You send a prompt                                         |
-|    the left opens the turn: its header, your message         |
-| │                                                            |
-| 2  Claude Code raises an event                               |
-|    a tool call, a check, an agent starting or reporting      |
-| │                                                            |
-| 3  ghostframe records it                                     |
-|    the step log, files, sources, to-do, agents, history      |
-| │                                                            |
-| 4  Pure renderers draw the rows                              |
-|    the left, the pane, the band above the prompt             |
-| │                                                            |
-| 5  The turn ends                                             |
-|    a receipt on the left, DONE in the pane                   |
-|                                                              |
-+--------------------------------------------------------------+
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/diagrams/architecture-dark.png">
+    <img src="docs/assets/diagrams/architecture-light.png" width="960" alt="How a turn is drawn: Claude Code raises events; ghostframe's ledger records them in turn state; when Claude Code asks a render site to draw, pure renderers return element trees, and Claude Code draws them to your terminal">
+  </picture>
+</p>
 
 Outside the Claude Code versions it is tested with, ghostframe goes dormant and hands every row back to Claude Code.
 [Architecture →](docs/architecture.md) · [Decisions →](docs/decisions/README.md)
