@@ -15,6 +15,14 @@
     "docs/design/history/cockpit-v7.md",
     "docs/design/statusline-preview.ts",
     "tools/mockgen/tpl/**",
-    "tests/support/screens.ts"
+    "tests/support/screens.ts",
+    "CHANGELOG.md",
+    ".release-please-manifest.json"
+  ],
+  "overrides": [
+    {
+      "files": [".claude-plugin/plugin.json"],
+      "options": { "printWidth": 1 }
+    }
   ]
 }

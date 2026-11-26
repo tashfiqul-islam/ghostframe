@@ -16,6 +16,11 @@ The version lives in one place, `.claude-plugin/plugin.json`. The Cockpit pane r
 Code reads it to decide whether an installed copy is out of date. The marketplace entry has no `version` on purpose:
 when both set one, `plugin.json` wins and `claude plugin validate` warns.
 
+release-please writes `plugin.json` back as `JSON.stringify` with two-space indent, one array item per line, and has
+no setting to change that. So `.oxfmtrc.json` formats that file with `printWidth: 1`, which gives the same layout,
+and a version bump never fails `fmt:check`. `CHANGELOG.md` and `.release-please-manifest.json` are generated whole,
+so oxfmt ignores them.
+
 ## What goes in the changelog
 
 | Commit type                 | Section     |

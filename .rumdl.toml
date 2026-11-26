@@ -5,7 +5,8 @@ flavor = "gfm"
 # A code span may hold a glyph and the space after it (`├ `), as the Cockpit spec writes them.
 disable = ["MD013", "MD038"]
 # Kept as written: earlier design rounds and briefs, past plans, the generator's templates and the brand kit.
-exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen/tpl/**", "docs/design/brand/**"]
+# CHANGELOG.md is release-please's output, written whole on every release (two blank lines before each section).
+exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen/tpl/**", "docs/design/brand/**", "CHANGELOG.md"]
 
 [per-file-ignores]
 # The README opens with the brand header: a <picture> for the dark and light variants, before any heading.
