@@ -82,3 +82,18 @@ It walks you through these steps and does the `gh` parts itself:
 To do it by hand instead, follow the same steps and, for 5 and 6, use **Settings → Environments → New environment**
 (`release`, **Deployment branches and tags** → **Selected branches and tags** → `main`) and add the two values as
 environment secrets there.
+
+## Repository rulesets
+
+`.github/rulesets/` holds the two rulesets as they should be on GitHub, so a change to them is reviewed like code:
+
+- `main.json`: the default branch takes squash merges through a PR only, signed and linear, with the gate, the PR title
+  check, dependency review and Tests on all three systems required;
+- `tags.json`: release tags, `v*` and `ghostframe--v*`, can be neither moved nor deleted.
+
+An admin applies them with the GitHub CLI:
+
+```sh
+gh api --method PUT repos/tashfiqul-islam/ghostframe/rulesets/27507868 --input .github/rulesets/main.json
+gh api --method PUT repos/tashfiqul-islam/ghostframe/rulesets/27507872 --input .github/rulesets/tags.json
+```
