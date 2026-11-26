@@ -1,6 +1,7 @@
 // The renderer's layout rules (docs/design/statusline.md): widths, fixed columns, meters, thresholds, the mark, icons
 // off, unknown values, and its speed.
 import { describe, expect, test } from 'bun:test'
+import { join } from 'node:path'
 
 import { STATUS, TOKEN } from '../hooks/shared/look/palette.ts'
 import { widthOf } from './io.ts'
@@ -261,13 +262,34 @@ describe('states and notes', () => {
 })
 
 describe('speed', () => {
-  test('1,000 renders stay far inside the 60 ms per render budget', () => {
+  test('the renderer itself: 1,000 renders at under 2 ms each', () => {
     const t0 = performance.now()
 
     for (let i = 0; i < 1000; i++) render(i % 2 === 0 ? NORMAL : PRESSURE, 90 + (i % 121), ON)
-    const perRender = (performance.now() - t0) / 1000
 
-    // The process start (Git Bash ~19 ms, Bun ~17 ms) and a git miss (~23 ms) take the rest of the budget.
-    expect(perRender).toBeLessThan(2)
+    expect((performance.now() - t0) / 1000).toBeLessThan(2)
+  })
+
+  // The warm path only: back to back, git cached. After an idle gap Bun's own start is ~103 ms on Windows
+  // (docs/design/statusline.md, "Measured"), which no ceiling here could hold.
+  test('a whole run of main.ts, warm and git cached, takes under 100 ms (median of 5)', () => {
+    const main = join(import.meta.dir, 'main.ts')
+    const stdin = Buffer.from(JSON.stringify({ workspace: { current_dir: join(import.meta.dir, '..') }, context_window: { used_percentage: 41 } }))
+    const env = { ...process.env, COLUMNS: '204', GF_FIXTURE: undefined, GF_DEBUG: undefined }
+    const run = (): number => {
+      const t0 = performance.now()
+      const r = Bun.spawnSync([process.execPath, main], { stdin, env })
+
+      expect(r.exitCode).toBe(0)
+      expect(r.stdout.toString()).toContain('CONTEXT')
+
+      return performance.now() - t0
+    }
+
+    run()
+    run()
+    const times = Array.from({ length: 5 }, run).toSorted((a, b) => a - b)
+
+    expect(times[2] ?? Number.POSITIVE_INFINITY).toBeLessThan(100)
   })
 })

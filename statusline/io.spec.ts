@@ -90,6 +90,8 @@ describe('colour depth', () => {
     expect(depthOf({ TERM_PROGRAM: 'iTerm.app' })).toBe('truecolor')
     expect(depthOf({ TERM: 'xterm-256color' })).toBe('256')
     expect(depthOf({})).toBe('256')
+    // Never none: there is no plain-text depth. NO_COLOR is Claude Code's to honour, before it runs the command.
+    expect(depthOf({ NO_COLOR: '1', TERM: 'dumb' })).toBe('256')
   })
 
   test('no COLORTERM, no WT_SESSION, TERM=xterm-256color: 256-colour escapes, never plain text', () => {
