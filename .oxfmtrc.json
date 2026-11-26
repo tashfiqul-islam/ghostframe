@@ -8,6 +8,7 @@
   "endOfLine": "lf",
   "ignorePatterns": [
     ".claude-plugin/types/**",
+    "docs/design/brand/**",
     "tools/node_modules/**",
     "tools/bun.lock",
     "docs/design/cockpit-v7.md",
