@@ -245,14 +245,14 @@ doesn't run there.
 
 ## `07` Docs
 
-| Use it                                          | Understand it                                       | Work on it                                            |
-| ----------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
-| [Install](docs/guide/install.md)                | [Architecture](docs/architecture.md)                | [Contributing](CONTRIBUTING.md)                       |
-| [Usage](docs/guide/usage.md)                    | [Decisions](docs/decisions/README.md)               | [Testing](docs/development/testing.md)                |
-| [Keys](docs/guide/keys.md)                      | [Cockpit spec](docs/design/cockpit.md)              | [Live checks](docs/development/live-checks.md)        |
-| [Configuration](docs/guide/configuration.md)    | [Status line spec](docs/design/statusline.md)       | [Releasing](docs/development/releasing.md)            |
-| [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                             | [Brand kit](docs/design/brand/README.md)              |
-| [Compatibility](docs/guide/compatibility.md)    |                                                     | [All docs](docs/README.md)                            |
+| Use it                                           | Understand it                                 | Work on it                                     |
+| ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
+| [Install](docs/guide/install.md)                 | [Architecture](docs/architecture.md)          | [Contributing](CONTRIBUTING.md)                |
+| [Usage](docs/guide/usage.md)                     | [Decisions](docs/decisions/README.md)         | [Testing](docs/development/testing.md)         |
+| [Keys](docs/guide/keys.md)                       | [Cockpit spec](docs/design/cockpit.md)        | [Live checks](docs/development/live-checks.md) |
+| [Configuration](docs/guide/configuration.md)     | [Status line spec](docs/design/statusline.md) | [Releasing](docs/development/releasing.md)     |
+| [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                       | [Brand kit](docs/design/brand/README.md)       |
+| [Compatibility](docs/guide/compatibility.md)     |                                               | [All docs](docs/README.md)                     |
 
 ## `08` Contributing
 
