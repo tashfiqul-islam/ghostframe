@@ -52,6 +52,19 @@ export function xterm256(hex: string): number {
 const color = (hex: string, layer: 38 | 48, depth: Depth): string =>
   depth === 'truecolor' ? `\x1b[${layer};2;${rgb(hex).join(';')}m` : `\x1b[${layer};5;${xterm256(hex)}m`
 
+// C0 and C1 controls, DEL included: text from outside (a folder's name, the JSON) never reaches the terminal as an
+// escape. Claude Code keeps SGR colour and OSC 8 links from a status line, so one hidden in a name could recolour the
+// row or plant a link. Only the escapes this module writes go out.
+// oxlint-disable-next-line no-control-regex -- the controls are what this removes
+const CONTROLS = /[\x00-\x1f\x7f-\x9f]/g
+
+/**
+ * A segment's text with every control character removed.
+ * @param text the text to draw
+ * @returns the text, printable characters only
+ */
+const printable = (text: string): string => text.replaceAll(CONTROLS, '')
+
 /**
  * One row as terminal text: each segment resets, then sets its bold, foreground and background. At depth `none`, the
  * segments' text alone, the same glyphs in the same cells.
@@ -61,10 +74,10 @@ const color = (hex: string, layer: 38 | 48, depth: Depth): string =>
  */
 export const ansi = (segs: readonly Seg[], depth: Depth): string =>
   depth === 'none'
-    ? segs.map(x => x.t).join('')
+    ? segs.map(x => printable(x.t)).join('')
     : segs
         .map(
           x =>
-            `\x1b[0m${x.b === true ? '\x1b[1m' : ''}${x.fg !== undefined ? color(x.fg, 38, depth) : ''}${x.bg !== undefined ? color(x.bg, 48, depth) : ''}${x.t}`
+            `\x1b[0m${x.b === true ? '\x1b[1m' : ''}${x.fg !== undefined ? color(x.fg, 38, depth) : ''}${x.bg !== undefined ? color(x.bg, 48, depth) : ''}${printable(x.t)}`
         )
         .join('') + '\x1b[0m'

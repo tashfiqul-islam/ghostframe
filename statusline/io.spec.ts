@@ -121,6 +121,21 @@ describe('colour depth', () => {
     }
   })
 
+  test('text from outside (a folder name, say) carries no control characters to the terminal, only the row’s own SGR', () => {
+    // A folder name may hold ESC and BEL on Linux and macOS: here an OSC 8 link and a cursor move hidden in a repo name.
+    const evil = 'repo\x1b]8;;https://evil.example\x07click\x1b]8;;\x07\x1b[2Jend\x9b'
+
+    for (const depth of ['truecolor', '256', 'none'] as const) {
+      // oxlint-disable-next-line no-control-regex -- the row's own SGR escapes are what may stay
+      const rest = ansi([{ t: evil, fg: '#ECECF1' }], depth).replaceAll(/\x1b\[[\d;]*m/g, '')
+
+      // oxlint-disable-next-line no-control-regex -- C0 and C1 controls are what must be gone
+      expect(/[\x00-\x1f\x7f-\x9f]/.test(rest)).toBe(false)
+      expect(rest).toContain('repo')
+      expect(rest).toContain('end')
+    }
+  })
+
   test('plain text keeps every row’s width and glyphs: only the escapes go', () => {
     // oxlint-disable-next-line no-control-regex -- the SGR escape is what this strips
     const strip = (s: string): string => s.replaceAll(/\x1b\[[\d;]*m/g, '')
