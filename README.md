@@ -49,7 +49,7 @@ The spec says exactly how each part looks and behaves: [docs/design/cockpit.md](
 - **Context**, and the **5-hour and weekly budgets**, each with its pace and the time it resets.
 - **The ghost:** its eyes are green under 60% of your highest budget, amber from 60% and red from 85%.
 
-![The status line at 200 columns](docs/design/statusline/session-200-normal.png)
+![The status line at 200 columns: the ghost, the model and effort, the repository and branch, the changes, and the context, 5-hour and weekly budgets](docs/assets/readme-statusline.png)
 
 Its design and how it is built: [docs/design/statusline.md](docs/design/statusline.md).
 
