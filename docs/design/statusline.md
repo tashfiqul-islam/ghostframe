@@ -120,7 +120,7 @@ The gutters drop to 2 cells, the rules go, and the effort word goes. The changes
 CTX, 5H and WK. The reset shows only when its budget is red. Below 90 cells, one plain line:
 `Opus 5.5 · ghostframe main ● · ctx 41% · 5h 34% · wk 8%`.
 
-![The comparison sheet at 100 columns in Windows Terminal](statusline/sheet-100.png)
+![The comparison sheet at 100 columns: the reference renderer and the renderer, with and without the slab, normal and under pressure, from sample data](statusline/sheet-100.png)
 
 ![The status line at 100 columns, under pressure, in a real session](statusline/session-100-pressure.png)
 

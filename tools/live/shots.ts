@@ -15,7 +15,10 @@ import { markRow } from './statusline.ts'
 import type { Suite } from './steps.ts'
 
 const ROOT = join(import.meta.dirname, '..', '..').replaceAll('\\', '/')
-const PROMPT = 'the width tests fail: run them, read src/width.ts and its test, fix it, run the tests again, show the diff, then commit'
+// The left's text column is 86 cells at any width (spec 6.1), so the diff card shows about 70 characters of a line:
+// the fix is asked to keep its lines short, so the README's diff is drawn whole rather than cut at the card's edge.
+const PROMPT =
+  'the width tests fail: run them, read src/width.ts and its test, fix it keeping every line under 60 characters, run the tests again, show the diff, then commit'
 
 /**
  * The suite's settings: the base live settings with this worktree as the plugin, Cockpit left to its default, and the
