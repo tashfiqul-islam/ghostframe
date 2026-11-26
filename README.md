@@ -14,18 +14,18 @@
 
 <p align="center">
   <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/tashfiqul-islam/ghostframe/ci.yml?branch=main&label=ci&style=flat-square&labelColor=0B0B0E"></a>
-  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/tashfiqul-islam/ghostframe?label=release&color=FAB387&style=flat-square&labelColor=0B0B0E"></a>
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/tashfiqul-islam/ghostframe?color=7EC8BE&style=flat-square&labelColor=0B0B0E"></a>
+  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><img alt="Version" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Ftashfiqul-islam%2Fghostframe%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&prefix=v&label=version&color=FAB387&style=flat-square&labelColor=0B0B0E"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-7EC8BE?style=flat-square&labelColor=0B0B0E"></a>
   <a href="docs/guide/compatibility.md"><img alt="Claude Code 2.1.329 to 2.1.x" src="https://img.shields.io/badge/claude%20code-2.1.329%20%E2%80%93%202.1.x-D97757?style=flat-square&labelColor=0B0B0E"></a>
   <a href="docs/guide/compatibility.md"><img alt="Windows, Linux and macOS" src="https://img.shields.io/badge/platforms-windows%20%C2%B7%20linux%20%C2%B7%20macos-8C8899?style=flat-square&labelColor=0B0B0E"></a>
 </p>
 
 <p align="center">
-  <a href="#install"><b>Install</b></a> &nbsp;·&nbsp;
-  <a href="#features"><b>Features</b></a> &nbsp;·&nbsp;
-  <a href="#keys"><b>Keys</b></a> &nbsp;·&nbsp;
-  <a href="docs/README.md"><b>Docs</b></a> &nbsp;·&nbsp;
-  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><b>Changelog</b></a>
+  <a href="#02-install"><code>[ install ]</code></a>&nbsp;
+  <a href="#01-features"><code>[ features ]</code></a>&nbsp;
+  <a href="#03-keys"><code>[ keys ]</code></a>&nbsp;
+  <a href="docs/README.md"><code>[ docs ]</code></a>&nbsp;
+  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><code>[ changelog ]</code></a>
 </p>
 
 <p align="center">
@@ -41,7 +41,21 @@ It changes how your session looks, never what Claude does.
 > **Private by design.** ghostframe runs inside your own Claude Code session. It makes no network requests and never
 > reads, stores or sends your credentials. The [security policy](SECURITY.md) has the threat model.
 
-## Features
+```text
++-------------------------- [ SPEC ] --------------------------+
+|                                                              |
+| plugin       a Claude Code hooks module, nothing to install  |
+| cockpit      the conversation left, the turn's work right    |
+| status line  model, repo, context, 5-hour and weekly budgets |
+| network      none: no requests, no telemetry, no credentials |
+| engine       Claude Code >=2.1.329 <2.2.0, dormant outside   |
+| systems      Windows, Linux, macOS                           |
+| license      MIT                                             |
+|                                                              |
++--------------------------------------------------------------+
+```
+
+## `01` Features
 
 <table>
 <tr>
@@ -87,7 +101,7 @@ that left the machine, and a receipt with how long the turn took and whether it 
 fallback without the pane. The pane follows Claude's agents into their own work, steps back through earlier turns, and
 knows when you rewind. [The spec →](docs/design/cockpit.md)
 
-## Install
+## `02` Install
 
 In a Claude Code session:
 
@@ -127,7 +141,7 @@ The [install guide](docs/guide/install.md) has every step.
 | Font        | A [Nerd Font](https://www.nerdfonts.com/) for the status line's icons, or turn **Status line icons** off. |
 | Bun         | [Bun](https://bun.sh), for the status line only.                                                          |
 
-## Keys
+## `03` Keys
 
 Cockpit's keys work only while the pane has the keyboard, so they never take one from your prompt.
 
@@ -146,7 +160,7 @@ Cockpit's keys work only while the pane has the keyboard, so they never take one
 
 `/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it. [Every key →](docs/guide/keys.md)
 
-## How it works
+## `04` How it works
 
 ghostframe is a hooks module that Claude Code loads into your session. It listens to the engine's events, keeps what
 each turn did, and draws through the engine's own render sites, so it never writes to your terminal behind Claude
@@ -178,7 +192,7 @@ Code's back.
 Outside the Claude Code versions it is tested with, ghostframe goes dormant and hands every row back to Claude Code.
 [Architecture →](docs/architecture.md) · [Decisions →](docs/decisions/README.md)
 
-## Where it runs
+## `05` Where it runs
 
 ```text
 +--------------------- [ WHERE IT RUNS ] ----------------------+
@@ -203,50 +217,44 @@ run the real `claude` binary. Other agent tools, such as OpenCode or Codex, don'
 doesn't run there.
 [Compatibility →](docs/guide/compatibility.md)
 
-## FAQ
+## `06` FAQ
 
-<details>
-<summary><b>Does ghostframe change what Claude does?</b></summary>
+```text
++-------------------------- [ FAQ ] ---------------------------+
+|                                                              |
+| ?  Does it change what Claude does?                          |
+|    No. Prompts, tools, permissions and answers stay          |
+|    Claude Code's. ghostframe changes how they are drawn.     |
+|                                                              |
+| ?  How do I turn Cockpit off?                                |
+|    Cockpit pane off in /config, or one session with          |
+|    GHOSTFRAME_COCKPIT=0.                                     |
+|                                                              |
+| ?  The status line shows empty boxes.                        |
+|    Its icons need a Nerd Font. Set one in your terminal,     |
+|    or turn Status line icons off; the layout stays.          |
+|                                                              |
+| ?  Can I keep my own status line?                            |
+|    Yes. It is opt-in, and uninstall puts yours back.         |
+|                                                              |
++--------------------------------------------------------------+
+```
 
-No. It changes how your session is drawn. Prompts, tools, permissions and answers are all Claude Code's.
+[Configuration →](docs/guide/configuration.md) · [Troubleshooting →](docs/guide/troubleshooting.md) ·
+[Nerd Fonts →](https://www.nerdfonts.com/)
 
-</details>
+## `07` Docs
 
-<details>
-<summary><b>How do I turn Cockpit off?</b></summary>
+| Use it                                          | Understand it                                       | Work on it                                            |
+| ----------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| [Install](docs/guide/install.md)                | [Architecture](docs/architecture.md)                | [Contributing](CONTRIBUTING.md)                       |
+| [Usage](docs/guide/usage.md)                    | [Decisions](docs/decisions/README.md)               | [Testing](docs/development/testing.md)                |
+| [Keys](docs/guide/keys.md)                      | [Cockpit spec](docs/design/cockpit.md)              | [Live checks](docs/development/live-checks.md)        |
+| [Configuration](docs/guide/configuration.md)    | [Status line spec](docs/design/statusline.md)       | [Releasing](docs/development/releasing.md)            |
+| [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                             | [Brand kit](docs/design/brand/README.md)              |
+| [Compatibility](docs/guide/compatibility.md)    |                                                     | [All docs](docs/README.md)                            |
 
-Set **Cockpit pane** to off in `/config`, or start one session with `GHOSTFRAME_COCKPIT=0`.
-[Configuration →](docs/guide/configuration.md)
-
-</details>
-
-<details>
-<summary><b>The status line shows empty boxes.</b></summary>
-
-Its icons need a [Nerd Font](https://www.nerdfonts.com/). Set one in your terminal, or turn **Status line icons** off
-in `/config`; the layout stays the same. [Troubleshooting →](docs/guide/troubleshooting.md)
-
-</details>
-
-<details>
-<summary><b>Can I keep my own status line?</b></summary>
-
-Yes. ghostframe's status line is opt-in, and `/ghostframe-statusline uninstall` puts back the one you had.
-
-</details>
-
-## Docs
-
-| Use it                                           | Understand it                                 | Work on it                                     |
-| ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
-| [Install](docs/guide/install.md)                 | [Architecture](docs/architecture.md)          | [Contributing](CONTRIBUTING.md)                |
-| [Usage](docs/guide/usage.md)                     | [Decisions](docs/decisions/README.md)         | [Testing](docs/development/testing.md)         |
-| [Keys](docs/guide/keys.md)                       | [Cockpit spec](docs/design/cockpit.md)        | [Live checks](docs/development/live-checks.md) |
-| [Configuration](docs/guide/configuration.md)     | [Status line spec](docs/design/statusline.md) | [Releasing](docs/development/releasing.md)     |
-| [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                       | [Brand kit](docs/design/brand/README.md)       |
-| [Compatibility](docs/guide/compatibility.md)     |                                               | [All docs](docs/README.md)                     |
-
-## Contributing
+## `08` Contributing
 
 Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the checks and how a change
 ships; everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -260,6 +268,8 @@ mise run check                    # types, lint, format, tests, workflows, docs
 
 <p align="center">
   <img src="docs/design/brand/ghostframe-mark-small-amber.svg" width="44" alt="">
+  <br>
+  <sub><code>ghostframe</code> haunts your terminal, never your code.</sub>
   <br>
   <sub><a href="LICENSE">MIT</a> · Made for Claude Code. Not affiliated with or endorsed by Anthropic.</sub>
 </p>
