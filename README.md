@@ -82,7 +82,8 @@ Claude Code reads its status line only from settings, so the status line has its
 
 It shows the change to your user `settings.json`, asks before writing, builds the status line with Bun and keeps a
 backup. `/ghostframe-statusline uninstall` restores the status line you had before, and
-`/ghostframe-statusline status` says what is installed.
+`/ghostframe-statusline status` says what is installed. [The install guide](docs/guide/install.md) covers updates and
+uninstalling.
 
 ### Requirements
 
@@ -107,7 +108,7 @@ The pane takes the keyboard only when you give it. These five keys cover the fir
 | `p` / `n`           | Shows the previous or next turn. `l` goes back to the live one.            |
 | `ctrl+o`            | Claude Code's full record of the turn, every step with its details.        |
 
-`/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it.
+`/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it. [Keys](docs/guide/keys.md) lists them all.
 
 ## Compatibility
 
@@ -132,16 +133,20 @@ flowchart LR
   json["Claude Code's status line JSON"] --> statusline["statusline/main.ts<br/>Bun"]
 ```
 
-The status line is a separate program: Claude Code runs it with the session's state as JSON on its input. The module
-layout and its rules are in [hooks/README.md](hooks/README.md).
+The status line is a separate program: Claude Code runs it with the session's state as JSON on its input.
+[docs/architecture.md](docs/architecture.md) has the details, and [hooks/README.md](hooks/README.md) the module
+layout and its rules.
 
 ## Docs
 
-- [Cockpit spec](docs/design/cockpit.md) and its [design history](docs/design/history/)
-- [Status line spec](docs/design/statusline.md)
-- [Brand kit](docs/design/brand/README.md)
-- [Releasing](docs/development/releasing.md)
-- [The live checks](tools/live/README.md) and [the tests](tests/README.md)
+The [docs index](docs/README.md) lists everything. The most used:
+
+- Guide: [install](docs/guide/install.md), [usage](docs/guide/usage.md), [keys](docs/guide/keys.md),
+  [configuration](docs/guide/configuration.md), [troubleshooting](docs/guide/troubleshooting.md)
+- [Architecture](docs/architecture.md) and the [decisions](docs/decisions/README.md) behind it
+- Specs: [Cockpit](docs/design/cockpit.md) and the [status line](docs/design/statusline.md)
+- Development: [testing](docs/development/testing.md), [the live checks](docs/development/live-checks.md),
+  [releasing](docs/development/releasing.md)
 
 ## Development
 
