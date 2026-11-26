@@ -8,6 +8,7 @@ actionlint = "1.7.12" # workflow syntax, expressions, shellcheck
 zizmor = "1.32.0" # workflow security audit
 shellcheck = "0.11.0" # shell scripts
 lychee = "0.24.2" # Markdown link and anchor check
+rumdl = "0.3.4" # Markdown lint (markdownlint's rules)
 
 [tasks.setup]
 description = "Install dev tools and git hooks"
@@ -23,8 +24,8 @@ run = ["actionlint", "zizmor --offline .github"]
 
 [tasks.lint-docs]
 shell = "bash -c"
-description = "Check every relative link and #anchor in the Markdown docs (offline, deterministic)"
-run = "files=$(git ls-files '*.md'); [ -z \"$files\" ] || lychee --offline --include-fragments --no-progress $files"
+description = "Lint the Markdown (rumdl, .rumdl.toml) and check every relative link and #anchor in it (offline, deterministic)"
+run = "rumdl check . && files=$(git ls-files '*.md'); [ -z \"$files\" ] || lychee --offline --include-fragments --no-progress $files"
 
 [tasks.lint-js]
 shell = "bash -c"

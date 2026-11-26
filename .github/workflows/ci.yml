@@ -41,7 +41,7 @@ jobs:
         id: setup
         uses: $/.github/actions/setup
         with:
-          tools: bun actionlint zizmor shellcheck lychee
+          tools: bun actionlint zizmor shellcheck lychee rumdl
 
       - name: Install Claude Code CLI (pinned, checksum-verified)
         id: cli
@@ -113,7 +113,7 @@ jobs:
           mapfile -t scripts < <(git ls-files '*.sh')
           if (( ${#scripts[@]} )); then shellcheck "${scripts[@]}"; else echo "No shell scripts."; fi
 
-      - name: Check docs links and anchors (lychee, offline)
+      - name: Lint the Markdown and check its links and anchors (rumdl, lychee offline)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: mise run lint-docs
 

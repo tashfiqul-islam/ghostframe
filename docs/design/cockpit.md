@@ -1,6 +1,6 @@
 # Cockpit
 
-The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the conversation on the left, the work on the right. This document is the written form of the **Cockpit** design canvas (https://claude.ai/artifact/TmpUf8DEVeWyyAHrER5KA2): one design-system board and 33 screens, each with a note. The canvas shows what it looks like; this document says exactly what to build.
+The look and behaviour of Cockpit, ghostframe's chat UI for Claude Code: the conversation on the left, the work on the right. This document is the written form of the **Cockpit** design canvas (<https://claude.ai/artifact/TmpUf8DEVeWyyAHrER5KA2>): one design-system board and 33 screens, each with a note. The canvas shows what it looks like; this document says exactly what to build.
 
 **Precedence.** This document replaces the look of the first spec, [history/cockpit-v7.md](history/cockpit-v7.md), and of its [amendments](history/cockpit-v7-amendments.md) wherever they differ (section 11 lists each case). It keeps every fact the first spec records about the engine: the corrections A–M, the probes, the render sites, the store budget, the switching thresholds. Where this document and the canvas differ, this document wins and the difference is a bug in the canvas.
 
@@ -211,7 +211,6 @@ The kind word names the tool family, in `muted`, 6 cells, left-aligned:
 `read` `edit` `write` `shell` `test` `fetch` `search` `agent` `todo` `browser` `mcp` `ask` `plan` `skill`
 
 - `ask` is `AskUserQuestion`, `plan` the plan tools, `skill` the `Skill` tool: the first spec's words, kept.
-
 - `test` is a shell command that runs tests (`bun test`, `vitest`, `pytest`, `go test`, `cargo test`).
 - `mcp` steps read `mcp · <server> <tool>`, for example `mcp · linear create issue`, from the tool name `mcp__<server>__<tool>`.
 - `browser` steps read `browser · <action>`.
