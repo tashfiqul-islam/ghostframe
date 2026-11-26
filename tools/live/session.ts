@@ -2,11 +2,18 @@
 // as its screen. A script types, presses keys, waits for the screen and captures it; each capture is saved under
 // tools/live/out/<run>/ as a .txt of the rows and an .html of the cells in colour.
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 
-import { Unicode11Addon } from '@xterm/addon-unicode11'
-import { Terminal } from '@xterm/headless'
+import type * as Addon from '@xterm/addon-unicode11'
+import type * as Headless from '@xterm/headless'
 import { spawn, type IPty } from 'node-pty'
+
+// The xterm packages are CommonJS bundles whose named exports Node's ESM loader cannot see; required, they load under
+// Node and Bun alike. On Linux the harness runs under Node: there, node-pty delivers no output under Bun.
+const require = createRequire(import.meta.url)
+const { Unicode11Addon }: typeof Addon = require('@xterm/addon-unicode11')
+const { Terminal }: typeof Headless = require('@xterm/headless')
 
 import { CLAUDE, LIVE_REPO, SETTINGS } from './config.ts'
 import { captureOf, htmlOf, textOf, type Capture } from './screen.ts'
@@ -53,7 +60,7 @@ const settle = (ms: number): Promise<void> => new Promise(done => setTimeout(don
 export class Session {
   /** When the screen last changed, in ms since the epoch. */
   changedAt: number = Date.now()
-  private readonly term: Terminal
+  private readonly term: Headless.Terminal
   private readonly proc: IPty
   private readonly out: string
   private exited: number | undefined
