@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "pull-request-title-pattern": "chore(release): ghostframe ${version}",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Fixes" },
+    { "type": "security", "section": "Fixes" },
+    { "type": "revert", "section": "Fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "docs", "section": "Docs" },
+    { "type": "refactor", "section": "Internal" },
+    { "type": "test", "section": "Internal" },
+    { "type": "build", "section": "Internal" },
+    { "type": "chore", "section": "Internal", "hidden": true },
+    { "type": "ci", "section": "Internal", "hidden": true },
+    { "type": "style", "section": "Internal", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "package-name": "ghostframe",
+      "release-as": "1.0.0",
+      "extra-files": [{ "type": "json", "path": ".claude-plugin/plugin.json", "jsonpath": "$.version" }]
+    }
+  }
+}

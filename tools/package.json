@@ -18,7 +18,8 @@
     "test": "cd .. && claude plugin test .",
     "check": "bun run typecheck && bun run boundaries && bun run lint && bun run fmt:check && bun run validate && bun run test && bun run test:statusline",
     "typecheck:statusline": "cd .. && tsrs -p statusline",
-    "test:statusline": "cd .. && bun test ./statusline"
+    "test:statusline": "cd .. && bun test ./statusline",
+    "release:dry": "bunx release-please@17.11.2 release-pr --repo-url=tashfiqul-islam/ghostframe --token=$(gh auth token) --dry-run"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",
