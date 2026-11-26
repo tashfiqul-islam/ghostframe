@@ -148,7 +148,9 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 
     return agents.some(a => a.id === id || (from !== undefined && (a.name === from || a.type === from || a.description === from)))
   } catch (error: unknown) {
-    $.ui.log(`ghostframe: agent list unavailable: ${String(error)}`, noticeSink())
+    const notice = `agent list unavailable: ${String(error)}`
+
+    $.ui.log(notice, noticeSink())
 
     return false
   }

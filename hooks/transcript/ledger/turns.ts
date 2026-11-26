@@ -133,7 +133,9 @@ export function registerTurns(on: On): void {
       try {
         if (start !== undefined && isOn()) await numberTurn($, isIt)
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: turn rule not numbered: ${String(error)}`, noticeSink())
+        const notice = `turn rule not numbered: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
       }
 
       unclaimedSubmit = undefined
@@ -161,7 +163,9 @@ export function registerTurns(on: On): void {
       try {
         await keepPrompts($, list)
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: prompt times not kept for a resume: ${String(error)}`, noticeSink())
+        const notice = `prompt times not kept for a resume: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
       }
     }
 

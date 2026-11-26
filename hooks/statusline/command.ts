@@ -1,8 +1,8 @@
 // `/ghostframe-statusline install | uninstall | status`: puts ghostframe's status line in the user settings, or takes
 // it out. A plugin cannot ship a status line (Claude Code reads `statusLine` from settings files only), so this
-// command writes it, and never silently: it shows the exact diff, asks, backs up settings.json, and changes only the
-// `statusLine` entry. Uninstall restores the entry that was there before. The bundled script lives in
-// <config>/ghostframe/; a personal script elsewhere is never touched.
+// command writes it, and never silently: it shows the exact diff, asks, and writes no file before a yes; then it
+// backs up settings.json and changes only the `statusLine` entry. Uninstall restores the entry that was there before.
+// The bundled script lives in <config>/ghostframe/; a personal script elsewhere is never touched.
 import type { EngineInterface, Register } from 'claude-code'
 
 import { isRecord } from '../shared/calls/fields'
@@ -90,24 +90,20 @@ async function hasBun($: EngineInterface): Promise<boolean> {
   }
 }
 
-// Shows the diff, asks, backs up settings.json and writes the new text. Answers what happened.
-async function apply($: EngineInterface, confirm: Confirm, p: Paths, text: string, entry: StatusLineEntry | null, what: string): Promise<string | null> {
-  const plan = planOf(text, entry)
+const CANCELLED = 'Cancelled. Nothing was changed.'
 
-  if (!plan.isChange) return null
-
-  say($, `${what} changes ${p.settings}:\n${plan.diff}`)
-
-  if (!(await confirm(`${what}: write this change to your user settings? A backup is kept.`))) return 'Cancelled. settings.json was not changed.'
-
+// Writes settings.json's new text after a backup of the old. Answers what happened.
+async function writeSettings($: EngineInterface, p: Paths, text: string, next: string): Promise<string> {
   const backup = `${p.dir}/settings.json.bak-${new Date().toISOString().replaceAll(':', '-')}`
 
   await $.fs.write(backup, text)
-  await $.fs.write(p.settings, plan.text)
+  await $.fs.write(p.settings, next)
 
   return `Wrote ${p.settings} (backup: ${backup}).`
 }
 
+// Install asks first, from the target path alone, and writes nothing before "Write it": the bundle, the previous entry
+// and settings.json all come after it.
 async function install($: EngineInterface, confirm: Confirm): Promise<string> {
   if (!(await hasBun($))) {
     return 'The status line runs on Bun, and `bun` is not on PATH. Install it (https://bun.sh), then run /ghostframe-statusline install again.'
@@ -116,6 +112,16 @@ async function install($: EngineInterface, confirm: Confirm): Promise<string> {
   const p = await pathsOf($)
   const text = await readSettings($, p)
   const current = currentOf(text)
+  const plan = planOf(text, entryOf(p.script))
+  const what = 'Installing ghostframe’s status line'
+
+  if (plan.isChange) {
+    say($, `${what} changes ${p.settings}:\n${plan.diff}`)
+    if (!(await confirm(`${what}: build ${p.script} and write this change to your user settings? A backup is kept.`))) return CANCELLED
+  } else if (!(await confirm(`settings.json already runs ghostframe’s status line. Build ${p.script} again?`))) {
+    return CANCELLED
+  }
+
   const built = await $.process.run(['bun', 'build', `${$.plugin.root}/statusline/main.ts`, '--target=bun', '--outfile', p.script])
 
   if (built.exitCode !== 0) {
@@ -124,14 +130,14 @@ async function install($: EngineInterface, confirm: Confirm): Promise<string> {
     return 'The status line did not build (the build output is above), so nothing was changed.'
   }
 
+  if (!plan.isChange) return `Built ${p.script}. settings.json already runs it; nothing else changed.`
+
   // Keep what was there before, once: a second install must not overwrite it with ghostframe's own entry.
   if (!isOurs(current)) await $.fs.write(p.previous, `${JSON.stringify({ statusLine: current }, null, 2)}\n`)
 
-  const done = await apply($, confirm, p, text, entryOf(p.script), 'Installing ghostframe’s status line')
-
   // The outcome first: the engine's command row shows only the start of the text.
   return [
-    done ?? 'settings.json already runs it; nothing else changed.',
+    await writeSettings($, p, text, plan.text),
     `Built ${p.script}.`,
     'Project settings (.claude/settings.json) can also set statusLine, and win over user settings.'
   ].join(' ')
@@ -152,9 +158,15 @@ async function uninstall($: EngineInterface, confirm: Confirm): Promise<string> 
     previous = isEntry(entry) ? entry : null
   }
 
-  const done = await apply($, confirm, p, text, previous, previous === null ? 'Removing ghostframe’s status line' : 'Restoring your previous status line')
+  const plan = planOf(text, previous)
+  const what = previous === null ? 'Removing ghostframe’s status line' : 'Restoring your previous status line'
 
-  return done ?? 'Nothing to change.'
+  if (!plan.isChange) return 'Nothing to change.'
+
+  say($, `${what} changes ${p.settings}:\n${plan.diff}`)
+  if (!(await confirm(`${what}: write this change to your user settings? A backup is kept.`))) return CANCELLED
+
+  return await writeSettings($, p, text, plan.text)
 }
 
 async function status($: EngineInterface): Promise<string> {

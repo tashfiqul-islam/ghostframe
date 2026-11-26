@@ -86,11 +86,15 @@ export function readmeDrift(readme: string, folders: readonly string[]): string[
 
 // A `$.ui.log` call: its first argument's start, and what follows it (for a `{ to: 'debug' }` option).
 const UI_LOG = /\$\.ui\.log\(\s*([^,)]{0,60})(?=([\s\S]{0,300}))/g
-const NOTICE = /^(?:[`'"](?:cockpit|ghostframe): |notice\s*$)/
+const NOTICE = /^(?:[`'"]cockpit: |notice\s*$)/
+// Claude Code labels every plugin message with the plugin's name itself, in the transcript and the debug log alike, so
+// a literal "ghostframe:" shows twice ("ghostframe: ghostframe: …", seen live).
+const LABELLED = /^[`'"]ghostframe:/
 
 /**
  * The `$.ui.log` rows that are not notices: a row a person would see in the transcript that no prefix names, such as
- * a probe's `probe19 load=…`, which a live check printed under every step.
+ * a probe's `probe19 load=…`, which a live check printed under every step; and any row, debug included, that starts
+ * with its own "ghostframe:".
  * @param files repo-relative path (forward slashes) to source text
  * @returns one message per such call
  */
@@ -101,11 +105,15 @@ export function loggedRows(files: ReadonlyMap<string, string>): string[] {
     for (const m of source.matchAll(UI_LOG)) {
       const first = (m[1] ?? '').trim()
       const rest = m[2] ?? ''
-      const isDebug = /^\s*,\s*\{\s*to:\s*['"]debug['"]/.test(rest)
+      // The option may sit past the 60 characters read of the text: anywhere on the call's line.
+      const isDebug = /^[^\n]*\{\s*to:\s*['"]debug['"]/.test(`${m[1] ?? ''}${rest}`)
 
-      if (!NOTICE.test(first) && !isDebug) {
-        const line = source.slice(0, m.index).split('\n').length
-        found.push(`${file}:${line}: $.ui.log row ${first.slice(0, 40)} is no cockpit: or ghostframe: notice; a trace goes { to: 'debug' }`)
+      const line = source.slice(0, m.index).split('\n').length
+
+      if (LABELLED.test(first)) {
+        found.push(`${file}:${line}: $.ui.log row ${first.slice(0, 40)} starts with "ghostframe:", which Claude Code already adds`)
+      } else if (!NOTICE.test(first) && !isDebug) {
+        found.push(`${file}:${line}: $.ui.log row ${first.slice(0, 40)} is no cockpit: notice or notice variable; a trace goes { to: 'debug' }`)
       }
     }
   }
@@ -211,7 +219,7 @@ function selfTest(): void {
   const logs = new Map([
     [
       'hooks/cockpit/a.ts',
-      "$.ui.log(`cockpit: seat change failed: ${e}`)\n$.ui.log('ghostframe: x')\n$.ui.log(notice)\n$.ui.log(`trace ${n}`, { to: 'debug' })"
+      "$.ui.log(`cockpit: seat change failed: ${e}`)\n$.ui.log(notice)\n$.ui.log(notice, noticeSink())\n$.ui.log(`trace ${n}`, { to: 'debug' })"
     ]
   ])
 
@@ -219,6 +227,12 @@ function selfTest(): void {
   if (loggedRows(new Map([['hooks/cockpit/pane.tsx', 'if (s !== last) { last = s; $.ui.log(s) }\n$.ui.log(`probe19 load=${id}`)']])).length !== 2) {
     fail('a debug row passed')
   }
+
+  const labelled = new Map([
+    ['hooks/statusline/command.ts', "$.ui.log('ghostframe: x')\n$.ui.log(`ghostframe: ${what}`, noticeSink())\n$.ui.log(\"ghostframe: t\", { to: 'debug' })"]
+  ])
+
+  if (loggedRows(labelled).length !== 3) fail(`a literal "ghostframe:" prefix passed: ${loggedRows(labelled).join('; ')}`)
 
   const literals = new Map([
     ['hooks/shared/look/palette.ts', "const a = '#0B0B0E'"],
@@ -229,7 +243,9 @@ function selfTest(): void {
   if (strayLiterals(literals).length > 0) fail(`allowed literals were refused: ${strayLiterals(literals).join('; ')}`)
   if (strayLiterals(new Map([['hooks/cockpit/v8/row.ts', "const a = '#ffffff'\nconst b = '× failed'"]])).length !== 2) fail('a stray literal passed')
 
-  console.log(`boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, stray literals caught)`)
+  console.log(
+    `boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, "ghostframe:" prefixes caught, stray literals caught)`
+  )
 }
 
 if (process.argv.includes('--self-test')) {

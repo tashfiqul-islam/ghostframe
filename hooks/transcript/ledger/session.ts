@@ -188,7 +188,7 @@ async function notePromptRow($: EngineInterface, content: Content, row: string):
   })
 
   if (isNoted) await keepPrompts($, list)
-  $.ui.log(`ghostframe: prompt row ${row} ${isNoted ? 'noted' : 'matched no stamp'}`, { to: 'debug' })
+  $.ui.log(`prompt row ${row} ${isNoted ? 'noted' : 'matched no stamp'}`, { to: 'debug' })
 }
 
 /**
@@ -260,7 +260,9 @@ export function registerSession(on: On): void {
     try {
       await restorePrompts($)
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: prompt times not restored: ${String(error)}`, noticeSink())
+      const notice = `prompt times not restored: ${String(error)}`
+
+      $.ui.log(notice, noticeSink())
     }
 
     await startCockpit($, e)
@@ -268,7 +270,9 @@ export function registerSession(on: On): void {
     try {
       await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
     } catch (error: unknown) {
-      $.ui.log(`ghostframe: turn number not carried on from the stamps: ${String(error)}`, noticeSink())
+      const notice = `turn number not carried on from the stamps: ${String(error)}`
+
+      $.ui.log(notice, noticeSink())
     }
 
     return next(e)
@@ -338,7 +342,9 @@ export function registerSession(on: On): void {
       try {
         await notePending($, 'compact')
       } catch (error: unknown) {
-        $.ui.log(`ghostframe: compaction not noted for the turn rule: ${String(error)}`, noticeSink())
+        const notice = `compaction not noted for the turn rule: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
       }
     }
 

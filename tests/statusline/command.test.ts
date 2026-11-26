@@ -176,3 +176,61 @@ test('the diff is one transcript row per line, its - and + prefixes kept', async
   expect(logs).toContain(`+     "command": "bun ${HOME}/.claude/ghostframe/statusline.js",`)
   expect(logs.every(l => !l.includes('\n'))).toBe(true)
 })
+
+// Cancel (Esc counts as Cancel) writes no file at all: not the bundle, not the previous entry, not a backup.
+const DIR = `${HOME}/.claude/ghostframe/`
+const folder = (disk: Disk): [string, string][] => [...disk.entries()].filter(([k]) => k.startsWith(DIR)).toSorted(([a], [b]) => a.localeCompare(b))
+
+test('install, cancelled, with no ghostframe folder yet: no folder, no build, settings.json unchanged', async () => {
+  const disk: Disk = new Map([[SETTINGS, settings(PERSONAL)]])
+  const { $, runs } = machine(disk)
+
+  expect(await runStatusline($, 'install', no)).toBe('Cancelled. Nothing was changed.')
+  expect(folder(disk)).toEqual([])
+  expect([...disk.keys()]).toEqual([SETTINGS])
+  expect(disk.get(SETTINGS)).toBe(settings(PERSONAL))
+  expect(runs.some(r => r[1] === 'build')).toBe(false)
+})
+
+test('install, cancelled, over an earlier install and uninstall: the folder keeps the same files and contents', async () => {
+  const disk: Disk = new Map([[SETTINGS, settings(PERSONAL)]])
+  const { $ } = machine(disk)
+
+  await runStatusline($, 'install', yes)
+  await runStatusline($, 'uninstall', yes)
+  // The folder now holds a bundle, the previous entry and backups; mark the bundle to see a rebuild.
+  disk.set(`${DIR}statusline.js`, '// an older bundle')
+  const before = folder(disk)
+  const text = disk.get(SETTINGS)
+
+  expect(await runStatusline($, 'install', no)).toBe('Cancelled. Nothing was changed.')
+  expect(folder(disk)).toEqual(before)
+  expect(disk.get(SETTINGS)).toBe(text)
+})
+
+test('uninstall, cancelled: the folder and settings.json are unchanged', async () => {
+  const disk: Disk = new Map([[SETTINGS, settings(PERSONAL)]])
+  const { $ } = machine(disk)
+
+  await runStatusline($, 'install', yes)
+  const before = folder(disk)
+  const text = disk.get(SETTINGS)
+
+  expect(await runStatusline($, 'uninstall', no)).toBe('Cancelled. Nothing was changed.')
+  expect(folder(disk)).toEqual(before)
+  expect(disk.get(SETTINGS)).toBe(text)
+})
+
+test('install when settings.json already runs it asks before rebuilding, and Cancel keeps the old bundle', async () => {
+  const disk: Disk = new Map([[SETTINGS, settings(PERSONAL)]])
+  const { $ } = machine(disk)
+
+  await runStatusline($, 'install', yes)
+  disk.set(`${DIR}statusline.js`, '// an older bundle')
+  const before = folder(disk)
+
+  expect(await runStatusline($, 'install', no)).toBe('Cancelled. Nothing was changed.')
+  expect(folder(disk)).toEqual(before)
+  expect(await runStatusline($, 'install', yes)).toContain('Built')
+  expect(disk.get(`${DIR}statusline.js`)).toBe('// bundled')
+})

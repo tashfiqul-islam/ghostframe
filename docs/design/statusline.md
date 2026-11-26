@@ -18,7 +18,7 @@ A plugin cannot ship a status line: Claude Code reads `statusLine` from settings
 it into your user settings, and never silently.
 
 ```text
-/ghostframe-statusline install     bundle the program, show the diff, ask, back up settings.json, write
+/ghostframe-statusline install     show the diff, ask, then bundle the program, back up settings.json, write
 /ghostframe-statusline status      what your user settings run now
 /ghostframe-statusline uninstall   put back the statusLine entry that was there before
 ```
@@ -27,8 +27,9 @@ it into your user settings, and never silently.
 - It bundles `statusline/main.ts` to `~/.claude/ghostframe/statusline.js` (or under `CLAUDE_CONFIG_DIR`), so a plugin
   update never breaks the path, and writes:
   `"statusLine": { "type": "command", "command": "bun <absolute path>/statusline.js", "padding": 0, "refreshInterval": 10 }`.
-- It shows the exact diff, asks, keeps a backup (`~/.claude/ghostframe/settings.json.bak-<time>`), and changes only
-  the `statusLine` entry: every other key, its order, the indentation and the line endings stay as they were.
+- It shows the exact diff and asks first. It writes nothing before "Write it": on Cancel or Esc no file changes, the
+  bundle included. Then it keeps a backup (`~/.claude/ghostframe/settings.json.bak-<time>`) and changes only the
+  `statusLine` entry: every other key, its order, the indentation and the line endings stay as they were.
 - The entry it replaced is kept in `~/.claude/ghostframe/statusline-previous.json`; uninstall restores it (or removes
   the entry if there was none). A personal script the old entry pointed at is never touched.
 - Only user settings are written. Project settings (`.claude/settings.json`) can also set `statusLine`, and win over
