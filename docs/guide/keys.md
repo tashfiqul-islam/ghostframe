@@ -32,3 +32,5 @@ The pane's last row lists the keys of the view you are in.
 ## Claude Code's own
 
 `ctrl+o` opens the full record of the turn. The engine owns it; Cockpit draws each step in it.
+
+If your terminal or editor takes `ctrl+x` for itself, [Compatibility](compatibility.md#terminals) says what to check.

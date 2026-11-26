@@ -70,7 +70,7 @@ claude plugin marketplace remove ghostframe
 | What        | Needs                                                                                                                                                         |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Claude Code | The terminal CLI, 2.1.329 up to (not including) 2.2.0. Outside that range ghostframe stays dormant ([Configuration](configuration.md#the-claude-code-range)). |
-| System      | Windows is tested live; macOS and Linux run the tests in CI.                                                                                                  |
+| System      | Windows is tested live; Linux in CI and WSL; macOS in CI only. [Compatibility](compatibility.md) has more.                                                    |
 | Font        | A Nerd Font for the status line's icons, or turn the icons off ([Configuration](configuration.md)).                                                           |
 | Width       | The pane docks from 144 columns, or from 110 after `/cockpit`. The status line needs 90 for two rows.                                                         |
 | Bun         | For the status line only.                                                                                                                                     |

@@ -7,6 +7,7 @@
 - [Keys](guide/keys.md): every key Cockpit binds.
 - [Configuration](guide/configuration.md): the two options, `GHOSTFRAME_COCKPIT` and the status line's variables.
 - [Troubleshooting](guide/troubleshooting.md): no pane, empty icon boxes, no status line.
+- [Compatibility](guide/compatibility.md): Claude Code versions, systems, surfaces, terminals, subscriptions.
 
 ## How it is built
 

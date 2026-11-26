@@ -112,9 +112,11 @@ The pane takes the keyboard only when you give it. These five keys cover the fir
 
 ## Compatibility
 
-ghostframe runs wherever the `claude` CLI runs in a terminal: Windows Terminal, macOS and Linux terminals, and the
-integrated terminals of editors. Windows is tested live, and macOS and Linux only in CI. It does not run in other
-agent tools, such as OpenCode or Codex, which have their own UI and don't load Claude Code plugins.
+ghostframe runs wherever the `claude` CLI runs in a terminal: Windows Terminal, macOS and Linux terminals, the
+integrated terminals of editors, and hosts that run the real `claude` binary. Windows is tested live, Linux in CI and
+in WSL, and macOS in CI only. It draws nothing in Claude Code's Desktop app or VS Code panel, and it does not run in
+other agent tools, such as OpenCode or Codex, which don't load Claude Code plugins.
+[docs/guide/compatibility.md](docs/guide/compatibility.md) has the details for each terminal.
 
 ## How it works
 
@@ -142,7 +144,8 @@ layout and its rules.
 The [docs index](docs/README.md) lists everything. The most used:
 
 - Guide: [install](docs/guide/install.md), [usage](docs/guide/usage.md), [keys](docs/guide/keys.md),
-  [configuration](docs/guide/configuration.md), [troubleshooting](docs/guide/troubleshooting.md)
+  [configuration](docs/guide/configuration.md), [troubleshooting](docs/guide/troubleshooting.md),
+  [compatibility](docs/guide/compatibility.md)
 - [Architecture](docs/architecture.md) and the [decisions](docs/decisions/README.md) behind it
 - Specs: [Cockpit](docs/design/cockpit.md) and the [status line](docs/design/statusline.md)
 - Development: [testing](docs/development/testing.md), [the live checks](docs/development/live-checks.md),

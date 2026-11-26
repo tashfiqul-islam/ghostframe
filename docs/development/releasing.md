@@ -53,6 +53,9 @@ have, and changes nothing. Add `--target-branch=<branch>` after `--` to try a pu
 `release-please-config.json` sets `"release-as": "1.0.0"` so the first release is 1.0.0 whatever the commits say.
 After v1.0.0 is published, remove that line in a `chore(release)` PR, or every later release PR proposes 1.0.0 again.
 
+The generated notes are the floor. For 1.0.0, a human summary goes above them: it is ready in
+[releases/1.0.0.md](releases/1.0.0.md), with the command that applies it.
+
 ## The release app
 
 A PR opened with the workflow's own `GITHUB_TOKEN` starts no workflows, so the release PR would never get the checks
