@@ -2,7 +2,7 @@
 
 The plugin's code. The engine loads one hooks module per plugin, named in `hooks.json`: `register.tsx`, which only
 composes the features. Everything else sits in four layers: `shared/` (helpers the features use), `cockpit/`
-(the pane beside the transcript, off by default), `transcript/` (how the conversation itself is drawn) and
+(the pane beside the transcript, on by default), `transcript/` (how the conversation itself is drawn) and
 `statusline/` (the command that installs the status line; the status line program itself is the repo-root
 [`statusline/`](../statusline/README.md)). The engine runs these `.ts` files as they are; there is no build step.
 

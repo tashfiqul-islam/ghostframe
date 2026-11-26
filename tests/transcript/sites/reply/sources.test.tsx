@@ -4,6 +4,7 @@ import type { TestBody } from 'claude-code/testing'
 import { textAt } from '../../../support/text'
 import { respond } from '../../../support/respond'
 import { FOOTNOTED, SOURCED } from '../../../support/sources'
+import { OFF } from '../../../support/cockpit'
 
 // Footnotes vs Sources, on the specimen's own reply (tests/plugin/specimen.test.tsx, turn 2):
 // a reply split over several messages numbers its sources once, through the turn.
@@ -24,7 +25,7 @@ const rows = async ($: Parameters<TestBody>[0], text: string) => {
 }
 const SUP: Record<string, string> = { '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5' }
 
-test('a web turn: frames carry the markers’ numbers, no footnote line; each message frames what it adds', async ($, on) => {
+test('a web turn: frames carry the markers’ numbers, no footnote line; each message frames what it adds', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -61,7 +62,7 @@ test('a web turn: frames carry the markers’ numbers, no footnote line; each me
   for (const title of ['Bun test runner', 'Playwright actionability', 'Node timers']) expect(frame.find(l => l.includes(title))).toMatch(/┆ · {2}/)
 })
 
-test('a reply without a frame: the footnote line sits right under the block holding its markers', async ($, on) => {
+test('a reply without a frame: the footnote line sits right under the block holding its markers', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
 

@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { turnHeader } from '../../../hooks/transcript/v8/turn'
 import { TOKEN } from '../../../hooks/shared/look/palette'
-import { ON, PANE, T0 } from '../../support/cockpit'
+import { OFF, ON, PANE, T0 } from '../../support/cockpit'
 import { shown } from '../../support/screens'
 import type { Engine, On } from '../../support/engine'
 import { fallbackEngine, rowsOf, site } from '../../support/fallback'
@@ -170,7 +170,7 @@ test('narrow fallback: at 40 columns the text column narrows and the label stays
   expect((await rowsOf($, prompt('u1', 40, 'go')))[0]?.trimEnd()).toBe(header(1, 23))
 })
 
-test('Cockpit off: the v6 rule, as before', async ($, on) => {
+test('Cockpit off: the v6 rule, as before', OFF, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, false)
   await start($, false)

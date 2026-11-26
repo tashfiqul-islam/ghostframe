@@ -4,9 +4,10 @@ import { INSET } from '../../hooks/shared/layout'
 import { vw } from '../../hooks/shared/text'
 import { WIDTHS, rows } from '../support/narrow'
 import { respond } from '../support/respond'
+import { OFF } from '../support/cockpit'
 
 for (const columns of WIDTHS) {
-  test(`at ${columns} columns: captions above blocks, no row wider than the screen`, async ($, on) => {
+  test(`at ${columns} columns: captions above blocks, no row wider than the screen`, OFF, async ($, on) => {
     on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
     on('turn.start', (_, e) => ({ turnId: e.turnId }))
     on('tool.call', () => ({ result: { stdout: ' 145 pass\n 3 fail', stderr: '', interrupted: false } }))

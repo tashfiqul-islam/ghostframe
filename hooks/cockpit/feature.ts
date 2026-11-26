@@ -11,7 +11,7 @@ import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
 import { registerBand } from './band'
 import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
 import type { On } from './pane'
-import { isEnvSet, isOn, noticeSink, setEnvOn, setOptionOn } from './switch'
+import { envSwitchOf, isOn, noticeSink, setEnvSwitch, setOptionOn } from './switch'
 
 type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 
@@ -24,7 +24,7 @@ type SessionStart = Pick<SessionStartInput, 'isInteractive' | 'surface'>
 export async function startCockpit($: EngineInterface, e: SessionStart): Promise<void> {
   markStarted()
   await $.command.register({ name: PANE, description: 'Open or close the Cockpit pane' })
-  setEnvOn(await isEnvSet($))
+  setEnvSwitch(await envSwitchOf($))
   await $.command.register({
     name: STEPS,
     description: 'Pin a past turn into the Cockpit pane: /steps <n>; /steps alone for live; /steps <n> all prints its steps'

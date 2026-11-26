@@ -11,6 +11,7 @@ import type { Engine, On } from '../../support/engine'
 import { VIEW } from '../../support/view'
 import { respond, respondText } from '../../support/respond'
 import { REPLY } from '../../support/releases'
+import { OFF } from '../../support/cockpit'
 
 // ─── Measure ──────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ for (const [columns, edge] of [
   [110, 12 + 96],
   [90, 90]
 ] as const) {
-  test(`measure at ${columns} columns: turn and footer rules end at ${edge} (gutter + measure; narrow: full)`, async ($, on) => {
+  test(`measure at ${columns} columns: turn and footer rules end at ${edge} (gutter + measure; narrow: full)`, OFF, async ($, on) => {
     on('ui.render', engineText as never)
     on('turn.start', (_, e) => ({ turnId: e.turnId }))
     on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -56,7 +57,7 @@ for (const [columns, edge] of [
 
 // ─── Engine lines ─────────────────────────────────────────────────────────
 
-test('engine lines: info notices and command output are one muted/dim line clipped at the measure', async ($, on) => {
+test('engine lines: info notices and command output are one muted/dim line clipped at the measure', OFF, async ($, on) => {
   on('ui.render', engineText as never)
   const ui = await $.ui.mount({
     plugin: 'ghostframe',
@@ -80,7 +81,7 @@ test('engine lines: info notices and command output are one muted/dim line clipp
   const notice = commandNotice('effort', 'high', 'Applies from next turn', 96) ?? []
   for (const p of notice) expect([C.muted, C.dim]).toContain(p.color)
 })
-test('spinner: the verb from the mode, props only; a state message stands', async ($, on) => {
+test('spinner: the verb from the mode, props only; a state message stands', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: `${(e.props as { word: string }).word}|${(e.props as { suffix: string }).suffix}` }))
   expect(spinnerWord('responding')).toBe('writing')
   expect(spinnerWord('tool-use')).toBe('running')
@@ -106,7 +107,7 @@ test('spinner: the verb from the mode, props only; a state message stands', asyn
   await msg.unmount()
 })
 
-test('footer: a row keeps its own turn when a later turn of about the same length lands', async ($, on) => {
+test('footer: a row keeps its own turn when a later turn of about the same length lands', OFF, async ($, on) => {
   engine(on)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -198,7 +199,7 @@ const footer = async ($: Engine, ms: number) => {
   return text
 }
 
-test('footer: a no-tool turn keeps its tokens and sources count when another turn took about as long', async ($, on) => {
+test('footer: a no-tool turn keeps its tokens and sources count when another turn took about as long', OFF, async ($, on) => {
   await twoRuns($, on, REPLY)
 
   // The row the engine draws as t2 ends: t2's numbers (5.3s and 5.2s are within 250ms).

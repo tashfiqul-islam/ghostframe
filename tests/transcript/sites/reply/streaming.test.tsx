@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { vw } from '../../../../hooks/shared/text'
+import { OFF } from '../../../support/cockpit'
 
 const FULL = `Prose cells in tables now wrap instead of being cut, and Phase 3 (the activity timeline and the diff card) is built. Validate passes (warnings only), tsc exits 0 even with unused-variable checks on, and all 32 tests pass. None of it has been checked on screen yet.
 
@@ -25,7 +26,7 @@ async function drawnLines(ui: { findAll: (q: { type: string }) => Promise<{ prop
     .filter(l => l.length > 0)
 }
 
-test('a reply re-drawn as it streams never repeats or drops a line', async $ => {
+test('a reply re-drawn as it streams never repeats or drops a line', OFF, async $ => {
   const ui = await $.ui.mount({
     plugin: 'ghostframe',
     surface: 'terminal',
@@ -59,7 +60,7 @@ test('a reply re-drawn as it streams never repeats or drops a line', async $ => 
   expect(final[final.length - 1]).toBe('Stopping here.')
   await ui.unmount()
 })
-test('narrow streaming: a reply streamed at 70 columns never repeats a line, finished blocks never change', async $ => {
+test('narrow streaming: a reply streamed at 70 columns never repeats a line, finished blocks never change', OFF, async $ => {
   const FULL = [
     'The suite passes on a quiet machine; under load one test times out at 5 s.',
     '',

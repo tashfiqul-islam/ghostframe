@@ -5,6 +5,7 @@ import { partsWidth } from '../../../../hooks/shared/parts'
 import { respond } from '../../../support/respond'
 import { rows } from '../../../support/narrow'
 import { VIEW } from '../../../support/view'
+import { OFF } from '../../../support/cockpit'
 
 const MANY = [
   'The newest is v1.4.4 [v1.4.4](https://bun.com/blog/release-notes/bun-v1.4.4).',
@@ -13,7 +14,7 @@ const MANY = [
   ...[2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => `- [Source ${n}](https://example.dev/s/${n})`)
 ].join('\n')
 
-test('a source cited only in the first paragraph is in the frame; no footnote lines; frame count = footer count', async ($, on) => {
+test('a source cited only in the first paragraph is in the frame; no footnote lines; frame count = footer count', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -56,7 +57,7 @@ test('a source cited only in the first paragraph is in the frame; no footnote li
   expect(await close.find({ type: 'Text', text: /10 sources/ })).toBeDefined()
   await close.unmount()
 })
-test('footnotes: a list lists its own ³ even when a later paragraph reuses it', async ($, on) => {
+test('footnotes: a list lists its own ³ even when a later paragraph reuses it', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const text = [
     '**Options**',
@@ -80,7 +81,7 @@ test('footnotes: a list lists its own ³ even when a later paragraph reuses it',
   await ui.unmount()
 })
 
-test('a web turn’s reply with links: markers in prose; one [ SOURCES ] frame lists them all, no footnote lines', async ($, on) => {
+test('a web turn’s reply with links: markers in prose; one [ SOURCES ] frame lists them all, no footnote lines', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   await $.turn.start({ text: 'research', turnId: 't1' })

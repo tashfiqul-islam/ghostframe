@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE, VIEW } from '../../support/cockpit'
+import { OFF, ON, PANE, VIEW } from '../../support/cockpit'
 import type { Engine } from '../../support/engine'
 
 // The engine's agent list under the prompt (`AgentRow`): hidden while the pane is docked, as it was otherwise.
@@ -31,7 +31,7 @@ test('docked: each row of the engine`s agent list is hidden; `[ AGENTS ]` is the
   await pane.unmount()
 })
 
-test('off: the engine`s agent list is as it was', async ($, on) => {
+test('off: the engine`s agent list is as it was', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: (e.props as { isHidden?: boolean }).isHidden === true ? 'hidden' : 'engine' }))
   const pane = await $.ui.mount(PANE)
   expect(await drawn($)).toEqual(['engine'])

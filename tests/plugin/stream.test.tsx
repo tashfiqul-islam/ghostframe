@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { textAt } from '../support/text'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
+import { OFF } from '../support/cockpit'
 
 // The turn seen printed twice after /reload-plugins: no tools, a prose line with a link,
 // a table whose cells link "post", then a Sources list. Streamed through the kit, it once
@@ -103,7 +104,7 @@ async function streamTurn($: Engine, on: On, text: string, columns: number, web:
 }
 
 // Each draws a whole turn at every streamed length: about 4.5 s at 140 columns, at the kit's 5 s default.
-const STREAM = { timeoutMs: 15_000 }
+const STREAM = { ...OFF, timeoutMs: 15_000 }
 
 for (const columns of [140, 90, 60]) {
   test(`streamed then completed, ${columns} columns, no tools: rows already drawn never change; final = last streamed`, STREAM, async ($, on) => {
@@ -122,7 +123,7 @@ for (const columns of [140, 90, 60]) {
   })
 }
 
-test('the whole turn as stacked: the open rule, you, claude and the footer each once', async ($, on) => {
+test('the whole turn as stacked: the open rule, you, claude and the footer each once', OFF, async ($, on) => {
   const reply = await streamTurn($, on, TURN, 140, false)
   const mount = async (component: string, props: Record<string, unknown>) => {
     const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component, viewport: { columns: 140, rows: 45 }, props } as never)
@@ -140,7 +141,7 @@ test('the whole turn as stacked: the open rule, you, claude and the footer each 
   expect(all.filter(l => /5s · 428 tokens · 4 sources/.test(l))).toHaveLength(1)
 })
 
-test('the footer: tokens and sources change only its own row, never the rows above it', async ($, on) => {
+test('the footer: tokens and sources change only its own row, never the rows above it', OFF, async ($, on) => {
   const before = await streamTurn($, on, TURN, 140, false)
   const draw = async (ms: number) => {
     const ui = await $.ui.mount({

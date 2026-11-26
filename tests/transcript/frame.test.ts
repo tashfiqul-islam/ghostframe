@@ -12,10 +12,11 @@ import { browserTop, urlBar } from '../../hooks/transcript/browser'
 import { DIM, frame, HOOKS, fig } from '../support/figures'
 import { WIDTHS } from '../support/narrow'
 import { TODOS } from '../support/states'
+import { OFF } from '../support/cockpit'
 
 const PEACH = '#fab387'
 
-test('labels: every frame title is accent, normal weight, with dim brackets', async ($, on) => {
+test('labels: every frame title is accent, normal weight, with dim brackets', OFF, async ($, on) => {
   const tops: Part[][] = [
     figureLines(fig(HOOKS), 80)[0] ?? [],
     figureLines(fig(frame('ROUTES', ['/docs  [====]  12'])), 80)[0] ?? [],

@@ -2,6 +2,9 @@ import type { Outcome } from '../../hooks/cockpit/steps/log'
 
 export const ON = { options: { cockpit: true } }
 
+/** Cockpit off by its option: the transcript as it is without Cockpit. */
+export const OFF = { options: { cockpit: false } }
+
 /** Cockpit on, for a test that drives many draws: it runs near the default 5 s on a busy machine. */
 export const SLOW = { ...ON, timeoutMs: 15_000 }
 

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE } from '../../support/cockpit'
+import { OFF, ON, PANE } from '../../support/cockpit'
 import { REPLY } from '../../support/turn'
 import { VIEW } from '../../support/view'
 import { textAt } from '../../support/text'
@@ -12,7 +12,7 @@ const USER = {
   props: { text: "What's the difference between a worktree and a branch?", origin: { kind: 'composer' }, isExpanded: false }
 } as const
 
-test('your message: gutter `you`, rail, verbatim text, submit time on the rule', async ($, on) => {
+test('your message: gutter `you`, rail, verbatim text, submit time on the rule', OFF, async ($, on) => {
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('clock.now', () => ({ value: new Date(2026, 10, 17, 2, 10).getTime() }))
   await $.prompt.submit({ text: USER.props.text, wait: false, origin: { kind: 'composer' } })
@@ -24,7 +24,7 @@ test('your message: gutter `you`, rail, verbatim text, submit time on the rule',
   await ui.unmount()
 })
 
-test('the engine`s stand-in row (`placeholder`) shows the submit time without taking it from the prompt`s own row', async ($, on) => {
+test('the engine`s stand-in row (`placeholder`) shows the submit time without taking it from the prompt`s own row', OFF, async ($, on) => {
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('clock.now', () => ({ value: new Date(2026, 10, 17, 7, 8).getTime() }))
   const row = (requestId: string) => $.ui.mount({ ...USER, requestId, viewport: VIEW })
@@ -41,7 +41,7 @@ test('the engine`s stand-in row (`placeholder`) shows the submit time without ta
   await own.unmount()
 })
 
-test('no viewport measured: the engine draws', async ($, on) => {
+test('no viewport measured: the engine draws', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   for (const target of [USER, REPLY] as const) {
@@ -126,7 +126,7 @@ test('docked: an agent`s message (`peer`, from an agent) and its notice (`task-n
   await pane.unmount()
 })
 
-test('a prompt that starts with a URL verb keeps its first letter: `Fetch https://…`', async ($, on) => {
+test('a prompt that starts with a URL verb keeps its first letter: `Fetch https://…`', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const t = 'Fetch https://bun.sh/docs and https://httpbin.org/status/404 with WebFetch.'
   const ui = await $.ui.mount({

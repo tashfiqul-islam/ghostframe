@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, T0, VIEW, PANE } from '../support/cockpit'
+import { OFF, ON, PANE, T0, VIEW } from '../support/cockpit'
 import { NARRATION, engine, CALLS, fixedTurn, message, ANSWER, text } from '../support/docked'
 import { respond } from '../support/respond'
 import type { Call } from '../support/docked'
@@ -210,7 +210,7 @@ test('docked: nothing ghostframe draws on the left passes 120 columns, at any wi
   await pane.unmount()
 })
 
-test('off: the transcript is as it was: narration and the old footer draw', async ($, on) => {
+test('off: the transcript is as it was: narration and the old footer draw', OFF, async ($, on) => {
   const clock = { now: T0 }
   engine(on, CALLS, clock)
   await fixedTurn($, clock)

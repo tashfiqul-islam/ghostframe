@@ -5,8 +5,9 @@ import { respond } from '../../../support/respond'
 import { engine } from '../../../support/engine'
 import type { Engine } from '../../../support/engine'
 import { REPLY } from '../../../support/turn'
+import { OFF } from '../../../support/cockpit'
 
-test('a plain Q&A turn under an every-prompt hook has no capability line at all', async ($, on) => {
+test('a plain Q&A turn under an every-prompt hook has no capability line at all', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('classic.UserPromptSubmit', () => ({ additionalContext: ['caveman'] }))
@@ -33,7 +34,7 @@ test('a plain Q&A turn under an every-prompt hook has no capability line at all'
   await ui.unmount()
 })
 
-test('the opener carries the capability line: a skill, the thinking before it; a context-only hook stays off', async ($, on) => {
+test('the opener carries the capability line: a skill, the thinking before it; a context-only hook stays off', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let now = 0
   on('clock.now', () => ({ value: (now += 3000) }))
@@ -88,7 +89,7 @@ test('the opener carries the capability line: a skill, the thinking before it; a
   await later.unmount()
 })
 
-test('prose right after a browser run closes its frame above itself', async ($, on) => {
+test('prose right after a browser run closes its frame above itself', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   await $.turn.start({ text: 'x', turnId: 't1' })
@@ -108,7 +109,7 @@ test('prose right after a browser run closes its frame above itself', async ($, 
 
 // ─── Final evidence, quiet counts, frozen cards, thinking ──────
 
-test('thinking: hidden on a turn with no tools; shown on a work turn; shown past 10s anywhere', async ($, on) => {
+test('thinking: hidden on a turn with no tools; shown on a work turn; shown past 10s anywhere', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const MS = 4000
   let now = 0
@@ -170,7 +171,7 @@ test('thinking: hidden on a turn with no tools; shown on a work turn; shown past
   await work.unmount()
 })
 
-test('thinking past 10s shows even with no tools', async ($, on) => {
+test('thinking past 10s shows even with no tools', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const MS = 12000
   let now = 0
@@ -204,7 +205,7 @@ test('thinking past 10s shows even with no tools', async ($, on) => {
   await ui.unmount()
 })
 
-test('narration: prose a tool call follows is dim; the final answer and plain Q&A are normal', async ($, on) => {
+test('narration: prose a tool call follows is dim; the final answer and plain Q&A are normal', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   await $.turn.start({ text: 'fix it', turnId: 't1' })
@@ -255,7 +256,7 @@ const reply = ($: Engine, text: string, requestId?: string) =>
 
 const hasClaude = async (ui: Awaited<ReturnType<typeof reply>>) => (await ui.find({ type: 'Text', text: /^claude$/ })) !== undefined
 
-test('a command whose turn ends with no reply: the next unprompted turn’s prose is no opener', async ($, on) => {
+test('a command whose turn ends with no reply: the next unprompted turn’s prose is no opener', OFF, async ($, on) => {
   engine(on)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -281,7 +282,7 @@ test('a command whose turn ends with no reply: the next unprompted turn’s pros
   await opener.unmount()
 })
 
-test('history: a typed prompt that starts with `<` (pasted HTML) still opens its turn; injected tags do not', async ($, on) => {
+test('history: a typed prompt that starts with `<` (pasted HTML) still opens its turn; injected tags do not', OFF, async ($, on) => {
   engine(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({
@@ -303,7 +304,7 @@ test('history: a typed prompt that starts with `<` (pasted HTML) still opens its
   await injected.unmount()
 })
 
-test('mid-turn prose that starts like an earlier turn’s opener gets no `claude`', async ($, on) => {
+test('mid-turn prose that starts like an earlier turn’s opener gets no `claude`', OFF, async ($, on) => {
   engine(on)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
@@ -332,7 +333,7 @@ test('mid-turn prose that starts like an earlier turn’s opener gets no `claude
   expect(await hasClaude(earlier)).toBe(true)
   await earlier.unmount()
 })
-test('claude prose: `claude` once per turn, code chip padded, engine never asked', async ($, on) => {
+test('claude prose: `claude` once per turn, code chip padded, engine never asked', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { VIEW, T0, ON, PANE } from '../support/cockpit'
+import { OFF, ON, PANE, T0, VIEW } from '../support/cockpit'
 
 const SPINNER = {
   plugin: 'ghostframe',
@@ -33,7 +33,7 @@ test('docked, the left live area is the live line: its time, the spinner, the se
   await pane.unmount()
 })
 
-test('off, the left live row is the engine`s', async ($, on) => {
+test('off, the left live row is the engine`s', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const live = await $.ui.mount(SPINNER)

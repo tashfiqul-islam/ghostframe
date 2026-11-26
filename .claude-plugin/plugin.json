@@ -7,8 +7,8 @@
     "cockpit": {
       "type": "boolean",
       "title": "Cockpit pane",
-      "description": "Unfinished: the Cockpit pane beside the transcript (steps, agents, files). Off by default. GHOSTFRAME_COCKPIT=1 turns it on for one session.",
-      "default": false
+      "description": "The Cockpit pane beside the transcript (timeline, files, sources, to-do, agents). On by default. GHOSTFRAME_COCKPIT=0 turns it off for one session, GHOSTFRAME_COCKPIT=1 on.",
+      "default": true
     },
     "statuslineIcons": {
       "type": "boolean",

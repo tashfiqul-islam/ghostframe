@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { VIEW } from '../../../support/view'
+import { OFF } from '../../../support/cockpit'
 
 type Node = { type?: string; props?: Record<string, unknown>; text?: string; children?: unknown[] }
 
@@ -48,7 +49,7 @@ const SEARCH_GROUP = {
   isCallsOnly: false
 }
 
-test('a folded engine group that opens the turn keeps the activity rule and `claude`', async ($, on) => {
+test('a folded engine group that opens the turn keeps the activity rule and `claude`', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({
@@ -84,7 +85,7 @@ test('a folded engine group that opens the turn keeps the activity rule and `cla
   await ui.unmount()
 })
 
-test('a folded engine group mid-turn: indented, no rule, no label', async ($, on) => {
+test('a folded engine group mid-turn: indented, no rule, no label', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const ui = await $.ui.mount({ plugin: 'ghostframe', surface: 'terminal', component: 'ToolGroup', viewport: VIEW, props: SEARCH_GROUP })
@@ -107,7 +108,7 @@ test('a folded engine group mid-turn: indented, no rule, no label', async ($, on
   await open.unmount()
 })
 
-test('a group we cannot draw whole is the engine node, under no sized Box', async ($, on) => {
+test('a group we cannot draw whole is the engine node, under no sized Box', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const read = { tool_use_id: 'r1', tool: 'Read', input: { file_path: 'a.ts' }, isRunning: false, isErrored: false, isInterrupted: false }
@@ -125,7 +126,7 @@ test('a group we cannot draw whole is the engine node, under no sized Box', asyn
   }
 })
 
-test('a folded group of reads becomes timeline rows', async ($, on) => {
+test('a folded group of reads becomes timeline rows', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
 
   const call = (id: string, file: string, n: number) => ({
