@@ -3,6 +3,7 @@
   "release-type": "simple",
   "include-component-in-tag": false,
   "include-v-in-tag": true,
+  "bootstrap-sha": "128622cd1ac3a2ff6d0c7ca5e830e5e93e356b73",
   "pull-request-title-pattern": "chore(release): ghostframe ${version}",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
