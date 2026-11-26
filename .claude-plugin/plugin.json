@@ -9,6 +9,12 @@
       "title": "Cockpit pane",
       "description": "Unfinished: the Cockpit pane beside the transcript (steps, agents, files). Off by default. GHOSTFRAME_COCKPIT=1 turns it on for one session.",
       "default": false
+    },
+    "statuslineIcons": {
+      "type": "boolean",
+      "title": "Status line icons",
+      "description": "Nerd Font icons in ghostframe's status line (branch, PR, cache). Off draws the same layout without them. The status line reads this on every update.",
+      "default": true
     }
   }
 }

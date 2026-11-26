@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The status line program, run by Bun (bundled to one file by `/ghostframe-statusline install`): the ambient types
+  // are Bun's, from the dev tools' install. It imports the plugin's palette, which needs nothing else.
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "typeRoots": ["../tools/node_modules/@types"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "incremental": true,
+    "tsBuildInfoFile": "../tools/node_modules/.cache/statusline.tsbuildinfo"
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["__snapshots__"]
+}

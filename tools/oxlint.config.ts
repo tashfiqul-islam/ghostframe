@@ -38,7 +38,7 @@ const config: OxlintConfig = defineConfig({
     {
       // Tests drive the engine step by step (await in a loop is the point), build engine
       // fixtures with assertions, and reuse short names inside each test.
-      files: ['**/tests/**'],
+      files: ['**/tests/**', '**/statusline/*.spec.ts'],
       rules: {
         'no-await-in-loop': 'off',
         'no-shadow': 'off',
@@ -52,6 +52,16 @@ const config: OxlintConfig = defineConfig({
       rules: {
         'no-await-in-loop': 'off',
         'unicorn/consistent-function-scoping': 'off'
+      }
+    },
+    {
+      // The status line's reference renderer, a design artifact kept as the designer wrote it (statusline/ is its
+      // build, linted in full). Its three findings are the designer's style, not bugs: they stay.
+      files: ['**/docs/design/statusline-preview.ts'],
+      rules: {
+        'no-shadow': 'off',
+        'no-useless-concat': 'off',
+        'typescript/no-misused-spread': 'off'
       }
     }
   ],

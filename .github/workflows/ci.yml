@@ -117,6 +117,33 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: mise run lint-docs
 
+  # The status line runs wherever Claude Code does, so its renderer's unit tests (statusline/*.spec.ts, bun test) run
+  # on all three systems: paths, git and the temp folder differ between them. They need Bun alone, not the CLI.
+  statusline:
+    name: Status line (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise)
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Run the status line's unit tests (bun test)
+        run: bun test ./statusline
+
   dependencies:
     name: Dependency review
     if: github.event_name == 'pull_request'

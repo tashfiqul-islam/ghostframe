@@ -13,9 +13,10 @@ native dependency.
 ```powershell
 cd tools/live
 bun install --frozen-lockfile
-bun run.ts            # every step (1 to 12)
+bun run.ts            # every step (1 to 13)
 bun run.ts 2 7        # the suites that hold steps 2 and 7
 bun run.ts --keep-repo 9
+bun run.ts --keep-repo 13   # the status line alone (it needs no repo state)
 ```
 
 Each suite rebuilds the throwaway repo (`repo.ts`: the same files as `D:\Projects\cockpit-live-setup.ps1`), starts a
@@ -38,6 +39,9 @@ runs saved inside it go with it.
 - `harness.ts`: a step's results, and the turn helpers (`turn`, `waitIdle`: the receipt drawn or a dialog up, and the
   screen still for 1.5 s).
 - `steps.ts`: the checks, steps 1 to 12, grouped into suites that share a session.
+- `statusline.ts`: step 13, ghostframe's status line at 200 and 100 columns: its own settings file runs this worktree's
+  `statusline/main.ts`, and `GF_FIXTURE` forces the under-pressure state. It checks the two rows' place above the
+  footer, the last tile on the last cell Claude Code allows, no wrap and no "…", and the hot tile and alert.
 - `run.ts`: the runner and its report.
 
 `bun test` runs the helpers' own tests (`checks.spec.ts`: a `.test.ts` anywhere in the repo is the plugin's, and `claude plugin test` would load it); `bun run typecheck` type-checks the folder.

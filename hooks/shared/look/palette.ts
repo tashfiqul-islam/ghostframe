@@ -45,6 +45,48 @@ export const TINT = {
   dividerFocused: '#2A2A34'
 } as const
 
+/**
+ * The status line's own colours (docs/design/statusline.md): its tiles, meters, greys and the ghost mark. Colours it
+ * shares with Cockpit (the status tones, bright text, the accent) are read from `TOKEN` and `TINT`.
+ */
+export const STATUS: Readonly<
+  Record<
+    | 'slab'
+    | 'tileCalm'
+    | 'tileWarm'
+    | 'tileHot'
+    | 'edgeCalm'
+    | 'meterOff'
+    | 'meterQuarter'
+    | 'rule'
+    | 'effortOff'
+    | 'label'
+    | 'faint'
+    | 'eyeCalm'
+    | 'eyeWarm'
+    | 'eyeHot',
+    string
+  >
+> = {
+  slab: '#111117',
+  tileCalm: '#17171F',
+  tileWarm: '#1E1A15',
+  tileHot: '#22161C',
+  edgeCalm: '#2E5A55',
+  meterOff: TINT.dividerFocused,
+  meterQuarter: '#3A3A47',
+  rule: TINT.dividerFocused,
+  effortOff: '#2C2C37',
+  label: '#7A7A86',
+  faint: '#6E6E7A',
+  eyeCalm: '#5BEBA6',
+  eyeWarm: TOKEN.accent,
+  eyeHot: '#D7263D'
+}
+
+/** The obsidian ghost's body, one colour per pixel row from the top: an ash rim, then darker shades. */
+export const GHOST_ROWS = ['#A29DB0', '#4F4B59', '#403D49', '#35323D'] as const
+
 /** A pill's state: the word it carries and the background it sits on (section 2). */
 export type PillState = 'done' | 'live' | 'failed' | 'needsYou' | 'plan' | 'agent' | 'interrupted'
 

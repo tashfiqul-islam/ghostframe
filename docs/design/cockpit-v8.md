@@ -713,7 +713,7 @@ Cockpit designs around these and does not redraw them.
 
 | Thing                            | What happens                                                                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Status line                      | Your own `statusline.sh` draws it, icons included. Cockpit does not change it. It hides while a dialog is open.                                                                |
+| Status line                      | ghostframe’s status line draws it (docs/design/statusline.md), installed by `/ghostframe-statusline install`. Cockpit does not change it. It hides while a dialog is open.     |
 | Permission dialog, question card | Drawn by the engine in the left region only (correction C). The pane grows to the bottom and its rows stay put.                                                                |
 | ctrl+o                           | Full width; the engine hides the pane (correction D). Cockpit draws each sentence and step row (amendment 11). `ToolUse` and `ToolResult` are raised only here (correction F). |
 | Interrupted turns                | No `TurnDuration` (correction G). The engine's `⎿ Interrupted` row stays; the next turn header closes the turn.                                                                |
