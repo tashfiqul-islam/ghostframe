@@ -120,6 +120,8 @@ CTX, 5H and WK. The reset shows only when its budget is red. Below 90 cells, one
 
 ![The comparison sheet at 100 columns in Windows Terminal](statusline/sheet-100.png)
 
+![The status line at 100 columns, under pressure, in a real session](statusline/session-100-pressure.png)
+
 ## Decisions
 
 | Decision                                                                              | Why                                                                                     | Evidence                                                                                                                                                                                                                                                                                                        |
@@ -154,14 +156,17 @@ Windows 11, Git Bash, Bun 1.4.4, Claude Code 2.1.332:
 
 | Render                                                                              | Mean                                    |
 | ----------------------------------------------------------------------------------- | --------------------------------------- |
-| Back to back, git cached (the budget's case)                                        | 55.0 ms                                 |
+| Back to back, git cached                                                            | 55.0 ms                                 |
 | Back to back, git not cached                                                        | ~61 ms (one git run, ~18 ms in-process) |
 | After 0.5 s idle: bare `bash -c "bun -e 0"`                                         | 102.7 ms                                |
 | After 0.5 s idle: this program / the personal script it replaced                    | 123.0 ms / 136.3 ms                     |
 | In-process: imports, facts (3.9 ms of it the first local-time lookup), render, ANSI | 6 / 4.4 / 1.2 / 0.3 ms                  |
 
-The 60 ms budget holds while the machine is busy; after an idle gap, process start alone (Git Bash and Bun) is past it
-on this machine. The renderer itself takes under 2 ms (`statusline/render.spec.ts` renders 1,000 times).
+So a frame takes about 55 ms back to back with git cached, about 61 ms with git not cached, and about 123 ms after an
+idle gap. The idle cost is mostly Bun's own start: 103 ms for `bun -e 0` alone. Compiled executables measured no faster
+in the audit (69.5 ms against 72.5 ms for `bun script.ts`, above). The renderer itself takes under 2 ms.
+`statusline/render.spec.ts` checks the warm path only: a whole run of `main.ts`, git cached, under 100 ms (the median
+of 5) on every CI system.
 
 Development, the unit tests and the live checks ran on Windows only; CI runs the unit tests on Ubuntu, Windows and
 macOS.

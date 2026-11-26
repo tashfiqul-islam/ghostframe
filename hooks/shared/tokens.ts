@@ -1,7 +1,7 @@
 // ─── Tokens: the one source of every colour (DESIGN.md §2) ───────────────────
 // The theme (~/.claude/themes/ghostframe.json) uses these same hex values; each
 // names its token in a comment. Change a value here, then there. The status line
-// (statusline/) and Cockpit v8 draw with shared/look/palette.ts instead.
+// (statusline/) and Cockpit draw with shared/look/palette.ts instead.
 export const C = {
   bg: '#0b0b0e', // the terminal's ground (theme: inverseText, composer sidebar)
   surface: '#1e1e26', // code chips, the language pill, message backgrounds
