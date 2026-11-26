@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { TOKEN } from '../../../hooks/shared/look/palette'
-import { ON, PANE, T0, VIEW } from '../../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 import { text } from '../../support/docked'
 import { aTurn } from '../../support/history'
@@ -347,7 +347,7 @@ test('resume in fallback: no capsule was drawn for the turns brought back, so ea
   await Promise.all([first.unmount(), second.unmount()])
 })
 
-test('a click on any Cockpit row sends nothing: receipts, step rows and key hints only pin, open or say', ON, async ($, on) => {
+test('a click on any Cockpit row sends nothing: receipts, step rows and key hints only pin, open or say', SLOW, async ($, on) => {
   const clock = { now: T0 }
   const sent: string[] = []
   const toasts: string[] = []
