@@ -6,9 +6,17 @@ import { at, colourIs, hasReceipt, headers, isDialogUp, layoutOf, leftRows, pane
 import { focusPane, slash, startTurn, turn, waitIdle, type Step } from './harness.ts'
 import { rowText, textOf, type Capture } from './screen.ts'
 import type { Session } from './session.ts'
+import { statusline } from './statusline.ts'
 
 /** A group of steps run in one session, at each of its widths (200 and 100 columns unless it names one). */
-export type Suite = { id: string; widths: readonly number[]; steps: string[]; run: (s: Session, step: (id: string) => Step, cols: number) => Promise<void> }
+export type Suite = {
+  id: string
+  widths: readonly number[]
+  steps: string[]
+  /** A settings file of its own, written into the suite's capture folder; the live settings when absent. */
+  settings?: (dir: string) => string
+  run: (s: Session, step: (id: string) => Step, cols: number) => Promise<void>
+}
 
 const quote = (rows: readonly { text: string }[] | readonly string[], max = 4): string =>
   rows.length === 0
@@ -785,4 +793,16 @@ const rewind: Suite = {
 }
 
 /** Every suite, in run order. */
-export const SUITES: Suite[] = [fixAndCommit, failingTest, denial, blocked, sources, agents, interrupted, flood('H', 200, '9'), rewind, flood('J', 100, '12')]
+export const SUITES: Suite[] = [
+  fixAndCommit,
+  failingTest,
+  denial,
+  blocked,
+  sources,
+  agents,
+  interrupted,
+  flood('H', 200, '9'),
+  rewind,
+  flood('J', 100, '12'),
+  statusline
+]
