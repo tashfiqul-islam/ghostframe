@@ -10,3 +10,5 @@ exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen
 [per-file-ignores]
 # The README opens with the brand header: a <picture> for the dark and light variants, before any heading.
 "README.md" = ["MD033", "MD041"]
+# A PR body opens with its first section; the PR title is its heading.
+".github/pull_request_template.md" = ["MD041"]
