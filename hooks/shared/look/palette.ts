@@ -1,4 +1,4 @@
-// Cockpit v8's colours (spec section 2): every hex Cockpit draws with is here, and nowhere else. The tokens colour
+// Cockpit's colours (spec section 2): every hex Cockpit draws with is here, and nowhere else. The tokens colour
 // text, the tints colour cell backgrounds, the pills colour a state word's background. The transcript with Cockpit off
 // keeps its own palette (shared/tokens.ts), unchanged from main.
 

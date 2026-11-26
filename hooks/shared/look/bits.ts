@@ -1,4 +1,4 @@
-// The small parts every v8 row is built from (spec 5.7, 6): a dim run of text, a run of spaces, a kind word in its
+// The small parts every row is built from (spec 5.7, 6): a dim run of text, a run of spaces, a kind word in its
 // 6 cells, and the colour of each result tone. One copy, so the left and the pane draw them the same.
 import type { Part } from '../parts'
 import { KIND_CELLS } from './words'

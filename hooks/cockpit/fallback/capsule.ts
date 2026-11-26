@@ -1,5 +1,5 @@
-// The capsule (spec E.3; v8 7.13): fallback's count of a stretch of work, drawn as the worked node. Pure:
-// hooks/cockpit/v8/receipt.ts reads it into the node's counts and hooks/cockpit/fallback/draw.tsx draws it.
+// The capsule (spec E.3; spec 7.13): fallback's count of a stretch of work, drawn as the worked node. Pure:
+// hooks/cockpit/rows/receipt.ts reads it into the node's counts and hooks/cockpit/fallback/draw.tsx draws it.
 import type { LogStep } from '../../../types'
 import { isOpen, isShownFailure, isTurnFailure } from '../steps/log'
 

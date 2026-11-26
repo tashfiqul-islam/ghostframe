@@ -1,4 +1,4 @@
-// Cockpit v8's formats (spec section 5): clock times, the day, durations, counts and state words. One formatter each,
+// Cockpit's formats (spec section 5): clock times, the day, durations, counts and state words. One formatter each,
 // used by every row that shows one.
 
 const two = (n: number) => String(n).padStart(2, '0')

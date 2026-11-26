@@ -1,5 +1,5 @@
-// The engine's records as the v8 left's counts (7.12, 7.13): a kept receipt and a stretch's capsule, read into the
-// facts the receipt and the worked node draw. Pure: this is where the step log's data meets the v8 renderers.
+// The engine's records as the left's counts (7.12, 7.13): a kept receipt and a stretch's capsule, read into the
+// facts the receipt and the worked node draw. Pure: this is where the step log's data meets the renderers.
 import type { Receipt } from '../../../types'
 import type { Capsule } from '../fallback/capsule'
 import type { TurnCounts } from './left'
@@ -7,7 +7,7 @@ import type { TurnCounts } from './left'
 /** The trace a receipt kept before phase 12 draws: it had none, so a flat one stands in. */
 const FLAT = [0, 2, 0]
 
-/** A receipt as the v8 receipt row's counts. */
+/** A receipt as the receipt row's counts. */
 export function receiptCounts(r: Receipt): TurnCounts {
   // `waiting` is a receipt kept in history before phase 12 made one receipt per typed turn; none is written now.
   const state = r.state === 'failed' ? 'failed' : r.state === 'waiting' ? 'waiting' : 'done'

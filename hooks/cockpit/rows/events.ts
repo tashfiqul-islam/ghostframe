@@ -113,7 +113,7 @@ export function waitingRow(at: number | undefined, detail: readonly Part[], widt
 }
 
 /**
- * Something that left the machine (7.10, v7 E.5): `↗  committed   a1f3c2e fix(ci): read Bun from mise.toml`, drawn the
+ * Something that left the machine (7.10, E.5): `↗  committed   a1f3c2e fix(ci): read Bun from mise.toml`, drawn the
  * moment its call returns. The hash or PR number bright, the rest dim.
  * @param at the time into the turn
  * @param verb `committed`, `pushed`, `opened`, `merged`, `created`

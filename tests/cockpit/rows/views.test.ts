@@ -1,13 +1,13 @@
 import { expect, test } from 'claude-code/testing'
 
-import { framed, hintRow, rulerRows, tabRows, timelineRows } from '../../../hooks/cockpit/v8/pane'
-import type { Group } from '../../../hooks/cockpit/v8/pane'
-import { agentHead, changeBar, countsOf, diffView, filesView, interruptedRow, inspectorRows, pinnedHead } from '../../../hooks/cockpit/v8/views'
+import { framed, hintRow, rulerRows, tabRows, timelineRows } from '../../../hooks/cockpit/rows/pane'
+import type { Group } from '../../../hooks/cockpit/rows/pane'
+import { agentHead, changeBar, countsOf, diffView, filesView, interruptedRow, inspectorRows, pinnedHead } from '../../../hooks/cockpit/rows/views'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import { widthOf } from '../../../hooks/shared/look/width'
 import type { Part } from '../../../hooks/shared/parts'
 import { screen, shown } from '../../support/screens'
-import { barOf, GROUPS_7, P, pane24, pane25, pane26, SPAN, VERSION } from '../../support/v8pane'
+import { barOf, GROUPS_7, P, pane24, pane25, pane26, SPAN, VERSION } from '../../support/paneScreens'
 
 const want = (n: string) => screen(n, 1)
 

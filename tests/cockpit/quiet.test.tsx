@@ -5,7 +5,7 @@ import { NARRATION, engine, CALLS, fixedTurn, message, ANSWER, text } from '../s
 import { respond } from '../support/respond'
 import type { Call } from '../support/docked'
 
-// Phase 4, the quiet left: while Cockpit is on and its pane docked, the transcript shows the conversation only, in the v8
+// Phase 4, the quiet left: while Cockpit is on and its pane docked, the transcript shows the conversation only, in Cockpit's
 // look (7.10, 7.12): `↗` rows, the failure card, the receipt.
 
 /** A drawn tree's rows: each row is one Text whose parts are Texts inside it; trailing blanks dropped, blank rows kept out. */

@@ -1,4 +1,4 @@
-// What left the machine (spec 7.10, v7 E.5): a call's `↗` rows, drawn the moment it returns: a commit, a push, a pull
+// What left the machine (spec 7.10, E.5): a call's `↗` rows, drawn the moment it returns: a commit, a push, a pull
 // request opened or merged. Pure: the left draws what this returns.
 import { commandOf, wholeCommand } from '../../shared/look/words'
 import type { Part } from '../../shared/parts'

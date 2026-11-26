@@ -1,9 +1,9 @@
-// The pane of the Cockpit v8 screens, built from the data each screen shows: the screen tests compare these rows with
+// The pane of the Cockpit screens, built from the data each screen shows: the screen tests compare these rows with
 // the spec's section 12. Pure, so a script can print them too.
-import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from '../../hooks/cockpit/v8/pane'
-import type { Bar, Group, Head, Tab, TabCounts } from '../../hooks/cockpit/v8/pane'
-import { agentsView, allStepsView, filesView, sourcesView, todoView } from '../../hooks/cockpit/v8/views'
-import type { StepRow } from '../../hooks/cockpit/v8/views'
+import { drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from '../../hooks/cockpit/rows/pane'
+import type { Bar, Group, Head, Tab, TabCounts } from '../../hooks/cockpit/rows/pane'
+import { agentsView, allStepsView, filesView, sourcesView, todoView } from '../../hooks/cockpit/rows/views'
+import type { StepRow } from '../../hooks/cockpit/rows/views'
 import { SPARK } from '../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../hooks/shared/look/palette'
 import type { Part } from '../../hooks/shared/parts'

@@ -17,8 +17,8 @@ import { isStartRow } from '../../ledger/session'
 import { openerCaps, openerThought, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
 import { spineOnly } from '../../../shared/look/spine'
 import type { Part } from '../../../shared/parts'
-import { answerRows, claudeFootnotes, footnoteRows } from '../../v8/markdown'
-import { thoughtRow } from '../../v8/turn'
+import { answerRows, claudeFootnotes, footnoteRows } from '../../rows/markdown'
+import { thoughtRow } from '../../rows/turn'
 
 /** A thought shorter than this draws no thought row (7.3): it would only say `<1s`. */
 const THOUGHT_SHOWN_MS = 1_000

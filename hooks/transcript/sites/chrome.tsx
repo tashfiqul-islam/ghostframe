@@ -144,9 +144,9 @@ export function registerChrome(on: On): void {
   // Slash-command output: muted, behind a small › (errors keep the engine's red).
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
     // Cockpit's left: the command as a `/` node with its clock and one quiet row (7.15).
-    const v8 = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
+    const drawn = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
 
-    if (v8 !== undefined) return v8
+    if (drawn !== undefined) return drawn
 
     if (e.surface !== 'terminal' || e.props.isErrored || e.props.text.trim().length === 0) {
       return next(e)
@@ -180,9 +180,9 @@ export function registerChrome(on: On): void {
     }
 
     // Cockpit's left: a grey one-line notice on the spine (7.10).
-    const v8 = await drawNotice($, e)
+    const drawn = await drawNotice($, e)
 
-    if (v8 !== undefined) return v8
+    if (drawn !== undefined) return drawn
 
     const ui = $.ui.resolve(e)
     const { Box, Text } = ui

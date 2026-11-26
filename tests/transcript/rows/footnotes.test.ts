@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { claudeFootnotes } from '../../../hooks/transcript/v8/markdown'
+import { claudeFootnotes } from '../../../hooks/transcript/rows/markdown'
 
 // 7.4's footnote lines come only from the `[n]` references Claude wrote: a bare URL or a link in the answer is the
 // answer's own text, never a footnote Cockpit numbers for it (the live check's step 6 drew three it made up).

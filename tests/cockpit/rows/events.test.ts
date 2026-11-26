@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { blockedRow, capFailures, deniedRow, detailRow, failureRow, insteadRows, moreParts } from '../../../hooks/cockpit/v8/events'
+import { blockedRow, capFailures, deniedRow, detailRow, failureRow, insteadRows, moreParts } from '../../../hooks/cockpit/rows/events'
 import type { LogStep } from '../../../types'
 import { GLYPH } from '../../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../../hooks/shared/look/palette'

@@ -6,7 +6,7 @@ import { OK } from '../../support/step'
 
 const CWD = 'D:\\Projects\\app'
 
-test('verbs and targets follow the v3 timeline', async () => {
+test('verbs and targets follow the timeline', async () => {
   expect(describe('Read', { file_path: 'D:\\Projects\\app\\src\\toast\\queue.ts' }, CWD)).toEqual({ verb: 'read', target: 'src/toast/queue.ts', isPath: true })
   expect(describe('Grep', { pattern: 'pushToast(', path: 'src' }, CWD)?.target).toBe('"pushToast(" in src')
   expect(describe('Bash', { command: 'bun test toast' })?.verb).toBe('test')

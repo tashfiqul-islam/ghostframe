@@ -1,13 +1,13 @@
-// The left of the Cockpit v8 screens, built from the data each screen shows: the screen tests compare these rows with
+// The left of the Cockpit screens, built from the data each screen shows: the screen tests compare these rows with
 // the spec's section 12. Pure: no engine, so a script can print them too.
-import { blockedRow, detailRow, failureRow, noticeRow, sentenceRows, shippedRow } from '../../hooks/cockpit/v8/events'
-import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, stepLineRow, stepsAllRows, workedRow } from '../../hooks/cockpit/v8/left'
-import type { StepLine, TurnCounts } from '../../hooks/cockpit/v8/left'
+import { blockedRow, detailRow, failureRow, noticeRow, sentenceRows, shippedRow } from '../../hooks/cockpit/rows/events'
+import { branchRow, failureCard, liveRows, receiptRow, slashOutputRow, stepLineRow, stepsAllRows, workedRow } from '../../hooks/cockpit/rows/left'
+import type { StepLine, TurnCounts } from '../../hooks/cockpit/rows/left'
 import { NO_SPINE, spineOnly } from '../../hooks/shared/look/spine'
 import type { Part } from '../../hooks/shared/parts'
 import { diffCard } from '../../hooks/shared/look/code'
-import { answerRows, footnoteRows } from '../../hooks/transcript/v8/markdown'
-import { messageCard, thoughtRow, turnHeader } from '../../hooks/transcript/v8/turn'
+import { answerRows, footnoteRows } from '../../hooks/transcript/rows/markdown'
+import { messageCard, thoughtRow, turnHeader } from '../../hooks/transcript/rows/turn'
 
 /** A wall clock on the screens' day. */
 export const at = (h: number, m: number, s: number): number => new Date(2026, 10, 23, h, m, s).getTime()

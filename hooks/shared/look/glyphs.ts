@@ -1,4 +1,4 @@
-// Cockpit v8's glyphs (spec section 4): one meaning each, and every glyph Cockpit draws is named here.
+// Cockpit's glyphs (spec section 4): one meaning each, and every glyph Cockpit draws is named here.
 
 export const GLYPH = {
   turn: '◆',

@@ -13,7 +13,7 @@ const settled = (tool: string, input: Record<string, unknown>, said: string) => 
   return must(settleStep(log, { id: 'x', tool, input, outcome: failed(said), at: T0 + 41_000 }).steps[0])
 }
 
-test('a failed test draws the v8 `×` node, its kind, subject and result, and its first decisive line under it (13.1)', () => {
+test('a failed test draws the `×` node, its kind, subject and result, and its first decisive line under it (13.1)', () => {
   const step = settled('Bash', { command: 'bun test width' }, 'Exit code 1\n 12 pass\n 2 fail\n')
   const excerpt = ['bun test v1.4.4', '', 'expect(width("e\\u0301")).toBe(1) · received 2', '      at tests/width.test.tsx:41:27', 'Exit code 1']
   const failure = failureOf(step, excerpt)

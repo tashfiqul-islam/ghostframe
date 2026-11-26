@@ -20,7 +20,7 @@ import { openerCaps, readAsked, readFirstTools, readSteps, readStreaming, readTu
  * @param on the `on` that `register` receives
  */
 export function registerToolGroup(on: On): void {
-  // A folded group of reads/searches: one timeline row per call (v3), when every call is
+  // A folded group of reads/searches: one timeline row per call, when every call is
   // one we can read and the group holds nothing but calls. Expanded → the engine.
   on('ui.render', { component: 'ToolGroup' }, async ($, e, next) => {
     // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).

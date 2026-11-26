@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
 import { widthOf } from '../../../hooks/shared/look/width'
-import { tableCard } from '../../../hooks/transcript/v8/tables'
+import { tableCard } from '../../../hooks/transcript/rows/tables'
 
 // 7.6 on the live check's step 9 table (200 columns: 86 cells) and step 12's (100 columns: 78): columns sized to their
 // content 3 cells apart, a number column right-aligned in its own width, one header band, zebra rows, the last column

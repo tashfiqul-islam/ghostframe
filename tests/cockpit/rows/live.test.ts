@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { newLog, newTurn, startStep } from '../../../hooks/cockpit/steps/log'
-import { liveArea } from '../../../hooks/cockpit/v8/live'
+import { liveArea } from '../../../hooks/cockpit/rows/live'
 import type { RosterAgent } from '../../../types'
 
 // The left's live area under decisions A and B (round 5): it draws nothing of its own while the engine's dialog asks

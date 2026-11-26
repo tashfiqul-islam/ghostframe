@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { turnHeader } from '../../../hooks/transcript/v8/turn'
+import { turnHeader } from '../../../hooks/transcript/rows/turn'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import { OFF, ON, PANE, T0 } from '../../support/cockpit'
 import { shown } from '../../support/screens'
@@ -8,7 +8,7 @@ import type { Engine, On } from '../../support/engine'
 import { fallbackEngine, rowsOf, site } from '../../support/fallback'
 import type { Clock } from '../../support/fallback'
 
-// The turn header while Cockpit is on (v8 7.1, amendment 12): `10:26:45 ◆  TURN n  ───`, n the step log's turn number,
+// The turn header while Cockpit is on (spec 7.1, amendment 12): `10:26:45 ◆  TURN n  ───`, n the step log's turn number,
 // its rule ending on the text column's last cell: 86 cells beside a docked pane (a 127-column region), 78 at 100.
 const header = (turnNo: number | undefined, cells: number, at = T0) => shown([turnHeader({ at, turnNo, isLive: false }, cells)])[0] ?? ''
 const trimmed = (rows: readonly string[]) => rows.map(r => r.trimEnd())
@@ -170,13 +170,13 @@ test('narrow fallback: at 40 columns the text column narrows and the label stays
   expect((await rowsOf($, prompt('u1', 40, 'go')))[0]?.trimEnd()).toBe(header(1, 23))
 })
 
-test('Cockpit off: the v6 rule, as before', OFF, async ($, on) => {
+test('Cockpit off: the classic rule, as before', OFF, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, false)
   await start($, false)
   await typed($, clock, 'go', 'e1', 'u1')
 
-  // v6's rule draws its `+` ends and its time as Texts of their own.
+  // The classic rule draws its `+` ends and its time as Texts of their own.
   const rows = await rowsOf($, prompt('u1', 127, 'go'))
   expect(rows[0]).toBe('+')
   expect(rows).toContain(' 10:26 ')

@@ -1,10 +1,10 @@
 // Fallback's event rows (spec E.5, E.13, 13.1): with no pane to show it, every failure draws at once, as the step
-// settles, as v8's `×` node with its decisive line under it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
+// settles, as the `×` node with its decisive line under it. A failed fetch or search draws none (amendment 6): it is a source problem, not the turn's. Pure: draw.tsx
 // draws what these return.
 import type { LogStep } from '../../../types'
 import type { Part } from '../../shared/parts'
 import { isTurnFailure } from '../steps/log'
-import { detailRow, failureRow } from '../v8/events'
+import { detailRow, failureRow } from '../rows/events'
 
 /** What a failure row says, kept from its first draw: a row is never amended, even once a later step fixes it. */
 export type Failure = { kind: string; subject: string; result: string; clock: number; lines: string[] }

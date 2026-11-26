@@ -11,7 +11,7 @@ import { respond } from '../support/respond'
 // Spec 13.1 against a real flood: this session's own turn of 455 steps, 80 of them errors, most of them exploratory
 // PowerShell (`$t = Get-Content …`, `[IO.File]::ReadAllText(…)`, `foreach …`), the gate run with its output
 // redirected, and edits refused until the file was read. On main it drew 34 `✕ still failing` rows.
-const ANSWER = 'Cockpit v8 is built.'
+const ANSWER = 'Cockpit is built.'
 const calls = FLOOD.map((s, i) => ({ id: `f${i}`, ...s }))
 
 /** The engine: every call answers as it did in the session, at the time it took. */
@@ -47,8 +47,8 @@ function floodEngine(on: On, clock: Clock, placed: boolean): void {
 
 /** The whole turn, call by call, then its answer. */
 async function floodTurn($: Engine, clock: Clock): Promise<void> {
-  await $.prompt.submit({ text: 'build Cockpit v8', wait: false, origin: { kind: 'composer' } })
-  await $.turn.start({ text: 'build Cockpit v8', turnId: 'flood' })
+  await $.prompt.submit({ text: 'build Cockpit', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'build Cockpit', turnId: 'flood' })
 
   for (const c of calls) {
     clock.now = T0 + c.at

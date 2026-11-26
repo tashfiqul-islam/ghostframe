@@ -3,7 +3,7 @@
 // failure draws its row at once, and the live area above the prompt is the whole of it. left.tsx routes each site
 // here; these draw. Every row is worked out from the turn's own data at each draw (amendment 10, facts.ts), so a row
 // drawn again after a resize, a resume or a reload draws the same.
-import { insteadRows, moreRow, refusalRows } from '../v8/events'
+import { insteadRows, moreRow, refusalRows } from '../rows/events'
 import type { EngineInterface, RenderElement } from 'claude-code'
 
 import type { Part } from '../../shared/parts'
@@ -13,9 +13,9 @@ import { drawRows } from '../draw'
 import { keptRecords } from '../history/store'
 import { readLog, readRoster } from '../log'
 import type { GroupCall } from '../quiet'
-import { workedCounts } from '../v8/receipt'
-import { workedRow } from '../v8/left'
-import { shipEventRows } from '../v8/ships'
+import { workedCounts } from '../rows/receipt'
+import { workedRow } from '../rows/left'
+import { shipEventRows } from '../rows/ships'
 import type { Capsule } from './capsule'
 import { isShownFailure } from '../steps/log'
 import { failureOf, failureRows } from './events'
@@ -25,7 +25,7 @@ import type { TurnView } from './facts'
 import { callAnchor, footerAnchor, isAfterEventAt, textAnchor } from './plan'
 
 /**
- * A capsule as v8's worked node (7.13), with the failure keys of its stretch that drew no row counted directly above
+ * A capsule as the worked node (7.13), with the failure keys of its stretch that drew no row counted directly above
  * it: `+ n more · /steps n`, under the turn's failure rows and before the answer (13.1).
  */
 const capsuleRows = (c: Capsule, width: number, turnNo: number): Part[][] => [

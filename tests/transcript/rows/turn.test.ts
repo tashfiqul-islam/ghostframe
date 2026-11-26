@@ -1,17 +1,17 @@
 import { expect, test } from 'claude-code/testing'
 
-import { planRow, stepNodeRow } from '../../../hooks/cockpit/v8/events'
-import { receiptRow } from '../../../hooks/cockpit/v8/left'
+import { planRow, stepNodeRow } from '../../../hooks/cockpit/rows/events'
+import { receiptRow } from '../../../hooks/cockpit/rows/left'
 import { GLYPH } from '../../../hooks/shared/look/glyphs'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import { spineOnly } from '../../../hooks/shared/look/spine'
-import { answerRows } from '../../../hooks/transcript/v8/markdown'
-import { planCard, tableCard } from '../../../hooks/transcript/v8/tables'
-import { agentHeader, messageCard, thoughtRow, turnHeader } from '../../../hooks/transcript/v8/turn'
+import { answerRows } from '../../../hooks/transcript/rows/markdown'
+import { planCard, tableCard } from '../../../hooks/transcript/rows/tables'
+import { agentHeader, messageCard, thoughtRow, turnHeader } from '../../../hooks/transcript/rows/turn'
 import { widthOf } from '../../../hooks/shared/look/width'
 import { blocksOf } from '../../support/live'
 import { screen, shown } from '../../support/screens'
-import { at, counts, TRACE_7, W } from '../../support/v8left'
+import { at, counts, TRACE_7, W } from '../../support/leftScreens'
 
 test('7.1: the header`s label states and the day, in machine and bold (screen 07)', () => {
   const rows = [

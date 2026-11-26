@@ -20,8 +20,8 @@ import { sessionCwd } from '../ledger/session'
 import { isSameText, readPrompts, storedPrompts } from '../ledger/state'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
-import { messageCard, turnHeader } from '../v8/turn'
-import type { Header } from '../v8/turn'
+import { messageCard, turnHeader } from '../rows/turn'
+import type { Header } from '../rows/turn'
 
 // Which submit stamp each turn rule shows, by the row's request: the same prompt typed
 // twice has two stamps. A row keeps the stamp it claimed. A first draw takes the submit
@@ -70,7 +70,7 @@ function liveAtFirstDraw(turnNo: number | undefined, at: number | undefined, isL
  * engine draws it under (the same live and after a resume), else claimed as before. A prompt typed over a running
  * turn and delivered into it is added to it; one still waiting is queued. Any other opens a turn: its number the one
  * its turn took, else, while that turn is about to start or has just started, the step log's; its submit time, with
- * the day when the previous prompt's was another. This finds the facts only; the drawing is `transcript/v8/turn.ts`'s.
+ * the day when the previous prompt's was another. This finds the facts only; the drawing is `transcript/rows/turn.ts`'s.
  * @param $ the engine interface
  * @param row the row's request
  * @param text the prompt's text
@@ -224,12 +224,12 @@ export function registerPrompt(on: On): void {
 
     const width = lay.width
 
-    // Turn open rule with the submit time (dropped when we never saw the submit; v6's claimed by text),
+    // Turn open rule with the submit time (dropped when we never saw the submit; the classic rule's, claimed by text),
     // then `you` in the gutter and the message behind a ▎ rail on every row.
     const ui = $.ui.resolve(e)
-    // Cockpit off: the v6 rule with the submit time, as on main.
-    const v6 = claimPrompt(e.requestId, e.props.text, await readPrompts($))
-    const rule = Rule(ui, v6 ? { text: fmtClock(v6.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
+    // Cockpit off: the classic rule with the submit time, as on main.
+    const claimed = claimPrompt(e.requestId, e.props.text, await readPrompts($))
+    const rule = Rule(ui, claimed ? { text: fmtClock(claimed.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
     const rows = wrapPlain(e.props.text, width - 2)
 
     return (

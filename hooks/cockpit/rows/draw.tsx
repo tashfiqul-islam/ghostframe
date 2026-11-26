@@ -1,4 +1,4 @@
-// The v8 pane's tree (spec 8, 9.5): its rows, an openable one as a Button under its id (Tab reaches it, Enter opens
+// The pane's tree (spec 8, 9.5): its rows, an openable one as a Button under its id (Tab reaches it, Enter opens
 // it), and, only while the pane holds the keyboard, its keys as hotkey Buttons: the tabs' digits on the tab strip, the
 // view's keys on the hint row, the wordmark at its right. An unfocused pane draws no hotkey, so none takes a key from
 // the prompt (amendment 7).
@@ -72,7 +72,7 @@ export const isKeyElement = (element: string | undefined): boolean => element?.s
  * @param only the inline inspector's hotkeys (8.13): its card draws its own key row, so no hint row is drawn
  * @returns the tree
  */
-export function drawPaneV8($: EngineInterface, e: RenderInput<'Pane'>, lines: readonly Line[], only?: readonly string[]): RenderElement {
+export function drawPane($: EngineInterface, e: RenderInput<'Pane'>, lines: readonly Line[], only?: readonly string[]): RenderElement {
   const ui = $.ui.resolve(e)
   const { Box, Text, Button } = ui
   const isFocused = e.props.isFocused

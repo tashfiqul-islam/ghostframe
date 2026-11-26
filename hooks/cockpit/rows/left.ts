@@ -35,7 +35,7 @@ export type TurnCounts = {
   waiting?: number
 }
 
-/** A receipt's counts, each with the rank it drops at when the row is too narrow (v7 E.32: higher goes first). */
+/** A receipt's counts, each with the rank it drops at when the row is too narrow (E.32: higher goes first). */
 function receiptFields(c: TurnCounts): [string, number][] {
   const named = ['browser', 'mcp'].flatMap(k => ((c.kinds[k] ?? 0) > 0 ? [[`${c.kinds[k] ?? 0} ${k}`, 3] as [string, number]] : []))
 
@@ -70,7 +70,7 @@ function nodeRow(label: string, glyph: Part, word: Part, levels: readonly number
 
 /**
  * The receipt (7.12): `2m 44s ✓  DONE   ⣀⣤⣴…   23 steps · 1 fixed · 3 files · 2 sources · ↗ a1f3c2e`. Narrow, the
- * counts drop in v7 E.32's order; the state word never drops. An interrupted turn has none (correction G).
+ * counts drop in E.32's order; the state word never drops. An interrupted turn has none (correction G).
  * @param c the turn's counts
  * @param width the text column's cells
  * @returns the row

@@ -245,7 +245,7 @@ const answerRow = (text: string, id = rowOf(text).requestId ?? 'unknown') =>
 const rowsOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
   (await ui.findAll({ type: 'Text' })).map(t => t.text).filter(t => t.trim().length > 0)
 
-/** Whether an answer row draws as its turn's opener (7.4): its lead sentence bright, as the v8 left marks an answer. */
+/** Whether an answer row draws as its turn's opener (7.4): its lead sentence bright, as the left marks an answer. */
 async function leads(ui: { findAll: (q: { type: string }) => Promise<{ text: string; props: Record<string, unknown> }[]> }): Promise<boolean> {
   return (await ui.findAll({ type: 'Text' })).some(t => t.props['color'] === TOKEN.textBright && /done\./.test(t.text))
 }

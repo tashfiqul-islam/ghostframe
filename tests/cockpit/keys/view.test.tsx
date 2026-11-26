@@ -1,12 +1,12 @@
 import { expect, test } from 'claude-code/testing'
 
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
-import { ringMoveOf } from '../../../hooks/cockpit/v8/draw'
+import { ringMoveOf } from '../../../hooks/cockpit/rows/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 
-// Phase 7 keys in the v8 pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
+// Phase 7 keys in the pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
 // keyboard; `1` to `5` switch tabs, Enter on a row opens it (a drawer, a diff, a URL copy, an agent); Escape (the
 // engine's) gives the keyboard back, and the pane then draws the timeline again.
 const FAIL_OUT = ['tests/width.test.tsx:', '(fail) width > counts a skin-tone modifier [0.38ms]', ' 12 pass', ' 2 fail'].join('\n')

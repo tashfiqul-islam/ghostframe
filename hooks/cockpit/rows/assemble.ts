@@ -1,4 +1,4 @@
-// The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the v8 views,
+// The pane, assembled (spec 8, 9.4, 9.5): the step log, the roster, the turn's work and history read into the views,
 // each openable row under its id, and the keys the view offers. Pure: cockpit/pane.tsx reads the state and draws this.
 import { waitingOn } from '../agents/roster'
 import { decisive as decisiveLines } from '../fallback/events'

@@ -11,7 +11,7 @@ import { THOUGHT_LEVELS, trace } from '../../shared/look/trace'
 import { wrapWords } from '../../shared/look/wrap'
 import { widthOf } from '../../shared/look/width'
 
-/** The label state words of amendment 12, in v8's capitals (7.1). */
+/** The label state words of amendment 12, in capitals (7.1). */
 const AFTER: Record<TurnAfter, string> = { resume: 'RESUMED', compact: 'AFTER COMPACT', rewind: 'AFTER REWIND' }
 
 /** A turn header's facts (7.1). */

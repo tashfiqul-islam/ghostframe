@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { foldGroups, groupsOf, paneResult, titleOf } from '../../../hooks/cockpit/v8/groups'
-import type { TimedStep } from '../../../hooks/cockpit/v8/groups'
-import { columns, rulerRows, tabRows, timelineRows, track } from '../../../hooks/cockpit/v8/pane'
-import type { Group } from '../../../hooks/cockpit/v8/pane'
+import { foldGroups, groupsOf, paneResult, titleOf } from '../../../hooks/cockpit/rows/groups'
+import type { TimedStep } from '../../../hooks/cockpit/rows/groups'
+import { columns, rulerRows, tabRows, timelineRows, track } from '../../../hooks/cockpit/rows/pane'
+import type { Group } from '../../../hooks/cockpit/rows/pane'
 import { TOKEN } from '../../../hooks/shared/look/palette'
 import type { LogStep } from '../../../types'
 import { shown } from '../../support/screens'
