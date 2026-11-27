@@ -159,7 +159,9 @@ test('round 6, 7. the ruler: the start label on the track`s first cell, the end 
   for (const width of [72, 60, 52]) {
     const r = at(width)
 
-    expect([r.first, r.last]).toEqual([31, 31 + columns(width).track - 1])
+    const start = 4 + columns(width).title + 2
+
+    expect([r.first, r.last]).toEqual([start, start + columns(width).track - 1])
     // Never past the track's end, and never before its start.
     expect(r.to).toBe(r.last)
     expect(r.from).toBeGreaterThanOrEqual(r.first)
@@ -168,5 +170,6 @@ test('round 6, 7. the ruler: the start label on the track`s first cell, the end 
   // 20 cells hold both whole; 14 and 12 only without their seconds.
   expect(at(72)).toMatchObject({ labels: '10:14:02    10:31:07', from: 31 })
   expect(at(60)).toMatchObject({ labels: '10:14    10:31', from: 31 })
-  expect(at(52)).toMatchObject({ labels: '10:14  10:31', from: 31 })
+  // At 52 the title gives way to the track's and the result's minimums (6.2): the track starts at 25.
+  expect(at(52)).toMatchObject({ labels: '10:14  10:31', from: 25 })
 })

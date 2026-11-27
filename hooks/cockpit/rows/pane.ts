@@ -9,6 +9,8 @@ import { PILL, TINT, TOKEN } from '../../shared/look/palette'
 import { cutCommand, cutTitle } from '../../shared/look/paths'
 import { sparkline } from '../../shared/look/trace'
 import { widthOf } from '../../shared/look/width'
+import { wrapWords } from '../../shared/look/wrap'
+import { clipMiddle } from '../../shared/text'
 
 /** The cells a row's parts take. */
 const partsWidth = (parts: readonly Part[]) => parts.reduce((n, p) => n + widthOf(p.t), 0)
@@ -166,11 +168,32 @@ export function headCard(h: Head, width: number): Part[][] {
 
 // ─── 8.3 The timeline ────────────────────────────────────────────────────────
 
-/** Where the pane's columns fall at this width (6.2): the title's cells, the track's, the result's. */
+// The cells around the columns (6.2): select, space, glyph and space before the title, 2 after it, 1 at the row's end.
+const TITLE_AT = 4
+const ROW_FRAME = TITLE_AT + 2 + 1
+// The track and the result keep 20 cells each down to 72 columns, then shrink, the result first to 14, the track to 12.
+const TRACK_CELLS = 20
+const RESULT_CELLS = 20
+const TRACK_MIN = 12
+const RESULT_MIN = 14
+// The title holds 25 cells while the track and the result shrink (63 to 72 columns); past that, it gives way too.
+const TITLE_HELD = 25
+
+/**
+ * Where the pane's columns fall at this width (6.2): the track's and the result's cells, and the title's, which takes
+ * every cell they leave, so it grows with the pane.
+ * @param width the pane's columns
+ * @returns the cells of each
+ */
 export function columns(width: number): { title: number; track: number; result: number } {
-  const result = width >= 72 ? 20 : Math.max(14, width - 52)
-  return { title: 25, track: Math.max(12, width - 1 - 31 - result), result }
+  const result = width >= 72 ? RESULT_CELLS : Math.max(RESULT_MIN, width - 52)
+  const trackCells = Math.max(TRACK_MIN, Math.min(TRACK_CELLS, width - ROW_FRAME - TITLE_HELD - result))
+
+  return { title: Math.max(1, width - ROW_FRAME - trackCells - result), track: trackCells, result }
 }
+
+/** The track's first cell, counting from 0: after the title column and its 2 cells. */
+const trackAt = (width: number): number => TITLE_AT + columns(width).title + 2
 
 /** A bar on the track (8.3): from and to, in ms into the turn, and its colour. */
 export type Bar = { from: number; to: number; color: string }
@@ -220,9 +243,11 @@ export function rulerRows(from: string, to: string, width: number): Part[][] {
   // The track is at least 12 cells: two `HH:MM` labels always fit.
   const [left, right] = widthOf(from) + 1 + widthOf(to) <= cells ? [from, to] : [short(from), short(to)]
 
+  const at = trackAt(width)
+
   return [
-    [sp(31), { t: left, color: TOKEN.dim }, sp(cells - widthOf(left) - widthOf(right)), { t: right, color: TOKEN.dim }],
-    [sp(31), { t: ticks, color: TOKEN.hairline }]
+    [sp(at), { t: left, color: TOKEN.dim }, sp(cells - widthOf(left) - widthOf(right)), { t: right, color: TOKEN.dim }],
+    [sp(at), { t: ticks, color: TOKEN.hairline }]
   ]
 }
 
@@ -288,11 +313,12 @@ export function underRing(row: readonly Part[]): Part[] {
 
 /** A row on the pane's grid (6.2): select, glyph, title, the track, the result. */
 function gridRow(glyph: Part, title: readonly Part[], trackParts: readonly Part[], result: Part, width: number): Part[] {
-  const { result: resultCells } = columns(width)
-  // A result is at most 14 cells (5.7), right-aligned in its column; the row is never wider than the pane.
-  const r = { ...result, t: cutTitle(result.t, Math.min(RESULT_MAX, resultCells)) }
+  const { title: titleCells, result: resultCells } = columns(width)
+  // A result is at most 14 cells (5.7), right-aligned in its column, cut in the middle so a branch or a path keeps both
+  // ends; the row is never wider than the pane.
+  const r = { ...result, t: clipMiddle(result.t, Math.min(RESULT_MAX, resultCells)) }
 
-  return fit([sp(2), glyph, sp(1), ...fit(title, 25), sp(2), ...trackParts, sp(resultCells - widthOf(r.t)), r, sp(width - 51 - resultCells)], width)
+  return fit([sp(2), glyph, sp(1), ...fit(title, titleCells), sp(2), ...trackParts, sp(resultCells - widthOf(r.t)), r, sp(1)], width)
 }
 
 /** A result's most cells (5.7). */
@@ -311,7 +337,7 @@ function subRow(s: SubStep, guide: string, width: number): Part[] {
   const head: Part[] = [sp(2), { t: guide, color: TOKEN.spine }, SUB_GLYPH[s.glyph], sp(1), { t: kindCell(s.kind), color: TOKEN.muted }]
   const subject = { t: s.kind === 'fetch' ? s.subject : cutCommand(s.subject, room), color: TOKEN.text }
 
-  return spread([...head, subject], [{ t: cutTitle(s.result, RESULT_MAX), color: TONE[s.tone] }, sp(width - 51 - resultCells)], width)
+  return spread([...head, subject], [{ t: clipMiddle(s.result, RESULT_MAX), color: TONE[s.tone] }, sp(1)], width)
 }
 
 /**
@@ -325,21 +351,25 @@ function subRow(s: SubStep, guide: string, width: number): Part[] {
  * @returns the rows
  */
 export function timelineRows(groups: readonly Group[], spanMs: number, width: number, isLive: boolean): Part[][] {
-  const { track: cells } = columns(width)
+  const { title: titleCells, track: cells } = columns(width)
   const nowAt = isLive ? cells - 1 : undefined
   const rows: Part[][] = []
 
   for (const g of groups) {
     const titleColor = g.glyph === 'folded' ? TOKEN.dim : TOKEN.text
+    // The selected row shows its whole title, wrapped under the title column, so a cut title can always be read.
+    const lines = g.isSelected === true ? wrapWords(g.title, titleCells) : [cutTitle(g.title, titleCells)]
     const head = gridRow(
       GROUP_GLYPH[g.glyph],
-      [{ t: cutTitle(g.title, 25), color: titleColor }],
+      [{ t: lines[0] ?? '', color: titleColor }],
       track(g.bar, spanMs, cells, nowAt),
       { t: g.result, color: TONE[g.tone] },
       width
     )
 
     rows.push(g.isSelected === true ? selected(head) : head)
+    // Its first part is the select column's 2 cells, as on a grid row, so `selected` puts its bar there.
+    for (const line of lines.slice(1)) rows.push(selected(fit([sp(2), sp(TITLE_AT - 2), { t: line, color: titleColor }], width)))
     if (g.detail !== undefined) rows.push(fit([sp(2), { t: `${GLYPH.last} `, color: TOKEN.spine }, dim(g.detail)], width))
 
     const agents = g.agents ?? []
@@ -352,7 +382,7 @@ export function timelineRows(groups: readonly Group[], spanMs: number, width: nu
       rows.push(
         gridRow(
           { t: guide.trimEnd(), color: TOKEN.spine },
-          [glyph, sp(1), { t: cutTitle(a.name, 23), color: TOKEN.text }],
+          [glyph, sp(1), { t: cutTitle(a.name, titleCells - 2), color: TOKEN.text }],
           track(a.bar, spanMs, cells),
           // Its time so far while it runs, in the live colour; ok or err only once it ends.
           { t: a.result, color: a.isRunning ? TOKEN.accent : a.isFailed ? TOKEN.err : TOKEN.ok },
