@@ -66,14 +66,22 @@ const asFolder = (path: string): string => (path.length === 0 || /^[A-Za-z]:$/.t
  * @returns true on Windows and macOS
  */
 export async function ignoresCase($: EngineInterface): Promise<boolean> {
-  try {
-    const { platform } = await $.session.info()
+  // The platform does not change in a session: asked once, so a call's snapshot waits on one round trip fewer.
+  caseAnswer ??= (async () => {
+    try {
+      const { platform } = await $.session.info()
 
-    return platform === 'windows' || platform === 'macos'
-  } catch {
-    return false // a platform that cannot be read is not known: exact, the side that reads nothing it should not
-  }
+      return platform === 'windows' || platform === 'macos'
+    } catch {
+      return false // a platform that cannot be read is not known: exact, the side that reads nothing it should not
+    }
+  })()
+
+  return caseAnswer
 }
+
+/** Whether the disk ignores case, once asked. */
+let caseAnswer: Promise<boolean> | undefined
 
 /** A path as it is compared: slashes and long forms aside, its case kept where the disk keeps it. */
 const compared = (path: string, isCaseless: boolean): string => (isCaseless ? slashed(path).toLowerCase() : slashed(path))
@@ -101,7 +109,7 @@ export function wasChangedBefore(path: string): boolean | undefined {
 // the rest (`+n more untracked`); a diff reads at most 50 new files to count their lines, 8 at a time, checks only
 // those for links out of the project, never reads a file over 1 MB, and counts a file with a NUL byte (binary) as 0.
 const UNTRACKED_MAX = 2_000
-const COUNT_BYTES_MAX = 1_048_576 // a new file larger than this is listed and never read: its lines are not counted
+export const COUNT_BYTES_MAX = 1_048_576 // a file larger than this is never read whole: not counted, not snapshotted
 const RECOUNT_MAX = 50 // the most new files one diff reads to count their lines; the rest are listed without a count
 const AT_ONCE = 8 // link checks and reads in flight at once
 const GIT_TIMEOUT_MS = 5_000 // a git call that takes longer is given up: FILES falls back to the commands' targets
@@ -419,6 +427,14 @@ export async function noteWork($: EngineInterface, tool: string, input: unknown,
 /** The calls being noted, in the order they ended. */
 let noting: Promise<void> = Promise.resolve()
 
+/**
+ * Waits for every call that has ended to be noted: a turn's end counts them all.
+ * @returns once they are
+ */
+export async function workSettled(): Promise<void> {
+  await noting
+}
+
 /** `noteWork`'s body, run one call at a time. */
 async function noteWorkNow($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent: boolean): Promise<void> {
   lastCwd = cwd ?? lastCwd
@@ -498,12 +514,35 @@ async function realPath($: EngineInterface, path: string): Promise<string | null
  * @returns true when it must not be read
  */
 export async function landsOutside($: EngineInterface, path: string, cwd: string, isCaseless: boolean): Promise<boolean> {
-  const [file, root] = await Promise.all([realPath($, await diskPath($, path, cwd)), realPath($, cwd)])
+  return (await placeOf($, path, cwd, isCaseless)).isOutside
+}
 
-  if (file === null) return false
-  if (file === undefined || root === undefined || root === null) return true
+/**
+ * Where a file the session's folder names lands, and its size, from one look: whether it must not be read (as
+ * `landsOutside`), and its size in bytes (undefined when nothing is there yet).
+ * @param $ the engine interface
+ * @param path the file, as the pane names it
+ * @param cwd the session's folder
+ * @param isCaseless whether the disk ignores case
+ * @returns the two
+ */
+export async function placeOf($: EngineInterface, path: string, cwd: string, isCaseless: boolean): Promise<{ isOutside: boolean; size: number | undefined }> {
+  const [file, root] = await Promise.all([statOf($, await diskPath($, path, cwd)), realPath($, cwd)])
 
-  return !compared(file, isCaseless).startsWith(`${compared(root, isCaseless)}/`)
+  if (file === null) return { isOutside: false, size: undefined }
+  if (file === undefined || file.realPath === undefined || file.realPath === null || root === undefined || root === null)
+    return { isOutside: true, size: undefined }
+
+  return { isOutside: !compared(file.realPath, isCaseless).startsWith(`${compared(root, isCaseless)}/`), size: file.size }
+}
+
+/** A path's look, every link followed: null when nothing is there, undefined when it cannot be told. */
+async function statOf($: EngineInterface, path: string): Promise<{ size: number; realPath?: string | null | undefined } | null | undefined> {
+  try {
+    return await $.fs.stat(path, { resolve: true })
+  } catch (error: unknown) {
+    return error instanceof Error && error.message.endsWith(' failed: ENOENT') ? null : undefined
+  }
 }
 
 /**

@@ -8,11 +8,10 @@ import type { FileDiff } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { deleted, shownPath, writeTargets } from '../sections/files'
 import { isOffProject } from '../../shared/url'
-import { cwdNow, diskPath, ignoresCase, landsOutside, wasChangedBefore, workDiff } from '../work'
+import { COUNT_BYTES_MAX, cwdNow, diskPath, ignoresCase, landsOutside, placeOf, wasChangedBefore, workDiff } from '../work'
 import { DIFF_CHANGES_MAX, DIFF_LINES_MAX, lineDiff } from './linediff'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
-const SNAPSHOT_MAX = 2_000_000 // characters of a file kept; a larger one is not snapshotted, and its diff says so
 const DIFF_MAX = 400 // diff rows kept
 
 // shortcut: the turn's snapshots live in the module; a reload forgets them, and a file's diff then falls back to Git
@@ -73,12 +72,27 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
       path,
       (async () => {
         try {
-          // Through a link to elsewhere: outside the project after all, never read (its diff says so).
-          if (await landsOutside($, path, cwd, caseless)) return
+          // One look says both: through a link to elsewhere, it is outside the project after all and never read (its
+          // diff says so); over 1 MB, it is never read into memory. Nothing there yet: the turn creates it.
+          const { isOutside, size } = await placeOf($, path, cwd, caseless)
+
+          if (isOutside) return
+          if (size === undefined) {
+            snapshots.set(path, null)
+
+            return
+          }
+          if (size > COUNT_BYTES_MAX) {
+            tooLarge.add(path)
+
+            return
+          }
 
           const text = await $.fs.read(await diskPath($, path, cwd))
 
-          if (text.length > SNAPSHOT_MAX) tooLarge.add(path)
+          // A NUL byte: a binary file, of which no copy is kept.
+
+          if (text.includes('\0')) tooLarge.add(path)
           else snapshots.set(path, text)
         } catch {
           snapshots.set(path, null) // not there yet: the turn creates it
@@ -126,7 +140,7 @@ export async function fileDiff($: EngineInterface, path: string, cwd: string | u
     return { path, patch: [], note: patch.over === 'lines' ? `no diff · over ${DIFF_LINES_MAX} lines` : `no diff · over ${DIFF_CHANGES_MAX} changed lines` }
   }
 
-  if (tooLarge.has(path)) return { path, patch: [], note: 'no diff · the file was too large to keep a copy of' }
+  if (tooLarge.has(path)) return { path, patch: [], note: 'no diff · the file was too large or binary to keep a copy of' }
 
   const before = wasChangedBefore(path)
 
