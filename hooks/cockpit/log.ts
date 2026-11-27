@@ -24,7 +24,7 @@ import type { Outcome } from './steps/log'
 import type { Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
-import { dropTurns, loadHistory, saveTurn, setPin } from './history/store'
+import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
 import { isNarrationAt, readFlow } from '../shared/flow'
 import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
@@ -582,7 +582,8 @@ export async function noteRewind($: EngineInterface, isForced: boolean = false):
 
   if (!isForced && now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
   rewindCheckedAt = now
-  const list = await read($, receipts)
+  // A turn the conversation compacted away has no rows left to read after, and was not rewound.
+  const list = (await read($, receipts)).filter(r => r.isCompacted !== true)
   // The newest few turns, read together; a rewind further back is found 5 turns at a time, at the checks after.
   const turnNos = [...new Set(list.map(r => r.turnNo))]
     .filter(n => !rewound.has(n))
@@ -611,6 +612,18 @@ export async function noteRewind($: EngineInterface, isForced: boolean = false):
   $.clock.after(0, () => void redrawRewound($).catch((error: unknown) => $.ui.log(`cockpit: rewound turns not dropped: ${String(error)}`, { to: 'debug' })))
 
   return rewound
+}
+
+/**
+ * The main conversation compacted (7.1): the turns before it keep their place in Cockpit, though their rows have left
+ * the conversation for the summary, so the rewind check never takes them for rewound.
+ * @param $ the engine interface
+ */
+export async function logCompacted($: EngineInterface): Promise<void> {
+  if (!isOn()) return
+
+  await update($, receipts, list => list.map(compacted))
+  await markCompacted($)
 }
 
 /**

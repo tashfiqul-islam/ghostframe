@@ -192,6 +192,11 @@ export type Receipt = {
    * E.47). Kept with the receipt in the state and in history's store copy, so it outlives a reload and a resume.
    */
   lastCall?: string
+  /**
+   * The conversation compacted after this turn: its rows left the conversation for the summary, so a read after its
+   * answer row finds nothing, and that is no rewind (7.1). Kept in history's store copy, so it outlives a resume.
+   */
+  isCompacted?: true
 }
 
 /**

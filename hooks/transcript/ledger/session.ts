@@ -4,7 +4,7 @@ import type { EngineInterface, On } from 'claude-code'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
-import { logCited, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
+import { logCited, logCompacted, logSaid, readLog, seedTurnNo } from '../../cockpit/log'
 import { isOn, noticeSink } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
@@ -343,6 +343,14 @@ export function registerSession(on: On): void {
         await notePending($, 'compact')
       } catch (error: unknown) {
         const notice = `compaction not noted for the turn rule: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
+      }
+
+      try {
+        await logCompacted($)
+      } catch (error: unknown) {
+        const notice = `compaction not noted in the pane's history: ${String(error)}`
 
         $.ui.log(notice, noticeSink())
       }

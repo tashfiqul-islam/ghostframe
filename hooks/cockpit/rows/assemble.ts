@@ -166,6 +166,9 @@ function headOf(i: PaneInput, shown: Shown): Head {
           : 'done'
   const start = shown.startedAt ?? i.now
   const end = isLive ? undefined : start + shown.durationMs
+  // A start never known (a log a reload carried on with nothing ended, a kept turn without one) is `—`, never a
+  // clock read from a stand-in (8.2).
+  const range = shown.startedAt === null && !isLive ? '—' : timeRange(start, end, dayWord(start, undefined))
   const times = steps.map(s => s.clock)
   const buckets = Math.max(1, Math.min(SPARK_MAX, steps.length * 2))
   const failed = new Set(
@@ -192,7 +195,7 @@ function headOf(i: PaneInput, shown: Shown): Head {
   return {
     state,
     turnNo: shown.turnNo,
-    range: timeRange(start, end, dayWord(start, undefined)),
+    range,
     summary: summary.replace(/[.!?…]+$/, ''),
     spark: steps.length === 0 ? [0] : levelsOf(times, Math.max(1, shown.durationMs), buckets, SPARK_TOP),
     failedBuckets: failed,
