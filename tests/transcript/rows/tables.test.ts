@@ -49,3 +49,27 @@ test('1. columns wider than the card give way, cut with `…`: no row runs past 
   expect(text(tableCard(lines, 50)[1] ?? [])).toMatch(/…/)
   expect(text(tableCard(lines, 50)[1] ?? [])).toMatch(/ok,/)
 })
+
+test('B5. columns that do not fit are said: a dim `n columns hidden` row under the card, every row inside the width', () => {
+  const ten = [
+    '| a | b | c | d | e | f | g | h | i | j |',
+    '|---|---|---|---|---|---|---|---|---|---|',
+    '| 1x | 2x | 3x | 4x | 5x | 6x | 7x | 8x | 9x | tenth col |'
+  ]
+  const rows = tableCard(ten, 40)
+  const shown = rows.map(text)
+  const headers = (shown[0] ?? '').slice(16).trim().split(/\s+/)
+  const note = rows.at(-1) ?? []
+
+  for (const r of shown) expect(widthOf(r)).toBeLessThanOrEqual(16 + 40)
+  // The columns drawn are the first ones, whole; the rest are counted.
+  expect(headers).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].slice(0, headers.length))
+  expect(text(note).slice(16)).toBe(`${10 - headers.length} columns hidden`)
+  expect(note.at(-1)?.color).toBe(TOKEN.dim)
+})
+
+test('B5. one column that does not fit: `1 column hidden`', () => {
+  const four = ['| Name | Description | Result | Notes |', '|---|---|---|---|', '| alpha beta | gamma delta | ok it worked | more words |']
+
+  expect(text(tableCard(four, 20).at(-1) ?? []).slice(16)).toBe('1 column hidden')
+})

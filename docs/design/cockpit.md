@@ -317,13 +317,13 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 
 - **Lead sentence** in `textBright`; the rest in `text`.
 - **Headings:** `##` / `###` in `dim`, then the heading text in `textBright`, bold. No blank row is added around a heading: the list or paragraph under it starts on the next row (screens 01, 18).
-- **Blank rows and line breaks** follow the answer: a blank row only where the answer has a blank line, and a paragraph's own line breaks are row breaks. Words wrap only within them.
+- **Blank rows and line breaks** follow the answer: a blank row only where the answer has a blank line, and a paragraph's own line breaks are row breaks. Words wrap only within them; a word wider than the row (text with no spaces, a long URL or path) breaks where it must, never cut off.
 - **Bullets:** `›` in `machine`, two spaces, then the item. A nested bullet's `›` sits 5 cells right of its parent's, under the parent's text (screen 18).
 - **Numbered lists:** the numeral in `machine`, two spaces.
 - **Task items:** `[x]` in ok, `[ ]` in dim.
 - **Quotes:** `▏` in `machine` at the start of each line, the text in `text`.
 - **Inline code and paths:** `textBright`, no background.
-- **Footnote refs** `[1]` in `machine`: only the references Claude wrote, its `[n]` in the prose and its `[n]: url` (or `[n] url`) lines; Cockpit numbers no link or bare URL of its own, and a footnote shows its URL without markdown. The footnote lines go at the end of the answer, two per row, the second at the row's 31st cell (screens 01, 23): `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`.
+- **Footnote refs** `[1]` in `machine`: only the references Claude wrote, its `[n]` in the prose and its `[n]: url` (or `[n] url`) lines; Cockpit numbers no link or bare URL of its own, and a footnote shows its URL without markdown. The footnote lines go at the end of the answer, two per row, the second at the row's 31st cell (screens 01, 23): `[1] bun.sh/blog/bun-v1.4.2`, the number in `machine` and the host-and-path in `link`. A footnote too long for its place is cut in the middle (`docs.github.com/en/…github-actions`), never left out.
 - Heading and list markers stay visible but dim. Backticks and `**` are dropped; their text draws in `textBright` and bold. No boxes around prose. The text column is 86 (screen 18).
 - Each text block arrives whole: the engine never streams (correction E). While Claude writes, only the live line shows.
 
@@ -354,6 +354,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 
 - One header band (`codeHead`), the card's first row, in sentence case, bold, in `muted`: no half-block edge above or under it. Zebra rows. A result column may lead with `✓` / `×` in their colours.
 - The table spans the text column. Columns are sized to their content, 3 cells apart: a number column is right-aligned within its own width; the first text column takes a third of the card or its content, whichever is wider (screen 01); the last column takes the rest of the card and a cell that does not fit is cut with `…`. Widths are measured as the cells draw (6.1's width function).
+- Columns that still leave the last one under 3 cells are left out from the right, and a `dim` row under the card counts them: `2 columns hidden` (`1 column hidden`).
 
 ### 7.7 Note
 

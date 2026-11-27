@@ -58,7 +58,16 @@ function fenceAfter(open: Fence | undefined, line: string): Fence | undefined {
 // Block markdown we don't lay out ourselves: lists, quotes, tables, html, rules, indented code.
 const NOT_SIMPLE = /^\s{0,3}([-*+]\s|\d+[.)]\s|>|\||<|(-{3,}|\*{3,}|_{3,})\s*$)|^\s{4,}|\t/
 
-export function splitBlocks(text: string): Block[] {
+/**
+ * A reply's blocks.
+ * @param text the reply's markdown
+ * @param isPartial whether the text may still be growing: only then do the streaming guards cut its tail's text (a
+ *   link still open, a table header before its separator, a line that may become a `Sources:` label, a half-written
+ *   table row's link). The engine raises each block once, complete (correction E), so the reply site never passes
+ *   it: a finished reply draws whole.
+ * @returns the blocks
+ */
+export function splitBlocks(text: string, isPartial = false): Block[] {
   // Whether the text's last line is whole (ends in a newline): an open figure fence
   // draws only whole lines, so a row never changes once drawn.
   const whole = /\n[ \t]*$/.test(text.replace(/\r\n?/g, '\n'))
@@ -87,7 +96,7 @@ export function splitBlocks(text: string): Block[] {
 
   const out: Block[] = []
 
-  raw.forEach((lines, i) => classify(lines, out, i === raw.length - 1, whole))
+  raw.forEach((lines, i) => classify(lines, out, i === raw.length - 1, whole, isPartial))
 
   return out
 }
@@ -95,8 +104,9 @@ export function splitBlocks(text: string): Block[] {
 /**
  * `atEnd`: these lines end the whole text, so their last line may still be streaming.
  * `whole`: the text's last line is complete.
+ * `isPartial`: the text may still grow (see `splitBlocks`); only then are the cuts that drop a tail's text made.
  */
-function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): void {
+function classify(lines: string[], out: Block[], atEnd: boolean, whole = true, isPartial = false): void {
   if (lines.length === 0) {
     return
   }
@@ -125,7 +135,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
         else out.push({ kind: 'markdown', text: md })
       }
 
-      classify(rest, out, atEnd, whole)
+      classify(rest, out, atEnd, whole, isPartial)
 
       return
     }
@@ -133,7 +143,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
 
   // A table's header still streaming, before its separator row is whole (every column):
   // it waits, so it never draws first as the engine's text and then as our table.
-  if (atEnd && lines.length <= 2 && /^\s*\|/.test(lines[0] ?? '')) {
+  if (isPartial && atEnd && lines.length <= 2 && /^\s*\|/.test(lines[0] ?? '')) {
     const sep = lines[1]
     const columns = splitRow(lines[0] ?? '').length
 
@@ -174,13 +184,13 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
         // A half-written row may hold an unclosed `**` or backtick: drop the marks for now
         // (or the row itself) rather than hand the whole table to the engine mid-stream.
         // A link still being written in that row is cut off first: the row stays drawn.
-        if (table === undefined && settled !== undefined) {
+        if (isPartial && table === undefined && settled !== undefined) {
           table = parseTable([...done, cutOpenLink(lastLine)]) ?? parseTable([...done, cutOpenLink(lastLine).replace(/[*_`]/g, '')]) ?? settled
         }
       }
 
       out.push(table ? { kind: 'table', table, partial, ...(settled !== undefined ? { settled } : {}) } : { kind: 'wide', text: tableLines.join('\n') })
-      classify(lines.slice(end), out, atEnd)
+      classify(lines.slice(end), out, atEnd, true, isPartial)
 
       return
     }
@@ -201,12 +211,12 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
   // The reply's tail while it streams: a line that may become a `Sources:` label waits
   // (it draws nothing either way once it is one), and a paragraph whose last link is still
   // being written draws up to that link, so it never flips to the engine's Markdown and back.
-  if (atEnd && lines.length === 1 && isSourcesLabelPrefix(lines[0] ?? '')) {
+  if (isPartial && atEnd && lines.length === 1 && isSourcesLabelPrefix(lines[0] ?? '')) {
     return
   }
 
   // A Sources list still streaming draws as one, from its label on (before `- [` reads as text).
-  if (atEnd && lines.length > 1 && isSourcesLabel(lines[0] ?? '')) {
+  if (isPartial && atEnd && lines.length > 1 && isSourcesLabel(lines[0] ?? '')) {
     const pending = sourceItems(lines, false) ?? pendingSourceItems(lines, false)
 
     if (pending !== undefined) {
@@ -218,14 +228,14 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
 
   const simple = lines.every(l => !NOT_SIMPLE.test(l) && !FENCE.test(l) && !HEADING.test(l))
 
-  if (atEnd && simple) {
+  if (isPartial && atEnd && simple) {
     const tail = lines[lines.length - 1] ?? ''
     const cut = cutOpenLink(tail)
 
     if (cut !== tail) {
       const kept = [...lines.slice(0, -1), ...(cut.length > 0 ? [cut] : [])]
 
-      classify(kept, out, atEnd, whole)
+      classify(kept, out, atEnd, whole, isPartial)
 
       return
     }
@@ -251,7 +261,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true): 
   const prev = out[out.length - 1]
   const labelAbove = (prev?.kind === 'heading' && isSourcesLabel(prev.text)) || (prev?.kind === 'para' && isSourcesLabel(prev.runs.map(r => r.t).join('')))
   // At the reply's end a Sources list may still be streaming: its whole items only.
-  const items = sourceItems(lines, labelAbove) ?? (atEnd ? pendingSourceItems(lines, labelAbove) : undefined)
+  const items = sourceItems(lines, labelAbove) ?? (isPartial && atEnd ? pendingSourceItems(lines, labelAbove) : undefined)
 
   if (items !== undefined) {
     if (labelAbove) out.pop()

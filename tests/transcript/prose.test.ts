@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { vw } from '../../hooks/shared/text'
 import { splitBlocks } from '../../hooks/transcript/blocks/split'
 import { parseInline, runWidth, toWords, wrapPlain, wrapWords, spansOf } from '../../hooks/transcript/prose'
+import { bare, UNBROKEN } from '../support/unbroken'
 
 const REPLY = [
   'A branch is a pointer to a commit. A worktree is a second checked-out folder, so you can have two branches open side by side without stashing.',
@@ -94,3 +95,25 @@ test('plain text hard-breaks a word of emoji clusters without splitting one or o
   for (const line of lines) expect(vw(line)).toBeLessThanOrEqual(5)
   expect(lines).toEqual(['⚠️⚠️', '⚠️⚠️', '👨‍👩‍👧👨‍👩‍👧'])
 })
+
+// A path in a code chip is one word too: it breaks into chips of its own, each padded.
+const CHIPPED = { ...UNBROKEN, chip: `Open \`${UNBROKEN.path.split(' ')[1] ?? ''}\` first` }
+
+for (const [name, said] of Object.entries(CHIPPED)) {
+  for (const width of [40, 70, 120]) {
+    test(`B1. Cockpit off: ${name} text at ${width} cells wraps inside its words, every line fits, nothing lost`, () => {
+      const runs = parseInline(said) ?? [{ t: said, s: 'plain' as const }]
+      const lines = wrapWords(toWords(runs), width)
+
+      for (const line of lines) expect(line.reduce((n, word) => n + word.reduce((m, r) => m + runWidth(r), 0), 0) + line.length - 1).toBeLessThanOrEqual(width)
+      expect(
+        bare(
+          lines
+            .flat(2)
+            .map(r => r.t)
+            .join('')
+        )
+      ).toBe(bare(runs.map(r => r.t).join('')))
+    })
+  }
+}

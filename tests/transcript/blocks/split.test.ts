@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { splitBlocks } from '../../../hooks/transcript/blocks/split'
 import type { Block } from '../../../hooks/transcript/blocks/split'
 import { foldOutput } from '../../../hooks/transcript/activity/row'
+import { FINISHED } from '../../support/finished'
 import { LINEAR_MS, ms, RUN } from '../../support/linear'
 
 const REPORT = `Prose cells in tables now wrap instead of being cut, and Phase 3 (the activity timeline and the diff card) is built. Validate passes (warnings only), tsc exits 0 even with unused-variable checks on, and all 32 tests pass. None of it has been checked on screen yet.
@@ -73,7 +74,7 @@ test('every streamed prefix keeps every word exactly once, in order', async () =
       // back while it streams (a table header until its separator is whole, a line that may
       // become a `Sources:` label, a link until it closes), never anything above it; and
       // the whole text draws every word.
-      const got = wordsOf(splitBlocks(prefix))
+      const got = wordsOf(splitBlocks(prefix, true))
       const typed = sourceWords(prefix)
       const lastBlock = sourceWords(prefix.split(/\n\s*\n/).pop() ?? '').length
       const want = cut === text.length ? typed : typed.slice(0, got.length)
@@ -81,7 +82,7 @@ test('every streamed prefix keeps every word exactly once, in order', async () =
 
       if (JSON.stringify(got) !== JSON.stringify(want) || held < 0 || held > lastBlock) {
         throw new Error(
-          `prefix ${cut}: ${JSON.stringify(prefix.slice(-60))}\nkinds ${JSON.stringify(splitBlocks(prefix).map(b => b.kind))}\ngot  ${JSON.stringify(got.slice(-12))}\nwant ${JSON.stringify(want.slice(-12))}`
+          `prefix ${cut}: ${JSON.stringify(prefix.slice(-60))}\nkinds ${JSON.stringify(splitBlocks(prefix, true).map(b => b.kind))}\ngot  ${JSON.stringify(got.slice(-12))}\nwant ${JSON.stringify(want.slice(-12))}`
         )
       }
     }
@@ -119,3 +120,16 @@ test('web links become footnotes; lists are ours; other links, fences and odd li
   expect(splitBlocks('```ts\nconst a = 1\n\nconst b = 2\n```')).toEqual([{ kind: 'markdown', text: '```ts\nconst a = 1\n\nconst b = 2\n```' }])
   expect(splitBlocks('## Title')[0]).toEqual({ kind: 'heading', text: 'Title' })
 })
+
+for (const said of FINISHED) {
+  test(`B2, B3. Cockpit off: the finished reply ${JSON.stringify(said)} keeps every word`, () => {
+    expect(wordsOf(splitBlocks(said))).toEqual(sourceWords(said))
+  })
+}
+
+// A finished reply's last list is whole, even when its last item is not a link (B2, B3).
+for (const said of ['Sources:\n- [Bun](https://bun.sh)\n- the Node docs', '## Sources\n\n- [Bun](https://bun.sh)\n- the Node docs']) {
+  test(`B2, B3. the finished reply ${JSON.stringify(said)} keeps its last item`, () => {
+    expect(JSON.stringify(splitBlocks(said))).toContain('the Node docs')
+  })
+}

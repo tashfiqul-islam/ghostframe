@@ -139,12 +139,42 @@ export function toWords(runs: Run[]): Word[] {
 export const runWidth = (r: Run): number => (r.s === 'code' ? vw(r.t) + 2 : vw(r.t))
 const wordWidth = (w: Word) => w.reduce((n, r) => n + runWidth(r), 0)
 
+/** A word wider than `width` broken into pieces that fit, by grapheme: a code chip into chips, each padded. */
+function breakWord(word: Word, width: number): Word[] {
+  if (wordWidth(word) <= width) return [word]
+
+  const pieces: Word[] = [[]]
+  let used = 0
+
+  for (const r of word) {
+    const pad = runWidth({ ...r, t: '' })
+    let t = ''
+
+    for (const g of graphemesOf(r.t)) {
+      if ((used > 0 || t.length > 0) && used + pad + vw(t + g) > width) {
+        if (t.length > 0) pieces[pieces.length - 1]?.push({ ...r, t })
+        pieces.push([])
+        used = 0
+        t = ''
+      }
+      t += g
+    }
+
+    if (t.length > 0) {
+      pieces[pieces.length - 1]?.push({ ...r, t })
+      used += pad + vw(t)
+    }
+  }
+
+  return pieces.filter(p => p.length > 0)
+}
+
 function greedy(words: Word[], width: number): Word[][] {
   const lines: Word[][] = []
   let line: Word[] = []
   let used = 0
 
-  for (const w of words) {
+  for (const w of words.flatMap(word => breakWord(word, width))) {
     const ww = wordWidth(w)
 
     if (line.length > 0 && used + 1 + ww > width) {
