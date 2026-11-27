@@ -6,8 +6,7 @@ import { GAP, layoutTable, streamLayout } from '../../../hooks/transcript/table/
 import { MAX_LINES, cellLines, padding } from '../../../hooks/transcript/table/cells'
 import { parseTable } from '../../../hooks/transcript/table/parse'
 import type { Cell, Table } from '../../../hooks/transcript/table/parse'
-import { textAt } from '../../support/text'
-import { OFF } from '../../support/cockpit'
+import { tableText } from '../../support/table'
 
 const STATUS = [
   '| Item | Status |',
@@ -137,18 +136,9 @@ test('a pipe table inside a code fence stays code', async () => {
   expect(splitBlocks(fenced).map(b => b.kind)).toEqual(['markdown'])
 })
 
-test('alignment is per cell: numbers right, text left, even inside a numeric column', OFF, async ($, on) => {
-  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+test('alignment is per cell: numbers right, text left, even inside a numeric column', () => {
   const md = ['| Check | Before |', '|---|---:|', '| flush time | 123456789 ms |', '| toasts | 2 |', '| docs | see notes |'].join('\n')
-  const ui = await $.ui.mount({
-    plugin: 'ghostframe',
-    surface: 'terminal',
-    component: 'AssistantMessage',
-    viewport: { columns: 90, rows: 40 },
-    props: { text: md, isFirstOfReply: false }
-  } as never)
-  const lines = textAt(await ui.drawn(), 90)
-  await ui.unmount()
+  const lines = tableText(md, 90)
   const row = (name: string) => lines.find(l => l.includes(name)) ?? ''
   // The widest cell fills the column: its start and end are the column's edges.
   const left = row('flush time').indexOf('123456789 ms')

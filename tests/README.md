@@ -18,9 +18,9 @@ tests may have several files, each named for what it covers (`reply/tables`, `re
   455 tool calls, for the failure rules (spec 13.1); `live` is the live checks' session, turn by turn.
 - `support/`: helpers more than one test file uses, each defined in exactly one file and imported from it (no
   barrels): `respond` (a stored response), `view` (viewport sizes), `engine` (an engine stub that draws a marker),
-  `text` (the text a tree draws), `cockpit` and `docked` (Cockpit on, its pane docked, a fixed-on-the-second-run
-  turn), `fallback` (Cockpit on, no pane docked, a turn of every kind of step), and fixtures for figures, sources,
-  states and narrow widths.
+  `text` (the text a tree draws), `table` (a table's lines as the reply draws them), `cockpit` and `docked` (Cockpit
+  on, its pane docked, a fixed-on-the-second-run turn), `fallback` (Cockpit on, no pane docked, a turn of every kind
+  of step), and fixtures for figures, sources, states and narrow widths.
 
 ## Adding a test
 
@@ -28,5 +28,9 @@ Put it in the file for the module it exercises, creating the file if needed. Reu
 there only when a second test file needs it. A test drives the engine as it does at run time: mount a site with
 `$.ui.mount`, raise events (`$.turn.start`, `$.tool.call`, …), and answer the engine's calls with `on(...)`.
 Cockpit is on by default (the manifest's `cockpit` option), so a test of the transcript without Cockpit passes `{ options: { cockpit: false } }` (`OFF` in `support/cockpit`); a Cockpit test may pass `ON` to say so.
+
+A test that touches `$` loads the whole plugin first, about a quarter of a second, and much more on a busy CI runner.
+So when what a test checks is a function's output, call the function and leave `$` out: `test('…', () => { … })`
+runs in milliseconds. Keep one mounted test for the site's route to that function, not one per input.
 
 `tests/tsconfig.json` type-checks these files with the plugin's settings, without `isolatedDeclarations`.
