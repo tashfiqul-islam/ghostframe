@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { BUDGETS, CI_HEADROOM, limitOf, type BudgetName } from './budgets.ts'
+import { buildRepo } from './fixtures.ts'
 import { runInRoot } from './root.ts'
 import { measureStatusline } from './statusline.ts'
 
@@ -79,10 +80,12 @@ for (const config of ['on-280x70', 'on-120x40']) {
   }
 }
 
-// The status line: the form `/ghostframe-statusline install` writes, cold and warm, in each repo.
-const statusline = args.includes('--no-statusline')
-  ? []
-  : measureStatusline([REPO, ...(process.env['BENCH_REPO'] === undefined ? [] : [process.env['BENCH_REPO']])])
+// The status line: the form `/ghostframe-statusline install` writes, cold and warm, in each repo. BENCH_REPO is the
+// 40,000-file fixture, built here first on a fresh checkout (a no-op when it is already built), since git runs in it.
+const bigRepo = process.env['BENCH_REPO']
+
+if (bigRepo !== undefined && !args.includes('--no-statusline')) buildRepo(bigRepo)
+const statusline = args.includes('--no-statusline') ? [] : measureStatusline([REPO, ...(bigRepo === undefined ? [] : [bigRepo])])
 
 for (const s of statusline.filter(x => x.form.startsWith('bun statusline.js'))) {
   check('statusline', `${s.form}, cold p50 (${s.repo})`, s.coldP50)
