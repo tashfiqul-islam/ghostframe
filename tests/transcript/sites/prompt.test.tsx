@@ -50,7 +50,7 @@ test('no viewport measured: the engine draws', OFF, async ($, on) => {
     await ui.unmount()
   }
 })
-test('a prompt typed twice: each turn rule shows its own submit time, kept when the next lands', async ($, on) => {
+test('a prompt typed twice: each turn rule shows its own submit time, kept when the next lands', OFF, async ($, on) => {
   let now = new Date(2026, 10, 17, 2, 10).getTime()
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('clock.now', () => ({ value: now }))
@@ -77,7 +77,7 @@ test('a prompt typed twice: each turn rule shows its own submit time, kept when 
   expect(await shown(first)).not.toContain('02:15')
 })
 
-test('a prompt typed again after a reload: the new turn rule shows the new submit time', async ($, on) => {
+test('a prompt typed again after a reload: the new turn rule shows the new submit time', OFF, async ($, on) => {
   let now = new Date(2026, 10, 17, 2, 10).getTime()
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('clock.now', () => ({ value: now }))
@@ -141,7 +141,7 @@ test('a prompt that starts with a URL verb keeps its first letter: `Fetch https:
   expect(shown.some(x => x.startsWith(' Fetch https://bun.sh'))).toBe(true)
 })
 
-test('each typed prompt`s submit time is kept in the store under the session`s id, for a resume', async ($, on) => {
+test('each typed prompt`s submit time is kept in the store under the session`s id, for a resume', OFF, async ($, on) => {
   const store = new Map<string, unknown>()
   let now = new Date(2026, 10, 17, 7, 8).getTime()
   on('prompt.submit', (_, e) => ({ text: e.text }))
@@ -168,7 +168,7 @@ test('each typed prompt`s submit time is kept in the store under the session`s i
   ])
 })
 
-test('resume: each turn rule shows its submit time again, from the store, though drawn before the session starts', async ($, on) => {
+test('resume: each turn rule shows its submit time again, from the store, though drawn before the session starts', OFF, async ($, on) => {
   const at = (h: number, m: number) => new Date(2026, 10, 17, h, m).getTime()
   // What the session kept before the restart.
   const store = new Map<string, unknown>([

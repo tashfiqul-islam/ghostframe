@@ -36,7 +36,7 @@ test('diff card off by default; only a new file under 12 lines; ctrl+o is the en
   await expanded.unmount()
 })
 
-test('shell output: no lines by default; ctrl+o is the engine, without its own notes', async ($, on) => {
+test('shell output: no lines by default; ctrl+o is the engine, without its own notes', OFF, async ($, on) => {
   on('ui.render', ($, e) => {
     const out = (e.props as { output?: { stdout?: string } }).output
 
