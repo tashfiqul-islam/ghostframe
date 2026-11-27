@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { widthOf } from '../../../hooks/shared/look/width'
 import { toneRow } from '../../../hooks/transcript/figure/tone'
 
 const colorOf = (line: string, ch: string) => toneRow(line).find(p => p.t.includes(ch))?.color
@@ -22,4 +23,13 @@ test('figure tones: box lines in the rule colour, text in text, hue only where t
   expect(bar.find(p => p.t.startsWith('='))?.color).toBe('#b2b2bc') // text (bar fill)
   expect(bar.find(p => p.t.startsWith('-'))?.color).toBe('#2c2c36') // hairline (track)
   expect(bar.find(p => p.t === '[')?.color).toBe(FRAME)
+})
+
+test('a figure row never splits a cluster between two colours: its parts add up to the row width', () => {
+  for (const line of ['ok ✓️ done', '● 👨‍👩‍👧 ✓ e\u0301 │']) {
+    const parts = toneRow(line)
+
+    expect(parts.map(p => p.t).join('')).toBe(line)
+    expect(parts.reduce((n, p) => n + widthOf(p.t), 0)).toBe(widthOf(line))
+  }
 })

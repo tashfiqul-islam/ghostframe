@@ -70,3 +70,18 @@ test('the fast path never takes a zero-width or joining code point', () => {
   expect(widthOf('a\u00ad')).toBe(1)
   expect(graphemesOf('e\u0301x')).toEqual(['e\u0301', 'x'])
 })
+
+test('the fast path takes nothing the full measure would answer differently, anywhere in the BMP', () => {
+  const wrong: string[] = []
+
+  for (let cp = 0; cp <= 0xffff; cp++) {
+    if (cp >= 0xd800 && cp <= 0xdfff) continue
+    const ch = String.fromCodePoint(cp)
+
+    for (const s of [ch, `a${ch}`]) {
+      if (widthOf(s) !== segmentedWidth(s)) wrong.push(`width ${cp.toString(16)}`)
+      if (JSON.stringify(graphemesOf(s)) !== JSON.stringify(clustersOf(s))) wrong.push(`clusters ${cp.toString(16)}`)
+    }
+  }
+  expect(wrong).toEqual([])
+})
