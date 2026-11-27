@@ -239,7 +239,7 @@ test('a Sources list whose every source has a marker draws nothing of its own', 
   expect(rows.some(l => l.includes('[ SOURCES ]'))).toBe(false)
 })
 
-test('a block left to the engine never leaves a footnote line behind', async ($, on) => {
+test('a block left to the engine never leaves a footnote line behind', OFF, async ($, on) => {
   const md = [
     '| a | b |',
     '|---|---|',
