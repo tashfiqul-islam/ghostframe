@@ -227,6 +227,9 @@ Outside the Claude Code versions it is tested with, ghostframe goes dormant and 
 <a name="where-it-runs"></a>
 <h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-where-it-runs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-dark.svg"><img alt="Where it runs" src="docs/assets/readme/band-where-it-runs-light.svg"></picture></h3>
 
+Cockpit and the status line, by system and by Claude Code surface. "Tested live" is a real session checked by
+hand; "CI" means the plugin's tests and the status line's specs pass there.
+
 ```text
 +--------------------- [ WHERE IT RUNS ] ----------------------+
 |                                                              |
@@ -252,6 +255,8 @@ doesn't run there.
 
 <a name="faq"></a>
 <h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-faq-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-dark.svg"><img alt="FAQ" src="docs/assets/readme/band-faq-light.svg"></picture></h3>
+
+Short answers to what people ask first. Open a question for its answer; the guides linked under them go further.
 
 <details open>
 <summary><b>Does it change what Claude does?</b></summary>
@@ -317,6 +322,9 @@ before. Then run `/plugin marketplace remove ghostframe`; removing the marketpla
 
 <a name="docs"></a>
 <h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-docs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-dark.svg"><img alt="Docs" src="docs/assets/readme/band-docs-light.svg"></picture></h3>
+
+The guides live in `docs/`, grouped by what you're doing: using ghostframe, understanding how it works, or working
+on it.
 
 | Use it                                           | Understand it                                 | Work on it                                     |
 | ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
