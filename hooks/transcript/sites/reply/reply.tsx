@@ -4,7 +4,16 @@ import type { On } from 'claude-code'
 import { noteOwnTime } from '../../../shared/budget'
 
 import { isOn, readEnvOnce } from '../../../cockpit/switch'
-import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow, leftCells, receiptsNow } from '../../../cockpit/left'
+import {
+  drawAnswerCapsule,
+  drawAnswerReceipt,
+  drawUnfoldedSentence,
+  endsKeptTurn,
+  isQuietRow,
+  leftBlockCells,
+  leftCells,
+  receiptsNow
+} from '../../../cockpit/left'
 import { layout } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -195,7 +204,7 @@ export function registerReply(on: On): void {
         const rows: Part[][] = [
           ...(thought >= THOUGHT_SHOWN_MS ? [thoughtRow(thought), spineOnly()] : []),
           ...(prev?.kind === 'tool' && prev.turn === place?.turn && thought < THOUGHT_SHOWN_MS ? [spineOnly()] : []),
-          ...answerRows(body, { width: cells, hasLead: isOpener }),
+          ...answerRows(body, { width: cells, hasLead: isOpener, blockWidth: leftBlockCells(e) }),
           ...(notes.length > 0 ? [spineOnly(), ...footnoteRows(notes, cells)] : []),
           ...(receipt === undefined ? [spineOnly()] : [])
         ]

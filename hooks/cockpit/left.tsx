@@ -20,7 +20,7 @@ import { failureCard, receiptRow, slashOutputRow, stepsAllRows, workedRow } from
 import { liveArea } from './rows/live'
 import { receiptCounts } from './rows/receipt'
 import { shipEventRows } from './rows/ships'
-import { spineOnly, textCells } from '../shared/look/spine'
+import { blockCells, spineOnly, textCells } from '../shared/look/spine'
 import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, footerCapsule } from './fallback/draw'
 
 import { readFlow, isNarrationAt } from '../shared/flow'
@@ -134,6 +134,13 @@ export const isQuietRow = (row: RowSite): boolean => rowMode(row) !== 'full'
  */
 // In ctrl+o the engine hides the pane (correction D): the row is as wide as the terminal, narrow below 110 like fallback's.
 export const leftCells = (row: RowSite): number => textCells(row.viewport?.columns, !isFallbackRow(row) && !(isOn() && unfolded()))
+
+/**
+ * A left row's width for a table, a code card or a diff card (6.1): wider than the text column where the left has room.
+ * @param row the row's render request
+ * @returns the cells
+ */
+export const leftBlockCells = (row: RowSite): number => blockCells(row.viewport?.columns, !isFallbackRow(row) && !(isOn() && unfolded()))
 
 /**
  * Whether a quiet row draws in fallback: with capsules and failure rows, since no pane shows the steps.

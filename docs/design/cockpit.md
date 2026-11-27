@@ -251,9 +251,9 @@ Everything is laid out in character cells. The terminal is `C` columns wide; the
 
 - **Label column.** Ten cells, right-aligned. It holds a clock time (8 cells), a duration (at most 7), `from main`, or nothing. Words like `added` and `queued` never go there: they sit at the right end of their card.
 - **Spine column.** One cell: `◆` on a turn header, `│` inside a turn, the turn's node glyph on event rows and the receipt, `┊` above the live line. The spine is continuous inside a turn and breaks between turns.
-- **Text column.** 86 cells, from column 16 (counting from 0). Prose wraps at 86. Cards (your message, code, tables, notes, failures, plans) span the 86 cells, with a 2-cell inner pad. A card row with nothing held at its right end may run into the right pad (screen 01's note); a row with `added`, `QUEUED`, `c copy` or a count at its right end keeps it. A turn header's rule ends at column 101, the text column's last cell.
+- **Text column.** 86 cells, from column 16 (counting from 0). Prose wraps at 86. Cards (your message, notes, failures, plans) span the 86 cells, with a 2-cell inner pad; code cards, diff cards and tables span the block width below. A card row with nothing held at its right end may run into the right pad (screen 01's note); a row with `added`, `QUEUED`, `c copy` or a count at its right end keeps it. A turn header's rule ends at column 101, the text column's last cell.
 - **Narrow (no pane, under 110 columns, ctrl+o included):** the same margins, text column 78.
-- **Wide:** the text column never grows past 86. Extra width is empty space on the right of the left region (screen 33).
+- **Wide:** the text column never grows past 86. Tables, code cards and diff cards take the room the left has past the text column's start: `max(86, min(140, L − 17))` cells (110 on a 127-column left, 140 from 157 on), so a wide screen stops cutting their cells. Under 110 columns with no pane they keep the narrow 78. Extra width past them is empty space (screen 33).
 
 ### 6.2 The pane
 
@@ -343,6 +343,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 - **Body** (`code`): two line-number gutters of 4 cells each (old, new) in `dim`, then `+` / `−` / space, then the line.
 - Added rows are tinted the full width of the card, removed rows likewise; changed words get the word highlight.
 - A code block that is not a diff has one gutter.
+- The card spans the block width (6.1), as a diff card does: the text column, or more on a wide left, up to 140.
 - The head strip is a Button: a click copies the block without the indent it was nested at. `c` is not bound on the left, since a left row cannot hold a hotkey without taking the key from the prompt; `/copy code n` copies by key (amendment 11).
 
 ### 7.6 Table
@@ -355,7 +356,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 ```
 
 - One header band (`codeHead`), the card's first row, in sentence case, bold, in `muted`: no half-block edge above or under it. Zebra rows. A result column may lead with `✓` / `×` in their colours.
-- The table spans the text column. Columns are sized to their content, 3 cells apart: a number column is right-aligned within its own width; the first text column takes a third of the card or its content, whichever is wider (screen 01); the last column takes the rest of the card and a cell that does not fit is cut with `…`. Widths are measured as the cells draw (6.1's width function).
+- The table spans the block width (6.1): the text column, or more on a wide left. Columns are sized to their content, 3 cells apart: a number column is right-aligned within its own width; the first text column takes a third of the card or its content, whichever is wider (screen 01); the last column takes the rest of the card and a cell that does not fit is cut with `…`. Widths are measured as the cells draw (6.1's width function).
 - Columns that still leave the last one under 3 cells are left out from the right, and a `dim` row under the card counts them: `2 columns hidden` (`1 column hidden`).
 
 ### 7.7 Note
@@ -3261,12 +3262,12 @@ The screen (100 columns):
 
 #### 12.33 · Ultra-wide, 240 columns
 
-Board `S33UltraWide` · the reading column stays 86 · the pane stays 72 · extra width is breathing room
+Board `S33UltraWide` · the reading column stays 86 · cards take the left's room, up to 140 · the pane stays 72
 
-- **SHOWS** The same screen at 240 columns: the reading column stays 86 and the pane stays 72; the extra width is empty space on the left’s right side.
+- **SHOWS** The same screen on a wide left: the reading column stays 86 and the pane stays 72; the diff card and the table take the left's room past the text column's start, `max(86, min(140, left − 17))`: 110 on this 127-column left, 140 from a 157-column left on. The note card, a sentence, stays at 86.
 - **DATA** columns from each open (correction K).
 - **ENGINE** The engine caps the pane at 45% of the terminal, divider included: 72 needs 163 columns or more; at 144–162 it is 63–71 (correction B). The left is C − P − 1 (correction A).
-- **RULES** Never stretch prose past 86 columns. The pane may be wider only if Cockpit asks for it; at this width it does not.
+- **RULES** Never stretch prose past 86 columns. Tables, code cards and diff cards may grow, to 140 at most. The pane may be wider only if Cockpit asks for it; at this width it does not.
 
 The left (127 columns):
 
@@ -3285,19 +3286,19 @@ The left (127 columns):
              │  ›  .github/workflows/ci.yml installs Bun from mise.toml, the pin you use locally
              │  ›  hooks/runtime.ts fails fast when Bun is older than the pin
              │
-             │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
-             │    YAML   .github/workflows/ci.yml                                   +1 −1     c copy
-             │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+             │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+             │    YAML   .github/workflows/ci.yml                                                           +1 −1     c copy
+             │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
              │     14  14    - uses: oven-sh/setup-bun@v2
              │     15      −   with: { bun-version: latest }
              │         15  +   with: { bun-version-file: mise.toml }
-             │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+             │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
-             │    Runner                        Bun   Width tests
-             │    CI before                   1.4.1   × 2 of 14 fail
-             │    CI after                    1.4.4   ✓ 14 pass
-             │    Local                       1.4.4   ✓ 14 pass
-             │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+             │    Runner                                Bun   Width tests
+             │    CI before                           1.4.1   × 2 of 14 fail
+             │    CI after                            1.4.4   ✓ 14 pass
+             │    Local                               1.4.4   ✓ 14 pass
+             │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
              │
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
              │    ▲ NOTE   The first CI run after this rebuilds the Bun cache, about a minute longer.

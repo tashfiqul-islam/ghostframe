@@ -30,6 +30,25 @@ export function textCells(columns: number | undefined, isDocked: boolean): numbe
   return columns === undefined ? want : Math.max(20, Math.min(want, columns - TEXT_AT - 1))
 }
 
+/** The widest a table, a code card or a diff card grows on a wide left (6.1): prose stays at the text column. */
+export const BLOCK_CELLS_MAX = 140
+
+/**
+ * The width of a table, a code card or a diff card (6.1): the room the left has past the text column's start, at most
+ * 140 and never narrower than the text column, so a wide screen stops cutting cells while prose keeps its measure.
+ * @param columns the terminal's columns, or the left region's beside a pane
+ * @param isDocked whether a pane is docked beside it
+ * @returns the cells
+ */
+export function blockCells(columns: number | undefined, isDocked: boolean): number {
+  const prose = textCells(columns, isDocked)
+
+  // Narrow (no pane, under 110 columns) the cards keep the narrow text column, as the margins do.
+  const isNarrow = !isDocked && columns !== undefined && columns < NARROW_BELOW
+
+  return columns === undefined || isNarrow ? prose : Math.max(prose, Math.min(BLOCK_CELLS_MAX, columns - TEXT_AT - 1))
+}
+
 /** A label for the label column: its text and colour. */
 export type Label = { t: string; color: string }
 
