@@ -490,7 +490,8 @@ export function assemblePane(i: PaneInput): Pane {
         diff.patch,
         diff.patch.some(l => l.startsWith('@@')) ? countsOf(diff.patch) : { adds: file?.adds ?? 0, dels: file?.dels ?? 0 },
         shown.turnNo,
-        i.width
+        i.width,
+        diff.note
       )
     )
   } else if (i.viewed !== undefined) {

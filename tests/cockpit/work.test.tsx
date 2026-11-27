@@ -570,3 +570,56 @@ test('a file whose name Git would quote (`café.txt`, `my notes/a b.md`): its ro
   await ui.unmount()
   expect(asked).toContain('git diff HEAD -- café.txt')
 })
+
+test('8.6: a file over the diff budget opens to its note in place of the diff; `n` and Escape still work from it', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  // A shell rewrites all 600 lines of big.txt (over the 500-line budget) and one line of small.txt.
+  const lines = (word: string) => Array.from({ length: 600 }, (_, i) => `${word} ${i}`).join('\n')
+  let big = lines('old')
+  let small = 'one\ntwo\n'
+  let diffs = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : '600\t600\tbig.txt\x001\t1\tsmall.txt\0')
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('big.txt') ? big : small }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'rewrite', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'rewrite', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'gen > big.txt; fix > small.txt' })
+  big = lines('new')
+  small = 'one\nTWO\n'
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  const shown = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd())
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:big.txt' })
+  await ui.redraw()
+  expect(await shown()).toContainEqual('  no diff · over 500 changed lines')
+
+  // `n`: the next file's diff, its hunk drawn and no note.
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  const next = await shown()
+  expect(next).toContainEqual(expect.stringMatching(/^ {2}small\.txt +\+1 −1  ·  1 hunk$/))
+  expect(next.some(r => r.includes('no diff'))).toBe(false)
+
+  // Back to the note, then Escape: the engine hands the keyboard back, and the pane draws its timeline, no note.
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'file:big.txt' })
+  await ui.redraw()
+  expect(await shown()).toContainEqual('  no diff · over 500 changed lines')
+  await ui.unmount()
+  const after = await $.ui.mount(PANE)
+  expect((await after.findAll({ type: 'Text' })).some(t => t.text.includes('no diff'))).toBe(false)
+  await after.unmount()
+})

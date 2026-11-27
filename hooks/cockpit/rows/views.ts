@@ -151,15 +151,23 @@ export function countsOf(patch: readonly string[]): { adds: number; dels: number
 /**
  * The full diff (8.6): the path, `+12 · 2 hunks`, the baseline, then every hunk with its `@@` header in `machine`, two
  * gutters (old, new) and the sign; a line longer than the pane wraps under itself, marked `↩` in the gutter. Nothing
- * is cut.
+ * is cut. With no hunk to draw, why there is none (`no diff · over 500 changed lines`) in their place.
  * @param path the file
  * @param patch its unified rows
  * @param change the file's own counts over the turn, as the Files tab shows them
  * @param turnNo the turn
  * @param width the pane's columns
+ * @param note why the diff holds no more, when it says
  * @returns the rows
  */
-export function diffView(path: string, patch: readonly string[], change: { adds: number; dels: number }, turnNo: number, width: number): Part[][] {
+export function diffView(
+  path: string,
+  patch: readonly string[],
+  change: { adds: number; dels: number },
+  turnNo: number,
+  width: number,
+  note?: string
+): Part[][] {
   const { adds, dels } = change
   const hunks = patch.filter(l => l.startsWith('@@')).length
   const room = width - 2 - 10
@@ -202,6 +210,8 @@ export function diffView(path: string, patch: readonly string[], change: { adds:
     if (sign !== '+') oldNo++
     if (sign !== '-') newNo++
   }
+
+  if (hunks === 0 && note !== undefined) rows.push([], ...wrapHard(note, width - 2).map(c => [sp(2), dim(c)]))
 
   return rows
 }

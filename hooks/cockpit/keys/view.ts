@@ -119,6 +119,9 @@ async function editPatches($: EngineInterface, path: string): Promise<string[]> 
   return kept.flatMap(d => d.patch)
 }
 
+/** The notes of `fileDiff` for a file it never diffs (snapshots.ts): `outside the project`, `over 5000 lines`, `over 500 changed lines`. */
+const NOT_DIFFED = /^no diff · (?:outside the project|over \d+ (?:changed )?lines)$/
+
 /**
  * What a FILES row counts that a patch does not hold, said under it with why there is no fuller diff.
  * @param patch the patch shown
@@ -156,6 +159,9 @@ export async function fileView($: EngineInterface, path: string): Promise<{ patc
   const diff = await fileDiff($, path, cwdNow())
 
   if (diff.patch.length > 0 || diff.note === undefined) return { patch: diff.patch }
+  // A file never to be diffed (outside the project, past the line cap or the change budget): its note alone, no
+  // stand-in from the turn's own edit patches.
+  if (NOT_DIFFED.test(diff.note)) return { patch: [], note: diff.note }
 
   const patch = await editPatches($, path)
   const row = (await readWork($)).files.find(f => f.path === path)
