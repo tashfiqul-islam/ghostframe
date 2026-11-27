@@ -354,6 +354,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 
 - One header band (`codeHead`), the card's first row, in sentence case, bold, in `muted`: no half-block edge above or under it. Zebra rows. A result column may lead with `✓` / `×` in their colours.
 - The table spans the text column. Columns are sized to their content, 3 cells apart: a number column is right-aligned within its own width; the first text column takes a third of the card or its content, whichever is wider (screen 01); the last column takes the rest of the card and a cell that does not fit is cut with `…`. Widths are measured as the cells draw (6.1's width function).
+- Columns that still leave the last one under 3 cells are left out from the right, and a `dim` row under the card counts them: `2 columns hidden` (`1 column hidden`).
 
 ### 7.7 Note
 

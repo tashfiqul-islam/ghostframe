@@ -4,6 +4,7 @@ import { bottomEdge, cardRow, PAD, topEdge } from '../../shared/look/card'
 import { count } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TINT, TOKEN } from '../../shared/look/palette'
+import { NO_LABEL, SPINE, spineRow } from '../../shared/look/spine'
 import { widthOf } from '../../shared/look/width'
 import { inline } from './inline'
 
@@ -82,7 +83,8 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
   // The last column takes what the others leave; when they leave it under a third of the card, the widest of them
   // give way a cell at a time (cut with `…`), so no row runs past the card.
   const floor = cols > 1 ? Math.min(widths[cols - 1] ?? 0, Math.ceil(inner / 3)) : inner
-  const spent = () => boxes.slice(0, -1).reduce((n, b) => n + b + GAP, 0)
+  // The cells the columns before the last of the first `k` take, gaps included.
+  const spent = (k = cols) => boxes.slice(0, k - 1).reduce((n, b) => n + b + GAP, 0)
 
   while (inner - spent() < floor) {
     const widest = boxes.slice(0, -1).reduce((w, b, c) => (b > (boxes[w] ?? 0) ? c : w), 0)
@@ -90,21 +92,32 @@ export function tableCard(lines: readonly string[], width: number): Part[][] {
     if ((boxes[widest] ?? 0) <= 3) break
     boxes[widest] = (boxes[widest] ?? 0) - 1
   }
-  const rest = Math.max(1, inner - spent())
-  const lay = (cells: readonly Part[][], color: string): Part[] =>
-    cells.flatMap((parts, c) => {
-      const box = c === cols - 1 ? rest : (boxes[c] ?? 0)
-      const shown = cutTo(parts, box)
-      const fill = { t: ' '.repeat(Math.max(0, box - shownWidth(shown))), color }
-      const gap = c < cols - 1 ? [{ t: ' '.repeat(GAP), color }] : []
+  // Still too many: the columns past the last one that keeps 3 cells (or its whole content) are left out, and counted.
+  let shown = cols
 
-      return numeric[c] === true ? [fill, ...shown, ...gap] : [...shown, fill, ...gap]
+  while (shown > 1 && inner - spent(shown) < Math.max(1, Math.min(3, widths[shown - 1] ?? 0))) shown--
+  const rest = Math.max(1, inner - spent(shown))
+  const lay = (cells: readonly Part[][], color: string): Part[] =>
+    cells.slice(0, shown).flatMap((parts, c) => {
+      const box = c === shown - 1 ? rest : (boxes[c] ?? 0)
+      const cut = cutTo(parts, box)
+      const fill = { t: ' '.repeat(Math.max(0, box - shownWidth(cut))), color }
+      const gap = c < shown - 1 ? [{ t: ' '.repeat(GAP), color }] : []
+
+      return numeric[c] === true ? [fill, ...cut, ...gap] : [...cut, fill, ...gap]
     })
   const head = cardRow(lay(headParts, TOKEN.muted), TOKEN.codeHead, width)
   const body = bodyParts.map((r, i) => cardRow(lay(r, TOKEN.text), zebra(i), width))
+  const hidden = cols - shown
 
-  // One header band (7.6): no half-block edge above or under it; the card closes under its last row.
-  return [head, ...body, bottomEdge(zebra(Math.max(0, rows.length - 1)), width)]
+  // One header band (7.6): no half-block edge above or under it; the card closes under its last row, then a dim row
+  // counts the columns left out.
+  return [
+    head,
+    ...body,
+    bottomEdge(zebra(Math.max(0, rows.length - 1)), width),
+    ...(hidden > 0 ? [spineRow(NO_LABEL, SPINE, [{ t: `${count(hidden, 'column')} hidden`, color: TOKEN.dim }])] : [])
+  ]
 }
 
 /**
