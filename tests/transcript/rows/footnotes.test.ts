@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
-import { claudeFootnotes } from '../../../hooks/transcript/rows/markdown'
+import { widthOf } from '../../../hooks/shared/look/width'
+import { claudeFootnotes, footnoteRows } from '../../../hooks/transcript/rows/markdown'
 
 // 7.4's footnote lines come only from the `[n]` references Claude wrote: a bare URL or a link in the answer is the
 // answer's own text, never a footnote Cockpit numbers for it (the live check's step 6 drew three it made up).
@@ -24,4 +25,16 @@ test('12. Claude`s other footnote forms: `[^1]:`, a title after the URL, `[n] Ti
     { n: 2, url: 'https://b.dev/y' },
     { n: 3, url: 'https://bun.sh/docs' }
   ])
+})
+
+test('B7. a footnote too long for its row is cut in the middle, never dropped while a later one stays', () => {
+  const notes = [
+    { n: 1, url: 'https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions' },
+    { n: 2, url: 'https://bun.sh' }
+  ]
+  const rows = footnoteRows(notes, 50).map(r => r.map(p => p.t).join(''))
+
+  for (const r of rows) expect(widthOf(r)).toBeLessThanOrEqual(16 + 50)
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.slice(16)).toMatch(/^\[1\] docs\.github\.com\/\S*…\S*actions {3,}\[2\] bun\.sh$/)
 })

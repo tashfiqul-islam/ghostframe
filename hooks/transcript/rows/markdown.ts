@@ -5,7 +5,8 @@ import type { Part } from '../../shared/parts'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
-import { widthOf } from '../../shared/look/width'
+import { graphemesOf, widthOf } from '../../shared/look/width'
+import { clipMiddle } from '../../shared/text'
 import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
 import { noteCard, tableCard } from './tables'
@@ -13,9 +14,27 @@ import { noteCard, tableCard } from './tables'
 /** How a block draws: the text column's width, and whether its first sentence is the answer's lead. */
 export type AnswerContext = { width: number; hasLead: boolean }
 
-/** Parts cut into rows of `width` cells by words, each part keeping its colour. */
+/** A word wider than `room` cut into pieces that fit, by grapheme (as shared/look/wrap.ts does); its space stays last. */
+function breakWord(word: Part, room: number): Part[] {
+  if (widthOf(word.t.trimEnd()) <= room) return [word]
+
+  const out: Part[] = []
+  let t = ''
+
+  for (const g of graphemesOf(word.t)) {
+    if (t.length > 0 && g !== ' ' && widthOf(t + g) > room) {
+      out.push({ ...word, t })
+      t = ''
+    }
+    t += g
+  }
+
+  return t.length > 0 ? [...out, { ...word, t }] : out
+}
+
+/** Parts cut into rows of `width` cells by words, each part keeping its colour; a word wider than a row breaks. */
 export function wrapParts(parts: readonly Part[], width: number): Part[][] {
-  const words: Part[] = parts.flatMap(p => p.t.split(/(?<= )/).map(t => ({ ...p, t })))
+  const words: Part[] = parts.flatMap(p => p.t.split(/(?<= )/).flatMap(t => breakWord({ ...p, t }, Math.max(1, width))))
   const rows: Part[][] = [[]]
   let used = 0
 
@@ -72,7 +91,8 @@ const BULLET = /^(\s*)[-*+]\s+(.*)$/
 const NUMBERED = /^(\s*)(\d+)[.)]\s+(.*)$/
 const TASK = /^\[([ xX])\]\s+/
 const QUOTE = /^>\s?(.*)$/
-const NOTE = /^(?:\*\*)?Note:?(?:\*\*)?:?\s+(.*)$/i
+// `Note:`, `**Note:**` or `**Note**:`; the colon is what makes it a note (`Note that …` is prose).
+const NOTE = /^(?:\*\*)?Note(?::(?:\*\*)?|\*\*:)\s+(.*)$/i
 
 /**
  * A text block's rows (7.4). Each element is separated as its source is: a blank line is one blank spine row.
@@ -134,7 +154,8 @@ export function answerRows(text: string, ctx: AnswerContext): Part[][] {
     if (note !== null) {
       const said = [note[1] ?? '']
 
-      for (i++; i < lines.length && (lines[i] ?? '').trim().length > 0; i++) said.push((lines[i] ?? '').trim())
+      // Its lines up to a blank line or the next block (a fence keeps its code card).
+      for (i++; i < lines.length && (lines[i] ?? '').trim().length > 0 && !startsBlock(lines[i] ?? '', lines[i + 1]); i++) said.push((lines[i] ?? '').trim())
 
       out.push(...noteCard(said.join(' '), ctx.width))
       continue
@@ -269,36 +290,30 @@ export function footnoteRows(notes: readonly Footnote[], width: number): Part[][
       .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
       .replace(/^www\./, '')
       .replace(/\/$/, '')
+  const full = (f: Footnote) => widthOf(`[${f.n}] ${label(f)}`)
+  // A footnote in `cells`, its host and path cut in the middle when it does not fit: never dropped (B7).
+  const entry = (f: Footnote, cells: number): Part[] => [
+    { t: `[${f.n}]`, color: TOKEN.machine },
+    { t: ` ${clipMiddle(label(f), Math.max(1, cells - widthOf(`[${f.n}] `)))}`, color: TOKEN.link }
+  ]
   const rows: Part[][] = []
 
   for (let k = 0; k < notes.length; k += 2) {
-    const pair = notes.slice(k, k + 2)
-    const parts: Part[] = []
+    const [a, b] = notes.slice(k, k + 2)
 
-    pair.forEach((f, j) => {
-      const t = `[${f.n}] ${label(f)}`
+    if (a === undefined) break
+    if (b === undefined) {
+      rows.push(onSpine(entry(a, width)))
+      continue
+    }
 
-      if (j > 0) parts.push({ t: ' '.repeat(Math.max(3, FOOTNOTE_CELLS - widthOf(`[${pair[0]?.n ?? 0}] ${label(pair[0] ?? f)}`))), color: TOKEN.dim })
-      parts.push({ t: `[${f.n}]`, color: TOKEN.machine }, { t: t.slice(`[${f.n}]`.length), color: TOKEN.link })
-    })
+    // The second keeps its whole width up to half the row; the first takes the rest, 3 cells apart at the least.
+    const second = Math.min(full(b), Math.max(Math.floor((width - 3) / 2), width - 3 - full(a)))
+    const first = Math.min(full(a), width - 3 - second)
+    const gap = Math.max(3, Math.min(FOOTNOTE_CELLS - first, width - first - second))
 
-    rows.push(onSpine(fitWidth(parts, width)))
+    rows.push(onSpine([...entry(a, first), { t: ' '.repeat(gap), color: TOKEN.dim }, ...entry(b, second)]))
   }
 
   return rows
-}
-
-/** Parts cut to `width` cells. */
-function fitWidth(parts: readonly Part[], width: number): Part[] {
-  const out: Part[] = []
-  let used = 0
-
-  for (const p of parts) {
-    if (used + widthOf(p.t) <= width) {
-      out.push(p)
-      used += widthOf(p.t)
-    }
-  }
-
-  return out
 }
