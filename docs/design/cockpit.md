@@ -261,9 +261,10 @@ Everything is laid out in character cells. The terminal is `C` columns wide; the
 | select 1 | 1 | glyph 1 | 1 | title 25 | 2 | track 20 | result 20, right-aligned | 1 |
 ```
 
-Counting from 0: select at 0, glyph at 2, title 4–28, track 31–50, result 51–70.
+Counting from 0, at 72 cells: select at 0, glyph at 2, title 4–28, track 31–50, result 51–70.
 
 - 72 cells when the terminal is 163 columns or wider. At 144–162 columns the engine allows 63–71 (correction B: the 45% cap includes the divider). Below 72 the result area shrinks first, to 14, then the track, to 12.
+- **The title takes the rest.** Measured from the pane's body columns, the track keeps 20 cells and the result 20 (at least 12 and 14 below 72); the title takes every cell they and the frame (7 cells: select, glyph and their spaces, 2 before the track, 1 at the end) leave: 25 at 72, 43 at 90, 73 at 120. Between 63 and 72 the title holds 25 while the result and the track shrink; narrower, it gives way too (17 at 50). The ruler, the bars and the agents' rows follow the track wherever it starts.
 - **Select column.** Blank, or a half-cell accent bar `▐` for the selected row, whose whole width takes the `selected` tint, one background across the row; its text keeps its own colours.
 - **Indented rows** (agents under a group, sub-steps) put the tree guide `├ ` / `└ ` / `│ ` in the title's first two cells.
 - **Detail lines** start `└` under the glyph, with text under the title.
@@ -525,12 +526,13 @@ A `paneCard` card with half-block edges:
     × shell npm audit --omit dev                                 1 high
 ```
 
-- **Rows are groups**, not single steps. A group is one of Claude's working sentences, with the steps under it collapsed into its bar and result. Its title is the sentence's first sentence without its closing stop, cut at the end to 25 cells (13.5); Cockpit never rewrites Claude's words, so the canvas's shorter titles ("Comparing Bun versions") are hand-written. Steps before Claude's first sentence form a group titled by the first step's kind and subject. The glyph is the group's outcome: `✓`, `×`, `◇` (it launched agents), `↗` (it pushed or published), `⊘`, `!`, or `●` on the live group.
+- **Rows are groups**, not single steps. A group is one of Claude's working sentences, with the steps under it collapsed into its bar and result. Its title is the sentence's first sentence without its closing stop, cut at the end to the title column (6.2: 25 cells at 72, more in a wider pane; 13.5). The selected row shows its whole title, wrapped by words onto rows of its own under the title column, on the same tint, so a cut title can always be read; Cockpit never rewrites Claude's words, so the canvas's shorter titles ("Comparing Bun versions") are hand-written. Steps before Claude's first sentence form a group titled by the first step's kind and subject. The glyph is the group's outcome: `✓`, `×`, `◇` (it launched agents), `↗` (it pushed or published), `⊘`, `!`, or `●` on the live group.
 - **The track** is the turn's time from left to right. A bar starts and ends at its group's first and last step (`━`, with `╺` / `╸` half-cell ends). Finished bars are `barDone`, a failed group's bar is `err`, the live group's is `accent`, agents' bars are `agent`, a push is `accent`, a wait is `warn`.
 - **The ruler** above the track: the turn's start label on the track's first cell, its end label ending on the track's last, then `┬────┬────┬────┬───┬` exactly under them. The end label is `now` while the turn is live, waiting on its agents included (8.2), and the track then runs to now, as the agents' bars do; once it ends, the end's clock. A track too short for both `HH:MM:SS` labels (a pane under 72 columns) shows them as `HH:MM`; no label runs past the track.
 - **The now-line** `┊` (spine colour) runs down the track at the current time only while the turn is `LIVE`: not while it is NEEDS YOU (screen 04), and not for an agent in view, whose timeline is the agent's (screen 27). It fills the empty track cells at that time; a bar over that cell hides it.
 - **Agents** sit under their launch group as `├ ◇ name` rows with their own bars (parallel bars). The running or last sub-step goes under each: `│ ▸ shell bun test …  running`. This replaces amendment 1 for the timeline only; the flat step list keeps one `agent  3 launched` row, its kind in its own column. A launch group with no sentence of its own is titled `3 agents launched` (`1 agent launched`), never the kind and subject run together. Each agent's time at the right is its elapsed time so far: `accent`, the live colour, while it runs; `ok` once it is done, `err` when it failed.
 - **Detail lines** `└` under a failed group: the decisive line of output.
+- **The result** is at most 14 cells (5.7), right-aligned; one that does not fit is cut in the middle (13.5), so a branch or a path keeps both ends: `docs/r…shots`.
 - **Folding.** When the groups do not fit, the oldest fold into one row from the top: `┊ Earlier work · batches 1–5 · 214 steps`. Never fold the live group or an open failure. A failure that was fixed keeps its `×` row and detail, followed by its passing rerun.
 - **Selecting.** `tab` moves the selection; `enter` opens the selected group's drawer (8.4).
 - **Order.** Start time. Nothing re-sorts until the turn ends.
