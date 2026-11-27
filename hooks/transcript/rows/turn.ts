@@ -75,6 +75,31 @@ const MESSAGE_GLYPH: Record<MessageKind, Part> = {
   toAgent: { t: GLYPH.toAgent, color: TOKEN.muted }
 }
 
+// A paste as the session stores a prompt: `<pasted_content id="022a">\n…\n</pasted_content id="022a">` (the id on both
+// tags; an older or SDK paste may carry none).
+const PASTE = /<pasted_content(?: id="([^"]*)")?>\n?([\s\S]*?)\n?<\/pasted_content(?: id="\1")?>/g
+
+/**
+ * A prompt as its card shows it (7.2): each paste as Claude Code's composer names it, `[Pasted text #1 +59 lines]`
+ * (its line breaks counted, as the composer counts them), in its place among the typed words; expanded (ctrl+o), the
+ * pasted text itself. The wrapper tags never draw.
+ * @param text the prompt as the row carries it
+ * @param isExpanded whether the view draws the row in full
+ * @returns the text to draw
+ */
+export function pasteShown(text: string, isExpanded: boolean): string {
+  let n = 0
+
+  return text
+    .replace(PASTE, (_, _id: string | undefined, body: string) => {
+      n++
+      const breaks = body.split('\n').length - 1
+
+      return isExpanded ? body : `[Pasted text #${n}${breaks === 0 ? '' : ` +${breaks} lines`}]`
+    })
+    .trim()
+}
+
 /**
  * Your message as a card (7.2): a `surface` card with half-cell edges, the glyph, the text in `textBright`. Added and
  * queued messages carry their clock in the label and `added` / `QUEUED` at the card's right end; a message to an agent
