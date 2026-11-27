@@ -49,6 +49,9 @@ function engine(on: On, clock: { now: number }, fetch?: (url: string) => Promise
 
 const call = ($: Engine, tool: string, id: string, input: Record<string, unknown>) => $.tool.call({ tool, ...input, tool_use_id: id } as never)
 
+/** A command that ran and printed `stdout`, as `$.process.run` answers it. */
+const ran = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } }) as never
+
 /** Every tab's rows (8.1): the pane focused, each tab shown in turn by its key, then the timeline again. */
 async function paneText($: Engine): Promise<string[]> {
   const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
@@ -160,7 +163,7 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
   engine(on, clock)
   // Git as the work tree reads at the turn's start, after the printf, and after the formatter: README.md was changed
   // before the turn; the printf adds notes3.txt (new, untracked); the formatter changes src/app.ts.
-  const tracked = ['4\t0\tREADME.md\n', '4\t0\tREADME.md\n', '4\t0\tREADME.md\n2\t1\tsrc/app.ts\n']
+  const tracked = ['4\t0\tREADME.md\0', '4\t0\tREADME.md\0', '4\t0\tREADME.md\x002\t1\tsrc/app.ts\0']
   const others = ['', 'notes3.txt\0', 'notes3.txt\0']
   let diffs = 0
   let lists = 0
@@ -169,6 +172,7 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '\n', stderr: '' } } as never
     if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: tracked[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: others[Math.min(lists++, 2)] ?? '', stderr: '' } } as never
@@ -298,7 +302,7 @@ test('an append to a file the turn created counts too: its lines are read again 
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
-    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat') || argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: lists++ === 0 ? '' : 'notes5.txt\0', stderr: '' } } as never
   })
@@ -328,6 +332,7 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
     const argv = e.argv.join(' ')
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 1, stdout: '', stderr: '' } } as never
     if (argv.startsWith('git diff')) return { value: { exitCode: 128, stdout: '', stderr: "fatal: bad revision 'HEAD'" } } as never
     if (argv === 'git ls-files --cached --others --exclude-standard -z')
@@ -415,7 +420,7 @@ test('two agents` shells ending together count each change once, and a file two 
   engine(on, clock)
   on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
   // The work tree's diff: clean at the turn's start, then one line, then two, as the shells append.
-  const tracked = ['', '1\t0\tlog.txt\n', '2\t0\tlog.txt\n']
+  const tracked = ['', '1\t0\tlog.txt\0', '2\t0\tlog.txt\0']
   let diffs = 0
   let reads = 0
   on('process.run', (_, e) => {
@@ -460,4 +465,108 @@ test('two agents` shells ending together count each change once, and a file two 
   expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}◇ log\.txt +\+2 {7}■+$/))
   // Both commands name log.txt as a write target: its turn-start content is read once.
   expect(reads).toBe(1)
+})
+
+test('a project opened through a link (macOS /tmp, a Windows junction): Git names the real root, its files stay the project`s', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  // The session is at `/link/repo`, a link to `/real/repo`: Git resolves it, so its root is the real folder.
+  let diffs = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/real/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : `1\t0\tnotes.txt${e.argv.includes('-z') ? '\0' : '\n'}`)
+
+    return ran('')
+  })
+  on('fs.stat', (_, e) => ({
+    value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath: e.path.replace(/[\\/]link[\\/]repo(?=[\\/]|$)/, '/real/repo') }
+  }))
+  on('fs.read', () => ({ value: 'one\n' }))
+  await $.session.start({ cwd: '/link/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: `printf 'one\n' >> notes.txt` })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes\.txt +\+1 {7}■+$/))
+  expect(rows.some(r => r.includes('real/repo'))).toBe(false)
+})
+
+test('a session in a repo`s subfolder: an untracked file outside that folder is never read', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const read: string[] = []
+  let lists = 0
+  // The session is at `/repo/app`; Git lists the whole work tree's new files, one of them beside `app/`.
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('app/\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'app/new.txt\0secrets.env\0')
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', (_, e) => {
+    read.push(e.path)
+
+    return { value: 'one\n' }
+  })
+  await $.session.start({ cwd: '/repo/app', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: `printf 'one\n' > new.txt` })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+1 {7}■+$/))
+  expect(read.filter(p => p.includes('secrets'))).toEqual([])
+  expect(rows.some(r => r.includes('secrets'))).toBe(false)
+})
+
+test('a file whose name Git would quote (`café.txt`, `my notes/a b.md`): its row and its diff name it as it is', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const asked: string[] = []
+  let diffs = 0
+  // As Git prints them: without `-z` a non-ASCII name is quoted and escaped; with `-z` each path is as it is.
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+    asked.push(argv)
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git diff --numstat')) {
+      const isZ = e.argv.includes('-z')
+
+      return ran(diffs++ === 0 ? '' : isZ ? '1\t0\tcafé.txt\x002\t0\tmy notes/a b.md\x00' : '1\t0\t"caf\\303\\251.txt"\n2\t0\tmy notes/a b.md\n')
+    }
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', () => ({ value: 'one\n' }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'fmt', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'fmt', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'bun run fmt' })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}café\.txt +\+1 {7}■+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}my notes\/a b\.md +\+2 {7}■+$/))
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:café.txt' })
+  await ui.redraw()
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+  expect(asked).toContain('git diff HEAD -- café.txt')
 })

@@ -254,7 +254,7 @@ test('a FILES row a shell also changed: its diff is the whole turn`s, the file a
   const clock = { now: T0 }
   engine(on, clock, [])
   // Git, as the work tree reads at the turn's start, after the Edit, and after the shell's append.
-  const numstat = ['', '1\t1\tnotes.md\n', '2\t1\tnotes.md\n']
+  const numstat = ['', '1\t1\tnotes.md\0', '2\t1\tnotes.md\0']
   let diffs = 0
   on('process.run', (_, e) => {
     const argv = e.argv.join(' ')
@@ -301,7 +301,7 @@ test('a FILES row no call named, which had changes from before the turn: its dif
   const clock = { now: T0 }
   engine(on, clock, [])
   // src/app.ts was already changed when the turn started; a formatter changes it again without naming it.
-  const numstat = ['3\t0\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n']
+  const numstat = ['3\t0\tsrc/app.ts\0', '5\t1\tsrc/app.ts\0', '5\t1\tsrc/app.ts\0']
   let diffs = 0
   on('process.run', (_, e) => {
     const argv = e.argv.join(' ')

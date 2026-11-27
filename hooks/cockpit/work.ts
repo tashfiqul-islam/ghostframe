@@ -21,15 +21,18 @@ const work = atom({ plugin: 'ghostframe', key: 'work' } as const, EMPTY, { shape
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
 // What changed on disk outside Write and Edit (a shell's `printf >> f`, a formatter) is read from Git: the working
-// tree against HEAD (`git diff --numstat HEAD`, and `git ls-files --others` for new files, their lines counted once) at
+// tree against HEAD (`git diff --numstat -z HEAD`, and `git ls-files --others` for new files, their lines counted once) at
 // the typed turn's start and after each call that can change files, a shell step's rows being what moved between the
 // two. The engine's `$.vcs.diff` answers `unknown` unless another plugin implements it, so Git is run directly.
 // Before its first commit Git has seen nothing: every file it lists, staged or not, is new. Outside a Git work tree,
 // the files a shell command names as write targets.
 // shortcut: the work tree and the last diff live in the module; a reload forgets them, and the next shell step then
 // starts from a fresh diff, listing nothing it changed before. Move them to $.state if that matters.
-/** The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). */
-let copy: { root: string } | null | undefined
+/**
+ * The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). Its root is
+ * spelled from the session's folder, and `prefix` is that folder from the root as Git says it (`app/`, or empty).
+ */
+let copy: { root: string; prefix: string } | null | undefined
 /** The session's folder, as the last turn or call gave it: where a file's diff is read (`workDiff`). */
 let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
@@ -58,14 +61,27 @@ export function wasChangedBefore(path: string): boolean | undefined {
 const NEW_FILE_MAX = 2_000_000 // a new file past this many characters is listed, its lines not counted
 const RECOUNT_MAX = 50 // up to this many new files are read again at every diff; past it, each is read once
 
-/** `added, removed, path` lines of `git diff --numstat`; a binary file's `-` counts as 0. */
+/**
+ * The records of `git diff --numstat -z`: `added TAB removed TAB path NUL`, each path as it is (no quotes, no escapes);
+ * a rename's path field is empty and its old and new paths follow, each ended by NUL. A binary file's `-` counts as 0.
+ */
 function numstat(text: string): Counted[] {
-  return text.split('\n').flatMap(line => {
-    const [added, removed, ...rest] = line.split('\t')
-    const path = rest.join('\t')
+  const fields = text.split('\0')
+  const files: Counted[] = []
 
-    return path.length === 0 ? [] : [{ path, added: Number(added) || 0, removed: Number(removed) || 0, isUntracked: false }]
-  })
+  for (let i = 0; i < fields.length; i++) {
+    const [added, removed, ...rest] = (fields[i] ?? '').split('\t')
+    let path = rest.join('\t')
+
+    if (rest.length > 0 && path.length === 0) {
+      i += 2 // a rename: the new path is the second field after it
+      path = fields[i] ?? ''
+    }
+
+    if (path.length > 0) files.push({ path, added: Number(added) || 0, removed: Number(removed) || 0, isUntracked: false })
+  }
+
+  return files
 }
 
 /**
@@ -103,23 +119,37 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
   try {
     if (copy === undefined) {
       const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
-      copy = top.exitCode === 0 && top.stdout.trim().length > 0 ? { root: top.stdout.trim() } : null
+
+      if (top.exitCode === 0 && top.stdout.trim().length > 0) {
+        // Git names the root with every link resolved (macOS `/tmp`, a Windows junction), where the session's folder
+        // may keep its link: the root is spelled from the session's folder instead, less Git's path down to it.
+        const at = await $.process.run(['git', 'rev-parse', '--show-prefix'], { cwd })
+
+        if (at.exitCode !== 0) throw new Error(at.stderr.trim())
+
+        const prefix = at.stdout.trim()
+        const up = prefix.split('/').filter(p => p.length > 0).length
+        const here = cwd.replaceAll('\\', '/').replace(/\/+$/, '').split('/')
+        copy = { root: here.slice(0, here.length - up).join('/'), prefix }
+      } else copy = null
     }
 
     if (copy === null) return undefined
 
-    const root = copy.root
+    const { root, prefix } = copy
     // No commit yet (asked again until there is one): nothing to diff against, so no tracked rows, and the index's
     // files count as new beside the untracked ones.
     const hasHead = (await $.process.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root })).exitCode === 0
     const tracked = hasHead
-      ? await $.process.run(['git', 'diff', '--numstat', '--no-renames', 'HEAD', '--'], { cwd: root })
+      ? await $.process.run(['git', 'diff', '--numstat', '-z', '--no-renames', 'HEAD', '--'], { cwd: root })
       : { exitCode: 0, stdout: '', stderr: '' }
     const others = await $.process.run(['git', 'ls-files', ...(hasHead ? [] : ['--cached']), '--others', '--exclude-standard', '-z'], { cwd: root })
 
     if (tracked.exitCode !== 0 || others.exitCode !== 0) throw new Error((tracked.stderr || others.stderr).trim())
 
-    const fresh = others.stdout.split('\0').filter(p => p.length > 0)
+    // Git lists the whole work tree's new files: only the session's folder's are read and counted (a session in a
+    // repo's subfolder, a dotfiles repo at the home folder).
+    const fresh = others.stdout.split('\0').filter(p => p.length > 0 && p.startsWith(prefix))
     const isRecount = fresh.length <= RECOUNT_MAX
     const untracked = await Promise.all(fresh.map(async path => ({ path, added: await newLines($, root, path, isRecount), removed: 0, isUntracked: true })))
 
