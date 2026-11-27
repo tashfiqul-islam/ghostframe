@@ -7,6 +7,7 @@ import { addAgent, agentLaunchEnd, agentStep, agentStepEnd, anyRunning, endAgent
 import type { AgentEnd, AgentStart } from './agents/roster'
 import {
   askStep,
+  unaskStep,
   clearAgentWork,
   continueTurn,
   endLaunched,
@@ -306,6 +307,18 @@ export async function logAsk($: EngineInterface, id: string): Promise<void> {
   if (!isOn()) return
 
   await update($, stepLog, log => askStep(log, id))
+}
+
+/**
+ * A main-loop call no longer waits on the person (9.3): the mode's decider answers it (auto mode's classifier), or a
+ * check refused it. Its row and the pane's pill stop saying it waits on you.
+ * @param $ the engine interface
+ * @param id the call's id
+ */
+export async function logUnask($: EngineInterface, id: string): Promise<void> {
+  if (!isOn()) return
+
+  await update($, stepLog, log => unaskStep(log, id))
 }
 
 /**

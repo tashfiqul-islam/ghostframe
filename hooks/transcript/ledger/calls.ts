@@ -3,7 +3,7 @@
 import { noticeSink } from '../../cockpit/switch'
 import type { EngineInterface, On } from 'claude-code'
 
-import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepStart } from '../../cockpit/log'
+import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepStart, logUnask } from '../../cockpit/log'
 import { runnerOf } from '../../shared/calls/describe'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
@@ -61,7 +61,17 @@ async function afterCall(
 }
 
 /**
- * Adds the tool-call observe hooks: `tool.call` and `tool.check`.
+ * A main-loop call no longer waits on the person: its row and the pane's pill stop saying so.
+ * @param $ the engine interface
+ * @param id the call's id
+ */
+async function unasked($: EngineInterface, id: string): Promise<void> {
+  if ((await readAsked($)).includes(id)) await updateAsked($, list => list.filter(x => x !== id))
+  await logUnask($, id)
+}
+
+/**
+ * Adds the tool-call observe hooks: `tool.call`, `tool.check` and `tool.judge`.
  * @param on the `on` that `register` receives
  */
 export function registerCalls(on: On): void {
@@ -166,10 +176,38 @@ export function registerCalls(on: On): void {
         await logAsk($, id)
       }
 
-      // Refused by a check, not by the person (13.7): its step settles `blocked`.
-      if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') logBlocked(id, verdict)
+      // Refused by a check, not by the person (13.7): its step settles `blocked`, and nobody is asked.
+      if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') {
+        logBlocked(id, verdict)
+        await unasked($, id)
+      }
     } catch {
       // A note that fails costs the row its `needs you`, nothing more.
+    }
+
+    return verdict
+  }).catch((_$, e, next) => next(e)) // never decides: the verdict beneath stands
+
+  // Auto mode settles an ask with its classifier, not the person (9.3): while it judges nobody is asked, and only a
+  // classifier that gives no verdict (`ask`) puts the call to the person. Observes only: the verdict is handed up.
+  on('tool.judge', async ($, e, next) => {
+    const isMain = e.agentId === undefined && e.approver === 'person'
+
+    try {
+      if (isMain) await unasked($, e.tool_use_id)
+    } catch {
+      // A note that fails costs the row its `needs you`, nothing more.
+    }
+
+    const verdict = await next(e)
+
+    try {
+      if (isMain && verdict.decision === 'ask') {
+        await updateAsked($, list => [...list.filter(x => x !== e.tool_use_id), e.tool_use_id].slice(-100))
+        await logAsk($, e.tool_use_id)
+      }
+    } catch {
+      // as above
     }
 
     return verdict
