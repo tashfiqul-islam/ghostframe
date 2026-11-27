@@ -1,0 +1,5 @@
+{
+  "name": "ghostframe-perf",
+  "version": "0.1.0",
+  "description": "ghostframe's profiler: with GHOSTFRAME_PERF=1, each ghostframe hook's own time, listed by /ghostframe perf. Load it only to profile."
+}

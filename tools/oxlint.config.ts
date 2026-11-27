@@ -56,6 +56,24 @@ const config: OxlintConfig = defineConfig({
       }
     },
     {
+      // The benchmarks drive one session the same way, timing each step, so each waits for the last; and they read back
+      // only the `BENCH {…}` JSON lines their own runs print, so its shape is theirs to assert.
+      files: ['**/bench/**'],
+      rules: {
+        'no-await-in-loop': 'off',
+        'unicorn/consistent-function-scoping': 'off',
+        'typescript/no-unsafe-type-assertion': 'off'
+      }
+    },
+    {
+      // The profiler's hooks module keeps every helper inside `register`: the benchmarks load that one function as an
+      // inline plugin, which the harness runs closed over nothing of its file.
+      files: ['**/perf/probe/**'],
+      rules: {
+        'unicorn/consistent-function-scoping': 'off'
+      }
+    },
+    {
       // The status line's reference renderer, a design artifact kept as the designer wrote it (statusline/ is its
       // build, linted in full). Its three findings are the designer's style, not bugs: they stay.
       files: ['**/docs/design/statusline-preview.ts'],
