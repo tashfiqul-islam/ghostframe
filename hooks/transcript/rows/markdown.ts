@@ -11,8 +11,11 @@ import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
 import { noteCard, tableCard } from './tables'
 
-/** How a block draws: the text column's width, and whether its first sentence is the answer's lead. */
-export type AnswerContext = { width: number; hasLead: boolean }
+/**
+ * How a block draws: the text column's width, whether its first sentence is the answer's lead, and the width a table,
+ * code card or diff card may take (6.1), the text column's when not given.
+ */
+export type AnswerContext = { width: number; hasLead: boolean; blockWidth?: number }
 
 /** A word wider than `room` cut into pieces that fit, by grapheme (as shared/look/wrap.ts does); its space stays last. */
 function breakWord(word: Part, room: number): Part[] {
@@ -126,7 +129,9 @@ export function answerRows(text: string, ctx: AnswerContext): Part[][] {
       const lang = fence[2] ?? ''
       const info = fence[3] ?? ''
 
-      out.push(...(lang === 'diff' || isUnifiedDiff(body) ? diffCard(body, info, ctx.width) : codeCard(body, lang, info, ctx.width)))
+      const wide = ctx.blockWidth ?? ctx.width
+
+      out.push(...(lang === 'diff' || isUnifiedDiff(body) ? diffCard(body, info, wide) : codeCard(body, lang, info, wide)))
       i = close < 0 ? lines.length : close + 1
       continue
     }
@@ -135,7 +140,7 @@ export function answerRows(text: string, ctx: AnswerContext): Part[][] {
       const end = lines.findIndex((l, k) => k > i && !l.includes('|'))
       const table = lines.slice(i, end < 0 ? lines.length : end)
 
-      out.push(...tableCard(table, ctx.width))
+      out.push(...tableCard(table, ctx.blockWidth ?? ctx.width))
       i = end < 0 ? lines.length : end
       continue
     }
