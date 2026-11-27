@@ -171,7 +171,7 @@ export function factsOf(json: unknown, git: Git | null, limits: Limits, now: num
   const branch = str(obj(j['worktree'])['branch']) ?? git?.branch ?? ''
 
   return {
-    model: name,
+    model: short(name, 24) ? name : headOf(name, 24),
     effort: EFFORTS.has(level) ? level : '',
     repo: short(repo, 24) ? repo : headOf(repo, 24),
     branch: short(branch, 20) ? branch : cutTitle(branch, 20),

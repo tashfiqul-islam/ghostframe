@@ -60,7 +60,7 @@ function main(): string {
   } catch (e) {
     debug(`fallback: ${String(e)}`)
 
-    return facts !== null ? fallback(facts, Math.max(1, w)) : 'ghostframe'
+    return facts !== null ? ansi([{ t: fallback(facts, Math.max(1, w)) }], 'none') : 'ghostframe'
   }
 }
 

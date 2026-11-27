@@ -32,6 +32,10 @@ describe('git', () => {
 
   test('this repository: a branch, and the answer reused within 5 s', () => {
     const root = join(import.meta.dir, '..')
+
+    // Cold-start allowance: a fresh Windows runner's first git run (loading git and reading the index cold) can take
+    // longer than GIT_TIMEOUT_MS. One run first pays that, so the check below still holds gitOf to its real limit.
+    Bun.spawnSync(['git', '-C', root, '--no-optional-locks', 'status', '--porcelain=v1', '--branch'], { stdout: 'ignore', stderr: 'ignore' })
     const first = gitOf(root, NOW, dir)
 
     expect(first?.branch).toBeTruthy()

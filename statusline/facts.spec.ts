@@ -79,6 +79,7 @@ describe('facts from the JSON', () => {
     expect([f.model, f.effort, f.repo, f.dirty]).toEqual(['Opus 5.5', 'xhigh', 'ghostframe', true])
     expect(f.branch).toBe('worktree-a-very-lon…')
     expect(factsOf({ workspace: { current_dir: '/home/me/src/app', repo: { name: 'app-repo' } } }, null, {}, NOW).repo).toBe('app-repo')
+    expect(factsOf({ model: { display_name: 'Claude Opus 4.6 (1M context, extra long)' } }, null, {}, NOW).model).toBe('Opus 4.6 (1M context, ex')
   })
 
   test('context is a whole percentage held to 0–100', () => {

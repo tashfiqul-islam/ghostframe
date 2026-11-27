@@ -4,6 +4,8 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
 import { STATUS, TOKEN } from '../hooks/shared/look/palette.ts'
+import { widthOf as cellsOf } from '../hooks/shared/look/width.ts'
+import { factsOf } from './facts.ts'
 import { widthOf } from './io.ts'
 import { MIN_W, len, mark, meter, render } from './render.ts'
 import type { Facts, Options, Seg } from './render.ts'
@@ -54,6 +56,24 @@ describe('widths', () => {
           expect(len(row)).toBe(w)
           // The last tile's surface reaches the last cell of W.
           expect(TILES).toContain(cells(row).at(-1)?.bg ?? '')
+        }
+      }
+    }
+  })
+
+  test('the longest names at every W from 60 to 160: nothing thrown, every row within W', () => {
+    const json = {
+      model: { display_name: 'Claude Opus 4.6 (1M context)' },
+      workspace: { current_dir: '/x/abcdefghijklmnopqrstuvwx' },
+      context_window: { used_percentage: 40 }
+    }
+    const long = factsOf(json, { branch: 'a-twenty-cell-branch', dirty: true }, {}, Date.now())
+
+    expect([long.model, long.repo]).toEqual(['Opus 4.6 (1M context)', 'abcdefghijklmnopqrstuvwx'])
+    for (let w = 60; w <= 160; w++) {
+      for (const f of [long, { ...PRESSURE, model: long.model, repo: long.repo, branch: long.branch }]) {
+        for (const o of [ON, { icons: false, slab: false }, { icons: true, slab: true }]) {
+          for (const row of render(f, w, o)) expect(cellsOf(row.map(s => s.t).join(''))).toBeLessThanOrEqual(w)
         }
       }
     }

@@ -175,15 +175,25 @@ export function planOf(text: string, entry: StatusLineEntry | null): Plan {
 
 /**
  * The command the status line runs: Bun on the bundled script, by an absolute path with forward slashes (Git Bash
- * eats backslashes; docs: Windows configuration), quoted when it holds a space.
+ * eats backslashes). On Windows Claude Code runs it through Git Bash, or through PowerShell when Git Bash is absent
+ * (docs: statusline, Windows configuration), so the quoting must hold in both:
+ * - no `'` in the path: single quotes, in which neither shell expands anything;
+ * - a `'` but none of `$`, backtick, `"` or `!`: double quotes, which then expand nothing in either shell;
+ * - otherwise single quotes with each `'` written `'\''`, which only bash reads (see `needsBash`).
  * @param script the bundled script's absolute path
  * @returns the command line
  */
 export function commandOf(script: string): string {
   const path = script.replaceAll('\\', '/')
 
-  return `bun ${/\s/.test(path) ? `"${path}"` : path}`
+  if (!path.includes("'")) return `bun '${path}'`
+  if (!/[$`"!]/.test(path)) return `bun "${path}"`
+
+  return `bun '${path.replaceAll("'", "'\\''")}'`
 }
+
+/** Whether a command line uses the bash-only `'\''` form, which PowerShell cannot run. */
+export const needsBash = (command: string): boolean => command.includes("'\\''")
 
 /**
  * The entry ghostframe installs: refreshed every 10 s so the cache timer stays current while idle, no padding so the
