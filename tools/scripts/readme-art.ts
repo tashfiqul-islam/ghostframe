@@ -44,8 +44,8 @@ const IMAGES: readonly { stem: string; limit: number }[] = [
   { stem: 'features-narrow', limit: 40 * KB },
   { stem: 'footer', limit: 40 * KB },
   ...SECTIONS.flatMap(s => [
-    { stem: `band-${s.slug}`, limit: 10 * KB },
-    { stem: `band-${s.slug}-narrow`, limit: 10 * KB }
+    { stem: `band-${s.slug}`, limit: 12 * KB },
+    { stem: `band-${s.slug}-narrow`, limit: 12 * KB }
   ])
 ]
 
@@ -169,6 +169,11 @@ export function svgProblems(name: string, text: string): string[] {
   if (/<script\b|\bon[a-z]+=/i.test(text)) problems.push(`${name} has a script`)
   if (/(?:href|src)="(?!#)|url\((?!#)|@import/.test(text)) problems.push(`${name} loads something from outside itself`)
   if (/@keyframes/.test(text) && !/@media \(prefers-reduced-motion: reduce\)/.test(text)) problems.push(`${name} animates without a reduced-motion rule`)
+  const ids = [...text.matchAll(/\bid="([^"]+)"/g)].map(m => m[1])
+  const twice = ids.find((id, i) => ids.indexOf(id) !== i)
+
+  // A repeated id sends a <use> or url() to the wrong element: a glyph that draws a clip path, say.
+  if (twice !== undefined) problems.push(`${name} has the id "${twice}" twice`)
 
   return problems
 }
@@ -209,6 +214,7 @@ function selfTest(): void {
   if (svgProblems('s.svg', '<svg><script>x()</script></svg>').length === 0) fail('a script passed')
   if (svgProblems('e.svg', '<svg><image href="https://x.test/a.png"/></svg>').length === 0) fail('an outside image passed')
   if (svgProblems('m.svg', '<svg><style>@keyframes a{}</style></svg>').length === 0) fail('motion without a reduced-motion rule passed')
+  if (svgProblems('d.svg', '<svg><clipPath id="p"/><path id="p"/></svg>').length === 0) fail('a repeated id passed')
   console.log('readme-art self-test: ok')
 }
 
@@ -253,7 +259,8 @@ function fontNamed(file: string): Font {
 const hanken = fontNamed('HankenGrotesk-VariableFont_wght.ttf')
 const mono: Readonly<Record<number, Font>> = {
   400: fontNamed('JetBrainsMonoNerdFontMono-Regular.ttf'),
-  500: fontNamed('JetBrainsMonoNerdFontMono-Medium.ttf')
+  500: fontNamed('JetBrainsMonoNerdFontMono-Medium.ttf'),
+  700: fontNamed('JetBrainsMonoNerdFontMono-Bold.ttf')
 }
 const weights = new Map<number, Font>()
 
@@ -327,11 +334,11 @@ function pathOf(commands: readonly { command: string; args: number[] }[], k: num
     }
     last = op === 'm' ? 'm' : op
     for (let j = 0; j < c.args.length; j += 2) {
-      const x = Math.round((c.args[j] ?? 0) * k * 10) / 10
-      const y = Math.round(-(c.args[j + 1] ?? 0) * k * 10) / 10
+      const x = Math.round((c.args[j] ?? 0) * k)
+      const y = Math.round(-(c.args[j + 1] ?? 0) * k)
 
-      put(d1(x - cx))
-      put(d1(y - cy))
+      put(String(x - cx))
+      put(String(y - cy))
       if (j + 2 >= c.args.length) {
         cx = x
         cy = y
@@ -371,8 +378,19 @@ const capOf = (face: Face, size: number): number => (fontOf(face).capHeight / fo
 /** How to set a line of text. */
 type Set = Face & { size: number; x: number; y: number; fill: string; tracking?: number; anchor?: 'start' | 'middle' | 'end'; cls?: string }
 
+const LETTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+/**
+ * The shortest id for the nth glyph: one letter for the first 52, then two. Every glyph's <use> carries it, so a
+ * shorter id is a smaller image.
+ * @param i the glyph's index
+ * @returns its id
+ */
+const shortId = (i: number): string =>
+  i < LETTERS.length ? (LETTERS[i] ?? '') : `${LETTERS[Math.floor(i / LETTERS.length) - 1] ?? ''}${LETTERS[i % LETTERS.length] ?? ''}`
+
 /** The size every glyph is drawn at in <defs>; a line of another size scales its group. */
-const REF = 10
+const REF = 48
 
 /**
  * One image's glyphs: each distinct glyph of each font is drawn once in <defs>, at REF px, and placed with <use>.
@@ -402,11 +420,11 @@ class Glyphs {
       let id = this.ids.get(key)
 
       if (id === undefined && glyph.path.commands.length > 0) {
-        id = `g${this.ids.size.toString(36)}`
+        id = shortId(this.ids.size)
         this.ids.set(key, id)
         this.defs.push(`<path id="${id}" d="${pathOf(glyph.path.commands, REF / font.unitsPerEm)}"/>`)
       }
-      if (id !== undefined) uses.push(`<use href="#${id}" x="${d1((pen + (pos?.xOffset ?? 0) * k) / scale)}"/>`)
+      if (id !== undefined) uses.push(`<use href="#${id}" x="${Math.round((pen + (pos?.xOffset ?? 0) * k) / scale)}"/>`)
       pen += (pos?.xAdvance ?? glyph.advanceWidth) * k + (o.tracking ?? 0) * o.size
     }
 
@@ -508,7 +526,7 @@ function hairline(c: (typeof C)[Theme], x: number, w: number, y: number, id: str
 }
 
 function divider(t: Theme): string {
-  const line = hairline(C[t], WIDE * 0.2, WIDE * 0.6, 9, 'h')
+  const line = hairline(C[t], WIDE * 0.2, WIDE * 0.6, 9, 'h1')
 
   return svg(WIDE, 18, { defs: line.defs, body: line.body, label: '' })
 }
@@ -674,13 +692,15 @@ function budgetWindow(g: Glyphs, x: number, y: number, w: number): { body: strin
         .map(cellAt)
         .join('')}"/>`,
       `<path fill="${UI.meterQuarter}" d="${all.filter(isQuarter).map(cellAt).join('')}"/>`,
-      ...all.slice(0, lit).map(c => `<path class="c${c}" fill="${UI.tone[m.tone]}" d="${cellAt(c)}"/>`)
+      ...all.slice(0, lit).map(c => `<path class="lit c${c}" fill="${UI.tone[m.tone]}" d="${cellAt(c)}"/>`)
     )
   }
   // Each cell lights a little after the one before it, so the meters fill from the left; the numbers come in last.
   const css = [
     '@keyframes lit{0%{opacity:0}6%,82%{opacity:1}90%,100%{opacity:0}}',
-    ...Array.from({ length: cells }, (_, c) => `.c${c}{animation:lit 7s ${n(0.3 + c * 0.09)}s infinite backwards}`),
+    // One rule animates every lit cell; each cell's own rule only sets its delay.
+    '.lit{animation:lit 7s infinite backwards}',
+    ...Array.from({ length: cells }, (_, c) => `.c${c}{animation-delay:${n(0.3 + c * 0.09).replace(/^0\./, '.')}s}`),
     shown('pct', 0.42),
     '.pct{animation:pct 7s infinite}'
   ]
@@ -748,7 +768,7 @@ function platforms(t: Theme): string {
   const r = (h - 1) / 2
   const g = new Glyphs()
   const parts: string[] = [
-    `<g clip-path="url(#p)"><rect width="${n(width)}" height="${h}" fill="${c.chipSurface}"/><rect width="${n(labelW)}" height="${h}" fill="${c.chipLabel}"/></g>`,
+    `<g clip-path="url(#c1)"><rect width="${n(width)}" height="${h}" fill="${c.chipSurface}"/><rect width="${n(labelW)}" height="${h}" fill="${c.chipLabel}"/></g>`,
     g.text(label, { ...labelFace, size: 10, x: pad, y: baseline(labelFace, 10), tracking: 0.12, fill: c.chipIcon })
   ]
   let x = labelW
@@ -771,7 +791,7 @@ function platforms(t: Theme): string {
   parts.push(`<rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}" fill="none" stroke="${c.chipBorder}"/>`)
 
   return svg(width, h, {
-    defs: `<clipPath id="p"><rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}"/></clipPath>${g.defsContent}`,
+    defs: `<clipPath id="c1"><rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}"/></clipPath>${g.defsContent}`,
     body: parts.join(''),
     label: 'Runs on Windows, macOS and Linux'
   })
@@ -887,47 +907,99 @@ function banner(t: Theme): string {
 
 // ─── The section bands ───
 
-/** A band's room: transparent space above its text line, and below its divider. */
-const BAND_ABOVE = 28
-const BAND_BELOW = 10
+/** A band's room: transparent space above its bar and below it, so every section starts with the same gap. */
+const BAND_ABOVE = 34
+const BAND_BELOW = 14
+const BAR_H = 34
+/** Every cut leans like "/", about 18°: across BAR_H that is 11px. */
+const SLANT = Math.round(BAR_H * Math.tan((18 * Math.PI) / 180))
+const SLIT = 3
+const SEG_PAD = 12
+
+/** The band's colours, per theme; the gold segment is the eyes' gold in both. */
+const BAND = {
+  dark: { path: '#1a2029', git: '#151a21', caption: '#11151c', muted: '#6e7681', bright: '#f0f3f6', green: '#5DCAA5', capText: '#6e7681' },
+  light: { path: '#e8ebef', git: '#eef0f3', caption: '#f3f5f7', muted: '#818b98', bright: '#1f2328', green: '#1a7f37', capText: '#818b98' }
+} as const
+const NUMBER_FACE = { family: 'mono', weight: 700 } as const
+/** The status line's branch glyph (statusline/render.ts): Nerd Fonts' dev-git-branch, U+E725, from Devicons (MIT). */
+const BRANCH = ''
 
 /**
- * A section's header: its gold number tile, its name in letter-spaced caps and (wide only) a muted caption on one
- * line, and under it a full-width divider, gold at the left fading through grey to nothing. The space above and below
- * is part of the image, so every section starts with the same gap whatever GitHub's margins do.
+ * One segment of the bar: its left end on the slant, its right end on the slant or straight.
+ * @param x where its left cut meets the bar's bottom
+ * @param right where its right cut meets the bar's bottom, or the bar's full width for a straight end
+ * @param isStraight whether its right end is straight
+ * @param fill its fill
+ * @returns the segment's path
+ */
+function segment(x: number, right: number, isStraight: boolean, fill: string): string {
+  const top = BAND_ABOVE
+  const bottom = BAND_ABOVE + BAR_H
+  const topRight = isStraight ? right : right + SLANT
+
+  return `<path fill="${fill}" d="M${n(x)} ${bottom}L${n(x + SLANT)} ${top}L${n(topRight)} ${top}L${n(right)} ${bottom}Z"/>`
+}
+
+/**
+ * A section's header: one full-width bar of four segments on a shared slant, a 3px slit of page between them: the
+ * gold number, the path `~/ghostframe/<folder>`, the git branch as a prompt shows it (wide only) and the caption
+ * (wide only), running to a straight right end. The narrow version keeps the number and the path, the path running to
+ * the full width. The bar is the section's divider too, and the space above and below it is part of the image.
  */
 function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string {
-  const c = C[t]
+  const b = BAND[t]
   const w = isNarrow ? 360 : WIDE
-  const tileH = 22
-  const mid = BAND_ABOVE + tileH / 2
-  const ruleY = BAND_ABOVE + tileH + 8
-  const h = ruleY + 1 + BAND_BELOW
+  const h = BAND_ABOVE + BAR_H + BAND_BELOW
+  const mid = BAND_ABOVE + BAR_H / 2
   const g = new Glyphs()
   const number = String(SECTIONS.indexOf(s) + 1).padStart(2, '0')
-  const nameFace = { weight: 700 } as const
-  const name = s.name.toUpperCase()
-  const nameX = 42
+  const pathSize = 12.5
+  const gitSize = 12
+  const capSize = 9.5
+  const baseline = (face: Face, size: number): number => mid + capOf(face, size) / 2
+  // Content sits between a segment's cuts at mid-height, which lean SLANT / 2 right of their bottom ends.
+  const parts: string[] = []
+  let x = 0
+  const seg = (contentW: number, fill: string, isLast: boolean): number => {
+    const start = x
+    const right = isLast ? w : x + contentW + 2 * SEG_PAD
+
+    parts.push(segment(start, right, isLast, fill))
+    x = right + SLIT
+
+    return start + SLANT / 2 + SEG_PAD
+  }
+  const numberW = widthOf(number, NUMBER_FACE, 15)
+  const numberX = seg(numberW, 'url(#gold)', false)
+
+  parts.push(g.text(number, { ...NUMBER_FACE, size: 15, x: numberX, y: baseline(NUMBER_FACE, 15), fill: '#151000' }))
+  const repoPath = '~/ghostframe/'
+  const folder = s.slug
+  const rootW = widthOf(repoPath, MONO, pathSize)
+  const pathX = seg(rootW + widthOf(folder, MONO, pathSize), b.path, isNarrow)
+
+  parts.push(
+    g.text(repoPath, { ...MONO, size: pathSize, x: pathX, y: baseline(MONO, pathSize), fill: b.muted }),
+    g.text(folder, { ...MONO, size: pathSize, x: pathX + rootW, y: baseline(MONO, pathSize), fill: b.bright })
+  )
+  if (!isNarrow) {
+    const git = `${BRANCH} main ✓`
+    const gitX = seg(widthOf(git, MONO, gitSize), b.git, false)
+
+    parts.push(g.text(git, { ...MONO, size: gitSize, x: gitX, y: baseline(MONO, gitSize), fill: b.green }))
+    seg(0, b.caption, true)
+    parts.push(g.text(s.caption, { ...MONO, size: capSize, x: w - 14, y: baseline(MONO, capSize), fill: b.capText, tracking: 0.14, anchor: 'end' }))
+  }
 
   return svg(w, h, {
-    defs: `<linearGradient id="l" x1="0" x2="${w}" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.gold}"/><stop offset=".45" stop-color="${c.rule}"/><stop offset="1" stop-color="${c.rule}" stop-opacity="0"/></linearGradient>`,
-    body:
-      `<rect x="0" y="${BAND_ABOVE}" width="30" height="${tileH}" rx="5" fill="${c.gold}"/>` +
-      g.text(number, {
-        family: 'mono',
-        weight: 500,
-        size: 12,
-        x: 15,
-        y: mid + capOf({ family: 'mono', weight: 500 }, 12) / 2,
-        fill: c.onGold,
-        anchor: 'middle'
-      }) +
-      g.text(name, { ...nameFace, size: 12, x: nameX, y: mid + capOf(nameFace, 12) / 2, fill: c.title, tracking: 0.16 }) +
-      (isNarrow ? '' : g.text(s.caption, { ...MONO, size: 9.5, x: w, y: mid + capOf(MONO, 9.5) / 2, fill: c.body, tracking: 0.14, anchor: 'end' })) +
-      `<rect x="0" y="${ruleY}" width="${w}" height="1" fill="url(#l)"/>`,
+    defs:
+      '<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3C9"/><stop offset=".5" stop-color="#FFC83D"/><stop offset="1" stop-color="#FFA21A"/></linearGradient>' +
+      g.defsContent,
+    body: parts.join(''),
     // The band is the section's heading: the README's <img> carries the section's name as its alt text.
     label: s.name
-  }).replace('<defs>', `<defs>${g.defsContent}`)
+  })
 }
 
 // ─── The footer card ───
@@ -938,7 +1010,7 @@ function footer(t: Theme): string {
   const h = 196
   const g = new Glyphs()
   const mark = cyclingEyes('mark-small', 'k')
-  const line = hairline(c, w * 0.2, w * 0.6, 138, 'h')
+  const line = hairline(c, w * 0.2, w * 0.6, 138, 'h1')
   const tagFace = { weight: 500 } as const
 
   return svg(w, h, {

@@ -1,3 +1,10 @@
+<!--
+  Section headings are images on purpose. Each numbered section's heading is an <h3> holding only its band, the
+  section's name in the image's alt text, after an <a name> anchor that its links use. GitHub's outline menu lists
+  headings by their text, so it leaves these sections out; the nav row and the anchors cover navigation, and screen
+  readers read the alt text. Visible heading text would repeat the band, so there is none.
+-->
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/banner-dark.svg">
