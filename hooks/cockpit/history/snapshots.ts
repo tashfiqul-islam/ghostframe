@@ -8,7 +8,7 @@ import type { FileDiff } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { deleted, shownPath, writeTargets } from '../sections/files'
 import { isOffProject } from '../../shared/url'
-import { diskPath, wasChangedBefore, workDiff } from '../work'
+import { cwdNow, diskPath, landsOutside, wasChangedBefore, workDiff } from '../work'
 import { DIFF_LINES_MAX, lineDiff } from './linediff'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
@@ -71,6 +71,9 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
       path,
       (async () => {
         try {
+          // Through a link to elsewhere: outside the project after all, never read (its diff says so).
+          if (await landsOutside($, path, cwd)) return
+
           const text = await $.fs.read(await diskPath($, path, cwd))
 
           if (text.length > SNAPSHOT_MAX) tooLarge.add(path)
@@ -96,8 +99,11 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
  * @returns the diff, or its note when there is none
  */
 export async function fileDiff($: EngineInterface, path: string, cwd: string | undefined): Promise<FileDiff> {
-  // Outside the project (the home folder, temp, a scratchpad): listed, never diffed (8.5).
-  if (isOffProject(path)) return { path, patch: [], note: 'no diff · outside the project' }
+  // Outside the project (the home folder, temp, a scratchpad, or through a link to there): listed, never diffed (8.5).
+  // The folder Git's fallback reads from is checked when the caller names none.
+  const here = cwd ?? cwdNow()
+
+  if (isOffProject(path) || (here !== undefined && (await landsOutside($, path, here)))) return { path, patch: [], note: 'no diff · outside the project' }
 
   const snap = snapshots.get(path)
 

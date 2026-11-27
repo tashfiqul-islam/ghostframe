@@ -1,4 +1,5 @@
 import type { Outcome } from '../../hooks/cockpit/steps/log'
+import type { On } from './engine'
 
 export const ON = { options: { cockpit: true } }
 
@@ -24,3 +25,11 @@ export const T0 = new Date(2026, 10, 21, 10, 26, 45).getTime() // the prompt's s
 export const W = 72
 
 export const failed = (said: string): Outcome => ({ isError: true, text: said })
+
+/**
+ * A disk with no links: every path lands where it is spelled (`$.fs.stat`), so a file of the project is read and
+ * diffed. Cockpit asks where a file lands before it reads it (SEC-T3).
+ */
+export function statAsSpelled(on: On): void {
+  on('fs.stat', (_, e) => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: e.path } }))
+}

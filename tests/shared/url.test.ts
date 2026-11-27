@@ -128,6 +128,14 @@ test('`~` and the home variables expand to the home folder before a `$.fs` call,
 })
 
 test('a path as shown is outside the project when it is `~/…`, absolute or climbs out', async () => {
-  expect(['~/AppData/x.py', '~', 'C:/Temp/x', '/tmp/x', '../x'].map(isOffProject)).toEqual([true, true, true, true, true])
-  expect(['src/app.ts', '~notes.txt', '.github/ci.yml', '..x'].map(isOffProject)).toEqual([false, false, false, false])
+  expect(['~/AppData/x.py', '~', 'C:/Temp/x', '/tmp/x', '../x', 'sub/../../x', 'a/./../..'].map(isOffProject)).toEqual([
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ])
+  expect(['src/app.ts', '~notes.txt', '.github/ci.yml', '..x', 'sub/../x', './x'].map(isOffProject)).toEqual([false, false, false, false, false, false])
 })

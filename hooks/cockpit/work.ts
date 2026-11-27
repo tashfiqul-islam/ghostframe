@@ -270,6 +270,37 @@ export async function diskPath($: EngineInterface, path: string, cwd: string): P
   return onDisk(path, cwd, await home)
 }
 
+/** Where a path lands, every link followed (`$.fs.stat`); null when nothing is there, undefined when it cannot be told. */
+async function realPath($: EngineInterface, path: string): Promise<string | null | undefined> {
+  try {
+    return (await $.fs.stat(path, { resolve: true })).realPath
+  } catch (error: unknown) {
+    // A look that failed for another reason cannot place the file: the guard denies it, as it denies a refused look.
+    return error instanceof Error && error.message.endsWith(' failed: ENOENT') ? null : undefined
+  }
+}
+
+/**
+ * Whether a file the session's folder names lands outside that folder once links are followed (a link or junction in
+ * the project to elsewhere, SEC-T3), or where it lands cannot be told. A file not there yet lands nowhere: nothing to
+ * read.
+ * @param $ the engine interface
+ * @param path the file, as the pane names it
+ * @param cwd the session's folder
+ * @returns true when it must not be read
+ */
+export async function landsOutside($: EngineInterface, path: string, cwd: string): Promise<boolean> {
+  const [file, root] = await Promise.all([realPath($, await diskPath($, path, cwd)), realPath($, cwd)])
+
+  if (file === null) return false
+  if (file === undefined || root === undefined || root === null) return true
+
+  const f = file.replaceAll('\\', '/').toLowerCase()
+  const r = root.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+
+  return !f.startsWith(`${r}/`)
+}
+
 /**
  * One file's diff against HEAD as unified rows from its first `@@`, for a FILES row no Write or Edit patch covers (a
  * shell wrote it): `git diff HEAD -- <path>`, or a new file's content as `+` rows. Asked when the row is opened.

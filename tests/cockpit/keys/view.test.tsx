@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
 import { ringMoveOf } from '../../../hooks/cockpit/rows/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
-import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW, statAsSpelled } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 
 // Phase 7 keys in the pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
@@ -267,6 +267,7 @@ test('a FILES row a shell also changed: its diff is the whole turn`s, the file a
   // The file before the Edit (read as the Edit starts), and after the shell's append (read when the diff opens).
   let content = 'old line\nkept\n'
   on('fs.read', () => ({ value: content }))
+  statAsSpelled(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -310,6 +311,7 @@ test('a FILES row no call named, which had changes from before the turn: its dif
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
+  statAsSpelled(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))

@@ -1,6 +1,6 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
-import { ON, PANE, SLOW, T0, VIEW } from '../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW, statAsSpelled } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
@@ -190,17 +190,22 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
 })
 
 /**
- * A turn that writes two files outside the project, one by a Write to its full path and one by a shell to a `~/` path,
- * then ends: what the engine printed on the main screen (not the debug log), and what it was asked to read.
+ * A turn that writes four files outside the project, then ends: one by a Write to its full path, one by a shell to a
+ * `~/` path, one by a Write to a path that climbs out (`sub/../../climbed.txt`), and one by a Write through a link
+ * in the project (`link/`, a junction to `/outside`). What the engine printed on the main screen (not the debug log), and
+ * what it was asked to read and to stat.
  */
-async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: string[] }> {
+async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: string[]; statted: string[] }> {
   const clock = { now: T0 }
   engine(on, clock)
   const said: string[] = []
   const read: string[] = []
+  const statted: string[] = []
   on('session.id', () => ({ value: 's1' }))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
+  // The home folder is known, so a `~/` path expands to a real one and only the guards keep it unread.
+  mock.env(on, { USERPROFILE: 'C:/Users/me' })
   on('ui.log', (_, e) => {
     if ((e as { to?: unknown }).to !== 'debug') said.push(e.text)
 
@@ -215,11 +220,15 @@ async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: s
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
-  on('fs.read', (_, e) => {
-    const path = String((e as { path?: unknown }).path)
-    read.push(path)
+  // Every path lands where it is spelled, but `/repo/link/`, which lands in `/outside/`. The engine hands a hook the
+  // path made absolute, on Windows with its drive (`D:\repo\link\linked.txt`).
+  on('fs.stat', (_, e) => {
+    statted.push(e.path)
 
-    if (path.includes('~')) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
+    return { value: { kind: 'file', size: 2, mtimeMs: 0, isLink: false, realPath: e.path.replace(/[\\/]repo[\\/]link(?=[\\/]|$)/, '/outside') } }
+  })
+  on('fs.read', (_, e) => {
+    read.push(e.path)
 
     return { value: 'x\n' }
   })
@@ -228,22 +237,48 @@ async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: s
   await $.turn.start({ text: 'scratch', turnId: 't1' })
   await call($, 'Write', 'w1', { file_path: 'C:\\Users\\me\\AppData\\Local\\Temp\\claude\\s\\scratchpad\\harness5.py', content: 'x\ny\n' })
   await call($, 'Bash', 'b1', { command: `printf 'x\n' > ~/AppData/Local/Temp/claude/s/scratchpad/notes.txt` })
+  await call($, 'Write', 'w2', { file_path: 'sub/../../climbed.txt', content: 'x\ny\n' })
+  await call($, 'Write', 'w3', { file_path: '/repo/link/linked.txt', content: 'x\ny\n' })
   clock.now += 1_000
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
-  return { said, read }
+  return { said, read, statted }
 }
 
-test('a file written outside the project is never diffed: nothing reaches the main screen, and Files shows it with no counts', ON, async ($, on) => {
-  const { said, read } = await outsideTurn($, on)
+/** A FILES row's full diff (8.6): its rows, from the Files tab. */
+async function fullDiff($: Engine, path: string): Promise<string[]> {
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: `file:${path}` })
+  await ui.redraw()
+  const rows = (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd())
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+
+  return rows
+}
+
+test('a file written outside the project is never read nor diffed: nothing reaches the main screen, Files shows no counts', ON, async ($, on) => {
+  const { said, read, statted } = await outsideTurn($, on)
   const rows = await paneText($)
 
   expect(said).toEqual([])
-  expect(read.filter(p => /harness5|notes\.txt/.test(p))).toEqual([])
+  // Not read at the turn's start, at its end, or when its diff opens; the three spelled outside are not even looked at.
+  expect(read.filter(p => /harness5|notes\.txt|climbed|linked/.test(p))).toEqual([])
+  expect(statted.filter(p => /harness5|notes\.txt|climbed/.test(p))).toEqual([])
   // No counts: the change bar's empty track only.
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/harness5\.py {2,}■{5}$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/notes\.txt {2,}■{5}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 files changed$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}sub\/\.\.\/\.\.\/climbed\.txt {2,}■{5}$/))
+
+  // Each full diff opened (8.6): still nothing outside is read or looked at.
+  for (const path of ['~/AppData/Local/Temp/claude/s/scratchpad/notes.txt', 'sub/../../climbed.txt', 'link/linked.txt'])
+    expect((await fullDiff($, path)).some(r => r.includes(path.split('/').at(-1) ?? path))).toBe(true)
+
+  expect(read.filter(p => /harness5|notes\.txt|climbed|linked/.test(p))).toEqual([])
+  expect(statted.filter(p => /harness5|notes\.txt|climbed/.test(p))).toEqual([])
 })
 
 test('with Cockpit off, a file written outside the project prints nothing either', async ($, on) => {
@@ -318,6 +353,7 @@ test('an agent`s edit and fetch reach FILES and SOURCES marked ◇, never the ma
   on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
   let content = 'old line\nkept\n'
   on('fs.read', () => ({ value: content }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -397,6 +433,7 @@ test('two agents` shells ending together count each change once, and a file two 
 
     return { value: 'x\n' }
   })
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'logs', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'logs', turnId: 't1' })

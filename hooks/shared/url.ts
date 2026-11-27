@@ -24,7 +24,7 @@ export function relPath(p: string, cwd: string | undefined): string {
 
 /**
  * Whether a path as shown (`relPath`) is outside the session's folder: the home folder's `~/…`, an absolute path, or
- * one that climbs out (`../x`). Such a file is listed, never diffed or counted (8.5).
+ * one that climbs out (`../x`, `sub/../../x`). Such a file is listed, never diffed or counted (8.5).
  */
 // The home folder as a path or a shell names it, at a path's start.
 const HOME_VAR = /^(?:~|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\}|\$HOME|\$\{HOME\})(?=\/|$)/i
@@ -32,7 +32,20 @@ const HOME_VAR = /^(?:~|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\}|\$
 /** Whether a path starts at the home folder (`~/…`, `%USERPROFILE%\…`, `$HOME/…`). */
 export const isAtHome = (path: string): boolean => HOME_VAR.test(path.replaceAll('\\', '/'))
 
-export const isOffProject = (shown: string): boolean => /^(?:~|\.\.|[A-Za-z]:|)(?:\/|$)/.test(shown)
+export function isOffProject(shown: string): boolean {
+  if (/^(?:~|[A-Za-z]:|)(?:\/|$)/.test(shown)) return true
+
+  // `..` folded: a path that climbs above the session's folder anywhere along it (`sub/../../x`) is outside it.
+  let depth = 0
+
+  for (const part of shown.split('/')) {
+    depth += part === '..' ? -1 : part === '.' || part === '' ? 0 : 1
+
+    if (depth < 0) return true
+  }
+
+  return false
+}
 
 /**
  * Where a path is on disk, for a `$.fs` call: `~` (and `%USERPROFILE%`, `$env:USERPROFILE`, `$HOME`) is the home
