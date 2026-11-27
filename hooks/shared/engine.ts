@@ -6,8 +6,8 @@ import type { EngineInterface } from 'claude-code'
 
 import { inRange, parseRange, rangeText } from './range'
 
-/** Whether this copy of the module has run the check (see `checkEngineOnce`). */
-let isChecked = false
+/** This copy of the module's one check (see `checkEngineOnce`): every caller awaits the same run. */
+let check: Promise<void> | undefined
 /** Whether ghostframe is dormant: the engine is outside the tested range and the check is on. */
 let isDormantNow = false
 /** What the session is told when ghostframe is dormant. */
@@ -26,10 +26,13 @@ export const dormantText = (): string => dormantNote
  * and says so in the debug log: a broken read never switches it off unseen.
  * @param $ the engine interface
  */
-export async function checkEngineOnce($: EngineInterface): Promise<void> {
-  if (isChecked) return
-  isChecked = true
+export function checkEngineOnce($: EngineInterface): Promise<void> {
+  check ??= runCheck($)
 
+  return check
+}
+
+async function runCheck($: EngineInterface): Promise<void> {
   try {
     if (((await $.env.get('GHOSTFRAME_ENGINE_CHECK')) ?? '') === '0') {
       $.ui.log('engine check: GHOSTFRAME_ENGINE_CHECK=0, so the Claude Code version is not checked', { to: 'debug' })
