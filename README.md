@@ -1,6 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/design/brand/readme/readme-hero-dark.png">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/banner-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/banner-light.svg">
     <img alt="ghostframe, the cockpit for Claude Code" src="docs/design/brand/readme/readme-hero-light.png">
   </picture>
 </p>
@@ -13,12 +14,15 @@
 </p>
 
 <!-- tools/scripts/engines.ts --check fails if the Claude Code badge's or the SPEC box's range disagrees with plugin.json's engines. -->
-<!-- The version is alone on its line with the marker: release-please rewrites the semver on it (tools/scripts/readme.ts checks). -->
+<!-- release-please rewrites the first version on each line of the block below: the release badge's alt text and its address (tools/scripts/readme.ts checks). -->
 <p align="center">
   <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="docs/guide/compatibility.md"><img alt="Supported Claude Code versions 2.1.329 to 2.1.x" src="https://img.shields.io/badge/Claude_Code-2.1.329_%E2%86%92_2.1.x-D97757?style=flat&labelColor=2c333b&logo=claude"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-30363d?style=flat&labelColor=2c333b"></a>
-  <code>v1.0.0</code> <!-- x-release-please-version -->
+  <!-- x-release-please-start-version -->
+  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><img alt="Release v1.0.0"
+    src="https://img.shields.io/static/v1?label=release&message=v1.0.0&color=FFC83D&style=flat&labelColor=2c333b"></a>
+  <!-- x-release-please-end -->
 </p>
 
 <!-- The designed images below are drawn by tools/scripts/readme-art.ts. -->
@@ -40,22 +44,24 @@
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/divider-dark.svg"><img alt="" src="docs/assets/readme/divider-light.svg"></picture></p>
 
 <p align="center">
-  <b><a href="#02-install">Install</a></b> ·
-  <a href="#01-features">Features</a> ·
-  <a href="#03-keys">Keys</a> ·
+  <b><a href="#install">Install</a></b> ·
+  <a href="#features">Features</a> ·
+  <a href="#keys">Keys</a> ·
   <a href="docs/README.md">Docs</a> ·
   <a href="https://github.com/tashfiqul-islam/ghostframe/releases">Changelog</a>
 </p>
 
-<!-- docs/assets/README.md says how to record the demo again; with reduced motion the still shows instead. -->
+<!-- docs/assets/README.md says how to record the demo again. Phones get a cut of the pane; with reduced motion a still shows instead. -->
 <p align="center">
   <picture>
+    <source media="(max-width: 600px) and (prefers-reduced-motion: reduce)" srcset="docs/assets/readme-demo-phone.png">
+    <source media="(max-width: 600px)" srcset="docs/assets/readme-demo-phone.webp">
     <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/readme-hero.png">
     <img src="docs/assets/readme-demo.webp" width="960" alt="One real turn in Claude Code at 144 columns, sped up: the prompt is typed; Cockpit's timeline fills as the tests fail, the fix lands, the tests pass and the commit is made; the pane counts one file changed by +2 −2; the status line's edits, context and budget meters move">
   </picture>
 </p>
 
-**Install**, in a Claude Code session ([every step](#02-install)):
+**Install**, in a Claude Code session ([every step](#install)):
 
 ```text
 /plugin marketplace add tashfiqul-islam/ghostframe
@@ -82,7 +88,9 @@
 +--------------------------------------------------------------+
 ```
 
-## `01` Features
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-features-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-dark.svg"><img alt="" src="docs/assets/readme/band-features-light.svg"></picture></p>
+
+## Features
 
 **Cockpit** keeps the conversation on the left and puts the work on the right: each step of the turn on a timeline, the
 files it changed, the pages it read, its to-do list and its agents. **The status line** gives you the model, the
@@ -132,7 +140,9 @@ that left the machine, and a receipt with how long the turn took and whether it 
 fallback without the pane. The pane follows Claude's agents into their own work, steps back through earlier turns, and
 knows when you rewind. [The spec →](docs/design/cockpit.md)
 
-## `02` Install
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-install-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-dark.svg"><img alt="" src="docs/assets/readme/band-install-light.svg"></picture></p>
+
+## Install
 
 In a Claude Code session:
 
@@ -172,7 +182,9 @@ The [install guide](docs/guide/install.md) has every step.
 | Font        | A [Nerd Font](https://www.nerdfonts.com/) for the status line's icons, or turn **Status line icons** off. |
 | Bun         | [Bun](https://bun.sh), for the status line only.                                                          |
 
-## `03` Keys
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-keys-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-dark.svg"><img alt="" src="docs/assets/readme/band-keys-light.svg"></picture></p>
+
+## Keys
 
 Cockpit's keys work only while the pane has the keyboard, so they never take one from your prompt.
 
@@ -191,7 +203,9 @@ Cockpit's keys work only while the pane has the keyboard, so they never take one
 
 `/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it. [Every key →](docs/guide/keys.md)
 
-## `04` How it works
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-how-it-works-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-dark.svg"><img alt="" src="docs/assets/readme/band-how-it-works-light.svg"></picture></p>
+
+## How it works
 
 ghostframe is a hooks module that Claude Code loads into your session. It listens to the engine's events, keeps what
 each turn did, and draws through the engine's own render sites, so it never writes to your terminal behind Claude
@@ -207,7 +221,9 @@ Code's back.
 Outside the Claude Code versions it is tested with, ghostframe goes dormant and hands every row back to Claude Code.
 [Architecture →](docs/architecture.md) · [Decisions →](docs/decisions/README.md)
 
-## `05` Where it runs
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-where-it-runs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-dark.svg"><img alt="" src="docs/assets/readme/band-where-it-runs-light.svg"></picture></p>
+
+## Where it runs
 
 ```text
 +--------------------- [ WHERE IT RUNS ] ----------------------+
@@ -232,7 +248,9 @@ run the real `claude` binary. Other agent tools, such as OpenCode or Codex, don'
 doesn't run there.
 [Compatibility →](docs/guide/compatibility.md)
 
-## `06` FAQ
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-faq-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-dark.svg"><img alt="" src="docs/assets/readme/band-faq-light.svg"></picture></p>
+
+## FAQ
 
 <details open>
 <summary><b>Does it change what Claude does?</b></summary>
@@ -296,7 +314,9 @@ before. Then run `/plugin marketplace remove ghostframe`; removing the marketpla
 [Configuration →](docs/guide/configuration.md) · [Troubleshooting →](docs/guide/troubleshooting.md) ·
 [Nerd Fonts →](https://www.nerdfonts.com/)
 
-## `07` Docs
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-docs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-dark.svg"><img alt="" src="docs/assets/readme/band-docs-light.svg"></picture></p>
+
+## Docs
 
 | Use it                                           | Understand it                                 | Work on it                                     |
 | ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
@@ -307,7 +327,9 @@ before. Then run `/plugin marketplace remove ghostframe`; removing the marketpla
 | [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                       | [Brand kit](docs/design/brand/README.md)       |
 | [Compatibility](docs/guide/compatibility.md)     |                                               | [All docs](docs/README.md)                     |
 
-## `08` Contributing
+<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-contributing-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-dark.svg"><img alt="" src="docs/assets/readme/band-contributing-light.svg"></picture></p>
+
+## Contributing
 
 Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the checks and how a change
 ships; everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -320,9 +342,7 @@ mise run check                    # types, lint, format, tests, workflows, docs
 <br>
 
 <p align="center">
-  <img src="docs/design/brand/ghostframe-mark-small-amber.svg" width="44" alt="">
-  <br>
-  <sub><code>ghostframe</code> haunts your terminal, never your code.</sub>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/footer-dark.svg"><img alt="ghostframe haunts your terminal, never your code." src="docs/assets/readme/footer-light.svg"></picture>
   <br>
   <sub><a href="LICENSE">MIT</a> · Made for Claude Code. Not affiliated with or endorsed by Anthropic.</sub>
 </p>

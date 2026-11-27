@@ -6,8 +6,13 @@
 //
 //   cd docs/assets && bun install --frozen-lockfile && bun demo.ts <LIVE_OUT>/<run>/D144/demo
 //
+// DEMO_VIEW=phone makes the phone version from the same frames instead: readme-demo-phone.webp and the still
+// readme-demo-phone.png, cut to the left 32 columns of Cockpit's pane (its tabs, the turn's card and its steps) from
+// the frame the pane docks, at 3x. A README column on a 390px phone is 324px wide, so 32 columns there draw the text at
+// about 16px, the size of the README's own text; the steps' outcomes at the pane's right edge are cut off.
+//
 // Like screenshots.ts it drives an installed Chrome (SHOTS_CHANNEL to choose another) and needs the font installed
-// (JetBrainsMono Nerd Font Mono, or SHOTS_FONT). DEMO_SCALE sets the pixel ratio (default 2).
+// (JetBrainsMono Nerd Font Mono, or SHOTS_FONT). DEMO_SCALE sets the pixel ratio (default 2, or 3 for the phone).
 import { readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -18,11 +23,16 @@ import sharp from 'sharp'
 const here = import.meta.dirname
 const channel = process.env['SHOTS_CHANNEL'] ?? 'chrome'
 const font = process.env['SHOTS_FONT'] ?? 'JetBrainsMono NFM'
-const scale = Number(process.env['DEMO_SCALE'] ?? '2')
-const PLAY_MS = 11_000
+const isPhone = process.env['DEMO_VIEW'] === 'phone'
+const scale = Number(process.env['DEMO_SCALE'] ?? (isPhone ? '3' : '2'))
+const PLAY_MS = isPhone ? 10_000 : 11_000
 const HOLD_MS = 2500
 const MIN_MS = 40
-const OUT = join(here, 'readme-demo.webp')
+const OUT = join(here, isPhone ? 'readme-demo-phone.webp' : 'readme-demo.webp')
+const STILL = join(here, 'readme-demo-phone.png')
+// The phone's cut, in cells of the 144 × 40 screen: the pane's left 32 columns, its rows from the tabs to the steps.
+const PHONE = { col: 81, cols: 32, row: 1, rows: 17, margin: 4 }
+const ROW_PX = 19
 
 const [dir] = process.argv.slice(2)
 
@@ -42,15 +52,8 @@ const first = frames[0]
 const last = frames.at(-1)
 
 if (first === undefined || last === undefined || frames.length < 2) throw new Error(`${dir}: fewer than two frames`)
-const recorded = last.at - first.at
-const delays = frames.map((f, i) => {
-  const next = frames[i + 1]
-
-  return next === undefined ? HOLD_MS : Math.max(MIN_MS, Math.round(((next.at - f.at) / recorded) * PLAY_MS))
-})
-
 const browser = await chromium.launch({ channel })
-const shots: Buffer[] = []
+const shots: { png: Buffer; at: number }[] = []
 // Once a turn header has been on screen, the welcome above it has scrolled away with it.
 let hasSeenHeader = false
 
@@ -119,16 +122,43 @@ try {
     const box = await page.locator('.screen').boundingBox()
 
     if (box === null) throw new Error(`${frame.file}: no screen on the page`)
-    // The screen and a 20px margin, the same on every side.
-    shots.push(await page.screenshot({ clip: { x: box.x - 20, y: box.y - 20, width: box.width + 40, height: box.height + 40 } }))
+    // The phone's cut starts once the pane has docked: before it, that part of the screen is empty.
+    if (isPhone && !hasSeenHeader) continue
+    const cell = box.width / 144
+    const m = PHONE.margin
+    const clip = isPhone
+      ? { x: box.x + PHONE.col * cell - m, y: box.y + PHONE.row * ROW_PX - m, width: PHONE.cols * cell + 2 * m, height: PHONE.rows * ROW_PX + 2 * m }
+      : // The screen and a 20px margin, the same on every side.
+        { x: box.x - 20, y: box.y - 20, width: box.width + 40, height: box.height + 40 }
+
+    shots.push({ png: await page.screenshot({ clip }), at: frame.at })
   }
 } finally {
   await browser.close()
 }
 
-await sharp(shots, { join: { animated: true } })
+const start = shots[0]
+const end = shots.at(-1)
+
+if (start === undefined || end === undefined || shots.length < 2) throw new Error(`${dir}: fewer than two frames to animate`)
+const recorded = end.at - start.at
+const delays = shots.map((s, i) => {
+  const next = shots[i + 1]
+
+  return next === undefined ? HOLD_MS : Math.max(MIN_MS, Math.round(((next.at - s.at) / recorded) * PLAY_MS))
+})
+
+await sharp(
+  shots.map(s => s.png),
+  { join: { animated: true } }
+)
   .webp({ delay: delays, loop: 0, quality: 82, effort: 6 })
   .toFile(OUT)
 const total = delays.reduce((a, b) => a + b, 0)
 
-console.log(`wrote ${OUT}: ${frames.length} frames, ${(total / 1000).toFixed(1)} s a loop, ${(statSync(OUT).size / 1024 / 1024).toFixed(2)} MB`)
+console.log(`wrote ${OUT}: ${shots.length} frames, ${(total / 1000).toFixed(1)} s a loop, ${(statSync(OUT).size / 1024 / 1024).toFixed(2)} MB`)
+if (isPhone) {
+  // The still for reduced motion: the finished turn, the same cut.
+  await sharp(end.png).png({ compressionLevel: 9 }).toFile(STILL)
+  console.log(`wrote ${STILL}: ${(statSync(STILL).size / 1024).toFixed(0)} KB`)
+}

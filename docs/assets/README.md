@@ -16,6 +16,10 @@ makes them.
 - `readme-*.png`: the images the README and the release notes use.
 - `readme-demo.webp`: the README's animated demo, one real turn, and `demo.ts`, which makes it from step 15's frames.
   The README shows `readme-hero.png` instead to anyone who asks for reduced motion.
+- `readme-demo-phone.webp` and `readme-demo-phone.png`: the demo for screens up to 600px, cut from the same frames to the
+  left 32 columns of Cockpit's pane so its text is as large as the README's own, and its still for reduced motion.
+- `readme/`: the README's designed images (banner, chip, dividers, feature strip, section bands, footer), drawn by
+  `tools/scripts/readme-art.ts`.
 - `diagrams/`: the design diagrams the README, `SECURITY.md` and `docs/architecture.md` show, each in a dark and a
   light version. The `.html` files are the sources, drawn with the diagram-design skill in the `ghostframe` profile
   (`/.diagram-design`); `diagrams.ts` renders each one's `<svg>` to the `.png` beside it, at 2x.
@@ -64,6 +68,7 @@ Do this after a change to what Cockpit or the status line draws.
    ```
 
 2. Check a few frames for anything personal. `demo.ts` blanks Claude Code's welcome header, but nothing else.
+
 3. Encode the animation:
 
    ```sh
@@ -75,6 +80,17 @@ Do this after a change to what Cockpit or the status line draws.
    It draws each frame as `screenshots.ts` does, at 2x, and writes `readme-demo.webp` through `sharp`. The turn plays
    sped up to 11 s, each frame keeping its share of the real time, and the last frame holds for 2.5 s. It prints the
    frame count, the loop's length and the file's size; keep the file under 5 MB.
+
+4. Make the phone version from the same frames:
+
+   ```sh
+   DEMO_VIEW=phone bun demo.ts "$LIVE_OUT/<run>/D144/demo"
+   ```
+
+   It cuts each frame to the left 32 columns of the pane, rows 1 to 17 (the tabs, the turn's card and its steps), from
+   the frame the pane docks, at 3x, and writes `readme-demo-phone.webp` and the still `readme-demo-phone.png` (the
+   finished turn). A README column on a 390px phone is 324px wide, so 32 columns draw the text at about 16px. Keep the
+   animation under 1 MB. If a change moves the pane, adjust `PHONE` in `demo.ts`.
 
 ## Regenerate the diagrams
 

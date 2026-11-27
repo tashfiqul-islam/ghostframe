@@ -1,58 +1,127 @@
-// The README's designed images, drawn from the brand's tokens: a divider, a feature strip (wide, and stacked for
-// narrow screens) and the "runs on" platform chip, each in a dark and a light version, as SVG under
-// docs/assets/readme/. Text is Hanken Grotesk turned into outlines here, so it looks the same in every browser and
-// needs no font; the platform icons are docs/assets/icons/'s Font Awesome paths, embedded unchanged and recoloured.
+// The README's designed images, drawn from the brand's tokens and the brand's SVGs, as SVG under docs/assets/readme/,
+// each in a dark and a light version: the banner, the platform chip, the divider, the feature strip (wide, and stacked
+// for narrow screens), a band above each numbered section (wide, and narrow without its caption) and the footer card.
 //
-//   bun tools/scripts/readme-art.ts           draws them (needs Hanken Grotesk's variable font, or README_ART_FONT)
+// Text is turned into outlines here (Hanken Grotesk for the brand's type, JetBrains Mono for the interface's), each
+// glyph drawn once and placed with <use>, so an image needs no font. Motion is CSS inside the SVG: every animation
+// loops with a still pause, and `prefers-reduced-motion: reduce` stops it on its finished frame (the mascot's eyes on
+// amber). No image holds a script or loads anything.
+//
+//   bun tools/scripts/readme-art.ts           draws them (needs Hanken Grotesk and JetBrains Mono Nerd Font Mono installed)
 //   bun tools/scripts/readme-art.ts --check   every image is there, within its size limit, with no live text (the gate)
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import type { Font } from 'fontkit'
 
 const root = join(import.meta.dirname, '..', '..')
 const out = join(root, 'docs', 'assets', 'readme')
+const brand = join(root, 'docs', 'design', 'brand')
 
 type Theme = 'dark' | 'light'
 const THEMES: readonly Theme[] = ['dark', 'light']
 
-/** Each image's file stem and its size limit in bytes; every stem has a -dark and a -light file. */
-const LIMITS: Readonly<Record<string, number>> = { divider: 5 * 1024, features: 30 * 1024, 'features-narrow': 30 * 1024, platforms: 15 * 1024 }
+/** Each numbered section's band: its anchor's slug, its name, and a caption of three words or fewer. */
+const SECTIONS = [
+  { slug: 'features', name: 'Features', caption: 'TIMELINE · FILES · STATUS LINE' },
+  { slug: 'install', name: 'Install', caption: 'TWO COMMANDS' },
+  { slug: 'keys', name: 'Keys', caption: 'PANE KEYBOARD ONLY' },
+  { slug: 'how-it-works', name: 'How it works', caption: 'EVENTS · LEDGER · RENDER' },
+  { slug: 'where-it-runs', name: 'Where it runs', caption: 'TERMINAL CLI ONLY' },
+  { slug: 'faq', name: 'FAQ', caption: 'SEVEN QUESTIONS' },
+  { slug: 'docs', name: 'Docs', caption: 'USE · UNDERSTAND · WORK' },
+  { slug: 'contributing', name: 'Contributing', caption: 'SETUP · CHECKS · SHIPPING' }
+] as const
 
-/** The colours, per theme. Page backgrounds are GitHub's (#0d1117, #ffffff); card surfaces sit one step off them. */
+const KB = 1024
+
+/** Every image, without its -dark/-light suffix, and its size limit in bytes. */
+const IMAGES: readonly { stem: string; limit: number }[] = [
+  { stem: 'banner', limit: 150 * KB },
+  { stem: 'platforms', limit: 15 * KB },
+  { stem: 'divider', limit: 5 * KB },
+  { stem: 'features', limit: 40 * KB },
+  { stem: 'features-narrow', limit: 40 * KB },
+  { stem: 'footer', limit: 40 * KB },
+  ...SECTIONS.flatMap(s => [
+    { stem: `band-${s.slug}`, limit: 10 * KB },
+    { stem: `band-${s.slug}-narrow`, limit: 10 * KB }
+  ])
+]
+
+/** The page colours, per theme. Page backgrounds are GitHub's (#0d1117, #ffffff); cards sit one step off them. */
 const C = {
   dark: {
     gold: '#FFC83D',
-    goldOpacity: 0.4,
+    onGold: '#0d1117',
     card: '#161b22',
     cardBorder: '#2a313c',
     title: '#e6edf3',
     body: '#9198a1',
+    rule: '#3d444d',
     chipBorder: '#2a313c',
     chipSurface: '#11151c',
     chipLabel: '#1a2029',
     chipText: '#e6edf3',
-    chipIcon: '#9198a1'
+    chipIcon: '#9198a1',
+    bannerBg: '#0B0B0E',
+    bannerText: '#ECEAF2',
+    bannerMuted: '#8C8899',
+    bannerGrid: 'rgba(255,255,255,.028)',
+    bannerGlow: '#FFC04A',
+    bannerGlowOpacity: 0.07
   },
   light: {
     // GitHub's attention colour: a darker gold that holds 3:1 (about 4.9:1) on white.
     gold: '#9A6700',
-    goldOpacity: 1,
+    onGold: '#ffffff',
     card: '#f6f8fa',
     cardBorder: '#d1d9e0',
     title: '#1f2328',
     body: '#59636e',
+    rule: '#d1d9e0',
     chipBorder: '#d1d9e0',
     chipSurface: '#f6f8fa',
     chipLabel: '#eef1f4',
     chipText: '#1f2328',
-    chipIcon: '#59636e'
+    chipIcon: '#59636e',
+    bannerBg: '#F3F1F7',
+    bannerText: '#0B0B0E',
+    bannerMuted: '#5F5B69',
+    bannerGrid: 'rgba(11,11,14,.035)',
+    bannerGlow: '#D9B8C8',
+    bannerGlowOpacity: 0.35
   }
 } as const
 
+/** The interface's own colours (hooks/shared/look/palette.ts), for the cards' windows: a terminal is dark in both themes. */
+const UI = {
+  pane: '#0D0E12',
+  hairline: '#1E1E26',
+  divider: '#2A2A34',
+  textBright: '#ECECF1',
+  text: '#B2B2BC',
+  muted: '#7C7C88',
+  dim: '#5E5E6A',
+  accent: '#FAB387',
+  machine: '#7EC8BE',
+  ok: '#96D292',
+  err: '#EC84A0',
+  warn: '#E8B98A',
+  label: '#7A7A86',
+  meterOff: '#2A2A34',
+  meterQuarter: '#3A3A47',
+  tile: { calm: '#17171F', warm: '#1E1A15', hot: '#22161C' },
+  edge: { calm: '#2E5A55', warm: '#E8B98A', hot: '#EC84A0' },
+  tone: { calm: '#7EC8BE', warm: '#E8B98A', hot: '#EC84A0' },
+  // The status line's three eye colours, as the banner's platform line shows them.
+  eyes: ['#5BEBA6', '#FAB387', '#D7263D']
+} as const
+
 const FEATURES = [
-  { title: 'Live timeline', dot: '#5DCAA5', body: 'Every step of the turn as it runs: tools, shells, agents, failures and fixes.' },
-  { title: 'Files, sources, to-dos', dot: '#FFC83D', body: "What changed, what Claude read and what's left, one tab each in the pane." },
-  { title: 'Budget status line', dot: '#D97757', body: 'Model, repo, context and your 5-hour and weekly limits in two rows.' }
+  { kind: 'timeline', title: 'Live timeline', dot: '#5DCAA5', body: 'Every step of the turn as it runs: tools, shells, agents, failures and fixes.' },
+  { kind: 'files', title: 'Files, sources, to-dos', dot: '#FFC83D', body: "What changed, what Claude read and what's left, one tab each in the pane." },
+  { kind: 'budget', title: 'Budget status line', dot: '#D97757', body: 'Model, repo, context and your 5-hour and weekly limits in two rows.' }
 ] as const
 
 const PLATFORMS = [
@@ -84,65 +153,124 @@ export function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05)
 }
 
-/** Every image's path on disk. */
-const files = (): string[] => Object.keys(LIMITS).flatMap(stem => THEMES.map(t => join(out, `${stem}-${t}.svg`)))
+/** Every image's file name and size limit. */
+const files = (): { name: string; limit: number }[] => IMAGES.flatMap(i => THEMES.map(t => ({ name: `${i.stem}-${t}.svg`, limit: i.limit })))
 
 /**
- * What is wrong with the drawn images: a file missing, over its size limit, or holding live text.
+ * What is wrong with one drawn image's text.
+ * @param name its file name
+ * @param text its text
+ * @returns its problems
+ */
+export function svgProblems(name: string, text: string): string[] {
+  const problems: string[] = []
+
+  if (/<text\b|font-family|@font-face/.test(text)) problems.push(`${name} has live text or a font; text must be outlines`)
+  if (/<script\b|\bon[a-z]+=/i.test(text)) problems.push(`${name} has a script`)
+  if (/(?:href|src)="(?!#)|url\((?!#)|@import/.test(text)) problems.push(`${name} loads something from outside itself`)
+  if (/@keyframes/.test(text) && !/@media \(prefers-reduced-motion: reduce\)/.test(text)) problems.push(`${name} animates without a reduced-motion rule`)
+
+  return problems
+}
+
+/**
+ * What is wrong with the drawn images: a file missing, over its size limit, holding live text, a script or an outside
+ * reference, or animating without a reduced-motion rule.
  * @returns one problem per entry; empty when all is well
  */
 export function artProblems(): string[] {
   const problems: string[] = []
 
-  for (const [stem, limit] of Object.entries(LIMITS)) {
-    for (const theme of THEMES) {
-      const name = `${stem}-${theme}.svg`
-      const file = join(out, name)
+  for (const { name, limit } of files()) {
+    const file = join(out, name)
 
-      if (!existsSync(file)) {
-        problems.push(`${name} is missing`)
-        continue
-      }
-      const size = statSync(file).size
-
-      if (size > limit) problems.push(`${name} is ${size} bytes, over its ${limit}`)
-      if (/<text\b|font-family/.test(readFileSync(file, 'utf8'))) problems.push(`${name} has live text; text must be outlines`)
+    if (!existsSync(file)) {
+      problems.push(`${name} is missing`)
+      continue
     }
+    const size = statSync(file).size
+
+    if (size > limit) problems.push(`${name} is ${size} bytes, over its ${limit}`)
+    problems.push(...svgProblems(name, readFileSync(file, 'utf8')))
   }
 
   return problems
 }
 
+const fail = (what: string): never => {
+  throw new Error(`readme-art self-test: ${what}`)
+}
+
+function selfTest(): void {
+  const ok = '<svg><style>@keyframes a{}@media (prefers-reduced-motion: reduce){*{animation:none}}</style><use href="#g1"/></svg>'
+
+  if (svgProblems('ok.svg', ok).length > 0) fail('a clean image was refused')
+  if (svgProblems('t.svg', '<svg><text>hi</text></svg>').length === 0) fail('live text passed')
+  if (svgProblems('s.svg', '<svg><script>x()</script></svg>').length === 0) fail('a script passed')
+  if (svgProblems('e.svg', '<svg><image href="https://x.test/a.png"/></svg>').length === 0) fail('an outside image passed')
+  if (svgProblems('m.svg', '<svg><style>@keyframes a{}</style></svg>').length === 0) fail('motion without a reduced-motion rule passed')
+  console.log('readme-art self-test: ok')
+}
+
+if (process.argv[2] === '--self-test') {
+  selfTest()
+  process.exit(0)
+}
+
 if (process.argv[2] === '--check') {
   const problems = artProblems()
 
-  if (contrast(C.light.gold, '#ffffff') < 3) problems.push(`the light divider's gold ${C.light.gold} is under 3:1 on white`)
+  if (contrast(C.light.gold, '#ffffff') < 3) problems.push(`the light gold ${C.light.gold} is under 3:1 on white`)
   if (problems.length > 0) {
     console.error(`readme-art: ${problems.join('; ')}`)
     process.exit(1)
   }
-  console.log(`readme-art: ${files().length} images, each within its limit, all text outlined.`)
+  console.log(`readme-art: ${files().length} images, each within its limit, all text outlined, no scripts or outside files.`)
   process.exit(0)
 }
 
-// ─── Drawing ───
+// ─── Fonts and outlines ───
 
 const fontkit = await import('fontkit')
-const fontDir = join(process.env['LOCALAPPDATA'] ?? join(homedir(), 'AppData', 'Local'), 'Microsoft', 'Windows', 'Fonts')
-const fontFile =
-  process.env['README_ART_FONT'] ??
-  [join(fontDir, 'HankenGrotesk-VariableFont_wght.ttf'), 'C:/Windows/Fonts/HankenGrotesk-VariableFont_wght.ttf'].find(f => existsSync(f))
+const fontDirs = [join(process.env['LOCALAPPDATA'] ?? join(homedir(), 'AppData', 'Local'), 'Microsoft', 'Windows', 'Fonts'), 'C:/Windows/Fonts']
 
-if (fontFile === undefined) throw new Error("Hanken Grotesk's variable font is not installed; install it or set README_ART_FONT")
-const opened = fontkit.openSync(fontFile)
+/**
+ * An installed font, by file name.
+ * @param file the font's file name
+ * @returns the font
+ */
+function fontNamed(file: string): Font {
+  const path = fontDirs.map(d => join(d, file)).find(p => existsSync(p))
 
-if (!('getVariation' in opened)) throw new Error(`${fontFile}: a font collection, not one font`)
-const base = opened
-const weights = new Map<number, typeof base>()
-const at = (weight: number): typeof base => {
-  const got = weights.get(weight) ?? base.getVariation({ wght: weight })
+  if (path === undefined) throw new Error(`${file} is not installed`)
+  const font = fontkit.openSync(path)
 
-  weights.set(weight, got)
+  if (!('getVariation' in font)) throw new Error(`${file}: a font collection, not one font`)
+
+  return font
+}
+
+const hanken = fontNamed('HankenGrotesk-VariableFont_wght.ttf')
+const mono: Readonly<Record<number, Font>> = {
+  400: fontNamed('JetBrainsMonoNerdFontMono-Regular.ttf'),
+  500: fontNamed('JetBrainsMonoNerdFontMono-Medium.ttf')
+}
+const weights = new Map<number, Font>()
+
+/** Type for text: the brand's sans or the interface's mono, at a weight. */
+type Face = { family?: 'sans' | 'mono'; weight: number }
+
+const fontOf = (f: Face): Font => {
+  if (f.family === 'mono') {
+    const got = mono[f.weight]
+
+    if (got === undefined) throw new Error(`no mono font at weight ${f.weight}`)
+
+    return got
+  }
+  const got = weights.get(f.weight) ?? hanken.getVariation({ wght: f.weight })
+
+  weights.set(f.weight, got)
 
   return got
 }
@@ -154,47 +282,6 @@ const d1 = (v: number): string => {
   const s = String(Math.round(v * 10) / 10)
 
   return s.replace(/^(-?)0\./, '$1.')
-}
-
-/** One image's glyphs: each distinct glyph, at each weight and size, is drawn once in <defs> and placed with <use>. */
-class Glyphs {
-  private readonly ids = new Map<string, string>()
-  private readonly defs: string[] = []
-
-  /**
-   * Text as glyphs placed on a baseline.
-   * @param s the text
-   * @param o the weight, the size in px, the left edge, the baseline, the fill, and the tracking in em
-   * @returns the <use> elements, in a group with the fill
-   */
-  text(s: string, o: { weight: number; size: number; x: number; y: number; fill: string; tracking?: number }): string {
-    const font = at(o.weight)
-    const k = o.size / font.unitsPerEm
-    const run = font.layout(s)
-    const uses: string[] = []
-    let pen = o.x
-
-    for (const [i, glyph] of run.glyphs.entries()) {
-      const pos = run.positions[i]
-      const key = `${o.weight}/${o.size}/${glyph.id}`
-      let id = this.ids.get(key)
-
-      if (id === undefined && glyph.path.commands.length > 0) {
-        id = `g${this.ids.size.toString(36)}`
-        this.ids.set(key, id)
-        this.defs.push(`<path id="${id}" d="${pathOf(glyph.path.commands, k)}"/>`)
-      }
-      if (id !== undefined) uses.push(`<use href="#${id}" x="${d1(pen + (pos?.xOffset ?? 0) * k)}" y="${d1(o.y)}"/>`)
-      pen += (pos?.xAdvance ?? glyph.advanceWidth) * k + (o.tracking ?? 0) * o.size
-    }
-
-    return `<g fill="${o.fill}">${uses.join('')}</g>`
-  }
-
-  /** The <defs> that hold every glyph used. */
-  get defsElement(): string {
-    return this.defs.length === 0 ? '' : `<defs>${this.defs.join('')}</defs>`
-  }
 }
 
 /**
@@ -209,74 +296,148 @@ function pathOf(commands: readonly { command: string; args: number[] }[], k: num
   let cy = 0
   let sx = 0
   let sy = 0
+  let buf = ''
+  let last = ''
+  let lastNumber = ''
 
-  return commands
-    .map(c => {
-      if (c.command === 'closePath') {
-        cx = sx
-        cy = sy
+  // Written as short as SVG's grammar allows: a repeated command letter is left buf, and no separator goes before a
+  // minus sign, or before a leading dot when the number before it already has one.
+  const put = (num: string): void => {
+    const joins = lastNumber === '' || num.startsWith('-') || (num.startsWith('.') && lastNumber.includes('.'))
 
-        return 'z'
+    buf += joins ? num : ` ${num}`
+    lastNumber = num
+  }
+
+  for (const c of commands) {
+    if (c.command === 'closePath') {
+      buf += 'z'
+      last = 'z'
+      lastNumber = ''
+      cx = sx
+      cy = sy
+      continue
+    }
+    const op = OPS[c.command] ?? ''
+
+    // After a moveTo, more pairs would be read as lineTos, so `l` may follow `m` implicitly too.
+    if (op !== last && !(op === 'l' && last === 'm')) {
+      buf += op
+      lastNumber = ''
+    }
+    last = op === 'm' ? 'm' : op
+    for (let j = 0; j < c.args.length; j += 2) {
+      const x = Math.round((c.args[j] ?? 0) * k * 10) / 10
+      const y = Math.round(-(c.args[j + 1] ?? 0) * k * 10) / 10
+
+      put(d1(x - cx))
+      put(d1(y - cy))
+      if (j + 2 >= c.args.length) {
+        cx = x
+        cy = y
       }
-      const pts: string[] = []
-      let ex = cx
-      let ey = cy
+    }
+    if (c.command === 'moveTo') {
+      sx = cx
+      sy = cy
+      last = 'm'
+    } else if (op === 'l') {
+      last = 'l'
+    }
+  }
 
-      for (let j = 0; j < c.args.length; j += 2) {
-        const x = Math.round((c.args[j] ?? 0) * k * 10) / 10
-        const y = Math.round(-(c.args[j + 1] ?? 0) * k * 10) / 10
-
-        pts.push(`${d1(x - cx)} ${d1(y - cy)}`)
-        ex = x
-        ey = y
-      }
-      cx = ex
-      cy = ey
-      if (c.command === 'moveTo') {
-        sx = cx
-        sy = cy
-      }
-
-      return `${OPS[c.command] ?? ''}${pts.join(' ')}`
-    })
-    .join('')
-    .replaceAll(' -', '-')
+  return buf
 }
 
 /**
  * The advance width of a line of text.
  * @param s the text
- * @param weight its weight
+ * @param face its type
  * @param size its size in px
  * @param tracking extra space between letters, in em
  * @returns its width in px, without the tracking after the last letter
  */
-function widthOf(s: string, weight: number, size: number, tracking = 0): number {
-  const font = at(weight)
+function widthOf(s: string, face: Face, size: number, tracking = 0): number {
+  const font = fontOf(face)
   const k = size / font.unitsPerEm
   const run = font.layout(s)
   const advance = run.positions.reduce((sum, p) => sum + p.xAdvance * k, 0)
 
   return advance + Math.max(0, run.glyphs.length - 1) * tracking * size
 }
-const capOf = (weight: number, size: number): number => (at(weight).capHeight / at(weight).unitsPerEm) * size
+
+const capOf = (face: Face, size: number): number => (fontOf(face).capHeight / fontOf(face).unitsPerEm) * size
+
+/** How to set a line of text. */
+type Set = Face & { size: number; x: number; y: number; fill: string; tracking?: number; anchor?: 'start' | 'middle' | 'end'; cls?: string }
+
+/** The size every glyph is drawn at in <defs>; a line of another size scales its group. */
+const REF = 10
+
+/**
+ * One image's glyphs: each distinct glyph of each font is drawn once in <defs>, at REF px, and placed with <use>.
+ */
+class Glyphs {
+  private readonly ids = new Map<string, string>()
+  private readonly defs: string[] = []
+
+  /**
+   * Text as glyphs placed on a baseline.
+   * @param s the text
+   * @param o the type, size, position, fill, tracking, which end the position is, and a class for motion
+   * @returns the <use> elements, in a group with the fill
+   */
+  text(s: string, o: Set): string {
+    const font = fontOf(o)
+    const k = o.size / font.unitsPerEm
+    const scale = o.size / REF
+    const run = font.layout(s)
+    const width = widthOf(s, o, o.size, o.tracking)
+    const uses: string[] = []
+    let pen = o.anchor === 'end' ? o.x - width : o.anchor === 'middle' ? o.x - width / 2 : o.x
+
+    for (const [i, glyph] of run.glyphs.entries()) {
+      const pos = run.positions[i]
+      const key = `${o.family ?? 'sans'}/${o.weight}/${glyph.id}`
+      let id = this.ids.get(key)
+
+      if (id === undefined && glyph.path.commands.length > 0) {
+        id = `g${this.ids.size.toString(36)}`
+        this.ids.set(key, id)
+        this.defs.push(`<path id="${id}" d="${pathOf(glyph.path.commands, REF / font.unitsPerEm)}"/>`)
+      }
+      if (id !== undefined) uses.push(`<use href="#${id}" x="${d1((pen + (pos?.xOffset ?? 0) * k) / scale)}"/>`)
+      pen += (pos?.xAdvance ?? glyph.advanceWidth) * k + (o.tracking ?? 0) * o.size
+    }
+
+    // The line's baseline and size are set once on its group, so each glyph carries only its x.
+    const transform = scale === 1 ? `translate(0 ${d1(o.y)})` : `translate(0 ${d1(o.y)}) scale(${Math.round(scale * 10_000) / 10_000})`
+
+    return `<g fill="${o.fill}" transform="${transform}"${o.cls === undefined ? '' : ` class="${o.cls}"`}>${uses.join('')}</g>`
+  }
+
+  /** The glyph definitions, to go inside the image's <defs>. */
+  get defsContent(): string {
+    return this.defs.join('')
+  }
+}
 
 /**
  * Words wrapped to a width.
  * @param s the text
- * @param weight its weight
+ * @param face its type
  * @param size its size in px
  * @param max the widest a line may be
  * @returns the lines
  */
-function wrap(s: string, weight: number, size: number, max: number): string[] {
+function wrap(s: string, face: Face, size: number, max: number): string[] {
   const lines: string[] = []
   let line = ''
 
   for (const word of s.split(' ')) {
     const next = line === '' ? word : `${line} ${word}`
 
-    if (line !== '' && widthOf(next, weight, size) > max) {
+    if (line !== '' && widthOf(next, face, size) > max) {
       lines.push(line)
       line = word
     } else {
@@ -288,59 +449,289 @@ function wrap(s: string, weight: number, size: number, max: number): string[] {
   return lines
 }
 
-const svg = (w: number, h: number, body: string, label: string): string =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="${n(w)}" height="${n(h)}" viewBox="0 0 ${n(w)} ${n(h)}" role="img" aria-label="${label}">${body}</svg>\n`
+/**
+ * An SVG document.
+ * @param w its width
+ * @param h its height
+ * @param o its body, its <defs> content, its style sheet, and its label ('' for a decorative image)
+ * @returns the document
+ */
+function svg(w: number, h: number, o: { body: string; defs?: string; style?: string; label: string }): string {
+  const role = o.label === '' ? 'aria-hidden="true"' : `role="img" aria-label="${o.label}"`
+  const defs = o.defs === undefined || o.defs === '' ? '' : `<defs>${o.defs}</defs>`
+  const style = o.style === undefined ? '' : `<style>${o.style}@media (prefers-reduced-motion: reduce){*{animation:none!important}}</style>`
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(w)}" height="${n(h)}" viewBox="0 0 ${n(w)} ${n(h)}" ${role}>${style}${defs}${o.body}</svg>\n`
+}
+
+/**
+ * Keyframes that show an element from one point of the loop to another and hide it the rest of the time, with a short
+ * fade at each end. The element's own style is its finished frame, so with reduced motion it simply stays shown.
+ * @param name the keyframes' name
+ * @param from where in the loop it appears, 0 to 1
+ * @param to where it goes again, 0 to 1
+ * @returns the keyframes
+ */
+const pct = (v: number): string => `${n(v * 100)}%`
+
+function shown(name: string, from: number, to = 0.88): string {
+  const p = pct
+
+  return `@keyframes ${name}{0%,${p(from)}{opacity:0}${p(Math.min(from + 0.04, to))},${p(to)}{opacity:1}${p(Math.min(to + 0.06, 1))},100%{opacity:0}}`
+}
 
 /** The README's content width at desktop, in CSS pixels. */
 const WIDE = 860
 
-function divider(t: Theme): string {
-  const c = C[t]
-  const h = 18
-  const y = h / 2
-  const from = WIDE * 0.2
-  const to = WIDE * 0.8
-  const mid = WIDE / 2
-  const s = 3.5
-  const stops = [0, 0.5, 1].map(off => `<stop offset="${off}" stop-color="${c.gold}" stop-opacity="${off === 0.5 ? c.goldOpacity : 0}"/>`).join('')
+// ─── The divider ───
 
-  return svg(
-    WIDE,
-    h,
-    `<defs><linearGradient id="g" x1="${n(from)}" x2="${n(to)}" y1="0" y2="0" gradientUnits="userSpaceOnUse">${stops}</linearGradient></defs>` +
-      `<rect x="${n(from)}" y="${n(y - 0.5)}" width="${n(to - from)}" height="1" fill="url(#g)"/>` +
-      `<rect x="${n(mid - s)}" y="${n(y - s)}" width="${n(2 * s)}" height="${n(2 * s)}" transform="rotate(45 ${n(mid)} ${n(y)})" fill="${c.gold}"/>`,
-    ''
+/**
+ * A gold hairline fading in from both ends, with a rotated-square diamond at its middle.
+ * @param c the theme's colours
+ * @param x the line's left end
+ * @param w its length
+ * @param y its height on the page
+ * @param id the gradient's id
+ * @returns its elements and its gradient
+ */
+function hairline(c: (typeof C)[Theme], x: number, w: number, y: number, id: string): { body: string; defs: string } {
+  const s = 3.5
+  const mid = x + w / 2
+  const stops = [0, 0.5, 1].map(off => `<stop offset="${off}" stop-color="${c.gold}" stop-opacity="${off === 0.5 ? 1 : 0}"/>`).join('')
+
+  return {
+    defs: `<linearGradient id="${id}" x1="${n(x)}" x2="${n(x + w)}" y1="0" y2="0" gradientUnits="userSpaceOnUse">${stops}</linearGradient>`,
+    body:
+      `<rect x="${n(x)}" y="${n(y - 0.5)}" width="${n(w)}" height="1" fill="url(#${id})"/>` +
+      `<rect x="${n(mid - s)}" y="${n(y - s)}" width="${n(2 * s)}" height="${n(2 * s)}" transform="rotate(45 ${n(mid)} ${n(y)})" fill="${c.gold}"/>`
+  }
+}
+
+function divider(t: Theme): string {
+  const line = hairline(C[t], WIDE * 0.2, WIDE * 0.6, 9, 'h')
+
+  return svg(WIDE, 18, { defs: line.defs, body: line.body, label: '' })
+}
+
+// ─── The feature strip ───
+
+const MONO = { family: 'mono', weight: 400 } as const
+const MONO_SIZE = 10.5
+const ROW = 15
+
+/**
+ * A card's window: the interface's pane in miniature, three dots in its bar.
+ * @param x its left edge
+ * @param y its top
+ * @param w its width
+ * @param h its height
+ * @returns its frame
+ */
+function windowFrame(x: number, y: number, w: number, h: number): string {
+  const dots = [0, 1, 2].map(i => `<circle cx="${n(x + 9 + i * 7)}" cy="${n(y + 8)}" r="2" fill="${UI.divider}"/>`).join('')
+
+  return (
+    `<rect x="${n(x + 0.5)}" y="${n(y + 0.5)}" width="${n(w - 1)}" height="${n(h - 1)}" rx="6" fill="${UI.pane}" stroke="${UI.hairline}"/>` +
+    `<line x1="${n(x)}" y1="${n(y + 16.5)}" x2="${n(x + w)}" y2="${n(y + 16.5)}" stroke="${UI.hairline}"/>` +
+    dots
   )
 }
+
+/**
+ * The live timeline's window: four steps appearing one after another, the failure and its fix among them.
+ * @returns its elements and its keyframes
+ */
+function timelineWindow(g: Glyphs, x: number, y: number, w: number): { body: string; css: string } {
+  const rows = [
+    { glyph: '✓', tone: UI.ok, label: 'read src/width.ts', right: [] },
+    { glyph: '×', tone: UI.err, label: 'test bun test', right: [{ t: '2 of 3', c: UI.err }] },
+    {
+      glyph: '✓',
+      tone: UI.ok,
+      label: 'edit width.ts',
+      right: [
+        { t: '+2', c: UI.ok },
+        { t: '−2', c: UI.err }
+      ]
+    },
+    { glyph: '✓', tone: UI.ok, label: 'test bun test', right: [{ t: '3 pass', c: UI.ok }] }
+  ]
+  const parts: string[] = []
+  const css: string[] = []
+
+  for (const [i, r] of rows.entries()) {
+    const by = y + 32 + i * ROW
+    let rx = x + w - 10
+    const right: string[] = []
+
+    for (const piece of r.right.toReversed()) {
+      right.push(g.text(piece.t, { ...MONO, size: MONO_SIZE, x: rx, y: by, fill: piece.c, anchor: 'end' }))
+      rx -= widthOf(`${piece.t} `, MONO, MONO_SIZE)
+    }
+    css.push(shown(`t${i}`, 0.08 + i * 0.14), `.t${i}{animation:t${i} 7s infinite}`)
+    parts.push(
+      `<g class="t${i}">`,
+      g.text(r.glyph, { ...MONO, size: MONO_SIZE, x: x + 10, y: by, fill: r.tone }),
+      g.text(r.label, { ...MONO, size: MONO_SIZE, x: x + 24, y: by, fill: UI.text }),
+      ...right,
+      '</g>'
+    )
+  }
+
+  return { body: parts.join(''), css: css.join('') }
+}
+
+/**
+ * The files, sources and to-dos window: the pane's tab line, two changed files and a to-do that ticks.
+ * @returns its elements and its keyframes
+ */
+function filesWindow(g: Glyphs, x: number, y: number, w: number): { body: string; css: string } {
+  const tabs = [
+    { t: 'FILES 2', active: true },
+    { t: 'SOURCES 1', active: false },
+    { t: 'TODO 3', active: false }
+  ]
+  const parts: string[] = []
+  let tx = x + 10
+  const ty = y + 30
+
+  for (const tab of tabs) {
+    const tw = widthOf(tab.t, MONO, 9, 0.08)
+
+    parts.push(g.text(tab.t, { ...MONO, size: 9, x: tx, y: ty, fill: tab.active ? UI.textBright : UI.muted, tracking: 0.08 }))
+    if (tab.active) parts.push(`<rect x="${n(tx)}" y="${n(ty + 3)}" width="${n(tw)}" height="1.5" fill="${UI.accent}"/>`)
+    tx += tw + 12
+  }
+  const fileRow = (path: string, plus: string, minus: string, by: number): string => {
+    const minusX = x + w - 10
+
+    return (
+      g.text('■', { ...MONO, size: MONO_SIZE, x: x + 10, y: by, fill: UI.machine }) +
+      g.text(path, { ...MONO, size: MONO_SIZE, x: x + 24, y: by, fill: UI.text }) +
+      g.text(minus, { ...MONO, size: MONO_SIZE, x: minusX, y: by, fill: UI.err, anchor: 'end' }) +
+      g.text(plus, { ...MONO, size: MONO_SIZE, x: minusX - widthOf(`${minus} `, MONO, MONO_SIZE), y: by, fill: UI.ok, anchor: 'end' })
+    )
+  }
+  const todoY = y + 30 + 3 * ROW
+
+  parts.push(
+    `<g class="f0">${fileRow('src/width.ts', '+2', '−2', y + 30 + ROW)}</g>`,
+    `<g class="f1">${fileRow('src/width.test.ts', '+3', '−1', y + 30 + 2 * ROW)}</g>`,
+    '<g class="f2">',
+    g.text('○', { ...MONO, size: MONO_SIZE, x: x + 10, y: todoY, fill: UI.dim, cls: 'open' }),
+    g.text('✓', { ...MONO, size: MONO_SIZE, x: x + 10, y: todoY, fill: UI.ok, cls: 'done' }),
+    g.text('run the tests again', { ...MONO, size: MONO_SIZE, x: x + 24, y: todoY, fill: UI.text }),
+    '</g>'
+  )
+  // The finished frame shows the to-do done; in the loop it starts open and ticks a little after it appears.
+  const css = [
+    shown('f0', 0.08),
+    shown('f1', 0.2),
+    shown('f2', 0.32),
+    '@keyframes open{0%,55%{opacity:1}60%,100%{opacity:0}}@keyframes done{0%,55%{opacity:0}60%,100%{opacity:1}}',
+    '.f0{animation:f0 7s infinite}.f1{animation:f1 7s infinite}.f2{animation:f2 7s infinite}',
+    '.open{opacity:0;animation:open 7s infinite}.done{animation:done 7s infinite}'
+  ]
+
+  return { body: parts.join(''), css: css.join('') }
+}
+
+/**
+ * The budget status line's window: three meters filling, one cell at a time, in their threshold colours.
+ * @returns its elements and its keyframes
+ */
+function budgetWindow(g: Glyphs, x: number, y: number, w: number): { body: string; css: string } {
+  const meters = [
+    { label: 'CONTEXT', p: 23, tone: 'calm' },
+    { label: '5-HOUR', p: 68, tone: 'warm' },
+    { label: 'WEEK', p: 88, tone: 'hot' }
+  ] as const
+  const cells = 20
+  const labelW = 52
+  const pctW = 30
+  const meterW = w - 20 - labelW - pctW
+  const step = meterW / cells
+  const parts: string[] = []
+
+  for (const [i, m] of meters.entries()) {
+    const top = y + 21 + i * 18
+    const lit = Math.round((m.p / 100) * cells)
+
+    parts.push(
+      `<rect x="${n(x + 6)}" y="${n(top)}" width="${n(w - 12)}" height="15" rx="2" fill="${UI.tile[m.tone]}"/>`,
+      `<rect x="${n(x + 6)}" y="${n(top)}" width="2" height="15" fill="${UI.edge[m.tone]}"/>`,
+      g.text(m.label, { ...MONO, size: 9, x: x + 12, y: top + 10.5, fill: UI.label, tracking: 0.08 }),
+      g.text(`${m.p}%`, { ...MONO, size: MONO_SIZE, x: x + w - 10, y: top + 11, fill: UI.textBright, anchor: 'end', cls: 'pct' })
+    )
+    // The unlit cells, the quieter blocks at 25, 50 and 75 among them, as two paths; the lit ones one by one, to light in turn.
+    const cellAt = (c: number): string => `M${d1(x + 10 + labelW + c * step)} ${d1(top + 4)}h${d1(step * 0.62)}v7h${d1(-step * 0.62)}z`
+    const isQuarter = (c: number): boolean => c === cells / 4 || c === cells / 2 || c === (3 * cells) / 4
+    const all = Array.from({ length: cells }, (_, c) => c)
+
+    parts.push(
+      `<path fill="${UI.meterOff}" d="${all
+        .filter(c => !isQuarter(c))
+        .map(cellAt)
+        .join('')}"/>`,
+      `<path fill="${UI.meterQuarter}" d="${all.filter(isQuarter).map(cellAt).join('')}"/>`,
+      ...all.slice(0, lit).map(c => `<path class="c${c}" fill="${UI.tone[m.tone]}" d="${cellAt(c)}"/>`)
+    )
+  }
+  // Each cell lights a little after the one before it, so the meters fill from the left; the numbers come in last.
+  const css = [
+    '@keyframes lit{0%{opacity:0}6%,82%{opacity:1}90%,100%{opacity:0}}',
+    ...Array.from({ length: cells }, (_, c) => `.c${c}{animation:lit 7s ${n(0.3 + c * 0.09)}s infinite backwards}`),
+    shown('pct', 0.42),
+    '.pct{animation:pct 7s infinite}'
+  ]
+
+  return { body: parts.join(''), css: css.join('') }
+}
+
+const WINDOWS = { timeline: timelineWindow, files: filesWindow, budget: budgetWindow } as const
 
 function features(t: Theme, isNarrow: boolean): string {
   const c = C[t]
   const width = isNarrow ? 360 : WIDE
   const gap = isNarrow ? 12 : 16
   const cardW = isNarrow ? width : (width - 2 * gap) / 3
-  const pad = 16
+  const pad = 14
+  const winH = 84
   const lineH = 19
-  const wrapped = FEATURES.map(f => wrap(f.body, 400, 13, cardW - 2 * pad))
-  const cardH = 44 + Math.max(...wrapped.map(l => l.length)) * lineH + 6
+  const body = { weight: 400, size: 13 } as const
+  const wrapped = FEATURES.map(f => wrap(f.body, body, body.size, cardW - 2 * pad))
+  const cardH = pad + winH + 30 + Math.max(...wrapped.map(l => l.length)) * lineH + 8
   const height = isNarrow ? 3 * cardH + 2 * gap : cardH
-  const glyphs = new Glyphs()
+  const g = new Glyphs()
   const parts: string[] = []
+  const css: string[] = []
 
   for (const [i, f] of FEATURES.entries()) {
     const x = isNarrow ? 0 : i * (cardW + gap)
     const y = isNarrow ? i * (cardH + gap) : 0
+    const win = WINDOWS[f.kind](g, x + pad, y + pad, cardW - 2 * pad)
+    const titleY = y + pad + winH + 24
 
+    css.push(win.css)
     parts.push(
       `<rect x="${n(x + 0.5)}" y="${n(y + 0.5)}" width="${n(cardW - 1)}" height="${n(cardH - 1)}" rx="10" fill="${c.card}" stroke="${c.cardBorder}"/>`,
-      `<rect x="${n(x + pad)}" y="${n(y + 18)}" width="8" height="8" rx="2" fill="${f.dot}"/>`,
-      glyphs.text(f.title, { weight: 600, size: 15, x: x + pad + 16, y: y + 27, fill: c.title }),
-      ...(wrapped[i] ?? []).map((line, j) => glyphs.text(line, { weight: 400, size: 13, x: x + pad, y: y + 50 + j * lineH, fill: c.body }))
+      windowFrame(x + pad, y + pad, cardW - 2 * pad, winH),
+      win.body,
+      `<rect x="${n(x + pad)}" y="${n(titleY - 9)}" width="8" height="8" rx="2" fill="${f.dot}"/>`,
+      g.text(f.title, { weight: 600, size: 15, x: x + pad + 16, y: titleY, fill: c.title }),
+      ...(wrapped[i] ?? []).map((line, j) => g.text(line, { ...body, x: x + pad, y: titleY + 22 + j * lineH, fill: c.body }))
     )
   }
 
-  return svg(width, height, glyphs.defsElement + parts.join(''), FEATURES.map(f => `${f.title}: ${f.body}`).join(' '))
+  return svg(width, height, {
+    defs: g.defsContent,
+    style: [...new Set(css)].join(''),
+    body: parts.join(''),
+    label: FEATURES.map(f => `${f.title}: ${f.body}`).join(' ')
+  })
 }
+
+// ─── The platform chip ───
 
 function platforms(t: Theme): string {
   const c = C[t]
@@ -348,16 +739,17 @@ function platforms(t: Theme): string {
   const pad = 12
   const icon = 12
   const label = 'RUNS ON'
-  const labelW = widthOf(label, 700, 10, 0.12) + 2 * pad
-  const segments = PLATFORMS.map(p => ({ ...p, w: pad + icon + 6 + widthOf(p.name, 500, 13) + pad }))
+  const labelFace = { weight: 700 } as const
+  const nameFace = { weight: 500 } as const
+  const labelW = widthOf(label, labelFace, 10, 0.12) + 2 * pad
+  const segments = PLATFORMS.map(p => ({ ...p, w: pad + icon + 6 + widthOf(p.name, nameFace, 13) + pad }))
   const width = labelW + segments.reduce((sum, p) => sum + p.w, 0)
-  const baseline = (size: number, weight: number): number => h / 2 + capOf(weight, size) / 2
+  const baseline = (face: Face, size: number): number => h / 2 + capOf(face, size) / 2
   const r = (h - 1) / 2
-  const glyphs = new Glyphs()
+  const g = new Glyphs()
   const parts: string[] = [
-    `<clipPath id="p"><rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}"/></clipPath>`,
     `<g clip-path="url(#p)"><rect width="${n(width)}" height="${h}" fill="${c.chipSurface}"/><rect width="${n(labelW)}" height="${h}" fill="${c.chipLabel}"/></g>`,
-    glyphs.text(label, { weight: 700, size: 10, x: pad, y: baseline(10, 700), tracking: 0.12, fill: c.chipIcon })
+    g.text(label, { ...labelFace, size: 10, x: pad, y: baseline(labelFace, 10), tracking: 0.12, fill: c.chipIcon })
   ]
   let x = labelW
 
@@ -372,24 +764,205 @@ function platforms(t: Theme): string {
     parts.push(
       `<line x1="${n(x)}" y1="0" x2="${n(x)}" y2="${h}" stroke="${c.chipBorder}"/>`,
       `<path fill="${c.chipIcon}" transform="translate(${n(x + pad)} ${n((h - icon) / 2)}) scale(${n(icon / Number(bw))}) translate(${-Number(bx)} ${-Number(by)})" d="${d}"/>`,
-      glyphs.text(p.name, { weight: 500, size: 13, x: x + pad + icon + 6, y: baseline(13, 500), fill: c.chipText })
+      g.text(p.name, { ...nameFace, size: 13, x: x + pad + icon + 6, y: baseline(nameFace, 13), fill: c.chipText })
     )
     x += p.w
   }
   parts.push(`<rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}" fill="none" stroke="${c.chipBorder}"/>`)
 
-  return svg(width, h, glyphs.defsElement + parts.join(''), 'Runs on Windows, macOS and Linux')
+  return svg(width, h, {
+    defs: `<clipPath id="p"><rect x=".5" y=".5" width="${n(width - 1)}" height="${n(h - 1)}" rx="${n(r)}"/></clipPath>${g.defsContent}`,
+    body: parts.join(''),
+    label: 'Runs on Windows, macOS and Linux'
+  })
 }
 
-if (contrast(C.light.gold, '#ffffff') < 3) throw new Error(`the light divider's gold ${C.light.gold} is under 3:1 on white`)
+// ─── The brand's mascot and mark, with eyes that cycle ───
+
+/** The three eye states, as the brand's SVGs are named and id-prefixed. */
+const EYES = [
+  { file: 'green', prefix: 'gfg', cls: 'eg' },
+  { file: 'amber', prefix: 'gfa', cls: 'ea' },
+  { file: 'red', prefix: 'gfr', cls: 'er' }
+] as const
+
+/**
+ * The eyes' 9 s cycle: green, amber, red, each held about two seconds and crossfaded over one. Amber is the still
+ * frame: with reduced motion, or before the style applies, only the amber layer shows.
+ */
+const EYE_CSS =
+  '.eg,.er{opacity:0}' +
+  '@keyframes eg{0%,22.2%{opacity:1}33.3%,88.9%{opacity:0}100%{opacity:1}}' +
+  '@keyframes ea{0%,22.2%{opacity:0}33.3%,55.6%{opacity:1}66.7%,100%{opacity:0}}' +
+  '@keyframes er{0%,55.6%{opacity:0}66.7%,88.9%{opacity:1}100%{opacity:0}}' +
+  '.eg{animation:eg 9s infinite}.ea{animation:ea 9s infinite}.er{animation:er 9s infinite}'
+
+/**
+ * A brand SVG (the mascot or the small mark) with its eyes in three layers that crossfade. The shapes are the brand's
+ * own, unchanged: the amber file is the body, and each eye state's gradients come from its own file. The C2PA
+ * metadata the brand files carry is left out.
+ * @param kind which brand image: `mascot` or `mark-small`
+ * @param id a prefix for its ids, unique in the image that embeds it
+ * @returns its viewBox and its content
+ */
+function cyclingEyes(kind: 'mascot' | 'mark-small', id: string): { viewBox: string; content: string } {
+  const read = (file: string): string =>
+    readFileSync(join(brand, `ghostframe-${kind}-${file}.svg`), 'utf8')
+      .replace(/<metadata[\s\S]*?<\/metadata>/, '')
+      .replace(/ xmlns:c2pa="[^"]*"/, '')
+  const amber = read('amber')
+  const viewBox = /viewBox="([^"]+)"/.exec(amber)?.[1]
+  const inner = /<svg[^>]*>([\s\S]*)<\/svg>/.exec(amber)?.[1]
+
+  if (viewBox === undefined || inner === undefined) throw new Error(`ghostframe-${kind}-amber.svg: no viewBox or content`)
+  const body = inner.replaceAll('gfa-', `${id}-`).replaceAll(/\s*\n\s*/g, '')
+  const eyePath = new RegExp(`<path d="[^"]+" fill="url\\(#${id}-eyeG\\)"[^>]*/>`).exec(body)?.[0]
+  const glow = new RegExp(`<rect[^>]*fill="url\\(#${id}-ambG\\)"[^>]*/>`).exec(body)?.[0]
+
+  if (eyePath === undefined || glow === undefined) throw new Error(`ghostframe-${kind}-amber.svg: no eye path or eye glow`)
+  const gradients: string[] = []
+  const layer = (el: string): string =>
+    EYES.map(e => `<g class="${e.cls}">${el.replace(`#${id}-eyeG`, `#${id}-${e.cls}-eyeG`).replace(`#${id}-ambG`, `#${id}-${e.cls}-ambG`)}</g>`).join('')
+
+  for (const e of EYES) {
+    const src = read(e.file).replaceAll(/\s*\n\s*/g, '')
+
+    for (const name of ['eyeG', 'ambG']) {
+      const grad = new RegExp(`<(linear|radial)Gradient id="${e.prefix}-${name}"[\\s\\S]*?</\\1Gradient>`).exec(src)?.[0]
+
+      if (grad === undefined) throw new Error(`ghostframe-${kind}-${e.file}.svg: no ${name}`)
+      gradients.push(grad.replace(`id="${e.prefix}-${name}"`, `id="${id}-${e.cls}-${name}"`))
+    }
+  }
+
+  return {
+    viewBox,
+    content: body
+      .replace('<defs>', `<defs>${gradients.join('')}`)
+      .replace(eyePath, layer(eyePath))
+      .replace(glow, layer(glow))
+  }
+}
+
+// ─── The banner ───
+
+function banner(t: Theme): string {
+  const c = C[t]
+  const w = 1600
+  const h = 420
+  const g = new Glyphs()
+  const mascot = cyclingEyes('mascot', 'm')
+  const wordmark = readFileSync(join(brand, `ghostframe-wordmark-${t === 'dark' ? 'white' : 'black'}.svg`), 'utf8').replace(/<metadata[\s\S]*?<\/metadata>/, '')
+  const wordBox = /viewBox="([^"]+)"/.exec(wordmark)?.[1]
+  const wordPath = /<path[^>]*\/>/.exec(wordmark)?.[0]
+
+  if (wordBox === undefined || wordPath === undefined) throw new Error('the wordmark SVG has no viewBox or path')
+  const [, , vw = 4905, vh = 921] = wordBox.split(' ').map(Number)
+  const wordW = 654
+  const tagFace = { weight: 700 } as const
+  const tagline = 'The cockpit for Claude Code.'
+  const tagSize = 40 * (463 / widthOf(tagline, tagFace, 40))
+  const plat = 'CLAUDE CODE PLUGIN  ·  WINDOWS  ·  MACOS  ·  LINUX'
+  const platSize = 13.5
+  const platTracking = (528 - widthOf(plat, MONO, platSize)) / (platSize * (fontOf(MONO).layout(plat).glyphs.length - 1))
+  const squares = UI.eyes.map((col, i) => `<rect x="${474 + i * 16}" y="315" width="10" height="10" rx="2" fill="${col}"/>`).join('')
+
+  return svg(w, h, {
+    style: EYE_CSS,
+    defs:
+      `<clipPath id="card"><rect width="${w}" height="${h}" rx="24"/></clipPath>` +
+      `<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="${c.bannerGrid}"/></pattern>` +
+      `<radialGradient id="glow" cx="241" cy="205" r="250" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.bannerGlow}" stop-opacity="${c.bannerGlowOpacity}"/><stop offset="1" stop-color="${c.bannerGlow}" stop-opacity="0"/></radialGradient>` +
+      g.defsContent,
+    body:
+      `<g clip-path="url(#card)"><rect width="${w}" height="${h}" fill="${c.bannerBg}"/><rect width="${w}" height="${h}" fill="url(#grid)"/><rect width="${w}" height="${h}" fill="url(#glow)"/></g>` +
+      `<svg x="99" y="34" width="284" height="352" viewBox="${mascot.viewBox}">${mascot.content}</svg>` +
+      `<svg x="472" y="88" width="${wordW}" height="${n((wordW * vh) / vw)}" viewBox="${wordBox}">${wordPath}</svg>` +
+      g.text(tagline, { ...tagFace, size: tagSize, x: 474, y: 274, fill: c.bannerText }) +
+      squares +
+      g.text(plat, { ...MONO, size: platSize, x: 530, y: 325, fill: c.bannerMuted, tracking: platTracking }),
+    label: 'ghostframe, the cockpit for Claude Code'
+  }).replace('<defs>', `<defs>${g.defsContent}`)
+}
+
+// ─── The section bands ───
+
+function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string {
+  const c = C[t]
+  const w = isNarrow ? 360 : WIDE
+  const h = 36
+  const mid = 18
+  const g = new Glyphs()
+  const number = String(SECTIONS.indexOf(s) + 1).padStart(2, '0')
+  const nameFace = { weight: 700 } as const
+  const name = s.name.toUpperCase()
+  const nameX = 42
+  const nameEnd = nameX + widthOf(name, nameFace, 12, 0.16)
+  const captionW = isNarrow ? 0 : widthOf(s.caption, MONO, 9.5, 0.14)
+  const lineFrom = nameEnd + 14
+  const lineTo = isNarrow ? w : w - captionW - 14
+
+  return svg(w, h, {
+    defs: `<linearGradient id="l" x1="${n(lineFrom)}" x2="${n(lineTo)}" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.gold}"/><stop offset=".5" stop-color="${c.rule}"/><stop offset="1" stop-color="${c.rule}" stop-opacity="0"/></linearGradient>`,
+    body:
+      `<rect x="0" y="${mid - 11}" width="30" height="22" rx="5" fill="${c.gold}"/>` +
+      g.text(number, {
+        family: 'mono',
+        weight: 500,
+        size: 12,
+        x: 15,
+        y: mid + capOf({ family: 'mono', weight: 500 }, 12) / 2,
+        fill: c.onGold,
+        anchor: 'middle'
+      }) +
+      g.text(name, { ...nameFace, size: 12, x: nameX, y: mid + capOf(nameFace, 12) / 2, fill: c.title, tracking: 0.16 }) +
+      `<rect x="${n(lineFrom)}" y="${mid - 0.5}" width="${n(Math.max(0, lineTo - lineFrom))}" height="1" fill="url(#l)"/>` +
+      (isNarrow ? '' : g.text(s.caption, { ...MONO, size: 9.5, x: w, y: mid + capOf(MONO, 9.5) / 2, fill: c.body, tracking: 0.14, anchor: 'end' })),
+    label: ''
+  }).replace('<defs>', `<defs>${g.defsContent}`)
+}
+
+// ─── The footer card ───
+
+function footer(t: Theme): string {
+  const c = C[t]
+  const w = 520
+  const h = 196
+  const g = new Glyphs()
+  const mark = cyclingEyes('mark-small', 'k')
+  const line = hairline(c, w * 0.2, w * 0.6, 138, 'h')
+  const tagFace = { weight: 500 } as const
+
+  return svg(w, h, {
+    style: EYE_CSS,
+    defs: line.defs,
+    body:
+      `<rect x=".5" y=".5" width="${w - 1}" height="${h - 1}" rx="12" fill="${c.card}" stroke="${c.cardBorder}"/>` +
+      `<svg x="${w / 2 - 28}" y="24" width="56" height="56" viewBox="${mark.viewBox}">${mark.content}</svg>` +
+      g.text('ghostframe haunts your terminal, never your code.', { ...tagFace, size: 16, x: w / 2, y: 114, fill: c.title, anchor: 'middle' }) +
+      line.body +
+      g.text('BUILT IN DHAKA · MIT', { ...MONO, size: 9.5, x: w / 2, y: 170, fill: c.body, tracking: 0.18, anchor: 'middle' }),
+    label: 'ghostframe haunts your terminal, never your code.'
+  }).replace('<defs>', `<defs>${g.defsContent}`)
+}
+
+// ─── Draw them all ───
+
+if (contrast(C.light.gold, '#ffffff') < 3) throw new Error(`the light gold ${C.light.gold} is under 3:1 on white`)
 mkdirSync(out, { recursive: true })
 for (const t of THEMES) {
+  writeFileSync(join(out, `banner-${t}.svg`), banner(t))
+  writeFileSync(join(out, `platforms-${t}.svg`), platforms(t))
   writeFileSync(join(out, `divider-${t}.svg`), divider(t))
   writeFileSync(join(out, `features-${t}.svg`), features(t, false))
   writeFileSync(join(out, `features-narrow-${t}.svg`), features(t, true))
-  writeFileSync(join(out, `platforms-${t}.svg`), platforms(t))
+  writeFileSync(join(out, `footer-${t}.svg`), footer(t))
+  for (const s of SECTIONS) {
+    writeFileSync(join(out, `band-${s.slug}-${t}.svg`), band(t, s, false))
+    writeFileSync(join(out, `band-${s.slug}-narrow-${t}.svg`), band(t, s, true))
+  }
 }
-for (const f of files()) console.log(`wrote ${f.slice(root.length + 1)}: ${statSync(f).size} bytes`)
+for (const { name } of files()) console.log(`wrote docs/assets/readme/${name}: ${statSync(join(out, name)).size} bytes`)
 const problems = artProblems()
 
 if (problems.length > 0) throw new Error(`readme-art: ${problems.join('; ')}`)
