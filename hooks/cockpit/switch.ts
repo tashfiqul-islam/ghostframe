@@ -60,15 +60,24 @@ export async function readEnvOnce($: EngineInterface): Promise<void> {
  * What GHOSTFRAME_COCKPIT says. An environment the engine cannot read leaves the option in charge:
  * this must never be what holds back the rest of `session.start`.
  * @param $ the engine interface
- * @returns true for `1`, `true`, `on` or `yes`; false for `0`, `false`, `off` or `no`; otherwise undefined
+ * @returns what `switchOf` reads in its value
  */
 export async function envSwitchOf($: EngineInterface): Promise<boolean | undefined> {
   try {
-    const value = (await $.env.get('GHOSTFRAME_COCKPIT')) ?? ''
-    if (/^(1|true|on|yes)$/i.test(value)) return true
-    if (/^(0|false|off|no)$/i.test(value)) return false
-    return undefined
+    return switchOf((await $.env.get('GHOSTFRAME_COCKPIT')) ?? '')
   } catch {
     return undefined
   }
+}
+
+/**
+ * What a GHOSTFRAME_COCKPIT value says, in any case.
+ * @param value the variable's value, empty when it is unset
+ * @returns true for `1`, `true`, `on` or `yes`; false for `0`, `false`, `off` or `no`; otherwise undefined
+ */
+export function switchOf(value: string): boolean | undefined {
+  if (/^(1|true|on|yes)$/i.test(value)) return true
+  if (/^(0|false|off|no)$/i.test(value)) return false
+
+  return undefined
 }

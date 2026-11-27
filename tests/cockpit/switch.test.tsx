@@ -1,5 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
+import { switchOf } from '../../hooks/cockpit/switch'
 import { OFF, ON, PANE } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 
@@ -36,14 +37,19 @@ test('GHOSTFRAME_COCKPIT=0 turns it off for a session, the option left on', ON, 
   expect((await start($, on, '0')).opened).toEqual([])
 })
 
+// The session-start tests above and below carry the value to the switch; these read the value alone.
 for (const env of ['false', 'OFF', 'No']) {
-  test(`GHOSTFRAME_COCKPIT=${env} turns it off too: false, off and no in any case`, ON, async ($, on) => {
-    expect((await start($, on, env)).opened).toEqual([])
+  test(`GHOSTFRAME_COCKPIT=${env} turns it off too: false, off and no in any case`, () => {
+    expect(switchOf(env)).toBe(false)
   })
 }
 
-test('GHOSTFRAME_COCKPIT set to anything else leaves the option in charge', ON, async ($, on) => {
-  expect((await start($, on, 'maybe')).opened).toEqual(['cockpit'])
+test('GHOSTFRAME_COCKPIT=true, ON or Yes turns it on too: true, on and yes in any case', () => {
+  for (const env of ['true', 'ON', 'Yes']) expect(switchOf(env)).toBe(true)
+})
+
+test('GHOSTFRAME_COCKPIT set to anything else, or unset, leaves the option in charge', () => {
+  for (const env of ['maybe', '2', ' 1', '']) expect(switchOf(env)).toBeUndefined()
 })
 
 test('off by the cockpit option: session start opens no pane, though /cockpit is still listed', OFF, async ($, on) => {
