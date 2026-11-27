@@ -766,7 +766,8 @@ function features(t: Theme, isNarrow: boolean): string {
 function platforms(t: Theme): string {
   const c = C[t]
   const h = 28
-  const pad = 12
+  // 11px padding keeps the chip under a 390px phone's 324px column, so phones draw it at 1:1 too.
+  const pad = 11
   const icon = 12
   const label = 'RUNS ON'
   const labelFace = { weight: 700 } as const
