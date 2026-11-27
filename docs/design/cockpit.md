@@ -576,7 +576,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 
 A diff too large to work out is not computed, and its note says why: `no diff · over 5000 lines` for a file past 5,000 lines on either side, `no diff · over 500 changed lines` for a change of more than 500 lines added and removed (a rewrite of a long file). The pane keeps 400 rows of a diff, so such a change could not be shown whole, and working it out would hold up to a gigabyte while the turn ends.
 
-**Keys:** `b` back, `c` copy, `↑↓` scroll, `n` next file.
+**Keys:** `b` back, `c` copy, `↑↓` scroll, `n` next file (the Files tab's order; at the last file it stays and says `no next file`).
 
 ### 8.7 Sources tab
 

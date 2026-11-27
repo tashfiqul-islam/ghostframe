@@ -166,6 +166,35 @@ test('Enter on an edit step (every step), or on its Files row, shows its diff (8
   await ui.unmount()
 })
 
+test('8.6: `n` in the full diff opens the next file`s diff, as its hint row offers; the last file stays and says so', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  await aTurn($)
+  await $.tool.call({ tool: 'Edit', file_path: 'hooks/shared/look.ts', old_string: 'a', new_string: 'b', tool_use_id: 'e2' } as never)
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:hooks/shared/text.ts' })
+  await ui.redraw()
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/text\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/n next file/))
+
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  let rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/look\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(rows.some(r => /^ {2}hooks\/shared\/text\.ts +\+2/.test(r))).toBe(false)
+
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/look\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/no next file/))
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+})
+
 test('`s` shows every step of the turn, unfolded (8.11); `s` again fits', SLOW, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, [])

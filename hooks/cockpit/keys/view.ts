@@ -359,6 +359,20 @@ async function stepPin($: EngineInterface, step: -1 | 1): Promise<void> {
   view = FIT
 }
 
+/**
+ * `n` in the full diff (8.6): the next file's diff, in the Files tab's order, of the turn shown (the pinned one, or
+ * live); at the last file it stays and says so.
+ * @param $ the engine interface
+ * @param path the file whose diff is shown
+ */
+async function nextFile($: EngineInterface, path: string): Promise<void> {
+  const files = ((await pinnedRecord($)) ?? (await readWork($))).files
+  const next = files[files.findIndex(f => f.path === path) + 1]
+
+  if (next === undefined) await say($, 'no next file')
+  else view = { kind: 'diff', path: next.path, ...(await fileView($, next.path)) }
+}
+
 /** The pane's five tabs (8.1), by their keys. */
 export type Tab = 'timeline' | 'files' | 'sources' | 'todo' | 'agents'
 const TAB_KEYS: Readonly<Record<string, Tab>> = { '1': 'timeline', '2': 'files', '3': 'sources', '4': 'todo', '5': 'agents' }
@@ -375,7 +389,7 @@ export const urlsShown = (): boolean => isUrlsShown
 
 /**
  * A key of the focused pane, pressed (9.5): `1` to `5` a tab, `s` every step (again to fit), `u` the Sources tab's URLs,
- * `c` copy, `b` back, `p` `n` a kept turn before or after (9.4), `l` live, `m` main. (`?` cannot be a hotkey.)
+ * `c` copy, `b` back, `p` `n` a kept turn before or after (9.4; in the full diff `n` is the next file, 8.6), `l` live, `m` main. (`?` cannot be a hotkey.)
  * @param $ the engine interface
  * @param key the hotkey
  */
@@ -386,7 +400,7 @@ export async function pressKey($: EngineInterface, key: string): Promise<void> {
     tab = toTab
     view = FIT
   } else if (key === 'p') await stepPin($, -1)
-  else if (key === 'n') await stepPin($, 1)
+  else if (key === 'n') await (view.kind === 'diff' ? nextFile($, view.path) : stepPin($, 1))
   else if (key === 'l') {
     await setPin($, null, 0)
     view = FIT
