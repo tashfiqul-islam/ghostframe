@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // The benchmarks' own project, as tools/live has: they run under Bun with .ts imports, and reuse tools/live's
+  // node-pty and headless terminal, so they type-check only where those are installed (bun install --cwd tools/live).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "typeRoots": ["../node_modules/@types", "../live/node_modules/@types"],
+    "paths": { "node-pty": ["../live/node_modules/node-pty"], "@xterm/*": ["../live/node_modules/@xterm/*"] },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": ["*.ts"]
+}

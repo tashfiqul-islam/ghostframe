@@ -11,5 +11,7 @@
     "tsBuildInfoFile": "node_modules/.cache/tools.tsbuildinfo"
   },
   "include": ["**/*.ts"],
-  "exclude": ["node_modules", "live"]
+  // perf/probe is a hooks module: the engine's types check it, through tests/ (tests/bench/probe.bench.tsx imports it).
+  // bench/ has its own project (it reads tools/live/, whose dependencies the gate does not install).
+  "exclude": ["node_modules", "live", "bench", "perf/probe"]
 }

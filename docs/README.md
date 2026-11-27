@@ -26,6 +26,7 @@
 
 - [Testing](development/testing.md): the plugin's tests, the status line's specs and the gate.
 - [The live checks](development/live-checks.md): the harness that drives a real Claude Code.
+- [Performance](development/performance.md): the budgets, the benchmarks and the profiler.
 - [Releasing](development/releasing.md): release-please, the release app, the first release.
 - [Plans](development/plans/): the working plans of past phases, kept as written.
 - [Website brief](development/website-brief.md): the design brief for the ghostframe website, in progress.
