@@ -92,11 +92,17 @@ async function promptOpening($: EngineInterface, row: string, text: string): Pro
     return { kind: stamp.steerMs === undefined ? 'queued' : 'added', at: stamp.at }
   }
 
-  const log = await readLog($)
+  // A numbered turn whose header has drawn needs nothing of the step log (its number is the stamp's, its colour the
+  // one it first drew with): it is not read, so a row the person scrolls past costs no read of every step, and the
+  // row no longer draws again at each step of the running turn.
+  const isSettled = stamp?.turnNo !== undefined && firstDrawnLive.has(`${stamp.turnNo}@${stamp.at}`)
+  const log = isSettled ? undefined : await readLog($)
   const turnNo =
-    stamp === undefined ? undefined : (stamp.turnNo ?? (log.startedAt === stamp.at ? log.turnNo : isPendingStart(stamp) ? log.turnNo + 1 : undefined))
+    stamp === undefined || log === undefined
+      ? stamp?.turnNo
+      : (stamp.turnNo ?? (log.startedAt === stamp.at ? log.turnNo : isPendingStart(stamp) ? log.turnNo + 1 : undefined))
   const prev = stamp === undefined ? undefined : list.slice(0, Math.max(0, list.indexOf(stamp))).findLast(p => p.over === undefined || p.turnNo !== undefined)
-  const isLive = liveAtFirstDraw(turnNo, stamp?.at, log.isTurnRunning && turnNo === log.turnNo)
+  const isLive = liveAtFirstDraw(turnNo, stamp?.at, log !== undefined && log.isTurnRunning && turnNo === log.turnNo)
 
   return { kind: 'typed', header: { at: stamp?.at, turnNo, after: stamp?.after, day: stamp === undefined ? '' : dayWord(stamp.at, prev?.at), isLive } }
 }

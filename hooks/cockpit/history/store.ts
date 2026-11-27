@@ -15,6 +15,9 @@ const STAMPS = 'prompts:'
 
 // The session's turns, oldest first. Change the tag when a record's fields change.
 const history = atom({ plugin: 'ghostframe', key: 'history' } as const, [] as TurnRecord[], { shape: 'history-1' })
+// Every kept turn's narration row ids, kept beside history whenever history is written: a transcript row asks only
+// this, never `history` itself, whose every turn's steps, outputs and diffs a long session makes megabytes of.
+const keptNarration = atom({ plugin: 'ghostframe', key: 'keptNarration' } as const, [] as string[], { shape: 'keptNarration-1' })
 // The turn the pane shows instead of the live one; null for live.
 const pin = atom({ plugin: 'ghostframe', key: 'pin' } as const, null as number | null, { shape: 'pin-1' })
 
@@ -31,6 +34,16 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
   const value = typeof v === 'object' && v !== null ? (v as { savedAt?: unknown; turns?: unknown }) : {}
 
   return isRecords(value.turns) ? { key: k, savedAt: typeof value.savedAt === 'number' ? value.savedAt : 0, turns: value.turns } : undefined
+}
+
+/**
+ * Writes the session's kept turns, and their narration rows beside them (`keptNarration`).
+ * @param $ the engine interface
+ * @param turns the turns, oldest first
+ */
+async function keepHistory($: EngineInterface, turns: readonly TurnRecord[]): Promise<void> {
+  await update($, history, () => [...turns])
+  await update($, keptNarration, () => turns.flatMap(r => r.narration ?? []))
 }
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
@@ -87,7 +100,7 @@ export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
  * @returns whether it is
  */
 export async function isKeptNarration($: EngineInterface, row: string): Promise<boolean> {
-  if ((await read($, history)).some(r => r.narration?.includes(row) === true)) return true
+  if ((await read($, keptNarration)).includes(row)) return true
 
   if (storedNarration === undefined) {
     const k = `${PREFIX}${await $.session.id()}`
@@ -173,7 +186,7 @@ export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
 
   if (held.length > 0) return held
 
-  await update($, history, () => kept)
+  await keepHistory($, kept)
 
   return kept
 }
@@ -211,7 +224,7 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
 
   // The session keeps the turn whether or not the store takes it: the pane's pins and fallback's redraw of a past
   // turn (13.1) read it. A refused write costs the turn its place after a resume, never the session's copy.
-  await update($, history, () => all)
+  await keepHistory($, all)
   let kept: TurnRecord[]
 
   try {
@@ -222,7 +235,7 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
     kept = await write($, all)
   }
 
-  await update($, history, () => kept)
+  await keepHistory($, kept)
 }
 
 /**
@@ -257,7 +270,8 @@ export const compacted = (r: Receipt): Receipt => ({ ...r, isCompacted: true })
  * @param turnNos the turns' numbers
  */
 export async function dropTurns($: EngineInterface, turnNos: readonly number[]): Promise<void> {
-  await update($, history, list => list.filter(r => !turnNos.includes(r.turnNo)))
+  const left = await update($, history, list => list.filter(r => !turnNos.includes(r.turnNo)))
+  await update($, keptNarration, () => left.flatMap(r => r.narration ?? []))
 }
 
 /**

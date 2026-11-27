@@ -3,7 +3,7 @@
 import type { On } from 'claude-code'
 
 import { isOn, readEnvOnce } from '../../../cockpit/switch'
-import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow, leftCells } from '../../../cockpit/left'
+import { drawAnswerCapsule, drawAnswerReceipt, drawUnfoldedSentence, endsKeptTurn, isQuietRow, leftCells, receiptsNow } from '../../../cockpit/left'
 import { layout } from '../../../shared/layout'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
@@ -30,6 +30,7 @@ import { isHiddenNarration } from './narration'
 import { drawSummary } from './summary'
 import { tableDraws } from './tables'
 import { dormantFor } from '../../../shared/engine'
+import { runningTurn } from '../../../cockpit/log'
 
 /**
  * Adds Claude's reply drawing (`AssistantMessage`).
@@ -64,7 +65,11 @@ export function registerReply(on: On): void {
 
     if (sentence !== undefined) return sentence
 
-    if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId))) {
+    // Each state read is a round trip to the engine, and the engine draws rows again as the person scrolls: what the
+    // draw needs is read together, once.
+    const [blocksSoFar, live, turnNow, running] = await Promise.all([readFlow($), readStreaming($), readTurn($), runningTurn($)])
+
+    if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId, blocksSoFar, running))) {
       const { Box } = $.ui.resolve(e)
 
       return <Box />
@@ -89,11 +94,8 @@ export function registerReply(on: On): void {
 
     // Footnote numbers run through the message in block order (§0.1 r7): an earlier
     // paragraph's numbers never change when a later one streams in.
-    const live = await readStreaming($)
     const isOffScreen = e.props.onScreen === null
     const key = firstKey(e.props.text)
-    const blocksSoFar = await readFlow($)
-    const turnNow = await readTurn($)
     // Its own key first: a later block that only starts like this one is another block.
     // A prefix (text still streaming) is looked for in the running turn only. A row the session held when it started
     // (a resumed answer) is never the running turn's, so it is never placed at that turn's end.
@@ -152,9 +154,11 @@ export function registerReply(on: On): void {
     // every tool call too). A reply that opens on a wide table gets the label on its own row.
     // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
     const isQuietLeft = isQuietRow(e)
+    // The receipts, read once for the row's `claude` label and its receipt.
+    const receipts = isQuietLeft ? await receiptsNow($) : []
     const isOpener = isQuietLeft
       ? place === undefined
-        ? await endsKeptTurn($, e.requestId)
+        ? endsKeptTurn(receipts, e.requestId)
         : isQuietOpenerAt(blocksSoFar, place.at)
       : e.props.isFirstOfReply && isTurnOpener(await readFirstTexts($), e.props.text, place?.turn)
     // The capability line takes `claude`'s row; the reply follows a blank row below it. Quiet, it is the pane's.
@@ -176,7 +180,7 @@ export function registerReply(on: On): void {
     // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
     const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
     // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
-    const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, leftCells(e)) : undefined
+    const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, leftCells(e), receipts) : undefined
 
     // Cockpit's left (7.3, 7.4, 7.12, 7.13): the thought row on the turn's opener, a blank row after event rows, the
     // answer's markdown on the spine with its footnote refs, the footnote lines, then the receipt; in fallback the

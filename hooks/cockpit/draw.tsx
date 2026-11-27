@@ -1,6 +1,7 @@
 // Cockpit's rows as terminal Text lines, for the pane and the quiet left alike.
 import type { RenderElement } from 'claude-code'
 
+import { sameStyleJoined } from '../shared/parts'
 import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 
@@ -20,7 +21,7 @@ export function drawRow(ui: Pick<Ui, 'Text'>, row: readonly Part[], key: string)
 
   return (
     <Text key={key} wrap="truncate">
-      {row.map((p, j) => (
+      {sameStyleJoined(row).map((p, j) => (
         <Text key={`${j}`} color={p.color} {...(p.bold === true ? { weight: 'bold' as const } : {})} {...(p.bg === undefined ? {} : { backgroundColor: p.bg })}>
           {p.t}
         </Text>

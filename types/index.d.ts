@@ -341,6 +341,7 @@ declare module 'claude-code' {
       second: Shaped<number>
       frame: Shaped<number>
       stepLog: Shaped<StepLog>
+      running: Shaped<string | null>
       receipts: Shaped<Receipt[]>
       roster: Shaped<RosterAgent[]>
       launched: Shaped<LaunchedAgent[]>
@@ -349,6 +350,7 @@ declare module 'claude-code' {
       details: Shaped<StepDetail[]>
       viewTick: Shaped<number>
       history: Shaped<TurnRecord[]>
+      keptNarration: Shaped<string[]>
       pin: Shaped<number | null>
       commandRuns: Shaped<CommandRuns>
     }

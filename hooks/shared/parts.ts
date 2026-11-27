@@ -35,3 +35,23 @@ export function fitParts(parts: readonly Part[], n: number): Part[] {
 }
 
 export const partsWidth = (parts: readonly Part[]): number => parts.reduce((w, p) => w + vw(p.t), 0)
+
+/**
+ * Neighbouring parts of one style as one: each part is a Text the engine carries over from the hooks worker and lays
+ * out at every draw, and the engine draws a row again each time the person scrolls it across the viewport's edge.
+ * @param parts a line's parts
+ * @returns the parts, each run of one colour, weight and background joined
+ */
+export function sameStyleJoined(parts: readonly Part[]): Part[] {
+  const out: Part[] = []
+
+  for (const p of parts) {
+    const last = out.at(-1)
+
+    if (last !== undefined && last.color === p.color && (last.bold === true) === (p.bold === true) && last.bg === p.bg)
+      out[out.length - 1] = { ...last, t: last.t + p.t }
+    else out.push(p)
+  }
+
+  return out
+}
