@@ -907,91 +907,117 @@ function banner(t: Theme): string {
 
 // ─── The section bands ───
 
+/**
+ * The README column's width on github.com, measured (h3 content width): 1012px in a 1440px-wide desktop window,
+ * 324px on a 390px phone. Each band's viewBox is that wide, so GitHub draws it at 1:1, one SVG pixel to one CSS pixel.
+ */
+const BAND_WIDE = 1012
+const BAND_NARROW = 324
 /** A band's room: transparent space above its bar and below it, so every section starts with the same gap. */
-const BAND_ABOVE = 34
-const BAND_BELOW = 14
-const BAR_H = 34
-/** Every cut leans like "/", about 18°: across BAR_H that is 11px. */
+const BAND_ABOVE = 36
+const BAND_BELOW = 16
+const BAR_H = 40
+/** Every cut leans like "/", about 18°: across BAR_H that is 13px. */
 const SLANT = Math.round(BAR_H * Math.tan((18 * Math.PI) / 180))
-const SLIT = 3
-const SEG_PAD = 12
+/** The slit of page between segments: 3px on a 34px bar, scaled to this one. */
+const SLIT = 3.5
+const SEG_PAD = 14
 
 /** The band's colours, per theme; the gold segment is the eyes' gold in both. */
 const BAND = {
-  dark: { path: '#1a2029', git: '#151a21', caption: '#11151c', muted: '#6e7681', bright: '#f0f3f6', green: '#5DCAA5', capText: '#6e7681' },
-  light: { path: '#e8ebef', git: '#eef0f3', caption: '#f3f5f7', muted: '#818b98', bright: '#1f2328', green: '#1a7f37', capText: '#818b98' }
+  dark: { path: '#1a2029', git: '#151a21', caption: '#141920', muted: '#6e7681', bright: '#f0f3f6', green: '#5DCAA5', capText: '#6e7681' },
+  light: { path: '#e8ebef', git: '#eef0f3', caption: '#eef0f3', muted: '#818b98', bright: '#1f2328', green: '#1a7f37', capText: '#818b98' }
 } as const
 const NUMBER_FACE = { family: 'mono', weight: 700 } as const
-/** The status line's branch glyph (statusline/render.ts): Nerd Fonts' dev-git-branch, U+E725, from Devicons (MIT). */
-const BRANCH = ''
+const SIZE = { number: 17, path: 15, icon: 15, git: 14, caption: 11 } as const
 
 /**
- * One segment of the bar: its left end on the slant, its right end on the slant or straight.
- * @param x where its left cut meets the bar's bottom
- * @param right where its right cut meets the bar's bottom, or the bar's full width for a straight end
- * @param isStraight whether its right end is straight
- * @param fill its fill
+ * One segment of the bar. A left end on the slant (or straight, for the first segment) and a right end on the slant
+ * (or straight, for the last).
+ * @param x where its left end meets the bar's bottom
+ * @param right where its right end meets the bar's bottom
+ * @param o which of its ends are straight, and its fill
  * @returns the segment's path
  */
-function segment(x: number, right: number, isStraight: boolean, fill: string): string {
+function segment(x: number, right: number, o: { isLeftStraight: boolean; isRightStraight: boolean; fill: string }): string {
   const top = BAND_ABOVE
   const bottom = BAND_ABOVE + BAR_H
-  const topRight = isStraight ? right : right + SLANT
+  const topLeft = o.isLeftStraight ? x : x + SLANT
+  const topRight = o.isRightStraight ? right : right + SLANT
 
-  return `<path fill="${fill}" d="M${n(x)} ${bottom}L${n(x + SLANT)} ${top}L${n(topRight)} ${top}L${n(right)} ${bottom}Z"/>`
+  return `<path fill="${o.fill}" d="M${n(x)} ${bottom}L${n(topLeft)} ${top}L${n(topRight)} ${top}L${n(right)} ${bottom}Z"/>`
+}
+
+/** GitHub's Octicons git-branch (16px, MIT), from docs/assets/icons/git-branch.svg: its path, unchanged. */
+const branchPath = (): string => {
+  const d = /<path d="([^"]+)"/.exec(readFileSync(join(root, 'docs', 'assets', 'icons', 'git-branch.svg'), 'utf8'))?.[1]
+
+  if (d === undefined) throw new Error('docs/assets/icons/git-branch.svg: no path')
+
+  return d
 }
 
 /**
- * A section's header: one full-width bar of four segments on a shared slant, a 3px slit of page between them: the
- * gold number, the path `~/ghostframe/<folder>`, the git branch as a prompt shows it (wide only) and the caption
- * (wide only), running to a straight right end. The narrow version keeps the number and the path, the path running to
- * the full width. The bar is the section's divider too, and the space above and below it is part of the image.
+ * A section's header: one full-width bar of four segments, every cut on one 18° slant with a slit of page between
+ * them. The gold number, whose left edge is straight. The path `~/ghostframe/<folder>`. The git branch as a prompt
+ * shows it (wide only). The caption (wide only), running to a straight right end. The narrow version keeps the number
+ * and the path, the path running to the full width and ending straight. The bar is the section's divider too, and the
+ * space above and below it is part of the image.
  */
 function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string {
   const b = BAND[t]
-  const w = isNarrow ? 360 : WIDE
+  const w = isNarrow ? BAND_NARROW : BAND_WIDE
   const h = BAND_ABOVE + BAR_H + BAND_BELOW
   const mid = BAND_ABOVE + BAR_H / 2
   const g = new Glyphs()
   const number = String(SECTIONS.indexOf(s) + 1).padStart(2, '0')
-  const pathSize = 12.5
-  const gitSize = 12
-  const capSize = 9.5
   const baseline = (face: Face, size: number): number => mid + capOf(face, size) / 2
-  // Content sits between a segment's cuts at mid-height, which lean SLANT / 2 right of their bottom ends.
   const parts: string[] = []
-  let x = 0
+  // The gold segment: straight at the left, its content between that edge and its right cut at mid-height.
+  const numberW = widthOf(number, NUMBER_FACE, SIZE.number)
+  const goldRight = 2 * SEG_PAD + numberW - SLANT / 2
+
+  parts.push(
+    segment(0, goldRight, { isLeftStraight: true, isRightStraight: false, fill: 'url(#gold)' }),
+    g.text(number, { ...NUMBER_FACE, size: SIZE.number, x: SEG_PAD, y: baseline(NUMBER_FACE, SIZE.number), fill: '#151000' })
+  )
+  // Each later segment starts a slit after the last one's cut; its content sits between its two cuts at mid-height,
+  // which lean SLANT / 2 right of where they meet the bar's bottom.
+  let x = goldRight + SLIT
   const seg = (contentW: number, fill: string, isLast: boolean): number => {
     const start = x
     const right = isLast ? w : x + contentW + 2 * SEG_PAD
 
-    parts.push(segment(start, right, isLast, fill))
+    parts.push(segment(start, right, { isLeftStraight: false, isRightStraight: isLast, fill }))
     x = right + SLIT
 
     return start + SLANT / 2 + SEG_PAD
   }
-  const numberW = widthOf(number, NUMBER_FACE, 15)
-  const numberX = seg(numberW, 'url(#gold)', false)
-
-  parts.push(g.text(number, { ...NUMBER_FACE, size: 15, x: numberX, y: baseline(NUMBER_FACE, 15), fill: '#151000' }))
   const repoPath = '~/ghostframe/'
   const folder = s.slug
-  const rootW = widthOf(repoPath, MONO, pathSize)
-  const pathX = seg(rootW + widthOf(folder, MONO, pathSize), b.path, isNarrow)
+  const rootW = widthOf(repoPath, MONO, SIZE.path)
+  const pathW = rootW + widthOf(folder, MONO, SIZE.path)
+  const pathX = seg(pathW, b.path, isNarrow)
 
+  if (pathX + pathW > w - SEG_PAD) throw new Error(`the ${s.slug} band's path does not fit its ${w}px`)
   parts.push(
-    g.text(repoPath, { ...MONO, size: pathSize, x: pathX, y: baseline(MONO, pathSize), fill: b.muted }),
-    g.text(folder, { ...MONO, size: pathSize, x: pathX + rootW, y: baseline(MONO, pathSize), fill: b.bright })
+    g.text(repoPath, { ...MONO, size: SIZE.path, x: pathX, y: baseline(MONO, SIZE.path), fill: b.muted }),
+    g.text(folder, { ...MONO, size: SIZE.path, x: pathX + rootW, y: baseline(MONO, SIZE.path), fill: b.bright })
   )
   if (!isNarrow) {
-    const git = `${BRANCH} main ✓`
-    const gitX = seg(widthOf(git, MONO, gitSize), b.git, false)
+    const gap = 6
+    const label = 'main ✓'
+    const gitX = seg(SIZE.icon + gap + widthOf(label, MONO, SIZE.git), b.git, false)
 
-    parts.push(g.text(git, { ...MONO, size: gitSize, x: gitX, y: baseline(MONO, gitSize), fill: b.green }))
+    parts.push(
+      `<path fill="${b.green}" transform="translate(${n(gitX)} ${n(mid - SIZE.icon / 2)}) scale(${n(SIZE.icon / 16)})" d="${branchPath()}"/>`,
+      g.text(label, { ...MONO, size: SIZE.git, x: gitX + SIZE.icon + gap, y: baseline(MONO, SIZE.git), fill: b.green })
+    )
     seg(0, b.caption, true)
-    parts.push(g.text(s.caption, { ...MONO, size: capSize, x: w - 14, y: baseline(MONO, capSize), fill: b.capText, tracking: 0.14, anchor: 'end' }))
+    parts.push(
+      g.text(s.caption, { ...MONO, size: SIZE.caption, x: w - SEG_PAD, y: baseline(MONO, SIZE.caption), fill: b.capText, tracking: 0.14, anchor: 'end' })
+    )
   }
-
   return svg(w, h, {
     defs:
       '<linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3C9"/><stop offset=".5" stop-color="#FFC83D"/><stop offset="1" stop-color="#FFA21A"/></linearGradient>' +

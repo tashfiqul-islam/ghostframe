@@ -9,13 +9,15 @@ windows.svg, apple.svg and linux.svg are Font Awesome Free brand icons, copied f
 The README's platform chip (docs/assets/readme/platforms-dark.svg and platforms-light.svg, drawn by
 tools/scripts/readme-art.ts) embeds the same three paths, unchanged, with only their fill recoloured.
 
-The README's section bands (docs/assets/readme/band-*.svg, drawn by tools/scripts/readme-art.ts) draw the git branch
-glyph ghostframe's status line uses: Nerd Fonts' dev-git-branch (U+E725), from the Devicons set, outlined from
-JetBrains Mono Nerd Font Mono. Devicons is under the MIT License, as Nerd Fonts' license audit records:
-https://github.com/ryanoasis/nerd-fonts/blob/master/license-audit.md
-
 Icons by Font Awesome, https://fontawesome.com
 Copyright 2026 Fonticons, Inc.
 
 Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
 https://creativecommons.org/licenses/by/4.0/
+
+---
+
+git-branch.svg is GitHub's Octicons git-branch icon (git-branch-16.svg), copied unchanged from @primer/octicons
+19.42.0. The README's section bands (docs/assets/readme/band-*.svg, drawn by tools/scripts/readme-art.ts) embed its
+path unchanged, with only its fill recoloured. Octicons are under the MIT License, Copyright (c) 2026 GitHub Inc.:
+https://github.com/primer/octicons/blob/main/LICENSE
