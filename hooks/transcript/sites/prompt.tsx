@@ -2,9 +2,9 @@
 // is on, the rule is E.1's `─ [ TURN n ] ─── 09:23` (amendment 12), also above the engine's own row in ctrl+o.
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
-import { noticeSink, readEnvOnce } from '../../cockpit/switch'
+import { isOn, noticeSink, readEnvOnce } from '../../cockpit/switch'
 import type { PromptStamp, RosterAgent } from '../../../types'
-import { drawAgentNotice, isFallbackRow, isQuietRow, keptAgents, leftCells } from '../../cockpit/left'
+import { drawAgentNotice, drawTaskNotice, isFallbackRow, isQuietRow, keptAgents, leftCells } from '../../cockpit/left'
 import { readLog } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { dayWord } from '../../shared/look/format'
@@ -194,6 +194,11 @@ export function registerPrompt(on: On): void {
     // for an agent that failed (its `✕` row).
     if (isQuietRow(e) && (await isAgentRow($, e.props))) {
       return drawAgentNotice($, e, leftCells(e))
+    }
+
+    // Cockpit on: on the left's grid like every other row (6.1, 7.10).
+    if (e.props.origin.kind === 'task-notification' && isOn()) {
+      return drawTaskNotice($, e)
     }
 
     if (e.props.origin.kind === 'task-notification') {

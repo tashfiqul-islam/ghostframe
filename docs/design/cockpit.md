@@ -420,6 +420,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 - `↗` rows draw the moment the call returns (E.5).
 - A WAITING countdown updates in place; the row does not move.
 - Notices (`●`, the context `!`) are grey and one line. The memory notice carries its clock in the label.
+- A task's notice that is no agent's (`Background command … completed`, `Monitor event: …`) draws the same way, `●` in the spine column and its words muted from column 16, but whole: wrapped by words to the text column, a continuation row on the spine (`│`), and the task's duration, when the notice gives one, dim at its end (` · 2m 02s`). Nothing is cut with `…`. An agent's notice is the Agents tab's (8.9).
 
 ### 7.11 The live line
 
