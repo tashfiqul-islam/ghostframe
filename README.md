@@ -88,9 +88,8 @@
 +--------------------------------------------------------------+
 ```
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-features-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-dark.svg"><img alt="" src="docs/assets/readme/band-features-light.svg"></picture></p>
-
-## Features
+<a name="features"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-features-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-dark.svg"><img alt="Features" src="docs/assets/readme/band-features-light.svg"></picture></h3>
 
 **Cockpit** keeps the conversation on the left and puts the work on the right: each step of the turn on a timeline, the
 files it changed, the pages it read, its to-do list and its agents. **The status line** gives you the model, the
@@ -140,9 +139,8 @@ that left the machine, and a receipt with how long the turn took and whether it 
 fallback without the pane. The pane follows Claude's agents into their own work, steps back through earlier turns, and
 knows when you rewind. [The spec →](docs/design/cockpit.md)
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-install-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-dark.svg"><img alt="" src="docs/assets/readme/band-install-light.svg"></picture></p>
-
-## Install
+<a name="install"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-install-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-dark.svg"><img alt="Install" src="docs/assets/readme/band-install-light.svg"></picture></h3>
 
 In a Claude Code session:
 
@@ -182,9 +180,8 @@ The [install guide](docs/guide/install.md) has every step.
 | Font        | A [Nerd Font](https://www.nerdfonts.com/) for the status line's icons, or turn **Status line icons** off. |
 | Bun         | [Bun](https://bun.sh), for the status line only.                                                          |
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-keys-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-dark.svg"><img alt="" src="docs/assets/readme/band-keys-light.svg"></picture></p>
-
-## Keys
+<a name="keys"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-keys-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-dark.svg"><img alt="Keys" src="docs/assets/readme/band-keys-light.svg"></picture></h3>
 
 Cockpit's keys work only while the pane has the keyboard, so they never take one from your prompt.
 
@@ -203,9 +200,8 @@ Cockpit's keys work only while the pane has the keyboard, so they never take one
 
 `/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it. [Every key →](docs/guide/keys.md)
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-how-it-works-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-dark.svg"><img alt="" src="docs/assets/readme/band-how-it-works-light.svg"></picture></p>
-
-## How it works
+<a name="how-it-works"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-how-it-works-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-dark.svg"><img alt="How it works" src="docs/assets/readme/band-how-it-works-light.svg"></picture></h3>
 
 ghostframe is a hooks module that Claude Code loads into your session. It listens to the engine's events, keeps what
 each turn did, and draws through the engine's own render sites, so it never writes to your terminal behind Claude
@@ -221,9 +217,8 @@ Code's back.
 Outside the Claude Code versions it is tested with, ghostframe goes dormant and hands every row back to Claude Code.
 [Architecture →](docs/architecture.md) · [Decisions →](docs/decisions/README.md)
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-where-it-runs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-dark.svg"><img alt="" src="docs/assets/readme/band-where-it-runs-light.svg"></picture></p>
-
-## Where it runs
+<a name="where-it-runs"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-where-it-runs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-dark.svg"><img alt="Where it runs" src="docs/assets/readme/band-where-it-runs-light.svg"></picture></h3>
 
 ```text
 +--------------------- [ WHERE IT RUNS ] ----------------------+
@@ -248,9 +243,8 @@ run the real `claude` binary. Other agent tools, such as OpenCode or Codex, don'
 doesn't run there.
 [Compatibility →](docs/guide/compatibility.md)
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-faq-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-dark.svg"><img alt="" src="docs/assets/readme/band-faq-light.svg"></picture></p>
-
-## FAQ
+<a name="faq"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-faq-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-dark.svg"><img alt="FAQ" src="docs/assets/readme/band-faq-light.svg"></picture></h3>
 
 <details open>
 <summary><b>Does it change what Claude does?</b></summary>
@@ -314,9 +308,8 @@ before. Then run `/plugin marketplace remove ghostframe`; removing the marketpla
 [Configuration →](docs/guide/configuration.md) · [Troubleshooting →](docs/guide/troubleshooting.md) ·
 [Nerd Fonts →](https://www.nerdfonts.com/)
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-docs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-dark.svg"><img alt="" src="docs/assets/readme/band-docs-light.svg"></picture></p>
-
-## Docs
+<a name="docs"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-docs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-dark.svg"><img alt="Docs" src="docs/assets/readme/band-docs-light.svg"></picture></h3>
 
 | Use it                                           | Understand it                                 | Work on it                                     |
 | ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
@@ -327,9 +320,8 @@ before. Then run `/plugin marketplace remove ghostframe`; removing the marketpla
 | [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                       | [Brand kit](docs/design/brand/README.md)       |
 | [Compatibility](docs/guide/compatibility.md)     |                                               | [All docs](docs/README.md)                     |
 
-<p><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-contributing-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-dark.svg"><img alt="" src="docs/assets/readme/band-contributing-light.svg"></picture></p>
-
-## Contributing
+<a name="contributing"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-contributing-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-dark.svg"><img alt="Contributing" src="docs/assets/readme/band-contributing-light.svg"></picture></h3>
 
 Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the checks and how a change
 ships; everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).

@@ -887,25 +887,32 @@ function banner(t: Theme): string {
 
 // ─── The section bands ───
 
+/** A band's room: transparent space above its text line, and below its divider. */
+const BAND_ABOVE = 28
+const BAND_BELOW = 10
+
+/**
+ * A section's header: its gold number tile, its name in letter-spaced caps and (wide only) a muted caption on one
+ * line, and under it a full-width divider, gold at the left fading through grey to nothing. The space above and below
+ * is part of the image, so every section starts with the same gap whatever GitHub's margins do.
+ */
 function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string {
   const c = C[t]
   const w = isNarrow ? 360 : WIDE
-  const h = 36
-  const mid = 18
+  const tileH = 22
+  const mid = BAND_ABOVE + tileH / 2
+  const ruleY = BAND_ABOVE + tileH + 8
+  const h = ruleY + 1 + BAND_BELOW
   const g = new Glyphs()
   const number = String(SECTIONS.indexOf(s) + 1).padStart(2, '0')
   const nameFace = { weight: 700 } as const
   const name = s.name.toUpperCase()
   const nameX = 42
-  const nameEnd = nameX + widthOf(name, nameFace, 12, 0.16)
-  const captionW = isNarrow ? 0 : widthOf(s.caption, MONO, 9.5, 0.14)
-  const lineFrom = nameEnd + 14
-  const lineTo = isNarrow ? w : w - captionW - 14
 
   return svg(w, h, {
-    defs: `<linearGradient id="l" x1="${n(lineFrom)}" x2="${n(lineTo)}" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.gold}"/><stop offset=".5" stop-color="${c.rule}"/><stop offset="1" stop-color="${c.rule}" stop-opacity="0"/></linearGradient>`,
+    defs: `<linearGradient id="l" x1="0" x2="${w}" y1="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.gold}"/><stop offset=".45" stop-color="${c.rule}"/><stop offset="1" stop-color="${c.rule}" stop-opacity="0"/></linearGradient>`,
     body:
-      `<rect x="0" y="${mid - 11}" width="30" height="22" rx="5" fill="${c.gold}"/>` +
+      `<rect x="0" y="${BAND_ABOVE}" width="30" height="${tileH}" rx="5" fill="${c.gold}"/>` +
       g.text(number, {
         family: 'mono',
         weight: 500,
@@ -916,9 +923,10 @@ function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string
         anchor: 'middle'
       }) +
       g.text(name, { ...nameFace, size: 12, x: nameX, y: mid + capOf(nameFace, 12) / 2, fill: c.title, tracking: 0.16 }) +
-      `<rect x="${n(lineFrom)}" y="${mid - 0.5}" width="${n(Math.max(0, lineTo - lineFrom))}" height="1" fill="url(#l)"/>` +
-      (isNarrow ? '' : g.text(s.caption, { ...MONO, size: 9.5, x: w, y: mid + capOf(MONO, 9.5) / 2, fill: c.body, tracking: 0.14, anchor: 'end' })),
-    label: ''
+      (isNarrow ? '' : g.text(s.caption, { ...MONO, size: 9.5, x: w, y: mid + capOf(MONO, 9.5) / 2, fill: c.body, tracking: 0.14, anchor: 'end' })) +
+      `<rect x="0" y="${ruleY}" width="${w}" height="1" fill="url(#l)"/>`,
+    // The band is the section's heading: the README's <img> carries the section's name as its alt text.
+    label: s.name
   }).replace('<defs>', `<defs>${g.defsContent}`)
 }
 

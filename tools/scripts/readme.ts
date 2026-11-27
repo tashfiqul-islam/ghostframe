@@ -1,4 +1,4 @@
-// Two checks of README.md's shape.
+// Checks of README.md's shape.
 //
 // - Its ASCII boxes stay square. Inside a fenced code block, every line from the block's top rule (the first line
 //   starting `+--`) on that starts with `+--` or `|` must be exactly as wide as that rule, in terminal cells, so every
@@ -6,6 +6,9 @@
 // - release-please's block (`x-release-please-start-version` to `x-release-please-end`) holds the release badge alone,
 //   its alt text on one line and its address on the next: release-please rewrites the first version on each line in
 //   the block, so both are rewritten and nothing else is.
+// - Decorative images (the banner, dividers, feature strip, section bands and footer) sit in a <picture> and inside no
+//   link, so GitHub does not turn them into links to the raw file.
+// - Each section band is its section's heading, an <h3> after an `<a name>` anchor, and no visible heading repeats it.
 //
 //   bun tools/scripts/readme.ts --check       README.md passes both (the gate runs this)
 //   bun tools/scripts/readme.ts --self-test   the checks catch what they should
@@ -81,8 +84,81 @@ export function markerProblem(markdown: string): string | undefined {
   return undefined
 }
 
+/** The designed images that are decoration: the banner, the dividers, the feature strip, the section bands, the footer. */
+const DECORATIVE = /docs\/assets\/readme\/(?:banner|divider|features|band-|footer)/
+
+/**
+ * Where a decorative image would become a link. GitHub wraps a bare <img> in a link to the raw file, but not one inside
+ * a <picture>, so each decorative image must be in a <picture> and inside no link of its own.
+ * @param markdown a Markdown file's text
+ * @returns one problem per misplaced image
+ */
+export function linkProblems(markdown: string): string[] {
+  const problems: string[] = []
+  const pictures = [...markdown.matchAll(/<picture>[\s\S]*?<\/picture>/g)]
+  const inPicture = (at: number): boolean => pictures.some(m => at >= m.index && at < m.index + m[0].length)
+
+  for (const img of markdown.matchAll(/<img\b[^>]*>/g)) {
+    if (DECORATIVE.test(img[0]) && !inPicture(img.index))
+      problems.push(`a decorative image outside a <picture>, which GitHub would link: ${img[0].slice(0, 80)}`)
+  }
+  for (const pic of pictures) {
+    if (!DECORATIVE.test(pic[0])) continue
+    const before = markdown.slice(0, pic.index)
+    const open = before.lastIndexOf('<a ')
+    const href = open >= 0 && /^<a [^>]*href=/.test(before.slice(open)) && !before.slice(open).includes('</a>')
+
+    if (href) problems.push(`a decorative image inside a link: ${pic[0].slice(0, 80)}`)
+  }
+
+  return problems
+}
+
+/**
+ * What is wrong with the section headings. Each band is its section's heading: an <h3> holding only the band's
+ * <picture>, its <img> alt text the section's name, right after an `<a name>` anchor for the section's links. No
+ * visible text heading repeats a section's name.
+ * @param markdown a Markdown file's text
+ * @returns one problem per section that breaks the rule
+ */
+export function headingProblems(markdown: string): string[] {
+  const problems: string[] = []
+  const lines = markdown.split('\n')
+
+  for (const [i, line] of lines.entries()) {
+    // The band is named by its <img>'s own src (the wide, light file); the <source>s before it are other files.
+    const band = /<img [^>]*src="docs\/assets\/readme\/band-([a-z-]+)-light\.svg"/.exec(line)?.[1]
+
+    if (band === undefined) continue
+    const name = /<img alt="([^"]*)"/.exec(line)?.[1] ?? ''
+    const level = /<(h[1-6])>/.exec(line)?.[1]
+
+    // GitHub draws a full-width rule under an h1 or h2: a second line under the band's own divider.
+    if (level === 'h1' || level === 'h2') {
+      problems.push(`line ${i + 1}: the ${band} band is in an <${level}>, which draws GitHub's rule under it; use <h3>`)
+    } else if (!/^<h3><picture>.*<\/picture><\/h3>$/.test(line)) {
+      problems.push(`line ${i + 1}: the ${band} band is not an <h3> holding only its picture`)
+    }
+    if (name === '') problems.push(`line ${i + 1}: the ${band} band's alt text is empty; it must name the section`)
+    if (lines[i - 1] !== `<a name="${band}"></a>`) problems.push(`line ${i + 1}: the ${band} band has no <a name="${band}"></a> just before it`)
+    const repeat = lines.findIndex(l => new RegExp(`^(#{1,6} |<h[1-6]>)${name.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}(</h[1-6]>)?\\s*$`).test(l))
+
+    if (name !== '' && repeat >= 0) problems.push(`line ${repeat + 1}: a visible "${name}" heading repeats the ${band} band`)
+  }
+
+  return problems
+}
+
 const fail = (what: string): never => {
   throw new Error(`readme self-test: ${what}`)
+}
+
+/** A band heading as the README writes it, with all four sources, the narrow ones first. */
+const bandOf = (slug: string, alt: string, wrap = (p: string): string => `<h3>${p}</h3>`): string => {
+  const src = (f: string): string => `<source srcset="docs/assets/readme/band-${slug}-${f}.svg">`
+  const picture = `<picture>${src('narrow-dark')}${src('narrow-light')}${src('dark')}<img alt="${alt}" src="docs/assets/readme/band-${slug}-light.svg"></picture>`
+
+  return `<a name="${slug}"></a>\n${wrap(picture)}\n`
 }
 
 const fence = (body: string): string => `text\n\`\`\`text\n${body}\n\`\`\`\ntext\n`
@@ -116,6 +192,23 @@ function selfTest(): void {
   if (markerProblem(`${block([altOf('1.0.0'), srcOf('1.0.0')])}\n<code>v1.0.0</code> <!-- x-release-please-version -->`) === undefined) {
     fail('an inline marker beside the block passed')
   }
+
+  const divider = '<picture><source srcset="docs/assets/readme/divider-dark.svg"><img alt="" src="docs/assets/readme/divider-light.svg"></picture>'
+
+  if (linkProblems(`<p>${divider}</p>`).length > 0) fail('a divider in a <picture> was refused')
+  if (linkProblems('<p><img alt="" src="docs/assets/readme/divider-light.svg"></p>').length === 0) fail('a bare decorative <img> passed')
+  if (linkProblems(`<a href="#x">${divider}</a>`).length === 0) fail('a decorative image inside a link passed')
+  if (linkProblems('<a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-30363d"></a>').length > 0) {
+    fail('a badge with its link was refused')
+  }
+
+  if (headingProblems(bandOf('install', 'Install')).length > 0) fail('a band heading was refused')
+  if (headingProblems(`${bandOf('install', 'Install')}\n## Install\n`).length === 0) fail('a visible heading repeating the band passed')
+  if (headingProblems(bandOf('install', '')).length === 0) fail('a band heading with no name passed')
+  if (headingProblems(bandOf('install', 'Install', p => `<p>${p}</p>`)).length === 0) fail('a band outside a heading passed')
+  if (headingProblems(bandOf('install', 'Install').replace('<a name="install"></a>\n', '')).length === 0) fail('a band without its anchor passed')
+  if (headingProblems(bandOf('install', 'Install', p => `<h2>${p}</h2>`)).length === 0) fail('a band in an <h2> passed')
+  if (headingProblems(bandOf('install', 'Install', p => `<h1>${p}</h1>`)).length === 0) fail('a band in an <h1> passed')
   console.log('readme self-test: ok')
 }
 
@@ -129,11 +222,12 @@ if (mode === '--self-test') {
   const marker = markerProblem(readme)
 
   if (marker !== undefined) problems.push(marker)
+  problems.push(...linkProblems(readme), ...headingProblems(readme))
   if (problems.length > 0) {
     console.error(`readme: README.md:\n${problems.map(p => `  ${p}`).join('\n')}`)
     process.exit(1)
   }
-  console.log('readme: every box in README.md is square, and the release-please block holds the release badge alone.')
+  console.log('readme: boxes square, the release-please block the release badge alone, decorative images unlinked, one heading per section.')
 } else {
   console.error('usage: bun tools/scripts/readme.ts --check | --self-test')
   process.exit(2)
