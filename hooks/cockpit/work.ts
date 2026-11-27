@@ -204,16 +204,18 @@ async function atMost<R>(paths: readonly string[], n: number, run: (path: string
  */
 async function git($: EngineInterface, args: readonly string[], cwd: string): Promise<Awaited<ReturnType<EngineInterface['process']['run']>>> {
   const ran = $.process.run(['git', ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS })
-  // The engine kills a child past its timeout; this also gives up on a call that never comes back. A clock that
-  // cannot sleep leaves the race to the call.
-  const late = $.clock.sleep(GIT_TIMEOUT_MS).then(
-    () => {
-      throw new Error(`git ${args.join(' ')} timed out after ${GIT_TIMEOUT_MS} ms`)
-    },
-    async () => new Promise<never>(() => undefined)
-  )
+  // The engine kills a child past its timeout; this also gives up on a call that never comes back. A timer, not a
+  // `$.clock.sleep`: a sleep is the hook's own time, and one left running would charge the hook's budget for it.
+  let timer: { cancel: () => void } | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = $.clock.after(GIT_TIMEOUT_MS, () => reject(new Error(`git ${args.join(' ')} timed out after ${GIT_TIMEOUT_MS} ms`)))
+  })
 
-  return Promise.race([ran, late])
+  try {
+    return await Promise.race([ran, late])
+  } finally {
+    timer?.cancel()
+  }
 }
 
 /**
