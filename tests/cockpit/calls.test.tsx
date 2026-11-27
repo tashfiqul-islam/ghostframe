@@ -13,6 +13,19 @@ const LINES = Array.from({ length: 5_000 }, (_, i) => `line ${i} of the old file
 const REWRITTEN = Array.from({ length: 5_000 }, (_, i) => `line ${i} of the new file`).join('\n')
 
 type Seen = { reads: string[]; chars: number; logs: string[] }
+
+// Git's answer for a list, built once per list: the test's own work is not the hook's.
+const listings = new WeakMap<readonly string[], string>()
+const listingOf = (paths: readonly string[]): string => {
+  const had = listings.get(paths)
+
+  if (had !== undefined) return had
+
+  const listing = paths.map(p => `${p}\0`).join('')
+  listings.set(paths, listing)
+
+  return listing
+}
 type Tree = { untracked: readonly string[]; gate?: Promise<void>; edited?: boolean }
 
 function engine(on: On, clock: { now: number }, seen: Seen, tree: Tree): void {
@@ -51,7 +64,7 @@ function engine(on: On, clock: { now: number }, seen: Seen, tree: Tree): void {
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
     // A slow work tree: once the turn has started, the diff and the listing answer only when the test lets them.
     if (tree.gate !== undefined) await tree.gate
-    if (argv.startsWith('git ls-files')) return { value: { exitCode: 0, stdout: tree.untracked.map(p => `${p}\0`).join(''), stderr: '' } } as never
+    if (argv.startsWith('git ls-files')) return { value: { exitCode: 0, stdout: listingOf(tree.untracked), stderr: '' } } as never
     if (argv.startsWith('git diff --numstat'))
       return { value: { exitCode: 0, stdout: tree.edited === true ? '5000\t5000\tsrc/big.ts\0' : '', stderr: '' } } as never
 
