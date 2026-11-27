@@ -1,3 +1,4 @@
+import { graphemesOf } from '../../shared/look/width'
 import type { Part } from '../../shared/parts'
 import { C } from '../../shared/tokens'
 
@@ -8,8 +9,7 @@ const BARS = /[█▃▄▅▆▇]/
 
 /** One figure row as coloured parts. */
 export function toneRow(line: string): Part[] {
-  // oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
-  const chars = [...line]
+  const chars = graphemesOf(line)
   const hasBlocks = /[█▃▄▅▆▇▒]/.test(line)
   const parts: Part[] = []
   let inBar = false

@@ -1,3 +1,4 @@
+import { graphemesOf } from '../../shared/look/width'
 import { cellWidth, clipMiddle, cutWords } from '../../shared/text'
 import { runWidth, wrapWords } from '../prose'
 import type { Run } from '../prose'
@@ -57,7 +58,7 @@ function cut(s: string, n: number): string {
   let out = ''
   let w = 0
 
-  for (const ch of s) {
+  for (const ch of graphemesOf(s)) {
     if (w + cellWidth(ch) > n) break
     out += ch
     w += cellWidth(ch)

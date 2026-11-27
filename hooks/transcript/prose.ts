@@ -1,3 +1,4 @@
+import { graphemesOf } from '../shared/look/width'
 import { cellWidth, vw } from '../shared/text'
 import { C } from '../shared/tokens'
 
@@ -228,7 +229,7 @@ function hardBreak(word: string, room: number): string[] {
   let cur = ''
   let w = 0
 
-  for (const ch of word) {
+  for (const ch of graphemesOf(word)) {
     const cw = cellWidth(ch)
 
     if (w + cw > room) {
