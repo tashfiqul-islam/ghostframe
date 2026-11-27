@@ -52,12 +52,40 @@ function clusterCells(cluster: string): number {
   return WIDE.some(([lo, hi]) => first >= lo && first <= hi) ? 2 : 1
 }
 
+/**
+ * Code points that, standing alone, take one cell and never join a neighbour into one cluster: printable ASCII, Latin-1
+ * and Latin Extended-A/B without the soft hyphen, general punctuation without its zero-width, bidi and separator marks,
+ * superscripts and subscripts, box drawing and block elements. tests/shared/look/width.test.ts checks every one.
+ */
+export const ONE_CELL_RANGES: readonly (readonly [number, number])[] = [
+  [0x20, 0x7e],
+  [0xa0, 0xac],
+  [0xae, 0x24f],
+  [0x2010, 0x2027],
+  [0x2030, 0x205e],
+  [0x2070, 0x209f],
+  [0x2500, 0x259f]
+]
+
+const hex = (cp: number): string => `\\u${cp.toString(16).padStart(4, '0')}`
+
+// A string made only of those: one cell and one cluster per UTF-16 unit, as every range is below U+10000. Most text is
+// only this, and segmenting it costs about 30 times as much, which is every row of every redraw.
+const ONE_CELL = new RegExp(`^[${ONE_CELL_RANGES.map(([lo, hi]) => `${hex(lo)}-${hex(hi)}`).join('')}]*$`, 'u')
+
 /** The grapheme clusters of `s`: what a terminal draws as one character, so a cut never splits one. */
 export function graphemesOf(s: string): string[] {
+  if (ONE_CELL.test(s)) return s.split('')
+
   return Array.from(graphemes.segment(s), g => g.segment)
 }
 
 export function widthOf(s: string): number {
+  return ONE_CELL.test(s) ? s.length : segmentedWidth(s)
+}
+
+/** `widthOf` without its fast path: the full measure, which the fast path must always agree with. */
+export function segmentedWidth(s: string): number {
   let total = 0
   for (const { segment } of graphemes.segment(stripAnsi(s))) total += clusterCells(segment)
   return total

@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { widthOf, stripAnsi } from '../../../hooks/shared/look/width'
+import { ONE_CELL_RANGES, graphemesOf, segmentedWidth, stripAnsi, widthOf } from '../../../hooks/shared/look/width'
 
 test('plain text and the empty string take one cell per character', () => {
   expect(widthOf('')).toBe(0)
@@ -39,4 +39,34 @@ test('ANSI escapes take no cells and stripAnsi removes them', () => {
   expect(widthOf('\x1b[31mred\x1b[0m')).toBe(3)
   expect(stripAnsi('\x1b[31mred\x1b[0m')).toBe('red')
   expect(stripAnsi('\x1b]8;;https://example.com\x07link\x1b]8;;\x1b\\')).toBe('link')
+})
+
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const clustersOf = (s: string): string[] => Array.from(segmenter.segment(s), g => g.segment)
+
+test('the fast path is exact: every code point it takes is one cell and one cluster, alone and beside a letter', () => {
+  const wrong: string[] = []
+
+  for (const [lo, hi] of ONE_CELL_RANGES) {
+    for (let cp = lo; cp <= hi; cp++) {
+      const ch = String.fromCodePoint(cp)
+
+      for (const s of [ch, `a${ch}`, `${ch}a`]) {
+        // The fast path answers s.length cells and s.split('') clusters without segmenting.
+        if (widthOf(s) !== s.length || segmentedWidth(s) !== s.length) wrong.push(`width ${cp.toString(16)} in ${JSON.stringify(s)}`)
+        if (JSON.stringify(graphemesOf(s)) !== JSON.stringify(clustersOf(s))) wrong.push(`clusters ${cp.toString(16)} in ${JSON.stringify(s)}`)
+      }
+    }
+  }
+  expect(wrong).toEqual([])
+})
+
+test('the fast path never takes a zero-width or joining code point', () => {
+  const joining = [0xad, 0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x2028, 0x2029, 0x2060, 0x0300, 0x036f, 0xfe0e, 0xfe0f, 0x1b]
+  const taken = joining.filter(cp => ONE_CELL_RANGES.some(([lo, hi]) => cp >= lo && cp <= hi))
+
+  expect(taken).toEqual([])
+  expect(widthOf('e\u0301')).toBe(1)
+  expect(widthOf('a\u00ad')).toBe(1)
+  expect(graphemesOf('e\u0301x')).toEqual(['e\u0301', 'x'])
 })
