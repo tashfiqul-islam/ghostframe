@@ -1,6 +1,7 @@
 // The transcript's chrome: the prompt footer's modes, the turn's close rule, the spinner, a slash command's
 // output and the info notice under the logo.
 import type { On } from 'claude-code'
+import { noteOwnTime } from '../../shared/budget'
 
 import { readEnvOnce } from '../../cockpit/switch'
 import type { TurnClose } from '../../../types'
@@ -46,172 +47,196 @@ const claimClose = (row: string, durationMs: number, list: readonly TurnClose[])
 export function registerChrome(on: On): void {
   // Mode labels at the right of the prompt footer: grid cells split by │.
   on('ui.render', { component: 'SessionMode' }, ($, e, next) => {
-    if (isDormant()) return next(e)
-    if (e.surface !== 'terminal') {
-      return next(e)
+    try {
+      if (isDormant()) return next(e)
+      if (e.surface !== 'terminal') {
+        return next(e)
+      }
+
+      const modes = e.props.modes
+
+      if (modes.length === 0) {
+        return next(e)
+      }
+
+      const { Box, Text } = $.ui.resolve(e)
+
+      return (
+        <Box>
+          {modes.map((mode, i) => (
+            <Box key={`m${i}`}>
+              {i > 0 && <Text color={C.rule}>{'   │   '}</Text>}
+              <Text color={WARNING.test(mode) ? C.warn : C.text}>{mode}</Text>
+            </Box>
+          ))}
+        </Box>
+      )
+    } finally {
+      noteOwnTime($, 'ui.render SessionMode', next.budget)
     }
-
-    const modes = e.props.modes
-
-    if (modes.length === 0) {
-      return next(e)
-    }
-
-    const { Box, Text } = $.ui.resolve(e)
-
-    return (
-      <Box>
-        {modes.map((mode, i) => (
-          <Box key={`m${i}`}>
-            {i > 0 && <Text color={C.rule}>{'   │   '}</Text>}
-            <Text color={WARNING.test(mode) ? C.warn : C.text}>{mode}</Text>
-          </Box>
-        ))}
-      </Box>
-    )
   })
   // Turn close: the grid rule, `+` at both ends, `3s · 412 tokens · 2 skills · 1 hook`
   // right (§0.1 r3, r13, §5.17). Each rule finds its own turn by duration; when two turns
   // ran too close to tell apart, the rule shows its duration alone. A browser frame left
   // open by the turn's last calls gets its bottom edge above the rule.
   on('ui.render', { component: 'TurnDuration' }, async ($, e, next) => {
-    // Dormant (shared/engine): the engine draws its own row.
-    if (await dormantFor($)) return next(e)
-    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
-    await readEnvOnce($)
+    try {
+      // Dormant (shared/engine): the engine draws its own row.
+      if (await dormantFor($)) return next(e)
+      // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+      await readEnvOnce($)
 
-    if (e.surface === 'terminal') noteView($, e.props.isExpanded)
+      if (e.surface === 'terminal') noteView($, e.props.isExpanded)
 
-    if (e.surface !== 'terminal' || e.props.isExpanded) {
-      return next(e)
+      if (e.surface !== 'terminal' || e.props.isExpanded) {
+        return next(e)
+      }
+
+      // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
+      // reports start share one footer, or get none, so a footer can't say which turn it closes. A turn that wrote no
+      // text has its receipt (in fallback with its capsule) under its last call's row instead (E.3 case 3).
+      if (isQuietRow(e)) {
+        return drawQuietFooter($, e)
+      }
+
+      if (e.props.waitingFor) {
+        return next(e)
+      }
+
+      const took = fmtDuration(e.props.durationMs)
+
+      if (took.length === 0) {
+        return next(e)
+      }
+
+      const mine = claimClose(e.requestId, e.props.durationMs, await readCloses($))
+      const tokens = mine?.tokens === null || mine?.tokens === undefined ? '' : fmtTokens(mine.tokens)
+      const label = [took, tokens, mine?.tally ?? ''].filter(x => x.length > 0).join(G.sep)
+      const ui = $.ui.resolve(e)
+      const { Box } = ui
+      const lay = layout(e.viewport?.columns)
+      // §0.2: one blank row above the footer rule; its meta ends at the measure.
+      const rule = <Box marginTop={1}>{Rule(ui, undefined, { text: label, color: C.muted }, ruleWidth(lay))}</Box>
+
+      if (mine === undefined || mine.browser === 0 || lay === undefined) {
+        return rule
+      }
+
+      return (
+        <Box flexDirection="column">
+          {closeRow(ui, lay, mine.browser)}
+          {rule}
+        </Box>
+      )
+    } finally {
+      noteOwnTime($, 'ui.render TurnDuration', next.budget)
     }
-
-    // Quiet: the footer draws nothing. Each turn's receipt (E.32) ends its answer instead: the turns an agent's
-    // reports start share one footer, or get none, so a footer can't say which turn it closes. A turn that wrote no
-    // text has its receipt (in fallback with its capsule) under its last call's row instead (E.3 case 3).
-    if (isQuietRow(e)) {
-      return drawQuietFooter($, e)
-    }
-
-    if (e.props.waitingFor) {
-      return next(e)
-    }
-
-    const took = fmtDuration(e.props.durationMs)
-
-    if (took.length === 0) {
-      return next(e)
-    }
-
-    const mine = claimClose(e.requestId, e.props.durationMs, await readCloses($))
-    const tokens = mine?.tokens === null || mine?.tokens === undefined ? '' : fmtTokens(mine.tokens)
-    const label = [took, tokens, mine?.tally ?? ''].filter(x => x.length > 0).join(G.sep)
-    const ui = $.ui.resolve(e)
-    const { Box } = ui
-    const lay = layout(e.viewport?.columns)
-    // §0.2: one blank row above the footer rule; its meta ends at the measure.
-    const rule = <Box marginTop={1}>{Rule(ui, undefined, { text: label, color: C.muted }, ruleWidth(lay))}</Box>
-
-    if (mine === undefined || mine.browser === 0 || lay === undefined) {
-      return rule
-    }
-
-    return (
-      <Box flexDirection="column">
-        {closeRow(ui, lay, mine.browser)}
-        {rule}
-      </Box>
-    )
   })
 
   // The spinner (§5.11): props only. The verb says what the turn does; the engine keeps
   // its own time, tokens and `esc` hint. A state's own message stands.
   on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
-    // Dormant (shared/engine): the engine draws its own row.
-    if (await dormantFor($)) return next(e)
-    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
-    await readEnvOnce($)
+    try {
+      // Dormant (shared/engine): the engine draws its own row.
+      if (await dormantFor($)) return next(e)
+      // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+      await readEnvOnce($)
 
-    // Docked Cockpit: the live area is one `working` row (E.33).
-    const live = e.surface === 'terminal' ? await drawLive($, e) : undefined
+      // Docked Cockpit: the live area is one `working` row (E.33).
+      const live = e.surface === 'terminal' ? await drawLive($, e) : undefined
 
-    if (live !== undefined) {
-      return live
+      if (live !== undefined) {
+        return live
+      }
+
+      const word = spinnerWord(e.props.mode)
+
+      if (e.surface !== 'terminal' || e.props.message !== null || word === undefined) {
+        return next(e)
+      }
+
+      return next({ ...e, props: { ...e.props, word, suffix: '' } })
+    } finally {
+      noteOwnTime($, 'ui.render Spinner', next.budget)
     }
-
-    const word = spinnerWord(e.props.mode)
-
-    if (e.surface !== 'terminal' || e.props.message !== null || word === undefined) {
-      return next(e)
-    }
-
-    return next({ ...e, props: { ...e.props, word, suffix: '' } })
   })
   // Slash-command output: muted, behind a small › (errors keep the engine's red).
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
-    // Dormant (shared/engine): the engine draws its own row.
-    if (await dormantFor($)) return next(e)
-    // Cockpit's left: the command as a `/` node with its clock and one quiet row (7.15).
-    const drawn = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
+    try {
+      // Dormant (shared/engine): the engine draws its own row.
+      if (await dormantFor($)) return next(e)
+      // Cockpit's left: the command as a `/` node with its clock and one quiet row (7.15).
+      const drawn = e.surface === 'terminal' && e.props.text.trim().length > 0 ? await drawCommandOutput($, e) : undefined
 
-    if (drawn !== undefined) return drawn
+      if (drawn !== undefined) return drawn
 
-    if (e.surface !== 'terminal' || e.props.isErrored || e.props.text.trim().length === 0) {
-      return next(e)
-    }
+      if (e.surface !== 'terminal' || e.props.isErrored || e.props.text.trim().length === 0) {
+        return next(e)
+      }
 
-    const ui = $.ui.resolve(e)
-    const { Box, Text, Markdown } = ui
-    const lay = layout(e.viewport?.columns)
-    // One line of output → a notice in the content column: `/  /effort high · applies from next turn`.
-    const notice = lay === undefined ? undefined : commandNotice(e.props.command, e.props.args, e.props.text, lay.width)
+      const ui = $.ui.resolve(e)
+      const { Box, Text, Markdown } = ui
+      const lay = layout(e.viewport?.columns)
+      // One line of output → a notice in the content column: `/  /effort high · applies from next turn`.
+      const notice = lay === undefined ? undefined : commandNotice(e.props.command, e.props.args, e.props.text, lay.width)
 
-    if (notice !== undefined && lay !== undefined) {
-      return <Box paddingLeft={lay.gutter}>{drawParts(ui, notice, 'notice')}</Box>
-    }
+      if (notice !== undefined && lay !== undefined) {
+        return <Box paddingLeft={lay.gutter}>{drawParts(ui, notice, 'notice')}</Box>
+      }
 
-    return (
-      <Box>
-        <Text color={C.muted}>{'› '}</Text>
-        <Box flexShrink={1}>
-          <Markdown text={e.props.text} dimColor />
+      return (
+        <Box>
+          <Text color={C.muted}>{'› '}</Text>
+          <Box flexShrink={1}>
+            <Markdown text={e.props.text} dimColor />
+          </Box>
         </Box>
-      </Box>
-    )
+      )
+    } finally {
+      noteOwnTime($, 'ui.render CommandOutput', next.budget)
+    }
   })
 
   // Info notice under the logo: one line in the content column, `› text · /command`,
   // muted text and dim marks, clipped at the measure (§0.2). No measure → the old row.
   on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => {
-    // Dormant (shared/engine): the engine draws its own row.
-    if (await dormantFor($)) return next(e)
-    if (e.surface !== 'terminal') {
-      return next(e)
-    }
+    try {
+      // Dormant (shared/engine): the engine draws its own row.
+      if (await dormantFor($)) return next(e)
+      if (e.surface !== 'terminal') {
+        return next(e)
+      }
 
-    // Cockpit's left: a grey one-line notice on the spine (7.10).
-    const drawn = await drawNotice($, e)
+      // Cockpit's left: a grey one-line notice on the spine (7.10).
+      const drawn = await drawNotice($, e)
 
-    if (drawn !== undefined) return drawn
+      if (drawn !== undefined) return drawn
 
-    const ui = $.ui.resolve(e)
-    const { Box, Text } = ui
-    const lay = layout(e.viewport?.columns)
+      const ui = $.ui.resolve(e)
+      const { Box, Text } = ui
+      const lay = layout(e.viewport?.columns)
 
-    if (lay !== undefined) {
-      const text = e.props.text.replace(/\s+/g, ' ').trim()
-      const parts: Part[] = [{ t: '› ', color: C.dim }, { t: text, color: C.muted }, ...(e.props.command ? [{ t: ` · ${e.props.command}`, color: C.dim }] : [])]
+      if (lay !== undefined) {
+        const text = e.props.text.replace(/\s+/g, ' ').trim()
+        const parts: Part[] = [
+          { t: '› ', color: C.dim },
+          { t: text, color: C.muted },
+          ...(e.props.command ? [{ t: ` · ${e.props.command}`, color: C.dim }] : [])
+        ]
 
-      return <Box paddingLeft={lay.gutter}>{drawParts(ui, partsWidth(parts) <= lay.width ? parts : fitParts(parts, lay.width), 'info')}</Box>
-    }
+        return <Box paddingLeft={lay.gutter}>{drawParts(ui, partsWidth(parts) <= lay.width ? parts : fitParts(parts, lay.width), 'info')}</Box>
+      }
 
-    return (
-      <Box>
-        <Text color={C.muted}>{'› '}</Text>
-        <Box flexShrink={1}>
-          <Text color={C.muted}>{e.props.command ? `${e.props.text} ${e.props.command}` : e.props.text}</Text>
+      return (
+        <Box>
+          <Text color={C.muted}>{'› '}</Text>
+          <Box flexShrink={1}>
+            <Text color={C.muted}>{e.props.command ? `${e.props.text} ${e.props.command}` : e.props.text}</Text>
+          </Box>
         </Box>
-      </Box>
-    )
+      )
+    } finally {
+      noteOwnTime($, 'ui.render InfoNotice', next.budget)
+    }
   })
 }

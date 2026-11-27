@@ -4,6 +4,7 @@
 // backs up settings.json and changes only the `statusLine` entry. Uninstall restores the entry that was there before.
 // The bundled script lives in <config>/ghostframe/; a personal script elsewhere is never touched.
 import type { EngineInterface, Register } from 'claude-code'
+import { noteOwnTime } from '../shared/budget'
 
 import { isRecord } from '../shared/calls/fields'
 import { entryOf, needsBash, planOf } from './settings'
@@ -214,14 +215,24 @@ export async function runStatusline($: EngineInterface, args: string, confirm: C
  */
 export function registerStatusline(on: On): void {
   on('session.start', { surface: 'terminal' }, async ($, e, next) => {
-    await $.command.register({
-      name: COMMAND,
-      description: 'Install, remove or check ghostframe’s status line in your user settings',
-      argumentHint: 'install | uninstall | status',
-      isTerminalOnly: true
-    })
+    try {
+      await $.command.register({
+        name: COMMAND,
+        description: 'Install, remove or check ghostframe’s status line in your user settings',
+        argumentHint: 'install | uninstall | status',
+        isTerminalOnly: true
+      })
 
-    return next(e)
+      return next(e)
+    } finally {
+      noteOwnTime($, 'session.start', next.budget)
+    }
   })
-  on('command.run', { command: COMMAND }, async ($, e) => ({ text: await runStatusline($, e.args) }))
+  on('command.run', { command: COMMAND }, async ($, e, next) => {
+    try {
+      return { text: await runStatusline($, e.args) }
+    } finally {
+      noteOwnTime($, 'command.run ghostframe-statusline', next.budget)
+    }
+  })
 }

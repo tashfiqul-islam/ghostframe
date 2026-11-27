@@ -5,6 +5,7 @@
 // Spec: docs/design/cockpit.md; docs/design/history/cockpit-v7.md C.1, E.1, E.5, E.24, E.32, E.33, E.36 to E.40, H.
 import { readVersion } from './version'
 import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-code'
+import { noteOwnTime } from '../shared/budget'
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
@@ -68,33 +69,41 @@ async function seat($: EngineInterface): Promise<void> {
  */
 function registerAgents(on: On): void {
   on('agent.spawn', async ($, e, next) => {
-    const started = await next(e)
+    try {
+      const started = await next(e)
 
-    if (started.deny === undefined && started.agentId !== undefined) {
-      const name = [e.description, e.name ?? '', e.subagentType].find(n => n.trim().length > 0) ?? 'agent'
-      // A peer's message names its sender by the agent's name, else its type: kept, so a resumed row is known.
-      const called = [e.name ?? '', e.subagentType].filter(n => n.trim().length > 0)
+      if (started.deny === undefined && started.agentId !== undefined) {
+        const name = [e.description, e.name ?? '', e.subagentType].find(n => n.trim().length > 0) ?? 'agent'
+        // A peer's message names its sender by the agent's name, else its type: kept, so a resumed row is known.
+        const called = [e.name ?? '', e.subagentType].filter(n => n.trim().length > 0)
 
-      try {
-        await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, called, isBackground: e.background })
-      } catch (error: unknown) {
-        $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
+        try {
+          await logAgentStart($, { id: started.agentId, call: e.tool_use_id, parent: e.parentAgentId ?? null, name, called, isBackground: e.background })
+        } catch (error: unknown) {
+          $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
+        }
       }
-    }
 
-    return started
+      return started
+    } finally {
+      noteOwnTime($, 'agent.spawn', next.budget)
+    }
   }).catch((_$, e, next) => next(e)) // a row that fails never holds an agent back
 
   on('agent.report', async ($, e, next) => {
-    const reported = await next(e)
-
     try {
-      await logAgentEnd($, { id: e.agentId, status: e.status, text: e.text })
-    } catch (error: unknown) {
-      $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
-    }
+      const reported = await next(e)
 
-    return reported
+      try {
+        await logAgentEnd($, { id: e.agentId, status: e.status, text: e.text })
+      } catch (error: unknown) {
+        $.ui.log(`cockpit: agent row failed: ${String(error)}`, noticeSink())
+      }
+
+      return reported
+    } finally {
+      noteOwnTime($, 'agent.report', next.budget)
+    }
   }).catch((_$, e, next) => next(e)) // nor its report
 }
 

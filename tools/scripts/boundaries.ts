@@ -176,6 +176,38 @@ export function strayLiterals(files: ReadonlyMap<string, string>): string[] {
   return out
 }
 
+/**
+ * The hooks that do not end with the 1 s guard (hooks/README.md): each `on('<event>', …)` hook's body, up to the `})`
+ * that closes it at the same indent, must call `noteOwnTime(` with `next.budget`, so a hook past 1 s of its own work
+ * says so in the debug log before the engine's 10 s budget skips it.
+ * @param files repo-relative path (forward slashes) to source text
+ * @returns one message per hook without it
+ */
+export function unguardedHooks(files: ReadonlyMap<string, string>): string[] {
+  const out: string[] = []
+
+  for (const [file, text] of files) {
+    if (!file.startsWith('hooks/')) continue
+
+    const lines = text.split('\n')
+
+    for (const [i, line] of lines.entries()) {
+      const opened = /^(\s*)on\('([\w.]+)'/.exec(line)
+
+      if (opened === null) continue
+
+      const indent = opened[1] ?? ''
+      const close = lines.findIndex((l, k) => k > i && l.startsWith(`${indent}})`))
+      const body = lines.slice(i, close < 0 ? lines.length : close + 1).join('\n')
+
+      if (!/noteOwnTime\(\$, '[^']+', next\.budget\)/.test(body))
+        out.push(`${file}:${i + 1}: the ${opened[2] ?? ''} hook does not end with noteOwnTime($, '<name>', next.budget)`)
+    }
+  }
+
+  return out
+}
+
 /** Stops the self-test with what it found. */
 function fail(what: string): never {
   throw new Error(`self-test: ${what}`)
@@ -243,8 +275,15 @@ function selfTest(): void {
   if (strayLiterals(literals).length > 0) fail(`allowed literals were refused: ${strayLiterals(literals).join('; ')}`)
   if (strayLiterals(new Map([['hooks/cockpit/rows/row.ts', "const a = '#ffffff'\nconst b = '× failed'"]])).length !== 2) fail('a stray literal passed')
 
+  const guarded =
+    "  on('tool.call', async ($, e, next) => {\n    try {\n      return await next(e)\n    } finally {\n      noteOwnTime($, 'tool.call', next.budget)\n    }\n  })"
+  const bare = "  on('tool.judge', async ($, e, next) => {\n    return next(e)\n  })"
+
+  if (unguardedHooks(new Map([['hooks/transcript/ledger/calls.ts', guarded]])).length > 0) fail('a guarded hook was refused')
+  if (unguardedHooks(new Map([['hooks/transcript/ledger/calls.ts', `${guarded}\n${bare}`]])).length !== 1) fail('a hook without the guard passed')
+
   console.log(
-    `boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, "ghostframe:" prefixes caught, stray literals caught)`
+    `boundaries self-test: ok (1 allowed tree, ${bad.length} breaks caught, README drift caught both ways, debug rows caught, "ghostframe:" prefixes caught, stray literals caught, an unguarded hook caught)`
   )
 }
 
@@ -260,6 +299,7 @@ if (process.argv.includes('--self-test')) {
     ...violations(files),
     ...loggedRows(files),
     ...strayLiterals(new Map([...files, ...statusline])),
+    ...unguardedHooks(files),
     ...readmeDrift(readFileSync(join(hooks, 'README.md'), 'utf8'), foldersUnder(hooks))
   ]
 

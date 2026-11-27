@@ -4,6 +4,7 @@
 // band is left to the engine. The `[-]` at the band's right end is the engine's collapse toggle (ctrl+x ctrl+a), drawn
 // beside any band row in the five cells `bodyColumns` leaves out; Cockpit cannot remove it.
 import type { On } from 'claude-code'
+import { noteOwnTime } from '../shared/budget'
 
 import { GLYPH } from '../shared/look/glyphs'
 import { TOKEN } from '../shared/look/palette'
@@ -25,17 +26,21 @@ export const waitingLine = (n: number): string => `${GLYPH.agent.repeat(n)}  Wai
  */
 export function registerBand(on: On): void {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (!isOn() || e.surface !== 'terminal' || e.props.hasSurvey || docked()) return next(e)
+    try {
+      if (!isOn() || e.surface !== 'terminal' || e.props.hasSurvey || docked()) return next(e)
 
-    // Reading the second redraws the band each second while agents run (the roster's count in place).
-    await readSecond($)
-    const log = await readLog($)
-    const n = log.isTurnRunning ? 0 : waitingOn(await readRoster($))
+      // Reading the second redraws the band each second while agents run (the roster's count in place).
+      await readSecond($)
+      const log = await readLog($)
+      const n = log.isTurnRunning ? 0 : waitingOn(await readRoster($))
 
-    if (n === 0) return next(e)
+      if (n === 0) return next(e)
 
-    const { Text } = $.ui.resolve(e)
+      const { Text } = $.ui.resolve(e)
 
-    return <Text color={TOKEN.agent}>{waitingLine(n)}</Text>
+      return <Text color={TOKEN.agent}>{waitingLine(n)}</Text>
+    } finally {
+      noteOwnTime($, 'ui.render AbovePrompt', next.budget)
+    }
   })
 }

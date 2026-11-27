@@ -61,6 +61,9 @@ The folders are the index. Each folder below holds files of one responsibility, 
   modules: `cockpit/feature`, `cockpit/left`, `cockpit/log`, `cockpit/switch`.
 - `statusline/` imports `statusline/`, `shared/`, `types/` and `claude-code`.
 - Only `register.tsx` composes the features.
+- Every hook ends with `noteOwnTime($, '<event>', next.budget)` (`shared/budget.ts`) in a `finally`: past 1 s of its
+  own work (the engine's clock, `next(e)` and `$` calls not counted) it writes one debug line naming the hook, long
+  before the engine's 10 s budget skips it.
 - Import from the module that defines a name: no `index.ts` barrels, no `export … from`.
 - The engine's own rules: `$` is passed only to top-level function declarations (never through an object or
   closure), and each engine event is hooked once per plugin. An atom is read and written in the file that declares

@@ -43,6 +43,8 @@ let lastCwd: string | undefined
 let lastDiff: Counted[] | undefined
 /** The work tree's diff at the typed turn's start: what was changed before the turn. */
 let startDiff: Diff | undefined
+/** The start diff's paths, from the root: asked for each file a diff is opened for. */
+let startPaths = new Set<string>()
 /** A diff: the work tree, its changed and new files, and how many new files the listing left out (`many`: not known). */
 type Diff = Tree & { files: Counted[]; more: number | 'many' }
 
@@ -91,9 +93,7 @@ export const cwdNow = (): string | undefined => lastCwd
 export function wasChangedBefore(path: string): boolean | undefined {
   if (startDiff === undefined) return undefined
 
-  const fromRoot = `${startDiff.prefix}${path}`
-
-  return startDiff.files.some(f => f.path === fromRoot)
+  return startPaths.has(`${startDiff.prefix}${path}`)
 }
 
 // A big untracked folder (a cache, node_modules before its .gitignore, build output) lists tens of thousands of files,
@@ -392,6 +392,7 @@ export async function startWork($: EngineInterface, cwd?: string): Promise<void>
     return { ...EMPTY, todo: todo.items, isRevised: todo.isRevised, isReading: true as const }
   })
   startDiff = await diffNow($, cwd)
+  startPaths = new Set(startDiff?.files.map(f => f.path))
   lastDiff = startDiff?.files
   await update($, work, w => ({ ...w, isReading: undefined }))
 }
