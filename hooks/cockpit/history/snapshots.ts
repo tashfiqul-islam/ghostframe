@@ -9,7 +9,7 @@ import { obj, s } from '../../shared/calls/fields'
 import { deleted, shownPath, writeTargets } from '../sections/files'
 import { isOffProject } from '../../shared/url'
 import { cwdNow, diskPath, landsOutside, wasChangedBefore, workDiff } from '../work'
-import { DIFF_LINES_MAX, lineDiff } from './linediff'
+import { DIFF_CHANGES_MAX, DIFF_LINES_MAX, lineDiff } from './linediff'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 const SNAPSHOT_MAX = 2_000_000 // characters of a file kept; a larger one is not snapshotted, and its diff says so
@@ -118,7 +118,9 @@ export async function fileDiff($: EngineInterface, path: string, cwd: string | u
 
     const patch = lineDiff(snap ?? '', now)
 
-    return patch === undefined ? { path, patch: [], note: `no diff · over ${DIFF_LINES_MAX} lines` } : { path, patch: patch.slice(0, DIFF_MAX) }
+    if (Array.isArray(patch)) return { path, patch: patch.slice(0, DIFF_MAX) }
+
+    return { path, patch: [], note: patch.over === 'lines' ? `no diff · over ${DIFF_LINES_MAX} lines` : `no diff · over ${DIFF_CHANGES_MAX} changed lines` }
   }
 
   if (tooLarge.has(path)) return { path, patch: [], note: 'no diff · the file was too large to keep a copy of' }
