@@ -1,6 +1,7 @@
 // The main loop's turns, observed: a typed prompt's stamp (`prompt.submit`), the turn's start and end
 // (`turn.start`, `turn.complete`), and the thinking time before each block (`turn.step`).
 import type { EngineInterface, On } from 'claude-code'
+import { noteOwnTime } from '../../shared/budget'
 
 import { logMode, logTurnEnd, logTurnStart, readLog } from '../../cockpit/log'
 import { isOn, noticeSink } from '../../cockpit/switch'
@@ -126,140 +127,156 @@ function taskNoticeOf(text: string): TaskNotice | undefined {
 export function registerTurns(on: On): void {
   // The main loop's current turn, so each step knows which activity it joins.
   on('turn.start', async ($, e, next) => {
-    if (e.agentId === undefined) {
-      await updateTurn($, () => e.turnId)
-      await updateStreaming($, () => true)
+    try {
+      if (e.agentId === undefined) {
+        await updateTurn($, () => e.turnId)
+        await updateStreaming($, () => true)
 
-      // A prompt typed over the last turn and never delivered into it starts this one, by its text (live: the
-      // engine stores it as typed and starts its turn, with no second submit).
-      const submitted = unclaimedSubmit
-      const queued = submitted === undefined ? (await readPrompts($)).find(s => isQueuedStart(s) && isSameText(s.text, e.text)) : undefined
-      const start = submitted ?? queued?.at
-      const isIt = (s: PromptStamp) =>
-        queued === undefined ? s.at === submitted && s.over === undefined : s.at === queued.at && s.over === queued.over && s.text === queued.text
+        // A prompt typed over the last turn and never delivered into it starts this one, by its text (live: the
+        // engine stores it as typed and starts its turn, with no second submit).
+        const submitted = unclaimedSubmit
+        const queued = submitted === undefined ? (await readPrompts($)).find(s => isQueuedStart(s) && isSameText(s.text, e.text)) : undefined
+        const start = submitted ?? queued?.at
+        const isIt = (s: PromptStamp) =>
+          queued === undefined ? s.at === submitted && s.over === undefined : s.at === queued.at && s.over === queued.over && s.text === queued.text
 
-      try {
-        // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
-        await logTurnStart($, e.turnId, start, sessionCwd())
-      } catch {
-        // A log that can't start costs the pane this turn's steps, nothing more.
+        try {
+          // A turn no prompt was typed for (an agent's report, a notice) carries on the typed turn before it.
+          await logTurnStart($, e.turnId, start, sessionCwd())
+        } catch {
+          // A log that can't start costs the pane this turn's steps, nothing more.
+        }
+
+        try {
+          if (start !== undefined && isOn()) await numberTurn($, isIt)
+        } catch (error: unknown) {
+          const notice = `turn rule not numbered: ${String(error)}`
+
+          $.ui.log(notice, noticeSink())
+        }
+
+        unclaimedSubmit = undefined
       }
 
-      try {
-        if (start !== undefined && isOn()) await numberTurn($, isIt)
-      } catch (error: unknown) {
-        const notice = `turn rule not numbered: ${String(error)}`
-
-        $.ui.log(notice, noticeSink())
-      }
-
-      unclaimedSubmit = undefined
+      return next(e)
+    } finally {
+      noteOwnTime($, 'turn.start', next.budget)
     }
-
-    return next(e)
   })
 
   // Stamp each prompt the person typed with the clock, for its turn rule and Cockpit's turn. An agent's report
   // (`peer`, meta) and a task's notice are not typed: the turn they start carries on the typed one.
   on('prompt.submit', async ($, e, next) => {
-    const isTyped = e.origin.kind === 'composer' || e.origin.kind === 'bridge'
+    try {
+      const isTyped = e.origin.kind === 'composer' || e.origin.kind === 'bridge'
 
-    // A task's notice (it can notify again under the same id, an agent that waits again): its row shows the newest.
-    const task = e.origin.kind === 'task-notification' ? taskNoticeOf(e.text) : undefined
+      // A task's notice (it can notify again under the same id, an agent that waits again): its row shows the newest.
+      const task = e.origin.kind === 'task-notification' ? taskNoticeOf(e.text) : undefined
 
-    if (task !== undefined) await noteTaskNotice($, task)
+      if (task !== undefined) await noteTaskNotice($, task)
 
-    if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
-      const at = await $.clock.now()
-      // No number yet: a number is claimed only by a turn that starts (amendment 12). Typed over a running turn, the
-      // prompt keeps that turn's id and leaves the next turn's start alone.
-      const list = await updatePrompts($, l => [...l, { text: stampText(e.text), at, ...(e.turnId === undefined ? {} : { over: e.turnId }) }].slice(-100))
+      if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
+        const at = await $.clock.now()
+        // No number yet: a number is claimed only by a turn that starts (amendment 12). Typed over a running turn, the
+        // prompt keeps that turn's id and leaves the next turn's start alone.
+        const list = await updatePrompts($, l => [...l, { text: stampText(e.text), at, ...(e.turnId === undefined ? {} : { over: e.turnId }) }].slice(-100))
 
-      if (e.turnId === undefined) {
-        lastSubmitted = at
-        unclaimedSubmit = at
+        if (e.turnId === undefined) {
+          lastSubmitted = at
+          unclaimedSubmit = at
+        }
+
+        try {
+          await keepPrompts($, list)
+        } catch (error: unknown) {
+          const notice = `prompt times not kept for a resume: ${String(error)}`
+
+          $.ui.log(notice, noticeSink())
+        }
       }
 
-      try {
-        await keepPrompts($, list)
-      } catch (error: unknown) {
-        const notice = `prompt times not kept for a resume: ${String(error)}`
-
-        $.ui.log(notice, noticeSink())
-      }
+      return next(e)
+    } finally {
+      noteOwnTime($, 'prompt.submit', next.budget)
     }
-
-    return next(e)
   }).catch((_$, e, next) => next(e)) // a stamp that fails never holds a prompt back
 
   // Keep the latest main-loop turn's output tokens, for the close rule.
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined) {
-      lastClosed = e.turnId
-
-      try {
-        // Every reader of `streaming` (each reply on screen) draws again: tables re-flow.
-        await updateStreaming($, () => false)
-
-        const used = await readTally($)
-        const browser = openRunBefore(await readFlow($), Number.MAX_SAFE_INTEGER, e.turnId)
-
-        await updateCloses($, list =>
-          [...list, { durationMs: e.durationMs, tokens: e.usage?.output_tokens ?? null, tally: tallyText(used), browser, turn: e.turnId }].slice(-500)
-        )
-      } finally {
-        // The next turn starts counting afresh, whatever happened above.
-        await updateTally($, () => NO_TALLY)
-        await updateCaps($, () => NO_CAPS)
-        // A turn that ended before any reply (aborted, a local command) opens nothing later.
-        await updateAwaitingFirst($, () => false)
+    try {
+      if (e.agentId === undefined) {
+        lastClosed = e.turnId
 
         try {
-          // The turn's last answer row: its receipt is drawn under it, and again there after a resume.
-          await logTurnEnd($, e.durationMs, e.isAborted, answerRowOf(e.turnId))
-        } catch {
-          // A step left running reads `running` until the next turn starts.
+          // Every reader of `streaming` (each reply on screen) draws again: tables re-flow.
+          await updateStreaming($, () => false)
+
+          const used = await readTally($)
+          const browser = openRunBefore(await readFlow($), Number.MAX_SAFE_INTEGER, e.turnId)
+
+          await updateCloses($, list =>
+            [...list, { durationMs: e.durationMs, tokens: e.usage?.output_tokens ?? null, tally: tallyText(used), browser, turn: e.turnId }].slice(-500)
+          )
+        } finally {
+          // The next turn starts counting afresh, whatever happened above.
+          await updateTally($, () => NO_TALLY)
+          await updateCaps($, () => NO_CAPS)
+          // A turn that ended before any reply (aborted, a local command) opens nothing later.
+          await updateAwaitingFirst($, () => false)
+
+          try {
+            // The turn's last answer row: its receipt is drawn under it, and again there after a resume.
+            await logTurnEnd($, e.durationMs, e.isAborted, answerRowOf(e.turnId))
+          } catch {
+            // A step left running reads `running` until the next turn starts.
+          }
         }
       }
-    }
 
-    return next(e)
+      return next(e)
+    } finally {
+      noteOwnTime($, 'turn.complete', next.budget)
+    }
   })
 
   // Thinking time before each block (§5.11): timed off the stream, every chunk passed on
   // untouched. Main loop only; what it counts lands on the capability line.
   on('turn.step', async function* ($, e, next) {
-    const stream = next(e)
-
-    if (e.agentId !== undefined) {
-      return yield* stream
-    }
-
-    let since: number | undefined
-
     try {
-      await logMode($, 'request')
-    } catch {
-      // The head says `waiting` a little late, nothing more.
-    }
+      const stream = next(e)
 
-    for await (const chunk of stream) {
-      try {
-        await logMode($, chunk.kind)
-        if (chunk.kind === 'thinking' && since === undefined) {
-          since = await $.clock.now()
-        } else if (since !== undefined && chunk.kind !== 'thinking' && chunk.kind !== 'engine') {
-          const ms = (await $.clock.now()) - since
-          since = undefined
-          await updateCaps($, c => ({ ...c, thoughtMs: c.thoughtMs + ms }))
-        }
-      } catch {
-        since = undefined
+      if (e.agentId !== undefined) {
+        return yield* stream
       }
 
-      yield chunk
-    }
+      let since: number | undefined
 
-    return await stream.result
+      try {
+        await logMode($, 'request')
+      } catch {
+        // The head says `waiting` a little late, nothing more.
+      }
+
+      for await (const chunk of stream) {
+        try {
+          await logMode($, chunk.kind)
+          if (chunk.kind === 'thinking' && since === undefined) {
+            since = await $.clock.now()
+          } else if (since !== undefined && chunk.kind !== 'thinking' && chunk.kind !== 'engine') {
+            const ms = (await $.clock.now()) - since
+            since = undefined
+            await updateCaps($, c => ({ ...c, thoughtMs: c.thoughtMs + ms }))
+          }
+        } catch {
+          since = undefined
+        }
+
+        yield chunk
+      }
+
+      return await stream.result
+    } finally {
+      noteOwnTime($, 'turn.step', next.budget)
+    }
   })
 }

@@ -1,6 +1,7 @@
 // The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail. While Cockpit
 // is on, the rule is E.1's `─ [ TURN n ] ─── 09:23` (amendment 12), also above the engine's own row in ctrl+o.
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
+import { noteOwnTime } from '../../shared/budget'
 
 import { isOn, noticeSink, readEnvOnce } from '../../cockpit/switch'
 import type { LaunchedAgent, PromptStamp } from '../../../types'
@@ -190,113 +191,117 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 export function registerPrompt(on: On): void {
   // User prompt: peach rail over the full height, text verbatim. Task notifications get the tree look.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    // Dormant (shared/engine): the engine draws its own row.
-    if (await dormantFor($)) return next(e)
-    // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
-    await readEnvOnce($)
+    try {
+      // Dormant (shared/engine): the engine draws its own row.
+      if (await dormantFor($)) return next(e)
+      // Cockpit's on switch, read before the first draw decides (a copy of the module loaded by `/tui` or a resume draws before `session.start`).
+      await readEnvOnce($)
 
-    if (e.surface !== 'terminal' || e.props.text.length === 0) {
-      return next(e)
-    }
+      if (e.surface !== 'terminal' || e.props.text.length === 0) {
+        return next(e)
+      }
 
-    // Cockpit's left, folded and in ctrl+o alike (screen 30): the turn header and your message as a card (7.1, 7.2).
-    if (e.props.origin.kind === 'composer' && isQuietRow(e)) {
-      const ui = $.ui.resolve(e)
-      const o = await promptOpening($, e.requestId, e.props.text)
-      const rows = openingRows(o, pasteShown(e.props.text, e.props.isExpanded), textCells(e.viewport?.columns, !isFallbackRow(e)))
+      // Cockpit's left, folded and in ctrl+o alike (screen 30): the turn header and your message as a card (7.1, 7.2).
+      if (e.props.origin.kind === 'composer' && isQuietRow(e)) {
+        const ui = $.ui.resolve(e)
+        const o = await promptOpening($, e.requestId, e.props.text)
+        const rows = openingRows(o, pasteShown(e.props.text, e.props.isExpanded), textCells(e.viewport?.columns, !isFallbackRow(e)))
 
-      return (
-        <ui.Box flexDirection="column" marginTop={o.kind === 'typed' ? 1 : 0}>
-          {drawRows(ui, rows, 'prompt')}
-        </ui.Box>
-      )
-    }
+        return (
+          <ui.Box flexDirection="column" marginTop={o.kind === 'typed' ? 1 : 0}>
+            {drawRows(ui, rows, 'prompt')}
+          </ui.Box>
+        )
+      }
 
-    if (e.props.isExpanded) return next(e)
+      if (e.props.isExpanded) return next(e)
 
-    const { Box, Text } = $.ui.resolve(e)
+      const { Box, Text } = $.ui.resolve(e)
 
-    // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing, except in fallback
-    // for an agent that failed (its `✕` row).
-    if (isQuietRow(e) && (await isAgentRow($, e.props))) {
-      return drawAgentNotice($, e, leftCells(e))
-    }
+      // Quiet: an agent's notice or message is the pane's (`[ AGENTS ]`); the row draws nothing, except in fallback
+      // for an agent that failed (its `✕` row).
+      if (isQuietRow(e) && (await isAgentRow($, e.props))) {
+        return drawAgentNotice($, e, leftCells(e))
+      }
 
-    // A task that notifies again under its id (an agent that waits again) keeps one row: the first draws the newest
-    // notice, kept as it was submitted, and the later ones draw nothing (7.10).
-    const taskId = e.props.origin.kind === 'task-notification' ? e.props.task?.id : undefined
+      // A task that notifies again under its id (an agent that waits again) keeps one row: the first draws the newest
+      // notice, kept as it was submitted, and the later ones draw nothing (7.10).
+      const taskId = e.props.origin.kind === 'task-notification' ? e.props.task?.id : undefined
 
-    if (taskId !== undefined && !isFirstNoticeRow(taskId, e.requestId)) return <Box />
+      if (taskId !== undefined && !isFirstNoticeRow(taskId, e.requestId)) return <Box />
 
-    const newest = taskId === undefined ? undefined : await readTaskNotice($, taskId)
-    const said = newest !== undefined && newest.text.length > 0 ? newest.text : (e.props.text.split('\n')[0] ?? '')
-    const took = newest?.durationMs ?? e.props.task?.durationMs
+      const newest = taskId === undefined ? undefined : await readTaskNotice($, taskId)
+      const said = newest !== undefined && newest.text.length > 0 ? newest.text : (e.props.text.split('\n')[0] ?? '')
+      const took = newest?.durationMs ?? e.props.task?.durationMs
 
-    // Cockpit on: on the left's grid like every other row (6.1, 7.10).
-    if (e.props.origin.kind === 'task-notification' && isOn()) {
-      return drawTaskNotice($, e, said, took)
-    }
+      // Cockpit on: on the left's grid like every other row (6.1, 7.10).
+      if (e.props.origin.kind === 'task-notification' && isOn()) {
+        return drawTaskNotice($, e, said, took)
+      }
 
-    if (e.props.origin.kind === 'task-notification') {
-      const launched = /launched|started/i.test(said)
-      const ms = took
+      if (e.props.origin.kind === 'task-notification') {
+        const launched = /launched|started/i.test(said)
+        const ms = took
 
-      return (
-        <Box flexWrap="nowrap">
-          <Box flexShrink={0}>
-            <Text color={launched ? C.accent : C.muted}>{'◇ '}</Text>
-          </Box>
-          <Box flexShrink={1} minWidth={0}>
-            <Text color={C.text} wrap="truncate-end">
-              {said}
-            </Text>
-          </Box>
-          {ms !== undefined && (
+        return (
+          <Box flexWrap="nowrap">
             <Box flexShrink={0}>
-              <Text color={C.muted}>{` · ${durationLabel(ms)}`}</Text>
+              <Text color={launched ? C.accent : C.muted}>{'◇ '}</Text>
             </Box>
+            <Box flexShrink={1} minWidth={0}>
+              <Text color={C.text} wrap="truncate-end">
+                {said}
+              </Text>
+            </Box>
+            {ms !== undefined && (
+              <Box flexShrink={0}>
+                <Text color={C.muted}>{` · ${durationLabel(ms)}`}</Text>
+              </Box>
+            )}
+          </Box>
+        )
+      }
+
+      const lay = layout(e.viewport?.columns)
+
+      if (e.props.origin.kind !== 'composer' || lay === undefined) {
+        return next(e)
+      }
+
+      const width = lay.width
+
+      // Turn open rule with the submit time (dropped when we never saw the submit; the classic rule's, claimed by text),
+      // then `you` in the gutter and the message behind a ▎ rail on every row.
+      const ui = $.ui.resolve(e)
+      // Cockpit off: the classic rule with the submit time, as on main.
+      const claimed = claimPrompt(e.requestId, e.props.text, await readPrompts($))
+      const rule = Rule(ui, claimed ? { text: fmtClock(claimed.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
+      const rows = wrapPlain(pasteShown(e.props.text, false), width - 2)
+
+      return (
+        <Box flexDirection="column">
+          {/* §0.2: one blank row between the last turn's footer rule and this one. */}
+          <Box marginTop={1}>{rule}</Box>
+          {cell(
+            ui,
+            lay,
+            { text: 'you', color: C.text },
+            // One Text for the whole message: rows pre-wrapped to the measure, joined by \n.
+            <Text wrap="wrap">
+              {rows.flatMap((row, i) => [
+                ...(i > 0 ? ['\n'] : []),
+                <Text key={`${i}.rail`} color={C.accent}>
+                  {G.rail}
+                </Text>,
+                <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
+              ])}
+            </Text>,
+            1
           )}
         </Box>
       )
+    } finally {
+      noteOwnTime($, 'ui.render UserMessage', next.budget)
     }
-
-    const lay = layout(e.viewport?.columns)
-
-    if (e.props.origin.kind !== 'composer' || lay === undefined) {
-      return next(e)
-    }
-
-    const width = lay.width
-
-    // Turn open rule with the submit time (dropped when we never saw the submit; the classic rule's, claimed by text),
-    // then `you` in the gutter and the message behind a ▎ rail on every row.
-    const ui = $.ui.resolve(e)
-    // Cockpit off: the classic rule with the submit time, as on main.
-    const claimed = claimPrompt(e.requestId, e.props.text, await readPrompts($))
-    const rule = Rule(ui, claimed ? { text: fmtClock(claimed.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
-    const rows = wrapPlain(pasteShown(e.props.text, false), width - 2)
-
-    return (
-      <Box flexDirection="column">
-        {/* §0.2: one blank row between the last turn's footer rule and this one. */}
-        <Box marginTop={1}>{rule}</Box>
-        {cell(
-          ui,
-          lay,
-          { text: 'you', color: C.text },
-          // One Text for the whole message: rows pre-wrapped to the measure, joined by \n.
-          <Text wrap="wrap">
-            {rows.flatMap((row, i) => [
-              ...(i > 0 ? ['\n'] : []),
-              <Text key={`${i}.rail`} color={C.accent}>
-                {G.rail}
-              </Text>,
-              <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
-            ])}
-          </Text>,
-          1
-        )}
-      </Box>
-    )
   })
 }

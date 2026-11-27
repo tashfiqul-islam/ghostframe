@@ -1,6 +1,7 @@
 // The Cockpit pane (spec C.1, E.37; corrections A, B and K): its seat at the width rule, `/cockpit`, and its drawing.
 import { isFailedMark } from './steps/log'
 import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
+import { noteOwnTime } from '../shared/budget'
 
 import { readDetails } from './keys/details'
 import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
@@ -263,119 +264,139 @@ export function logSeatError($: EngineInterface, error: unknown): void {
 export function registerPane(on: On): void {
   // The person closed the pane: the transcript is no longer quiet, and an inline pane is no longer asked for.
   on('ui.close', { id: PANE }, ($, e, next) => {
-    setDocked($, false)
-    askedInline = undefined
-    isAsked = false
-    paneBody = undefined
-    if (ownCloses > 0) ownCloses -= 1
-    else isClosedByPerson = true
+    try {
+      setDocked($, false)
+      askedInline = undefined
+      isAsked = false
+      paneBody = undefined
+      if (ownCloses > 0) ownCloses -= 1
+      else isClosedByPerson = true
 
-    return next(e)
+      return next(e)
+    } finally {
+      noteOwnTime($, 'ui.close', next.budget)
+    }
   })
 
-  on('command.run', { command: PANE }, async ($, e) => {
-    if (isDormant()) return { text: dormantText() }
-    if (!isOn()) {
-      return { text: OFF_NOTE }
+  on('command.run', { command: PANE }, async ($, e, next) => {
+    try {
+      if (isDormant()) return { text: dormantText() }
+      if (!isOn()) {
+        return { text: OFF_NOTE }
+      }
+
+      const isPlaced = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isPlaced)
+
+      if (isPlaced) {
+        isClosedByPerson = true
+        paneBody = undefined
+        await $.ui.close({ id: PANE })
+
+        setDocked($, false)
+
+        return answered($, PANE, e.args, 'Pane closed', true)
+      }
+
+      const { columns, isFullscreen } = e.presentation
+      askedInline = !isFullscreen || columns < DOCK_MIN ? 'cockpit' : undefined
+      isAsked = true
+      isClosedByPerson = false
+      leftAt = undefined
+      const opened = await openAt($, columns)
+
+      // `/cockpit` toggles (7.15): docked, it names the terminal's width, the one the person sees, not the pane's.
+      return opened.isPlaced
+        ? answered($, PANE, e.args, `Pane docked · ${columns} columns`, true)
+        : answered($, PANE, e.args, `Pane not placed · ${opened.reason}`, false)
+    } finally {
+      noteOwnTime($, 'command.run', next.budget)
     }
-
-    const isPlaced = (await $.ui.panes()).some(pane => pane.id === PANE && pane.isPlaced)
-
-    if (isPlaced) {
-      isClosedByPerson = true
-      paneBody = undefined
-      await $.ui.close({ id: PANE })
-
-      setDocked($, false)
-
-      return answered($, PANE, e.args, 'Pane closed', true)
-    }
-
-    const { columns, isFullscreen } = e.presentation
-    askedInline = !isFullscreen || columns < DOCK_MIN ? 'cockpit' : undefined
-    isAsked = true
-    isClosedByPerson = false
-    leftAt = undefined
-    const opened = await openAt($, columns)
-
-    // `/cockpit` toggles (7.15): docked, it names the terminal's width, the one the person sees, not the pane's.
-    return opened.isPlaced
-      ? answered($, PANE, e.args, `Pane docked · ${columns} columns`, true)
-      : answered($, PANE, e.args, `Pane not placed · ${opened.reason}`, false)
   })
 
   // `/steps <n>` pins a past turn into the pane; `/steps` alone, or the live turn's number, releases it (E.45).
   // With no pane placed it also opens one, with the keyboard (E.46): where no dock exists the engine seats it
   // inline, the inspector, and Escape closes it; from 110 columns in fullscreen an asked open docks it (amendment 5).
-  on('command.run', { command: STEPS }, async ($, e) => {
-    if (isDormant()) return { text: dormantText() }
-    if (!isOn()) {
-      return { text: OFF_NOTE }
+  on('command.run', { command: STEPS }, async ($, e, next) => {
+    try {
+      if (isDormant()) return { text: dormantText() }
+      if (!isOn()) {
+        return { text: OFF_NOTE }
+      }
+
+      // `/steps n all` (E.4): the turn's ctrl+o rows, printed as the command's output; `/steps all` for the live turn.
+      const words = e.args.trim().split(/\s+/)
+
+      if (words.at(-1) === 'all') {
+        const n = words.length > 1 ? Number(words[0]) : (await readLog($)).turnNo
+
+        if (!Number.isInteger(n) || n < 1) return answered($, STEPS, e.args, '/steps n all takes a turn number', false)
+
+        const said = await stepsAllText($, n, e.presentation.columns)
+
+        return answered($, STEPS, e.args, said.text, said.isOk, n)
+      }
+
+      const text = await pinFromCommand($, e.args)
+      const asked = e.args.trim()
+      const pin = await readPin($)
+      const isPinned = asked.length === 0 || pin === Number(asked) || Number(asked) === (await readLog($)).turnNo
+
+      // Docked, the pane already shows it. An inline pane already open takes the open again: the same pane, focused.
+      if (docked() || !isPinned) {
+        return answered($, STEPS, e.args, text, isPinned)
+      }
+
+      const { columns, isFullscreen } = e.presentation
+      askedInline = !isFullscreen || columns < DOCK_MIN ? 'steps' : undefined
+      isAsked = true
+      isClosedByPerson = false
+      leftAt = undefined
+      const opened = await $.ui.open({ id: PANE, columns: paneColumns(columns), rows: INSPECTOR_ROWS, focus: true, closeOnEscape: true })
+      paneBody = opened.isPlaced ? paneColumns(columns) : undefined
+      if (opened.isPlaced) ownCloses = 0
+
+      return opened.isPlaced ? answered($, STEPS, e.args, text, true) : answered($, STEPS, e.args, `${text} · pane not placed · ${opened.reason}`, false)
+    } finally {
+      noteOwnTime($, 'command.run', next.budget)
     }
-
-    // `/steps n all` (E.4): the turn's ctrl+o rows, printed as the command's output; `/steps all` for the live turn.
-    const words = e.args.trim().split(/\s+/)
-
-    if (words.at(-1) === 'all') {
-      const n = words.length > 1 ? Number(words[0]) : (await readLog($)).turnNo
-
-      if (!Number.isInteger(n) || n < 1) return answered($, STEPS, e.args, '/steps n all takes a turn number', false)
-
-      const said = await stepsAllText($, n, e.presentation.columns)
-
-      return answered($, STEPS, e.args, said.text, said.isOk, n)
-    }
-
-    const text = await pinFromCommand($, e.args)
-    const asked = e.args.trim()
-    const pin = await readPin($)
-    const isPinned = asked.length === 0 || pin === Number(asked) || Number(asked) === (await readLog($)).turnNo
-
-    // Docked, the pane already shows it. An inline pane already open takes the open again: the same pane, focused.
-    if (docked() || !isPinned) {
-      return answered($, STEPS, e.args, text, isPinned)
-    }
-
-    const { columns, isFullscreen } = e.presentation
-    askedInline = !isFullscreen || columns < DOCK_MIN ? 'steps' : undefined
-    isAsked = true
-    isClosedByPerson = false
-    leftAt = undefined
-    const opened = await $.ui.open({ id: PANE, columns: paneColumns(columns), rows: INSPECTOR_ROWS, focus: true, closeOnEscape: true })
-    paneBody = opened.isPlaced ? paneColumns(columns) : undefined
-    if (opened.isPlaced) ownCloses = 0
-
-    return opened.isPlaced ? answered($, STEPS, e.args, text, true) : answered($, STEPS, e.args, `${text} · pane not placed · ${opened.reason}`, false)
   })
 
   // `/copy` stays the engine's (the last answer); Cockpit answers the forms it adds (E.24, G.78) and passes the rest on.
   on('command.run', { command: 'copy' }, async ($, e, next) => {
-    if (!isOn()) return next(e)
+    try {
+      if (!isOn()) return next(e)
 
-    const said = await copyFromCommand($, e.args, e.presentation.columns)
+      const said = await copyFromCommand($, e.args, e.presentation.columns)
 
-    // A copy that could not be made says so (`There is no code block 9 …`, `Not copied · …`): an error row (7.15).
-    return said === undefined ? next(e) : answered($, 'copy', e.args, said.text, said.isOk)
+      // A copy that could not be made says so (`There is no code block 9 …`, `Not copied · …`): an error row (7.15).
+      return said === undefined ? next(e) : answered($, 'copy', e.args, said.text, said.isOk)
+    } finally {
+      noteOwnTime($, 'command.run', next.budget)
+    }
   })
 
   // The focus ring moved in the pane: `c` copies what it is on, and the row under it is the selected row (6.2), so a
   // move redraws; on the Files tab that row also opens its file's first hunk in place (8.5). A hidden key Button is
   // never a stop: the ring goes on to a row instead.
   on('ui.focus', ($, e, next) => {
-    if (e.component === 'Pane' && e.requestId === PANE) {
-      const was = ringNow()
-      const past = isKeyElement(e.element) ? ringPastKeys(was) : undefined
+    try {
+      if (e.component === 'Pane' && e.requestId === PANE) {
+        const was = ringNow()
+        const past = isKeyElement(e.element) ? ringPastKeys(was) : undefined
 
-      if (isKeyElement(e.element) && past === undefined) return {}
-      const element = past ?? e.element
+        if (isKeyElement(e.element) && past === undefined) return {}
+        const element = past ?? e.element
 
-      noteRing(element)
-      if (was !== element) $.ui.invalidate('ui.render')
+        noteRing(element)
+        if (was !== element) $.ui.invalidate('ui.render')
 
-      return past === undefined ? next(e) : next({ ...e, element: past })
+        return past === undefined ? next(e) : next({ ...e, element: past })
+      }
+
+      return next(e)
+    } finally {
+      noteOwnTime($, 'ui.focus', next.budget)
     }
-
-    return next(e)
   }).catch((_$, e, next) => next(e)) // a ring that cannot be noted never stops the ring
 
   // `/tui` switches the screen mid-session (probe 19: the engine remounts the transcript and loads the hooks module
@@ -384,180 +405,192 @@ export function registerPane(on: On): void {
   // The switch is kept before the command runs: the copy that runs it is replaced while it does, so nothing after
   // `next` is sure to run, and its output text is the engine's. The copy that comes after says it, once.
   on('command.run', { command: 'tui' }, async ($, e, next) => {
-    const asked = e.args.trim().toLowerCase()
-    const isWanted = asked === 'fullscreen' ? true : asked === 'classic' || asked === 'default' ? false : undefined
+    try {
+      const asked = e.args.trim().toLowerCase()
+      const isWanted = asked === 'fullscreen' ? true : asked === 'classic' || asked === 'default' ? false : undefined
 
-    if (isOn() && isWanted !== undefined && isWanted !== e.presentation.isFullscreen) {
-      await keepSwitch($, { isFullscreen: isWanted, columns: e.presentation.columns })
+      if (isOn() && isWanted !== undefined && isWanted !== e.presentation.isFullscreen) {
+        await keepSwitch($, { isFullscreen: isWanted, columns: e.presentation.columns })
+      }
+
+      return next(e)
+    } finally {
+      noteOwnTime($, 'command.run', next.budget)
     }
-
-    return next(e)
   })
 
   // While the pane holds the keyboard, the prompt's hint line says so (E.18): keys typed now reach the pane. It is
   // drawn on every screen, first after a reload too, so it also reads the on switch again then, and says a `/tui`
   // switch the copy before this one kept.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
-    await readEnvOnce($)
-    // A rewind puts its prompt back in the box, and this line draws: the pane looks for the rewind (7.1).
-    if (isOn() && docked() && !(await readLog($)).isTurnRunning) await noteRewind($)
+    try {
+      await readEnvOnce($)
+      // A rewind puts its prompt back in the box, and this line draws: the pane looks for the rewind (7.1).
+      if (isOn() && docked() && !(await readLog($)).isTurnRunning) await noteRewind($)
 
-    const notice = isOn()
-      ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
-          $.ui.log(`cockpit: /tui note not read: ${String(error)}`, noticeSink())
+      const notice = isOn()
+        ? await switchNotice($, e.viewport?.isFullscreen, async () => storedTurnCount($)).catch((error: unknown) => {
+            $.ui.log(`cockpit: /tui note not read: ${String(error)}`, noticeSink())
 
-          return undefined
-        })
-      : undefined
+            return undefined
+          })
+        : undefined
 
-    if (notice !== undefined) $.ui.log(notice)
+      if (notice !== undefined) $.ui.log(notice)
 
-    if (isOn() && e.surface === 'terminal') {
-      // Docked, the hint is measured beside the pane; the Pane render says the terminal's width and the seat then.
-      noteColumns(docked() ? undefined : e.viewport?.columns)
+      if (isOn() && e.surface === 'terminal') {
+        // Docked, the hint is measured beside the pane; the Pane render says the terminal's width and the seat then.
+        noteColumns(docked() ? undefined : e.viewport?.columns)
 
-      if (!docked() && e.viewport !== undefined) seatFor($, 'none', e.viewport.columns, e.viewport.isFullscreen === true)
+        if (!docked() && e.viewport !== undefined) seatFor($, 'none', e.viewport.columns, e.viewport.isFullscreen === true)
+      }
+
+      if (!isOn() || !isPaneFocused || e.surface !== 'terminal') {
+        return next(e)
+      }
+
+      return next({ ...e, props: { ...e.props, hint: PANE_HINT } })
+    } finally {
+      noteOwnTime($, 'ui.render PromptHint', next.budget)
     }
-
-    if (!isOn() || !isPaneFocused || e.surface !== 'terminal') {
-      return next(e)
-    }
-
-    return next({ ...e, props: { ...e.props, hint: PANE_HINT } })
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
-    if (!isOn()) {
-      return next(e)
-    }
-
-    const ui = $.ui.resolve(e)
-    const { Box } = ui
-    const { placement, bodyColumns, scroll } = e.props
-    const viewport = e.viewport
-
-    if (e.surface === 'terminal' && viewport !== undefined) {
-      const columns = terminalColumns(placement, viewport.columns, bodyColumns)
-      const isFullscreen = viewport.isFullscreen === true
-      noteColumns(columns)
-      notePlacement($, `${placement} ${columns}`)
-
-      if (placement === 'inline') {
-        setDocked($, false)
-        seatFor($, 'inline', columns, isFullscreen)
-
-        if (askedInline === undefined) {
-          return <Box />
-        }
-      } else if (seatFor($, 'dock', columns, isFullscreen, bodyColumns) === 'leave') {
-        // A pane nobody asked for, below 144: it leaves at this draw, and a draw after its close is no dock either.
-        setDocked($, false)
-
-        return <Box />
-      } else {
-        setDocked($, true)
+    try {
+      if (!isOn()) {
+        return next(e)
       }
+
+      const ui = $.ui.resolve(e)
+      const { Box } = ui
+      const { placement, bodyColumns, scroll } = e.props
+      const viewport = e.viewport
+
+      if (e.surface === 'terminal' && viewport !== undefined) {
+        const columns = terminalColumns(placement, viewport.columns, bodyColumns)
+        const isFullscreen = viewport.isFullscreen === true
+        noteColumns(columns)
+        notePlacement($, `${placement} ${columns}`)
+
+        if (placement === 'inline') {
+          setDocked($, false)
+          seatFor($, 'inline', columns, isFullscreen)
+
+          if (askedInline === undefined) {
+            return <Box />
+          }
+        } else if (seatFor($, 'dock', columns, isFullscreen, bodyColumns) === 'leave') {
+          // A pane nobody asked for, below 144: it leaves at this draw, and a draw after its close is no dock either.
+          setDocked($, false)
+
+          return <Box />
+        } else {
+          setDocked($, true)
+        }
+      }
+
+      // The prompt's hint line follows who holds the keyboard.
+      if (e.props.isFocused !== isPaneFocused) {
+        isPaneFocused = e.props.isFocused
+        $.ui.invalidate('ui.render')
+      }
+
+      // The pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
+      // C). Reading `second` redraws this each second while a turn or a background agent runs; reading the view's
+      // counter, when a key changes the view.
+      await readSecond($)
+      await readViewTick($)
+      const view = viewNow(e.props.isFocused)
+      const log = await readLog($)
+      const roster = await readRoster($)
+      const work = await readWork($)
+      const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
+      const isCovered = e.props.isPromptCovered === true
+      const now = isTicking || hasCopied() ? await $.clock.now() : (log.last?.endedAt ?? 0)
+
+      if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
+
+      const pinNo = await readPin($)
+      const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
+      // A rewind that took the shown turn out of the conversation: the pane shows the last turn that remains (7.1).
+      const rewound = log.isTurnRunning ? new Set<number>() : await noteRewind($)
+      const remains = rewound.has(log.turnNo) ? ((await readHistory($)).findLast(r => !rewound.has(r.turnNo)) ?? null) : undefined
+      const isInspector = placement === 'inline' && askedInline === 'steps'
+      const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
+      const viewedId = e.props.view.agentId
+      noteViewed(viewedId)
+      const details = [...(await readDetails($)), ...(pinned?.details ?? [])]
+
+      if (isInspector) {
+        const steps = pinned?.steps ?? log.steps
+        const rows = steps.map(s => ({
+          glyph: s.isRunning ? ('current' as const) : isFailedMark(s) ? ('failed' as const) : ('ok' as const),
+          kind: s.kind,
+          subject: s.subject,
+          result: s.isRunning ? 'running' : s.result,
+          tone: s.isRunning ? ('accent' as const) : isFailedMark(s) ? ('err' as const) : ('dim' as const),
+          ms: details.find(d => d.id === s.id)?.ms ?? undefined
+        }))
+        const failed = steps.filter(isFailedMark).length
+
+        // Every step (`s`): the card grows and the engine scrolls it; `b` and `s` go back.
+        const isAll = view.kind === 'all'
+        const keys: [string, string][] = isAll
+          ? [
+              ['s', 'fit'],
+              ['c', 'copy'],
+              ['b', 'back'],
+              ['esc', 'close']
+            ]
+          : INSPECTOR_KEYS.map(([k, a]): [string, string] => [k, a])
+        const card = inspectorRows(
+          pinned?.turnNo ?? log.turnNo,
+          steps.length,
+          failed,
+          rows,
+          isAll ? rows.length + 6 : Math.min(INSPECTOR_ROWS, fitTo),
+          bodyColumns,
+          keys
+        )
+
+        return drawPane($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
+      }
+
+      // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
+      const ringed = e.props.isFocused && tabNow() === 'files' ? ringNow() : undefined
+      const selectedPath = ringed?.startsWith('file:') === true ? ringed.slice('file:'.length) : undefined
+      const selectedPatch = selectedPath === undefined ? undefined : (await fileView($, selectedPath)).patch
+      const selectedFile = selectedPath === undefined || selectedPatch === undefined ? undefined : { path: selectedPath, hunk: firstHunk(selectedPatch) }
+      // Where a file's hunk shows, its counts are that diff's (8.5): the selected file's row; a patch with no hunk is
+      // no diff, and that file keeps its steps' tally.
+      const diffCounts =
+        selectedPath !== undefined && selectedPatch?.some(l => l.startsWith('@@')) === true ? new Map([[selectedPath, countsOf(selectedPatch)]]) : undefined
+      const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
+      const pane = assemblePane({
+        width: bodyColumns,
+        rows: fitTo,
+        now,
+        isFocused: e.props.isFocused,
+        isCovered,
+        log,
+        roster,
+        work,
+        details,
+        flow: await readFlow($),
+        pinned,
+        remains,
+        view,
+        tab: tabNow(),
+        isUrlsShown: urlsShown(),
+        viewed,
+        version: pluginVersion(),
+        selectedFile,
+        diffCounts,
+        note: copiedNote(now)
+      })
+      return drawPane($, e, pane.lines)
+    } finally {
+      noteOwnTime($, 'ui.render Pane', next.budget)
     }
-
-    // The prompt's hint line follows who holds the keyboard.
-    if (e.props.isFocused !== isPaneFocused) {
-      isPaneFocused = e.props.isFocused
-      $.ui.invalidate('ui.render')
-    }
-
-    // The pane (8): the tabs, the view, the hint row; fitted to the body while no dialog has grown it (correction
-    // C). Reading `second` redraws this each second while a turn or a background agent runs; reading the view's
-    // counter, when a key changes the view.
-    await readSecond($)
-    await readViewTick($)
-    const view = viewNow(e.props.isFocused)
-    const log = await readLog($)
-    const roster = await readRoster($)
-    const work = await readWork($)
-    const isTicking = log.isTurnRunning || roster.some(a => a.state === 'running')
-    const isCovered = e.props.isPromptCovered === true
-    const now = isTicking || hasCopied() ? await $.clock.now() : (log.last?.endedAt ?? 0)
-
-    if (!isCovered || openRows === undefined) openRows = scroll.bodyRows
-
-    const pinNo = await readPin($)
-    const pinned = pinNo === null ? undefined : (await readHistory($)).find(r => r.turnNo === pinNo)
-    // A rewind that took the shown turn out of the conversation: the pane shows the last turn that remains (7.1).
-    const rewound = log.isTurnRunning ? new Set<number>() : await noteRewind($)
-    const remains = rewound.has(log.turnNo) ? ((await readHistory($)).findLast(r => !rewound.has(r.turnNo)) ?? null) : undefined
-    const isInspector = placement === 'inline' && askedInline === 'steps'
-    const fitTo = isCovered ? Math.min(openRows, scroll.bodyRows) : scroll.bodyRows
-    const viewedId = e.props.view.agentId
-    noteViewed(viewedId)
-    const details = [...(await readDetails($)), ...(pinned?.details ?? [])]
-
-    if (isInspector) {
-      const steps = pinned?.steps ?? log.steps
-      const rows = steps.map(s => ({
-        glyph: s.isRunning ? ('current' as const) : isFailedMark(s) ? ('failed' as const) : ('ok' as const),
-        kind: s.kind,
-        subject: s.subject,
-        result: s.isRunning ? 'running' : s.result,
-        tone: s.isRunning ? ('accent' as const) : isFailedMark(s) ? ('err' as const) : ('dim' as const),
-        ms: details.find(d => d.id === s.id)?.ms ?? undefined
-      }))
-      const failed = steps.filter(isFailedMark).length
-
-      // Every step (`s`): the card grows and the engine scrolls it; `b` and `s` go back.
-      const isAll = view.kind === 'all'
-      const keys: [string, string][] = isAll
-        ? [
-            ['s', 'fit'],
-            ['c', 'copy'],
-            ['b', 'back'],
-            ['esc', 'close']
-          ]
-        : INSPECTOR_KEYS.map(([k, a]): [string, string] => [k, a])
-      const card = inspectorRows(
-        pinned?.turnNo ?? log.turnNo,
-        steps.length,
-        failed,
-        rows,
-        isAll ? rows.length + 6 : Math.min(INSPECTOR_ROWS, fitTo),
-        bodyColumns,
-        keys
-      )
-
-      return drawPane($, e, card.map(parts => ({ parts })).concat([{ parts: [] }]), isAll ? ['s', 'c', 'b'] : ['s', 'c', 'p', 'n'])
-    }
-
-    // The file row under the ring on the Files tab, and its first hunk, drawn in place under it (8.5).
-    const ringed = e.props.isFocused && tabNow() === 'files' ? ringNow() : undefined
-    const selectedPath = ringed?.startsWith('file:') === true ? ringed.slice('file:'.length) : undefined
-    const selectedPatch = selectedPath === undefined ? undefined : (await fileView($, selectedPath)).patch
-    const selectedFile = selectedPath === undefined || selectedPatch === undefined ? undefined : { path: selectedPath, hunk: firstHunk(selectedPatch) }
-    // Where a file's hunk shows, its counts are that diff's (8.5): the selected file's row; a patch with no hunk is
-    // no diff, and that file keeps its steps' tally.
-    const diffCounts =
-      selectedPath !== undefined && selectedPatch?.some(l => l.startsWith('@@')) === true ? new Map([[selectedPath, countsOf(selectedPatch)]]) : undefined
-    const viewed = viewedId === undefined ? (view.kind === 'agent' ? roster.find(a => a.id === view.id) : undefined) : roster.find(a => a.id === viewedId)
-    const pane = assemblePane({
-      width: bodyColumns,
-      rows: fitTo,
-      now,
-      isFocused: e.props.isFocused,
-      isCovered,
-      log,
-      roster,
-      work,
-      details,
-      flow: await readFlow($),
-      pinned,
-      remains,
-      view,
-      tab: tabNow(),
-      isUrlsShown: urlsShown(),
-      viewed,
-      version: pluginVersion(),
-      selectedFile,
-      diffCounts,
-      note: copiedNote(now)
-    })
-    return drawPane($, e, pane.lines)
   })
 }

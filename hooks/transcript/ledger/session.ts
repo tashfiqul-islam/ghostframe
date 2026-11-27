@@ -1,6 +1,7 @@
 // The session's observe hooks: `session.start` seeds the turn openers from history, `session.append` notes each
 // stored assistant block in the flow and the turn's opener. Both observe only; a row is stored as it came.
 import type { EngineInterface, On } from 'claude-code'
+import { noteOwnTime } from '../../shared/budget'
 
 import type { FlowStamp } from '../../../types'
 import { startCockpit } from '../../cockpit/feature'
@@ -221,141 +222,157 @@ async function noteSteer($: EngineInterface, content: Content, row: string): Pro
  */
 export function registerSession(on: On): void {
   on('session.start', async ($, e, next) => {
-    cwd = e.cwd
-
-    // Seed turn openers from history (a resumed session, or the turns before a reload):
-    // the first assistant text after each typed prompt.
     try {
-      const found = await $.session.messages()
+      cwd = e.cwd
 
-      if (Array.isArray(found)) {
-        const keys: string[] = []
-        let waiting = false
+      // Seed turn openers from history (a resumed session, or the turns before a reload):
+      // the first assistant text after each typed prompt.
+      try {
+        const found = await $.session.messages()
 
-        const tools: string[] = []
+        if (Array.isArray(found)) {
+          const keys: string[] = []
+          let waiting = false
 
-        for (const m of found) {
-          if (m.role === 'user' && m.text.trim().length > 0 && !INJECTED.test(m.text) && (m.toolResults ?? []).length === 0) {
-            waiting = true
-          } else if (m.role === 'assistant' && waiting && m.text.trim().length > 0) {
-            keys.push(firstKey(m.text))
-            waiting = false
-          } else if (m.role === 'assistant' && waiting && m.toolUses.length > 0) {
-            // The turn opened on tools: its first call's row carries the label.
-            tools.push(m.toolUses[0]?.tool_use_id ?? '')
-            waiting = false
+          const tools: string[] = []
+
+          for (const m of found) {
+            if (m.role === 'user' && m.text.trim().length > 0 && !INJECTED.test(m.text) && (m.toolResults ?? []).length === 0) {
+              waiting = true
+            } else if (m.role === 'assistant' && waiting && m.text.trim().length > 0) {
+              keys.push(firstKey(m.text))
+              waiting = false
+            } else if (m.role === 'assistant' && waiting && m.toolUses.length > 0) {
+              // The turn opened on tools: its first call's row carries the label.
+              tools.push(m.toolUses[0]?.tool_use_id ?? '')
+              waiting = false
+            }
           }
+
+          // Seeded openers carry no turn (history has none); one already recorded keeps its own.
+          // One entry per turn, so a plain cut drops whole turns.
+          await updateFirstTexts($, list =>
+            [...[...new Set(keys)].filter(k => !list.some(x => x.key === k)).map(k => ({ key: k })), ...list].slice(-FIRSTS_MAX)
+          )
+          await updateFirstTools($, list => [...new Set([...tools.filter(t => t.length > 0), ...list])].slice(-FIRSTS_MAX))
         }
-
-        // Seeded openers carry no turn (history has none); one already recorded keeps its own.
-        // One entry per turn, so a plain cut drops whole turns.
-        await updateFirstTexts($, list => [...[...new Set(keys)].filter(k => !list.some(x => x.key === k)).map(k => ({ key: k })), ...list].slice(-FIRSTS_MAX))
-        await updateFirstTools($, list => [...new Set([...tools.filter(t => t.length > 0), ...list])].slice(-FIRSTS_MAX))
+      } catch {
+        // No history: live turns still mark their openers.
       }
-    } catch {
-      // No history: live turns still mark their openers.
+
+      // The turn rules of a resumed transcript show their submit times again.
+      try {
+        await restorePrompts($)
+      } catch (error: unknown) {
+        const notice = `prompt times not restored: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
+      }
+
+      await startCockpit($, e)
+
+      try {
+        await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
+      } catch (error: unknown) {
+        const notice = `turn number not carried on from the stamps: ${String(error)}`
+
+        $.ui.log(notice, noticeSink())
+      }
+
+      return next(e)
+    } finally {
+      noteOwnTime($, 'session.start', next.budget)
     }
-
-    // The turn rules of a resumed transcript show their submit times again.
-    try {
-      await restorePrompts($)
-    } catch (error: unknown) {
-      const notice = `prompt times not restored: ${String(error)}`
-
-      $.ui.log(notice, noticeSink())
-    }
-
-    await startCockpit($, e)
-
-    try {
-      await seedTurnNo($, Math.max(0, ...(await readPrompts($)).map(p => p.turnNo ?? 0)))
-    } catch (error: unknown) {
-      const notice = `turn number not carried on from the stamps: ${String(error)}`
-
-      $.ui.log(notice, noticeSink())
-    }
-
-    return next(e)
   })
 
   // Live: a typed prompt (or slash command) opens a turn; its first main-loop text row is the opener.
   on('session.append', async ($, e, next) => {
-    // The engine's hot-reload note, `ghostframe: reloaded (13 hooks: ui.render, …)`, is kept
-    // as one short line: `ghostframe reloaded · 13 hooks`. Any other row passes as it came.
-    const shortened = reloadNote(e.message)
-
-    if (shortened !== undefined) {
-      return next({ ...e, message: shortened })
-    }
-
     try {
-      if (e.agentId === undefined && e.door === 'response') {
-        if (e.message.content.some(b => b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0)) {
-          lastAnswer = { turn: await readTurn($), row: e.uuid }
+      // The engine's hot-reload note, `ghostframe: reloaded (13 hooks: ui.render, …)`, is kept
+      // as one short line: `ghostframe reloaded · 13 hooks`. Any other row passes as it came.
+      const shortened = reloadNote(e.message)
+
+      if (shortened !== undefined) {
+        return next({ ...e, message: shortened })
+      }
+
+      try {
+        if (e.agentId === undefined && e.door === 'response') {
+          if (e.message.content.some(b => b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0)) {
+            lastAnswer = { turn: await readTurn($), row: e.uuid }
+          }
+
+          await noteFlow($, e.message.content, e.uuid)
+          await logSaid($, e.message.content)
         }
 
-        await noteFlow($, e.message.content, e.uuid)
-        await logSaid($, e.message.content)
-      }
-
-      if (e.agentId === undefined && e.door === 'prompt' && e.message.isMeta !== true && isOn()) {
-        await notePromptRow($, e.message.content, e.uuid)
-      }
-
-      if (e.agentId === undefined && e.door === 'delivery' && isOn()) {
-        await noteSteer($, e.message.content, e.uuid)
-      }
-
-      if (e.agentId === undefined && (e.door === 'prompt' || e.door === 'command')) {
-        await updateAwaitingFirst($, () => true)
-      } else if (e.agentId === undefined && e.door === 'response' && (await readAwaitingFirst($))) {
-        // Claude's first visible block decides: prose text, or a tool call (the activity header).
-        const opener = e.message.content.find(b => (b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0) || b.type === 'tool_use')
-
-        const turn = await readTurn($)
-
-        if (opener?.type === 'text' && typeof opener['text'] === 'string') {
-          const key = firstKey(opener['text'])
-          await snapshotCaps($, key, turn, e.message.content, false)
-          await updateFirstTexts($, list => [...list, { key, turn }].slice(-FIRSTS_MAX))
-          await updateAwaitingFirst($, () => false)
-        } else if (opener?.type === 'tool_use' && typeof opener['id'] === 'string') {
-          const id = opener['id']
-          await snapshotCaps($, id, turn, e.message.content, true)
-          await updateFirstTools($, list => [...list, id].slice(-FIRSTS_MAX))
-          await updateAwaitingFirst($, () => false)
+        if (e.agentId === undefined && e.door === 'prompt' && e.message.isMeta !== true && isOn()) {
+          await notePromptRow($, e.message.content, e.uuid)
         }
+
+        if (e.agentId === undefined && e.door === 'delivery' && isOn()) {
+          await noteSteer($, e.message.content, e.uuid)
+        }
+
+        if (e.agentId === undefined && (e.door === 'prompt' || e.door === 'command')) {
+          await updateAwaitingFirst($, () => true)
+        } else if (e.agentId === undefined && e.door === 'response' && (await readAwaitingFirst($))) {
+          // Claude's first visible block decides: prose text, or a tool call (the activity header).
+          const opener = e.message.content.find(
+            b => (b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0) || b.type === 'tool_use'
+          )
+
+          const turn = await readTurn($)
+
+          if (opener?.type === 'text' && typeof opener['text'] === 'string') {
+            const key = firstKey(opener['text'])
+            await snapshotCaps($, key, turn, e.message.content, false)
+            await updateFirstTexts($, list => [...list, { key, turn }].slice(-FIRSTS_MAX))
+            await updateAwaitingFirst($, () => false)
+          } else if (opener?.type === 'tool_use' && typeof opener['id'] === 'string') {
+            const id = opener['id']
+            await snapshotCaps($, id, turn, e.message.content, true)
+            await updateFirstTools($, list => [...list, id].slice(-FIRSTS_MAX))
+            await updateAwaitingFirst($, () => false)
+          }
+        }
+      } catch {
+        // Observing only: the row is stored as it was either way.
       }
-    } catch {
-      // Observing only: the row is stored as it was either way.
+
+      return next(e)
+    } finally {
+      noteOwnTime($, 'session.append', next.budget)
     }
-
-    return next(e)
   }).catch((_$, e, next) => next(e))
 
   // A compaction of the main conversation (not a `precompute`, which installs nothing, nor a skipped one): the next
   // typed turn's rule says `AFTER COMPACT` (E.22, amendment 12).
   on('session.compact', async ($, e, next) => {
-    const done = await next(e)
+    try {
+      const done = await next(e)
 
-    if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done && typeof done.skip === 'string')) {
-      try {
-        await notePending($, 'compact')
-      } catch (error: unknown) {
-        const notice = `compaction not noted for the turn rule: ${String(error)}`
+      if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done && typeof done.skip === 'string')) {
+        try {
+          await notePending($, 'compact')
+        } catch (error: unknown) {
+          const notice = `compaction not noted for the turn rule: ${String(error)}`
 
-        $.ui.log(notice, noticeSink())
+          $.ui.log(notice, noticeSink())
+        }
+
+        try {
+          await logCompacted($)
+        } catch (error: unknown) {
+          const notice = `compaction not noted in the pane's history: ${String(error)}`
+
+          $.ui.log(notice, noticeSink())
+        }
       }
 
-      try {
-        await logCompacted($)
-      } catch (error: unknown) {
-        const notice = `compaction not noted in the pane's history: ${String(error)}`
-
-        $.ui.log(notice, noticeSink())
-      }
+      return done
+    } finally {
+      noteOwnTime($, 'session.compact', next.budget)
     }
-
-    return done
   })
 }

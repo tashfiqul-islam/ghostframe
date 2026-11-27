@@ -2,6 +2,7 @@
 // (`tool.check`). What a finished call adds to the turn: the tally, test counts, what shipped.
 import { noticeSink } from '../../cockpit/switch'
 import type { EngineInterface, On } from 'claude-code'
+import { noteOwnTime } from '../../shared/budget'
 
 import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepStart, logUnask } from '../../cockpit/log'
 import { runnerOf } from '../../shared/calls/describe'
@@ -77,139 +78,151 @@ async function unasked($: EngineInterface, id: string): Promise<void> {
 export function registerCalls(on: On): void {
   // Time every main-loop call. Observes only: the call runs exactly as it would.
   on('tool.call', async ($, e, next) => {
-    if (e.agentId !== undefined) {
-      const agentId = e.agentId
+    try {
+      if (e.agentId !== undefined) {
+        const agentId = e.agentId
 
-      try {
-        // A subagent's call is its own: its `[ AGENTS ]` row says what it does now, and its own log gets the step.
-        await logAgentStep($, agentId, e, sessionCwd())
-      } catch (error: unknown) {
-        $.ui.log(`cockpit: agent step failed: ${String(error)}`, noticeSink())
-      }
-
-      let done: Awaited<ReturnType<typeof next>> | undefined
-
-      try {
-        done = await next(e)
-
-        return done
-      } finally {
         try {
-          await logAgentStepEnd($, agentId, e, done, sessionCwd())
+          // A subagent's call is its own: its `[ AGENTS ]` row says what it does now, and its own log gets the step.
+          await logAgentStep($, agentId, e, sessionCwd())
         } catch (error: unknown) {
           $.ui.log(`cockpit: agent step failed: ${String(error)}`, noticeSink())
         }
-      }
-    }
 
-    const id = e.tool_use_id
-    const now = async () => {
-      try {
-        return await $.clock.now()
-      } catch {
-        return undefined // a clock that fails costs the step its time; the step still settles
-      }
-    }
-    const at = await now()
+        let done: Awaited<ReturnType<typeof next>> | undefined
 
-    try {
-      const turn = await readTurn($)
-      await updateSteps($, list => capTurns([...list, { id, turn, at: at ?? 0, ms: null, tool: e.tool }], STEPS_MAX, turn))
-    } catch {
-      // A stamp that fails costs the row its time, nothing more.
-    }
+        try {
+          done = await next(e)
 
-    try {
-      await logStepStart($, e, at ?? 0, sessionCwd())
-    } catch {
-      // A pane row that fails costs the pane that row; the call runs as it would.
-    }
-
-    let ran: Awaited<ReturnType<typeof next>> | undefined
-
-    try {
-      ran = await next(e)
-
-      try {
-        await afterCall($, e, ran)
-      } catch {
-        // A card that can't be read costs the row its card; the activity output stays.
-      }
-
-      return ran
-    } finally {
-      // Always settled. A start or end the clock couldn't give: 0ms at the known end, so the
-      // step never counts toward its turn's time; neither known: the step is dropped.
-      const end = await now()
-      const when = at ?? end
-      const ms = at !== undefined && end !== undefined ? end - at : 0
-      const ok = ran !== undefined && ran.isError !== true && ran.deny === undefined
-
-      try {
-        await updateSteps($, list => (when === undefined ? list.filter(s => s.id !== id) : list.map(s => (s.id === id ? { ...s, at: when, ms, ok } : s))))
-
-        if ((await readAsked($)).includes(id)) {
-          await updateAsked($, list => list.filter(x => x !== id))
+          return done
+        } finally {
+          try {
+            await logAgentStepEnd($, agentId, e, done, sessionCwd())
+          } catch (error: unknown) {
+            $.ui.log(`cockpit: agent step failed: ${String(error)}`, noticeSink())
+          }
         }
+      }
+
+      const id = e.tool_use_id
+      const now = async () => {
+        try {
+          return await $.clock.now()
+        } catch {
+          return undefined // a clock that fails costs the step its time; the step still settles
+        }
+      }
+      const at = await now()
+
+      try {
+        const turn = await readTurn($)
+        await updateSteps($, list => capTurns([...list, { id, turn, at: at ?? 0, ms: null, tool: e.tool }], STEPS_MAX, turn))
       } catch {
-        // as above
+        // A stamp that fails costs the row its time, nothing more.
       }
 
       try {
-        await logStepEnd($, e, ran, end ?? when ?? 0, sessionCwd())
+        await logStepStart($, e, at ?? 0, sessionCwd())
       } catch {
-        // as above
+        // A pane row that fails costs the pane that row; the call runs as it would.
       }
+
+      let ran: Awaited<ReturnType<typeof next>> | undefined
+
+      try {
+        ran = await next(e)
+
+        try {
+          await afterCall($, e, ran)
+        } catch {
+          // A card that can't be read costs the row its card; the activity output stays.
+        }
+
+        return ran
+      } finally {
+        // Always settled. A start or end the clock couldn't give: 0ms at the known end, so the
+        // step never counts toward its turn's time; neither known: the step is dropped.
+        const end = await now()
+        const when = at ?? end
+        const ms = at !== undefined && end !== undefined ? end - at : 0
+        const ok = ran !== undefined && ran.isError !== true && ran.deny === undefined
+
+        try {
+          await updateSteps($, list => (when === undefined ? list.filter(s => s.id !== id) : list.map(s => (s.id === id ? { ...s, at: when, ms, ok } : s))))
+
+          if ((await readAsked($)).includes(id)) {
+            await updateAsked($, list => list.filter(x => x !== id))
+          }
+        } catch {
+          // as above
+        }
+
+        try {
+          await logStepEnd($, e, ran, end ?? when ?? 0, sessionCwd())
+        } catch {
+          // as above
+        }
+      }
+    } finally {
+      noteOwnTime($, 'tool.call', next.budget)
     }
   }).catch((_$, e, next) => next(e))
 
   // Permission: note a main-loop call whose check asks the person, so its row can say it
   // waits on you. Observes only: the verdict is handed up exactly as heard.
   on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
-
     try {
-      const id = e.tool_use_id
+      const verdict = await next(e)
 
-      if (e.agentId === undefined && id !== undefined && e.approver === 'person' && verdict.decision === 'ask') {
-        await updateAsked($, list => [...list.filter(x => x !== id), id].slice(-100))
-        await logAsk($, id)
+      try {
+        const id = e.tool_use_id
+
+        if (e.agentId === undefined && id !== undefined && e.approver === 'person' && verdict.decision === 'ask') {
+          await updateAsked($, list => [...list.filter(x => x !== id), id].slice(-100))
+          await logAsk($, id)
+        }
+
+        // Refused by a check, not by the person (13.7): its step settles `blocked`, and nobody is asked.
+        if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') {
+          logBlocked(id, verdict)
+          await unasked($, id)
+        }
+      } catch {
+        // A note that fails costs the row its `needs you`, nothing more.
       }
 
-      // Refused by a check, not by the person (13.7): its step settles `blocked`, and nobody is asked.
-      if (e.agentId === undefined && id !== undefined && verdict.decision === 'deny') {
-        logBlocked(id, verdict)
-        await unasked($, id)
-      }
-    } catch {
-      // A note that fails costs the row its `needs you`, nothing more.
+      return verdict
+    } finally {
+      noteOwnTime($, 'tool.check', next.budget)
     }
-
-    return verdict
   }).catch((_$, e, next) => next(e)) // never decides: the verdict beneath stands
 
   // Auto mode settles an ask with its classifier, not the person (9.3): while it judges nobody is asked, and only a
   // classifier that gives no verdict (`ask`) puts the call to the person. Observes only: the verdict is handed up.
   on('tool.judge', async ($, e, next) => {
-    const isMain = e.agentId === undefined && e.approver === 'person'
-
     try {
-      if (isMain) await unasked($, e.tool_use_id)
-    } catch {
-      // A note that fails costs the row its `needs you`, nothing more.
-    }
+      const isMain = e.agentId === undefined && e.approver === 'person'
 
-    const verdict = await next(e)
-
-    try {
-      if (isMain && verdict.decision === 'ask') {
-        await updateAsked($, list => [...list.filter(x => x !== e.tool_use_id), e.tool_use_id].slice(-100))
-        await logAsk($, e.tool_use_id)
+      try {
+        if (isMain) await unasked($, e.tool_use_id)
+      } catch {
+        // A note that fails costs the row its `needs you`, nothing more.
       }
-    } catch {
-      // as above
-    }
 
-    return verdict
+      const verdict = await next(e)
+
+      try {
+        if (isMain && verdict.decision === 'ask') {
+          await updateAsked($, list => [...list.filter(x => x !== e.tool_use_id), e.tool_use_id].slice(-100))
+          await logAsk($, e.tool_use_id)
+        }
+      } catch {
+        // as above
+      }
+
+      return verdict
+    } finally {
+      noteOwnTime($, 'tool.judge', next.budget)
+    }
   }).catch((_$, e, next) => next(e)) // never decides: the verdict beneath stands
 }
