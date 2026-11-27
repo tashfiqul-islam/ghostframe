@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { ON, PANE, T0, VIEW } from '../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
@@ -66,7 +66,7 @@ async function paneText($: Engine): Promise<string[]> {
   return [...new Set(rows)]
 }
 
-test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match the left`s Sources frame', ON, async ($, on) => {
+test('a turn`s to-dos, files and pages reach the pane; the answer`s marks match the left`s Sources frame', SLOW, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
