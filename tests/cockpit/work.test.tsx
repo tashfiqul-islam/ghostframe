@@ -649,6 +649,59 @@ test('an untracked link to a file outside the project is never read, so its line
   expect(read.filter(p => p.includes('keys'))).toEqual([])
 })
 
+// The project is `/repo/app`; `linked.txt` in it is a new file, a link to `/repo/App/secret.txt`, a sibling folder
+// whose name differs only in case. Where the disk ignores case (Windows, macOS) that is the project's own folder;
+// elsewhere, and where the platform is not known, it is another folder: outside, never read.
+const CASES = [
+  ['linux', false],
+  ['wsl', false],
+  ['unknown', false],
+  ['windows', true],
+  ['macos', true]
+] as const
+
+for (const [platform, isSameFolder] of CASES) {
+  test(`on ${platform}, a link to a folder named as the project in another case is ${isSameFolder ? 'the project' : 'outside it'}`, ON, async ($, on) => {
+    const clock = { now: T0 }
+    engine(on, clock)
+    on('session.info', () => ({ value: { platform } as never }))
+    const read: string[] = []
+    let lists = 0
+    on('process.run', (_, e) => {
+      const argv = e.argv.join(' ')
+
+      if (argv === 'git rev-parse --show-toplevel') return ran('/repo/app\n')
+      if (argv === 'git rev-parse --show-prefix') return ran('\n')
+      if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+      if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'linked.txt\0')
+
+      return ran('')
+    })
+    on('fs.stat', (_, e) => {
+      const path = posixPath(e.path)
+      const isLinked = path.endsWith('linked.txt')
+
+      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: isLinked, realPath: isLinked ? '/repo/App/secret.txt' : path } }
+    })
+    on('fs.read', (_, e) => {
+      read.push(e.path)
+
+      return { value: 'one\ntwo\n' }
+    })
+    await $.session.start({ cwd: '/repo/app', surface: 'terminal', isInteractive: false })
+    await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text: 'notes', turnId: 't1' })
+    await call($, 'Bash', 'b1', { command: 'make' })
+
+    const row = (await paneText($)).find(r => r.includes('linked.txt'))
+    expect({ row, read: read.filter(p => p.includes('linked')).length }).toEqual(
+      isSameFolder
+        ? { row: expect.stringMatching(/^ {4}linked\.txt +\+2 {7}■+$/), read: 1 }
+        : { row: expect.stringMatching(/^ {4}linked\.txt {2,}■{5}$/), read: 0 }
+    )
+  })
+}
+
 test('a file whose name Git would quote (`café.txt`, `my notes/a b.md`): its row and its diff name it as it is', ON, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock)

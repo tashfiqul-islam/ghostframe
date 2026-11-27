@@ -8,7 +8,7 @@ import type { FileDiff } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { deleted, shownPath, writeTargets } from '../sections/files'
 import { isOffProject } from '../../shared/url'
-import { cwdNow, diskPath, landsOutside, wasChangedBefore, workDiff } from '../work'
+import { cwdNow, diskPath, ignoresCase, landsOutside, wasChangedBefore, workDiff } from '../work'
 import { DIFF_CHANGES_MAX, DIFF_LINES_MAX, lineDiff } from './linediff'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
@@ -62,6 +62,8 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
   if (cwd === undefined) return
 
   const named = [...new Set(targets(tool, input, cwd))].filter(path => !isOffProject(path))
+  // Read before the paths are claimed: no wait may fall between finding them unread and claiming them.
+  const caseless = named.length > 0 && (await ignoresCase($))
   const fresh = named.filter(path => !snapshots.has(path) && !tooLarge.has(path) && !reading.has(path))
 
   // Each path is claimed before its read: a call of an agent beside the main loop's waits for the first read rather
@@ -72,7 +74,7 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
       (async () => {
         try {
           // Through a link to elsewhere: outside the project after all, never read (its diff says so).
-          if (await landsOutside($, path, cwd)) return
+          if (await landsOutside($, path, cwd, caseless)) return
 
           const text = await $.fs.read(await diskPath($, path, cwd))
 
@@ -103,7 +105,8 @@ export async function fileDiff($: EngineInterface, path: string, cwd: string | u
   // The folder Git's fallback reads from is checked when the caller names none.
   const here = cwd ?? cwdNow()
 
-  if (isOffProject(path) || (here !== undefined && (await landsOutside($, path, here)))) return { path, patch: [], note: 'no diff · outside the project' }
+  if (isOffProject(path) || (here !== undefined && (await landsOutside($, path, here, await ignoresCase($)))))
+    return { path, patch: [], note: 'no diff · outside the project' }
 
   const snap = snapshots.get(path)
 

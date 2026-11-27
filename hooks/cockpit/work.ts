@@ -54,11 +54,28 @@ const slashed = (path: string): string =>
 /** A folder as a command's `cwd` takes it: a drive's or the filesystem's root keeps its slash (`C:/`, `/`). */
 const asFolder = (path: string): string => (path.length === 0 || /^[A-Za-z]:$/.test(path) ? `${path}/` : path)
 
-// shortcut: case is ignored on every platform, as Windows and macOS folders do; on a case-sensitive Linux disk two
-// folders differing only in case count as one. Compare exactly off Windows and macOS if that ever matters.
-/** Whether a real path is the path Git names, slashes, long forms and case aside. */
-const isSame = (real: string | null | undefined, path: string): boolean =>
-  real !== undefined && real !== null && slashed(real).toLowerCase() === slashed(path).toLowerCase()
+/**
+ * Whether the session's disk ignores case in a path: Windows' and macOS's do. Linux and WSL compare exactly, and so
+ * does a platform not known: a path that differs only in case is then another one, outside, never read.
+ * @param $ the engine interface
+ * @returns true on Windows and macOS
+ */
+export async function ignoresCase($: EngineInterface): Promise<boolean> {
+  try {
+    const { platform } = await $.session.info()
+
+    return platform === 'windows' || platform === 'macos'
+  } catch {
+    return false // a platform that cannot be read is not known: exact, the side that reads nothing it should not
+  }
+}
+
+/** A path as it is compared: slashes and long forms aside, its case kept where the disk keeps it. */
+const compared = (path: string, isCaseless: boolean): string => (isCaseless ? slashed(path).toLowerCase() : slashed(path))
+
+/** Whether a real path is the path Git names, slashes and long forms aside, and case where the disk ignores it. */
+const isSame = (real: string | null | undefined, path: string, isCaseless: boolean): boolean =>
+  real !== undefined && real !== null && compared(real, isCaseless) === compared(path, isCaseless)
 
 /** The session's folder, as the last turn or call gave it. */
 export const cwdNow = (): string | undefined => lastCwd
@@ -135,6 +152,8 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
   if (cwd === undefined || copy === null) return undefined
 
   try {
+    const caseless = await ignoresCase($)
+
     if (copy === undefined) {
       const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
 
@@ -152,17 +171,17 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
         const down = prefix.replace(/\/+$/, '')
         const gitRoot = slashed(top.stdout.trim())
         const here = slashed(cwd)
-        const isBelow = down.length === 0 || here.toLowerCase().endsWith(`/${down.toLowerCase()}`)
+        const isBelow = down.length === 0 || compared(here, caseless).endsWith(`/${compared(down, caseless)}`)
         const derived = isBelow ? here.slice(0, here.length - (down.length === 0 ? 0 : down.length + 1)) : undefined
 
-        if (derived !== undefined && isSame(await realPath($, asFolder(derived)), gitRoot)) {
+        if (derived !== undefined && isSame(await realPath($, asFolder(derived)), gitRoot, caseless)) {
           copy = { root: asFolder(derived), here: asFolder(here), prefix }
         } else {
           const real = await realPath($, cwd)
           const wanted = down.length === 0 ? gitRoot : `${gitRoot}/${down}`
 
           if (real === undefined || real === null) throw new Error(`cannot resolve the session's folder ${cwd}`)
-          if (!isSame(real, wanted)) throw new Error(`the session's folder ${real} is not ${down} under Git's root ${gitRoot}`)
+          if (!isSame(real, wanted, caseless)) throw new Error(`the session's folder ${real} is not ${down} under Git's root ${gitRoot}`)
 
           copy = { root: asFolder(gitRoot), here: asFolder(wanted), prefix }
         }
@@ -187,7 +206,7 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
     const fresh = others.stdout.split('\0').filter(p => p.length > 0 && p.startsWith(prefix))
     const isRecount = fresh.length <= RECOUNT_MAX
     // A new file that is a link out of the project (SEC-T3) keeps its row, never read, so never counted.
-    const counted = async (path: string) => ((await landsOutside($, path.slice(prefix.length), here)) ? 0 : newLines($, root, path, isRecount))
+    const counted = async (path: string) => ((await landsOutside($, path.slice(prefix.length), here, caseless)) ? 0 : newLines($, root, path, isRecount))
     const untracked = await Promise.all(fresh.map(async path => ({ path, added: await counted(path), removed: 0, isUntracked: true })))
 
     return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked] }
@@ -354,20 +373,16 @@ async function realPath($: EngineInterface, path: string): Promise<string | null
  * @param $ the engine interface
  * @param path the file, as the pane names it
  * @param cwd the session's folder
+ * @param isCaseless whether the disk ignores case (`ignoresCase`), read once for the whole diff
  * @returns true when it must not be read
  */
-export async function landsOutside($: EngineInterface, path: string, cwd: string): Promise<boolean> {
+export async function landsOutside($: EngineInterface, path: string, cwd: string, isCaseless: boolean): Promise<boolean> {
   const [file, root] = await Promise.all([realPath($, await diskPath($, path, cwd)), realPath($, cwd)])
 
   if (file === null) return false
   if (file === undefined || root === undefined || root === null) return true
 
-  // shortcut: case is ignored, as in `isSame`; on a case-sensitive Linux disk a sibling folder named as the project in
-  // another case counts as inside it. Compare exactly off Windows and macOS if that ever matters.
-  const f = slashed(file).toLowerCase()
-  const r = slashed(root).toLowerCase()
-
-  return !f.startsWith(`${r}/`)
+  return !compared(file, isCaseless).startsWith(`${compared(root, isCaseless)}/`)
 }
 
 /**
