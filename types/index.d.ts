@@ -200,6 +200,15 @@ export type Receipt = {
 }
 
 /**
+ * An agent this session launched, kept for the whole session whatever the roster and history drop: what tells its
+ * notices and messages apart from anyone else's (spec 8.9).
+ */
+export type LaunchedAgent = Pick<RosterAgent, 'id' | 'call' | 'name' | 'called'>
+
+/** A background task's newest notice (its task id, what it says, how long it ran), for the one row its notices share. */
+export type TaskNotice = { id: string; text: string; durationMs?: number }
+
+/**
  * One agent in Cockpit's `[ AGENTS ]` (spec E.40), in launch order: its id (`agent.spawn`'s `agentId`), the Agent call
  * that launched it (`call`, '' when none did), its parent agent (null for the main loop's), its name (the call's
  * description), whether it runs in the background, its state, the kind and subject of its current step (or, once it
@@ -334,6 +343,8 @@ declare module 'claude-code' {
       stepLog: Shaped<StepLog>
       receipts: Shaped<Receipt[]>
       roster: Shaped<RosterAgent[]>
+      launched: Shaped<LaunchedAgent[]>
+      taskNotices: Shaped<TaskNotice[]>
       work: Shaped<TurnWork>
       details: Shaped<StepDetail[]>
       viewTick: Shaped<number>
