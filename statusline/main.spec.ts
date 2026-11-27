@@ -44,3 +44,14 @@ test('the fallback line drawn after a failed render holds no control characters 
   // oxlint-disable-next-line no-control-regex -- the controls are what this looks for
   expect(r.out.replace(/\n$/, '')).not.toMatch(/[\x00-\x1f\x7f-\x9f]/)
 })
+
+test('no home folder: a status line, exit 0 and nothing on stderr', () => {
+  const env = { PATH: process.env['PATH'] ?? '', COLUMNS: '120', USERPROFILE: '', HOME: '', HOMEDRIVE: '', HOMEPATH: '' }
+  const r = run({ model: { display_name: 'Opus 5.5' }, workspace: { current_dir: tmpdir() }, context_window: { used_percentage: 40 } }, env)
+
+  expect(r.err).toBe('')
+  expect(r.code).toBe(0)
+  expect(r.out).toContain('Opus 5.5')
+  // Both rows: a missing home folder costs the caches and the settings, never the layout.
+  expect(r.out.trimEnd().split('\n').length).toBe(2)
+})

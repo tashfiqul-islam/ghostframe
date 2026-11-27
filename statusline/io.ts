@@ -55,11 +55,14 @@ export function cacheDir(env: Record<string, string | undefined>, platform: stri
   return posix.join(xdg !== undefined && posix.isAbsolute(xdg) ? xdg : posix.join(home, '.cache'), 'ghostframe')
 }
 
-/** This user's cache folder, created on the first write. */
-export const CACHE_DIR: string = cacheDir(process.env)
-/** Where the last known rate limits are kept between sessions. */
-export const LIMITS_FILE: string = join(CACHE_DIR, 'limits.json')
-const DEBUG_FILE = join(CACHE_DIR, 'debug.log')
+/**
+ * A file in this user's cache folder (created on the first write). Resolved on each call, inside the caller's try:
+ * with no home folder to find, `homedir()` throws.
+ * @param name the file's name
+ * @param dir the cache folder, when the caller names one
+ * @returns the file's path
+ */
+const cacheFile = (name: string, dir?: string): string => join(dir ?? cacheDir(process.env), name)
 
 /**
  * Whether a file may be read as the status line's own: a regular file (never a link, a pipe or a device) owned by
@@ -117,8 +120,10 @@ function ensureDir(dir: string): void {
 export function debug(msg: string): void {
   if (process.env['GF_DEBUG'] !== '1') return
   try {
-    ensureDir(CACHE_DIR)
-    appendFileSync(DEBUG_FILE, `${new Date().toISOString()} ${msg}\n`, { mode: 0o600 })
+    const file = cacheFile('debug.log')
+
+    ensureDir(join(file, '..'))
+    appendFileSync(file, `${new Date().toISOString()} ${msg}\n`, { mode: 0o600 })
   } catch {
     // shortcut: a debug log that cannot be written is dropped; the status line still draws.
   }
@@ -156,14 +161,14 @@ const hash = (s: string): string => Bun.hash(s).toString(16)
  * (a repository's state, or none for a folder outside any) is cached.
  * @param dir the folder
  * @param now the time now, epoch ms
- * @param cache the cache folder
+ * @param cache the cache folder, this user's when not given
  * @returns branch and dirty state, or null outside a repository or when git failed
  */
-export function gitOf(dir: string, now: number, cache: string = CACHE_DIR): Git | null {
-  const file = join(cache, `git-${hash(dir)}.json`)
+export function gitOf(dir: string, now: number, cache?: string): Git | null {
+  const name = `git-${hash(dir)}.json`
 
   try {
-    const c: unknown = JSON.parse(readOwn(file) ?? '')
+    const c: unknown = JSON.parse(readOwn(cacheFile(name, cache)) ?? '')
 
     if (isRecord(c) && c['dir'] === dir && typeof c['at'] === 'number' && now - c['at'] >= 0 && now - c['at'] < GIT_TTL_MS) {
       const g = c['git']
@@ -190,7 +195,7 @@ export function gitOf(dir: string, now: number, cache: string = CACHE_DIR): Git 
     debug(`git failed: ${String(e)}`)
   }
   try {
-    writeAtomic(file, JSON.stringify({ at: now, dir, git }))
+    writeAtomic(cacheFile(name, cache), JSON.stringify({ at: now, dir, git }))
   } catch (e) {
     debug(`git cache not written: ${String(e)}`)
   }
@@ -200,12 +205,12 @@ export function gitOf(dir: string, now: number, cache: string = CACHE_DIR): Git 
 
 /**
  * The last rate limits written, or null when there is no cache, it is not this user's, or it is not valid JSON.
- * @param file the cache file
+ * @param file the cache file, `limits.json` in this user's cache folder when not given
  * @returns the cached windows, or null
  */
-export function readLimits(file: string = LIMITS_FILE): Limits | null {
+export function readLimits(file?: string): Limits | null {
   try {
-    const c: unknown = JSON.parse(readOwn(file) ?? '')
+    const c: unknown = JSON.parse(readOwn(file ?? cacheFile('limits.json')) ?? '')
 
     return isRecord(c) ? c : null
   } catch {
@@ -216,11 +221,11 @@ export function readLimits(file: string = LIMITS_FILE): Limits | null {
 /**
  * Keeps the live rate limits for the next session's first frame.
  * @param limits the windows Claude Code just sent
- * @param file the cache file
+ * @param file the cache file, `limits.json` in this user's cache folder when not given
  */
-export function writeLimits(limits: Limits, file: string = LIMITS_FILE): void {
+export function writeLimits(limits: Limits, file?: string): void {
   try {
-    writeAtomic(file, JSON.stringify(limits))
+    writeAtomic(file ?? cacheFile('limits.json'), JSON.stringify(limits))
   } catch (e) {
     debug(`limits cache not written: ${String(e)}`)
   }
@@ -236,9 +241,8 @@ export function iconsOn(env: Record<string, string | undefined>): boolean {
   if (env['GF_ICONS'] === '0') return false
   if (env['GF_ICONS'] === '1') return true
 
-  const dir = env['CLAUDE_CONFIG_DIR'] ?? join(homedir(), '.claude')
-
   try {
+    const dir = env['CLAUDE_CONFIG_DIR'] ?? join(homedir(), '.claude')
     const s: unknown = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'))
     const configs = isRecord(s) && isRecord(s['pluginConfigs']) ? s['pluginConfigs'] : {}
 
