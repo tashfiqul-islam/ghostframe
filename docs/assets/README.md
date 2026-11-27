@@ -14,6 +14,8 @@ makes them.
   blanks Claude Code's welcome header (logo, model and plan, the project's path) on whole screens, and cuts the status
   line shots down to the rows they name.
 - `readme-*.png`: the images the README and the release notes use.
+- `readme-demo.webp`: the README's animated demo, one real turn, and `demo.ts`, which makes it from step 15's frames.
+  The README shows `readme-hero.png` instead to anyone who asks for reduced motion.
 - `diagrams/`: the design diagrams the README, `SECURITY.md` and `docs/architecture.md` show, each in a dark and a
   light version. The `.html` files are the sources, drawn with the diagram-design skill in the `ghostframe` profile
   (`/.diagram-design`); `diagrams.ts` renders each one's `<svg>` to the `.png` beside it, at 2x.
@@ -45,6 +47,34 @@ makes them.
 `screenshots.ts` drives your installed Chrome through `playwright-core`, which downloads no browser. Set
 `SHOTS_CHANNEL=msedge` to use Edge. It needs the JetBrainsMono Nerd Font Mono installed, or another Nerd Font named
 in `SHOTS_FONT`.
+
+## Record the demo again
+
+Do this after a change to what Cockpit or the status line draws.
+
+1. Run step 15 of the live checks, with its output outside the repository. It sends one real prompt (step 14's) at
+   144 × 40, the narrowest width the pane docks at by itself, and saves each changed screen, sampled every 250 ms,
+   as `<run>\D144\demo\<n>.html` with the times in `frames.json`. That is about 130 frames and 23 MB, so they are
+   not committed.
+
+   ```powershell
+   cd tools/live
+   $env:LIVE_OUT = "$env:TEMP\ghostframe-live"
+   bun run.ts 15
+   ```
+
+2. Check a few frames for anything personal. `demo.ts` blanks Claude Code's welcome header, but nothing else.
+3. Encode the animation:
+
+   ```sh
+   cd docs/assets
+   bun install --frozen-lockfile
+   bun demo.ts "$LIVE_OUT/<run>/D144/demo"
+   ```
+
+   It draws each frame as `screenshots.ts` does, at 2x, and writes `readme-demo.webp` through `sharp`. The turn plays
+   sped up to 11 s, each frame keeping its share of the real time, and the last frame holds for 2.5 s. It prints the
+   frame count, the loop's length and the file's size; keep the file under 5 MB.
 
 ## Regenerate the diagrams
 

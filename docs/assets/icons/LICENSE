@@ -1,0 +1,16 @@
+windows.svg, apple.svg and linux.svg are Font Awesome Free brand icons, copied from
+@fortawesome/fontawesome-free 7.3.1 (svgs/brands/). Two changes, neither to the paths:
+- the fill colour: fill="currentColor" became fill="#9198a1", so the icons read on GitHub's
+  light and dark themes;
+- the viewBox: each became a 512 x 512 square with the glyph centred horizontally
+  (windows and linux: "0 0 448 512" to "-32 0 512 512"; apple: "0 0 384 512" to
+  "-64 0 512 512"), so the three icons share one frame and sit the same distance from their names.
+
+The README's platform chip (docs/assets/readme/platforms-dark.svg and platforms-light.svg, drawn by
+tools/scripts/readme-art.ts) embeds the same three paths, unchanged, with only their fill recoloured.
+
+Icons by Font Awesome, https://fontawesome.com
+Copyright 2026 Fonticons, Inc.
+
+Licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/

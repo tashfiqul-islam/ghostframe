@@ -1,6 +1,6 @@
 // The engine range's checks (docs/decisions/0012-engine-range.md). The range lives in one place, plugin.json's
 // `engines["claude-code"]`; the Claude Code version CI pins (ci.yml's CLAUDE_CODE_VERSION) must be inside it, and the
-// README's facts line must write the same range.
+// README's Claude Code badge (its message and its alt text) and its SPEC box's engine row must write the same range.
 //
 //   bun tools/scripts/engines.ts --check          the pin is inside the range and the README agrees (the gate runs this)
 //   bun tools/scripts/engines.ts --report <ver>   says whether <ver> is inside, for the weekly canary's summary
@@ -59,7 +59,7 @@ export function report(version: string, manifest: string): { isInside: boolean; 
 }
 
 /**
- * The range as the README's facts line writes it.
+ * The range as the README's badge alt text and SPEC box write it.
  * @param range the manifest's range
  * @returns `2.1.329 to 2.1.x` for `>=2.1.329 <2.2.0`
  */
@@ -79,9 +79,14 @@ export function factsRange(range: Range): string {
  */
 export function readmeDrift(readme: string, manifest: string): string | undefined {
   const expected = factsRange(rangeOf(manifest).range)
-  const written = [...readme.matchAll(/Claude Code (\d+\.\d+\.\d+ to \d+\.\d+\.x)/g)].map(m => m[1])
+  // The badge's message is `<floor> → <top>`, URL-encoded in a shields.io static badge path.
+  const badges = [...readme.matchAll(/badge\/Claude_Code-(\d+\.\d+\.\d+)_%E2%86%92_(\d+\.\d+\.x)-/g)]
+  const alts = [...readme.matchAll(/Claude Code versions (\d+\.\d+\.\d+ to \d+\.\d+\.x)/g)]
+  const specs = [...readme.matchAll(/^\| engine +Claude Code (\d+\.\d+\.\d+ to \d+\.\d+\.x), dormant outside/gm)]
 
-  if (written.length === 0) return `README.md writes no "Claude Code ${expected}"`
+  if (badges.length === 0 || alts.length === 0) return `README.md has no Claude Code badge saying ${expected}`
+  if (specs.length === 0) return `README.md's SPEC box has no "engine  Claude Code ${expected}, dormant outside" row`
+  const written = [...badges.map(m => `${m[1]} to ${m[2]}`), ...alts.map(m => m[1]), ...specs.map(m => m[1])]
   const wrong = written.find(w => w !== expected)
 
   return wrong === undefined ? undefined : `README.md says "Claude Code ${wrong}", plugin.json's range is "${expected}"`
@@ -91,15 +96,30 @@ const fail = (what: string): never => {
   throw new Error(`engines self-test: ${what}`)
 }
 
+const badge = (floor: string, top: string, alt = `${floor} to ${top}`): string =>
+  `<img alt="Supported Claude Code versions ${alt}" src="https://img.shields.io/badge/Claude_Code-${floor}_%E2%86%92_${top}-D97757">`
+
+const specRow = (range: string): string => `| engine       Claude Code ${range}, dormant outside   |`
+
+/** A README with the badge and the SPEC box's engine row, each overridable. */
+const readmeWith = (b: string = badge('2.1.329', '2.1.x'), spec: string = specRow('2.1.329 to 2.1.x')): string => `${b}
+${spec}
+`
+
 function selfTest(): void {
   const manifest = JSON.stringify({ engines: { 'claude-code': '>=2.1.329 <2.2.0' } })
 
   if (!report('2.1.329', manifest).isInside || report('2.2.0', manifest).isInside) fail('the range is read wrong')
   if (pinnedOf('env:\n  CLAUDE_CODE_VERSION: 2.1.329\n') !== '2.1.329') fail('the pin is read wrong')
-  if (readmeDrift('v1.0.0 · MIT · Claude Code 2.1.329 to 2.1.x · Windows', manifest) !== undefined) fail('a matching README failed')
-  if (readmeDrift('Claude Code 2.1.300 to 2.1.x', manifest) === undefined) fail('a stale README floor passed')
-  if (readmeDrift('Claude Code 2.1.329 to 2.2.x', manifest) === undefined) fail('a stale README ceiling passed')
-  if (readmeDrift('no range here', manifest) === undefined) fail('a README without the range passed')
+  if (readmeDrift(readmeWith(), manifest) !== undefined) fail('a matching README failed')
+  if (readmeDrift(readmeWith(badge('2.1.300', '2.1.x')), manifest) === undefined) fail('a stale badge floor passed')
+  if (readmeDrift(readmeWith(badge('2.1.329', '2.2.x')), manifest) === undefined) fail('a stale badge ceiling passed')
+  if (readmeDrift(readmeWith(badge('2.1.329', '2.1.x', '2.1.300 to 2.1.x')), manifest) === undefined) fail('a stale alt text passed')
+  if (readmeDrift(readmeWith(undefined, specRow('2.1.300 to 2.1.x')), manifest) === undefined) fail('a stale SPEC row passed')
+  if (readmeDrift(readmeWith('Claude Code 2.1.329 to 2.1.x'), manifest) === undefined) fail('a README without the badge passed')
+  if (readmeDrift(readmeWith(undefined, '| engine       Claude Code, dormant outside |'), manifest) === undefined) {
+    fail('a README without the SPEC row passed')
+  }
   for (const broken of [JSON.stringify({}), JSON.stringify({ engines: { 'claude-code': '^2.1.0' } })]) {
     try {
       rangeOf(broken)

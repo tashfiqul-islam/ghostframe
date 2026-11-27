@@ -15,7 +15,7 @@ import { markRow } from './statusline.ts'
 import type { Suite } from './steps.ts'
 
 const ROOT = join(import.meta.dirname, '..', '..').replaceAll('\\', '/')
-const PROMPT = 'the width tests fail: run them, read src/width.ts and its test, fix it, run the tests again, show the diff, then commit'
+export const PROMPT = 'the width tests fail: run them, read src/width.ts and its test, fix it, run the tests again, show the diff, then commit'
 
 /**
  * The suite's settings: the base live settings with this worktree as the plugin, Cockpit left to its default, and the
@@ -23,7 +23,7 @@ const PROMPT = 'the width tests fail: run them, read src/width.ts and its test, 
  * @param dir the suite's capture folder
  * @returns the settings file's path
  */
-function settingsFor(dir: string): string {
+export function settingsFor(dir: string): string {
   const script = join(dir, 'ghostframe', 'statusline.js').replaceAll('\\', '/')
 
   mkdirSync(join(dir, 'ghostframe'), { recursive: true })
