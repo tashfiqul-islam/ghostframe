@@ -126,3 +126,10 @@ for (const said of FINISHED) {
     expect(wordsOf(splitBlocks(said))).toEqual(sourceWords(said))
   })
 }
+
+// A finished reply's last list is whole, even when its last item is not a link (B2, B3).
+for (const said of ['Sources:\n- [Bun](https://bun.sh)\n- the Node docs', '## Sources\n\n- [Bun](https://bun.sh)\n- the Node docs']) {
+  test(`B2, B3. the finished reply ${JSON.stringify(said)} keeps its last item`, () => {
+    expect(JSON.stringify(splitBlocks(said))).toContain('the Node docs')
+  })
+}

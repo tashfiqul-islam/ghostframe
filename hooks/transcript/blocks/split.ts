@@ -216,7 +216,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true, i
   }
 
   // A Sources list still streaming draws as one, from its label on (before `- [` reads as text).
-  if (atEnd && lines.length > 1 && isSourcesLabel(lines[0] ?? '')) {
+  if (isPartial && atEnd && lines.length > 1 && isSourcesLabel(lines[0] ?? '')) {
     const pending = sourceItems(lines, false) ?? pendingSourceItems(lines, false)
 
     if (pending !== undefined) {
@@ -261,7 +261,7 @@ function classify(lines: string[], out: Block[], atEnd: boolean, whole = true, i
   const prev = out[out.length - 1]
   const labelAbove = (prev?.kind === 'heading' && isSourcesLabel(prev.text)) || (prev?.kind === 'para' && isSourcesLabel(prev.runs.map(r => r.t).join('')))
   // At the reply's end a Sources list may still be streaming: its whole items only.
-  const items = sourceItems(lines, labelAbove) ?? (atEnd ? pendingSourceItems(lines, labelAbove) : undefined)
+  const items = sourceItems(lines, labelAbove) ?? (isPartial && atEnd ? pendingSourceItems(lines, labelAbove) : undefined)
 
   if (items !== undefined) {
     if (labelAbove) out.pop()
