@@ -47,6 +47,10 @@ export const WIDE_W = 140
 export const TILE_MAX = 54
 /** The mark's fixed slot: 6 cells wide, 2 rows tall. */
 export const MARK_W = 6
+/** The narrowest a tile gets: its edge, padding, number and short label, and the cell between them. */
+export const TILE_MIN = 14
+/** The narrowest the model and repo columns shrink to when long names would squeeze the tiles. */
+export const COL_MIN = 8
 
 const ICON = { branch: '\uE725', pr: '\uF407', bolt: '\uF0E7' } as const // Nerd Font: dev git branch, oct pull request, fa bolt
 const ICON_W = 2 // the icon and its space
@@ -80,6 +84,26 @@ function fit(segs: Seg[], w: number): Seg[] {
   if (n > w) throw new Error(`overflow ${n}>${w}: ${segs.map(x => x.t).join('')}`)
 
   return [...segs, ...sp(w - n)]
+}
+// The segments cut to `w` cells: the one that crosses the edge ends in "…", any after it are dropped.
+function clip(segs: Seg[], w: number): Seg[] {
+  if (len(segs) <= w) return segs
+
+  const out: Seg[] = []
+  let room = w
+
+  for (const x of segs) {
+    const n = cellsOf(x.t)
+
+    if (n > room) {
+      out.push({ ...x, t: cutTitle(x.t, room) })
+      break
+    }
+    out.push(x)
+    room -= n
+  }
+
+  return out
 }
 const lr = (l: Seg[], r: Seg[], w: number): Seg[] => fit([...l, ...sp(Math.max(1, w - len(l) - len(r))), ...r], w)
 const onbg = (segs: Seg[], bg: string): Seg[] => segs.map(x => (x.bg === undefined ? { ...x, bg } : x))
@@ -227,18 +251,28 @@ export function render(f: Facts, w: number, o: Options): Rows {
   const [model, repo, ch] = left(f, wide, o.icons)
   const [mW, rW, cW] = left(f, wide, true).map(([a, b]) => Math.max(len(a), len(b)))
   const prSlot = ICON_W + `PR #${f.pr?.n ?? 23}`.length
-  const cols: [Seg[], Seg[], number][] = [
-    [model[0], model[1], Math.max(wide ? 12 : 8, mW ?? 0)],
-    [repo[0], repo[1], rW ?? 0],
-    [ch[0], ch[1], Math.max(wide ? 17 : 8, prSlot, cW ?? 0)]
-  ]
+  let modelW = Math.max(wide ? 12 : 8, mW ?? 0)
+  let repoW = rW ?? 0
+  const chW = Math.max(wide ? 17 : 8, prSlot, cW ?? 0)
 
   // Gutters: after the mark, either side of each rule, and before the tiles. Past TILE_MAX the four gutters around
   // the rules grow (up to 2 cells each), so the left side breathes; the tiles share whatever is left.
   const g = wide ? { mark: 4, rule: 3, tiles: 3 } : { mark: 2, rule: 1, tiles: 2 }
   const margin = o.slab ? 2 : 0
-  const colsW = margin + MARK_W + cols.reduce((n, [, , cw]) => n + cw, 0)
-  const fixed = (): number => colsW + g.mark + (wide ? 2 * (2 * g.rule + 1) : 2 * 2 * g.rule) + g.tiles
+  const fixed = (): number => margin + MARK_W + modelW + repoW + chW + g.mark + (wide ? 2 * (2 * g.rule + 1) : 2 * 2 * g.rule) + g.tiles
+
+  // Long model and repo names would squeeze the tiles past their number and label: the wider of the two columns gives
+  // up a cell at a time, down to COL_MIN, and its text is cut with "…".
+  while (w - fixed() - 2 * TG < 3 * TILE_MIN && Math.max(modelW, repoW) > COL_MIN) {
+    if (modelW >= repoW) modelW--
+    else repoW--
+  }
+
+  const cols: [Seg[], Seg[], number][] = [
+    [model[0], model[1], modelW],
+    [repo[0], repo[1], repoW],
+    [ch[0], ch[1], chW]
+  ]
   const tw = Math.floor((w - fixed() - 2 * TG) / 3)
 
   if (wide && tw > TILE_MAX) g.rule += Math.min(2, Math.floor((w - fixed() - 2 * TG - 3 * TILE_MAX) / 4))
@@ -249,8 +283,8 @@ export function render(f: Facts, w: number, o: Options): Rows {
   for (const [i, [a, b, cw]] of cols.entries()) {
     const sep: Seg[] = i === 0 ? sp(g.mark) : wide ? [...sp(g.rule), { t: '│', fg: STATUS.rule }, ...sp(g.rule)] : sp(2 * g.rule)
 
-    l1.push(...sep, ...fit(a, cw))
-    l2.push(...sep, ...fit(b, cw))
+    l1.push(...sep, ...fit(clip(a, cw), cw))
+    l2.push(...sep, ...fit(clip(b, cw), cw))
   }
   l1.push(...sp(g.tiles))
   l2.push(...sp(g.tiles))
@@ -303,7 +337,8 @@ export function render(f: Facts, w: number, o: Options): Rows {
 
     pick: for (const l of labels) {
       for (const m of notes) {
-        if (len(val) + l.length + (m.length > 0 ? 1 + len(m) : 0) <= inner) {
+        // lr keeps at least one cell between the label and the note, even when there is no note.
+        if (len(val) + l.length + 1 + len(m) <= inner) {
           lab = [{ t: l, fg: p < 85 ? STATUS.label : TOKEN.err }]
           meta = m
           break pick

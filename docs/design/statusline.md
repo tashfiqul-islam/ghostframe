@@ -65,6 +65,9 @@ Nothing here changes your terminal's settings.
   2 cells each; the gutters after the ghost and before the tiles stay fixed; the tiles share whatever is left, so
   there is never dead space.
 - Every column is sized for its longest state. Nothing moves between states.
+- The model and repo names are cut to 24 cells. When long names would leave a tile narrower than 14 cells (its
+  number, short label and padding), the wider of the model and repo columns gives up a cell at a time, down to 8,
+  and its text ends in "…". The layout never overflows W.
 
 ### Left columns (name on top, detail below)
 
