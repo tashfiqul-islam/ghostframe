@@ -40,12 +40,12 @@ const IMAGES: readonly { stem: string; limit: number }[] = [
   { stem: 'banner', limit: 150 * KB },
   { stem: 'platforms', limit: 15 * KB },
   { stem: 'divider', limit: 5 * KB },
-  { stem: 'features', limit: 40 * KB },
-  { stem: 'features-narrow', limit: 40 * KB },
+  { stem: 'features', limit: 48 * KB },
+  { stem: 'features-narrow', limit: 48 * KB },
   { stem: 'footer', limit: 40 * KB },
   ...SECTIONS.flatMap(s => [
-    { stem: `band-${s.slug}`, limit: 12 * KB },
-    { stem: `band-${s.slug}-narrow`, limit: 12 * KB }
+    { stem: `band-${s.slug}`, limit: 16 * KB },
+    { stem: `band-${s.slug}-narrow`, limit: 16 * KB }
   ])
 ]
 
@@ -284,9 +284,9 @@ const fontOf = (f: Face): Font => {
 
 const OPS: Readonly<Record<string, string>> = { moveTo: 'm', lineTo: 'l', quadraticCurveTo: 'q', bezierCurveTo: 'c', closePath: 'z' }
 
-/** A number to one decimal, as short as it writes: 0.1 px is 0.2 device pixels at 2x. */
-const d1 = (v: number): string => {
-  const s = String(Math.round(v * 10) / 10)
+/** A number to two decimals, as short as it writes: the precision glyph outlines keep. */
+const d2 = (v: number): string => {
+  const s = String(Math.round(v * 100) / 100)
 
   return s.replace(/^(-?)0\./, '$1.')
 }
@@ -334,11 +334,12 @@ function pathOf(commands: readonly { command: string; args: number[] }[], k: num
     }
     last = op === 'm' ? 'm' : op
     for (let j = 0; j < c.args.length; j += 2) {
-      const x = Math.round((c.args[j] ?? 0) * k)
-      const y = Math.round(-(c.args[j + 1] ?? 0) * k)
+      // Two decimals at REF px: glyph outlines keep their detail.
+      const x = Math.round((c.args[j] ?? 0) * k * 100) / 100
+      const y = Math.round(-(c.args[j + 1] ?? 0) * k * 100) / 100
 
-      put(String(x - cx))
-      put(String(y - cy))
+      put(d2(x - cx))
+      put(d2(y - cy))
       if (j + 2 >= c.args.length) {
         cx = x
         cy = y
@@ -390,7 +391,7 @@ const shortId = (i: number): string =>
   i < LETTERS.length ? (LETTERS[i] ?? '') : `${LETTERS[Math.floor(i / LETTERS.length) - 1] ?? ''}${LETTERS[i % LETTERS.length] ?? ''}`
 
 /** The size every glyph is drawn at in <defs>; a line of another size scales its group. */
-const REF = 48
+const REF = 10
 
 /**
  * One image's glyphs: each distinct glyph of each font is drawn once in <defs>, at REF px, and placed with <use>.
@@ -424,12 +425,14 @@ class Glyphs {
         this.ids.set(key, id)
         this.defs.push(`<path id="${id}" d="${pathOf(glyph.path.commands, REF / font.unitsPerEm)}"/>`)
       }
-      if (id !== undefined) uses.push(`<use href="#${id}" x="${Math.round((pen + (pos?.xOffset ?? 0) * k) / scale)}"/>`)
+      if (id !== undefined) uses.push(`<use href="#${id}" x="${d2((pen + (pos?.xOffset ?? 0) * k) / scale)}"/>`)
       pen += (pos?.xAdvance ?? glyph.advanceWidth) * k + (o.tracking ?? 0) * o.size
     }
 
     // The line's baseline and size are set once on its group, so each glyph carries only its x.
-    const transform = scale === 1 ? `translate(0 ${d1(o.y)})` : `translate(0 ${d1(o.y)}) scale(${Math.round(scale * 10_000) / 10_000})`
+    // Every baseline sits on a whole pixel, so the text's horizontal strokes land on the pixel grid.
+    const y = Math.round(o.y)
+    const transform = scale === 1 ? `translate(0 ${y})` : `translate(0 ${y}) scale(${Math.round(scale * 10_000) / 10_000})`
 
     return `<g fill="${o.fill}" transform="${transform}"${o.cls === undefined ? '' : ` class="${o.cls}"`}>${uses.join('')}</g>`
   }
@@ -514,14 +517,19 @@ const WIDE = 860
  */
 function hairline(c: (typeof C)[Theme], x: number, w: number, y: number, id: string): { body: string; defs: string } {
   const s = 3.5
-  const mid = x + w / 2
+  // The line fills exactly one pixel row with whole-pixel ends, so it draws as one crisp row.
+  const row = Math.floor(y)
+  const left = Math.round(x)
+  const width = Math.round(w)
+  const mid = left + width / 2
+  const centre = row + 0.5
   const stops = [0, 0.5, 1].map(off => `<stop offset="${off}" stop-color="${c.gold}" stop-opacity="${off === 0.5 ? 1 : 0}"/>`).join('')
 
   return {
-    defs: `<linearGradient id="${id}" x1="${n(x)}" x2="${n(x + w)}" y1="0" y2="0" gradientUnits="userSpaceOnUse">${stops}</linearGradient>`,
+    defs: `<linearGradient id="${id}" x1="${left}" x2="${left + width}" y1="0" y2="0" gradientUnits="userSpaceOnUse">${stops}</linearGradient>`,
     body:
-      `<rect x="${n(x)}" y="${n(y - 0.5)}" width="${n(w)}" height="1" fill="url(#${id})"/>` +
-      `<rect x="${n(mid - s)}" y="${n(y - s)}" width="${n(2 * s)}" height="${n(2 * s)}" transform="rotate(45 ${n(mid)} ${n(y)})" fill="${c.gold}"/>`
+      `<rect x="${left}" y="${row}" width="${width}" height="1" fill="url(#${id})"/>` +
+      `<rect x="${n(mid - s)}" y="${n(centre - s)}" width="${n(2 * s)}" height="${n(2 * s)}" transform="rotate(45 ${n(mid)} ${n(centre)})" fill="${c.gold}"/>`
   }
 }
 
@@ -682,7 +690,9 @@ function budgetWindow(g: Glyphs, x: number, y: number, w: number): { body: strin
       g.text(`${m.p}%`, { ...MONO, size: MONO_SIZE, x: x + w - 10, y: top + 11, fill: UI.textBright, anchor: 'end', cls: 'pct' })
     )
     // The unlit cells, the quieter blocks at 25, 50 and 75 among them, as two paths; the lit ones one by one, to light in turn.
-    const cellAt = (c: number): string => `M${d1(x + 10 + labelW + c * step)} ${d1(top + 4)}h${d1(step * 0.62)}v7h${d1(-step * 0.62)}z`
+    // Whole-pixel cells, so their edges draw crisp.
+    const cellW = Math.max(2, Math.round(step * 0.62))
+    const cellAt = (c: number): string => `M${Math.round(x + 10 + labelW + c * step)} ${top + 4}h${cellW}v7h${-cellW}z`
     const isQuarter = (c: number): boolean => c === cells / 4 || c === cells / 2 || c === (3 * cells) / 4
     const all = Array.from({ length: cells }, (_, c) => c)
 
@@ -712,7 +722,7 @@ const WINDOWS = { timeline: timelineWindow, files: filesWindow, budget: budgetWi
 
 function features(t: Theme, isNarrow: boolean): string {
   const c = C[t]
-  const width = isNarrow ? 360 : WIDE
+  const width = isNarrow ? BAND_NARROW : WIDE
   const gap = isNarrow ? 12 : 16
   const cardW = isNarrow ? width : (width - 2 * gap) / 3
   const pad = 14
@@ -761,8 +771,9 @@ function platforms(t: Theme): string {
   const label = 'RUNS ON'
   const labelFace = { weight: 700 } as const
   const nameFace = { weight: 500 } as const
-  const labelW = widthOf(label, labelFace, 10, 0.12) + 2 * pad
-  const segments = PLATFORMS.map(p => ({ ...p, w: pad + icon + 6 + widthOf(p.name, nameFace, 13) + pad }))
+  // Whole-pixel segment widths, so every divider falls on the pixel grid.
+  const labelW = Math.ceil(widthOf(label, labelFace, 10, 0.12) + 2 * pad)
+  const segments = PLATFORMS.map(p => ({ ...p, w: Math.ceil(pad + icon + 6 + widthOf(p.name, nameFace, 13) + pad) }))
   const width = labelW + segments.reduce((sum, p) => sum + p.w, 0)
   const baseline = (face: Face, size: number): number => h / 2 + capOf(face, size) / 2
   const r = (h - 1) / 2
@@ -782,8 +793,8 @@ function platforms(t: Theme): string {
     const [, bx = '0', by = '0', bw = '512'] = box
 
     parts.push(
-      `<line x1="${n(x)}" y1="0" x2="${n(x)}" y2="${h}" stroke="${c.chipBorder}"/>`,
-      `<path fill="${c.chipIcon}" transform="translate(${n(x + pad)} ${n((h - icon) / 2)}) scale(${n(icon / Number(bw))}) translate(${-Number(bx)} ${-Number(by)})" d="${d}"/>`,
+      `<line x1="${x + 0.5}" y1="0" x2="${x + 0.5}" y2="${h}" stroke="${c.chipBorder}"/>`,
+      `<path fill="${c.chipIcon}" transform="translate(${x + pad} ${(h - icon) / 2}) scale(${n(icon / Number(bw))}) translate(${-Number(bx)} ${-Number(by)})" d="${d}"/>`,
       g.text(p.name, { ...nameFace, size: 13, x: x + pad + icon + 6, y: baseline(nameFace, 13), fill: c.chipText })
     )
     x += p.w
@@ -868,8 +879,11 @@ function cyclingEyes(kind: 'mascot' | 'mark-small', id: string): { viewBox: stri
 
 function banner(t: Theme): string {
   const c = C[t]
-  const w = 1600
-  const h = 420
+  // The hero's layout was drawn at 1600 x 420; it is set here at the README column's width, so GitHub draws it at 1:1.
+  const K = BAND_WIDE / 1600
+  const k = (v: number): number => v * K
+  const w = BAND_WIDE
+  const h = Math.round(k(420))
   const g = new Glyphs()
   const mascot = cyclingEyes('mascot', 'm')
   const wordmark = readFileSync(join(brand, `ghostframe-wordmark-${t === 'dark' ? 'white' : 'black'}.svg`), 'utf8').replace(/<metadata[\s\S]*?<\/metadata>/, '')
@@ -878,29 +892,33 @@ function banner(t: Theme): string {
 
   if (wordBox === undefined || wordPath === undefined) throw new Error('the wordmark SVG has no viewBox or path')
   const [, , vw = 4905, vh = 921] = wordBox.split(' ').map(Number)
-  const wordW = 654
+  const wordW = k(654)
   const tagFace = { weight: 700 } as const
   const tagline = 'The cockpit for Claude Code.'
-  const tagSize = 40 * (463 / widthOf(tagline, tagFace, 40))
+  const tagSize = 40 * (k(463) / widthOf(tagline, tagFace, 40))
   const plat = 'CLAUDE CODE PLUGIN  ·  WINDOWS  ·  MACOS  ·  LINUX'
-  const platSize = 13.5
-  const platTracking = (528 - widthOf(plat, MONO, platSize)) / (platSize * (fontOf(MONO).layout(plat).glyphs.length - 1))
-  const squares = UI.eyes.map((col, i) => `<rect x="${474 + i * 16}" y="315" width="10" height="10" rx="2" fill="${col}"/>`).join('')
+  const platSize = k(13.5)
+  const platX = Math.round(k(530))
+  const platTracking = (k(528) - widthOf(plat, MONO, platSize)) / (platSize * (fontOf(MONO).layout(plat).glyphs.length - 1))
+  // Whole-pixel squares, so their edges draw crisp.
+  const squares = UI.eyes
+    .map((col, i) => `<rect x="${Math.round(k(474)) + i * 10}" y="${Math.round(k(315))}" width="6" height="6" rx="1" fill="${col}"/>`)
+    .join('')
 
   return svg(w, h, {
     style: EYE_CSS,
     defs:
-      `<clipPath id="card"><rect width="${w}" height="${h}" rx="24"/></clipPath>` +
-      `<pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="${c.bannerGrid}"/></pattern>` +
-      `<radialGradient id="glow" cx="241" cy="205" r="250" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.bannerGlow}" stop-opacity="${c.bannerGlowOpacity}"/><stop offset="1" stop-color="${c.bannerGlow}" stop-opacity="0"/></radialGradient>` +
-      g.defsContent,
+      `<clipPath id="card"><rect width="${w}" height="${h}" rx="15"/></clipPath>` +
+      // A 20px grid, its 1px lines on half-pixel centres so each fills one pixel row or column.
+      `<pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 .5H.5V20" fill="none" stroke="${c.bannerGrid}"/></pattern>` +
+      `<radialGradient id="glow" cx="${n(k(241))}" cy="${n(k(205))}" r="${n(k(250))}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${c.bannerGlow}" stop-opacity="${c.bannerGlowOpacity}"/><stop offset="1" stop-color="${c.bannerGlow}" stop-opacity="0"/></radialGradient>`,
     body:
       `<g clip-path="url(#card)"><rect width="${w}" height="${h}" fill="${c.bannerBg}"/><rect width="${w}" height="${h}" fill="url(#grid)"/><rect width="${w}" height="${h}" fill="url(#glow)"/></g>` +
-      `<svg x="99" y="34" width="284" height="352" viewBox="${mascot.viewBox}">${mascot.content}</svg>` +
-      `<svg x="472" y="88" width="${wordW}" height="${n((wordW * vh) / vw)}" viewBox="${wordBox}">${wordPath}</svg>` +
-      g.text(tagline, { ...tagFace, size: tagSize, x: 474, y: 274, fill: c.bannerText }) +
+      `<svg x="${Math.round(k(99))}" y="${Math.round(k(34))}" width="${n(k(284))}" height="${n(k(352))}" viewBox="${mascot.viewBox}">${mascot.content}</svg>` +
+      `<svg x="${Math.round(k(472))}" y="${Math.round(k(88))}" width="${n(wordW)}" height="${n((wordW * vh) / vw)}" viewBox="${wordBox}">${wordPath}</svg>` +
+      g.text(tagline, { ...tagFace, size: tagSize, x: Math.round(k(474)), y: k(274), fill: c.bannerText }) +
       squares +
-      g.text(plat, { ...MONO, size: platSize, x: 530, y: 325, fill: c.bannerMuted, tracking: platTracking }),
+      g.text(plat, { ...MONO, size: platSize, x: platX, y: k(325), fill: c.bannerMuted, tracking: platTracking }),
     label: 'ghostframe, the cockpit for Claude Code'
   }).replace('<defs>', `<defs>${g.defsContent}`)
 }
@@ -914,14 +932,16 @@ function banner(t: Theme): string {
 const BAND_WIDE = 1012
 const BAND_NARROW = 324
 /** A band's room: transparent space above its bar and below it, so every section starts with the same gap. */
-const BAND_ABOVE = 36
-const BAND_BELOW = 16
-const BAR_H = 40
-/** Every cut leans like "/", about 18°: across BAR_H that is 13px. */
-const SLANT = Math.round(BAR_H * Math.tan((18 * Math.PI) / 180))
+const BAND_ABOVE = 40
+const BAND_BELOW = 18
+/** The bar's height; its top and bottom edges sit on whole pixels. */
+const BAR_H = 52
+/** Every cut leans like "/" at exactly 18°: across BAR_H that is 16.9px, kept exact so the angle holds. */
+const SLANT = BAR_H * Math.tan((18 * Math.PI) / 180)
 /** The slit of page between segments: 3px on a 34px bar, scaled to this one. */
-const SLIT = 3.5
-const SEG_PAD = 14
+const SLIT = (3 * BAR_H) / 34
+/** A segment's padding: 14px on a 40px bar, scaled to this one. */
+const SEG_PAD = 18
 
 /** The band's colours, per theme; the gold segment is the eyes' gold in both. */
 const BAND = {
@@ -929,7 +949,7 @@ const BAND = {
   light: { path: '#e8ebef', git: '#eef0f3', caption: '#eef0f3', muted: '#818b98', bright: '#1f2328', green: '#1a7f37', capText: '#818b98' }
 } as const
 const NUMBER_FACE = { family: 'mono', weight: 700 } as const
-const SIZE = { number: 17, path: 15, icon: 15, git: 14, caption: 11 } as const
+const SIZE = { number: 22, path: 19, icon: 18, git: 16, caption: 12.5 } as const
 
 /**
  * One segment of the bar. A left end on the slant (or straight, for the first segment) and a right end on the slant
@@ -971,7 +991,8 @@ function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string
   const mid = BAND_ABOVE + BAR_H / 2
   const g = new Glyphs()
   const number = String(SECTIONS.indexOf(s) + 1).padStart(2, '0')
-  const baseline = (face: Face, size: number): number => mid + capOf(face, size) / 2
+  // Each line's cap height is centred on the bar's middle, its baseline on a whole pixel: one centre line for all.
+  const baseline = (face: Face, size: number): number => Math.round(mid + capOf(face, size) / 2)
   const parts: string[] = []
   // The gold segment: straight at the left, its content between that edge and its right cut at mid-height.
   const numberW = widthOf(number, NUMBER_FACE, SIZE.number)
@@ -993,25 +1014,29 @@ function band(t: Theme, s: (typeof SECTIONS)[number], isNarrow: boolean): string
 
     return start + SLANT / 2 + SEG_PAD
   }
-  const repoPath = '~/ghostframe/'
   const folder = s.slug
-  const rootW = widthOf(repoPath, MONO, SIZE.path)
-  const pathW = rootW + widthOf(folder, MONO, SIZE.path)
-  const pathX = seg(pathW, b.path, isNarrow)
+  const folderW = widthOf(folder, MONO, SIZE.path)
+  // Where the whole path cannot fit (a narrow band), its middle goes: `~/…/install`. It never wraps or overflows.
+  const pathStart = x + SLANT / 2 + SEG_PAD
+  const fits = (prefix: string): boolean => pathStart + widthOf(prefix, MONO, SIZE.path) + folderW <= w - SEG_PAD
+  const repoPath = fits('~/ghostframe/') ? '~/ghostframe/' : '~/…/'
 
-  if (pathX + pathW > w - SEG_PAD) throw new Error(`the ${s.slug} band's path does not fit its ${w}px`)
+  if (!fits(repoPath)) throw new Error(`the ${s.slug} band's path does not fit its ${w}px, even shortened`)
+  const rootW = widthOf(repoPath, MONO, SIZE.path)
+  const pathX = seg(rootW + folderW, b.path, isNarrow)
   parts.push(
     g.text(repoPath, { ...MONO, size: SIZE.path, x: pathX, y: baseline(MONO, SIZE.path), fill: b.muted }),
     g.text(folder, { ...MONO, size: SIZE.path, x: pathX + rootW, y: baseline(MONO, SIZE.path), fill: b.bright })
   )
   if (!isNarrow) {
-    const gap = 6
+    const gap = 8
     const label = 'main ✓'
     const gitX = seg(SIZE.icon + gap + widthOf(label, MONO, SIZE.git), b.git, false)
 
+    // The icon's 16px box scaled to SIZE.icon, set on whole pixels and centred on the bar's middle.
     parts.push(
-      `<path fill="${b.green}" transform="translate(${n(gitX)} ${n(mid - SIZE.icon / 2)}) scale(${n(SIZE.icon / 16)})" d="${branchPath()}"/>`,
-      g.text(label, { ...MONO, size: SIZE.git, x: gitX + SIZE.icon + gap, y: baseline(MONO, SIZE.git), fill: b.green })
+      `<path fill="${b.green}" transform="translate(${Math.round(gitX)} ${Math.round(mid - SIZE.icon / 2)}) scale(${n(SIZE.icon / 16)})" d="${branchPath()}"/>`,
+      g.text(label, { ...MONO, size: SIZE.git, x: Math.round(gitX) + SIZE.icon + gap, y: baseline(MONO, SIZE.git), fill: b.green })
     )
     seg(0, b.caption, true)
     parts.push(
