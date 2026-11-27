@@ -21,7 +21,7 @@ import { isSameText, readPrompts, readTaskNotice, storedPrompts } from '../ledge
 import { remember } from '../../shared/held'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
-import { messageCard, turnHeader } from '../rows/turn'
+import { messageCard, pasteShown, turnHeader } from '../rows/turn'
 import type { Header } from '../rows/turn'
 import { dormantFor } from '../../shared/engine'
 
@@ -197,7 +197,7 @@ export function registerPrompt(on: On): void {
     if (e.props.origin.kind === 'composer' && isQuietRow(e)) {
       const ui = $.ui.resolve(e)
       const o = await promptOpening($, e.requestId, e.props.text)
-      const rows = openingRows(o, e.props.text, textCells(e.viewport?.columns, !isFallbackRow(e)))
+      const rows = openingRows(o, pasteShown(e.props.text, e.props.isExpanded), textCells(e.viewport?.columns, !isFallbackRow(e)))
 
       return (
         <ui.Box flexDirection="column" marginTop={o.kind === 'typed' ? 1 : 0}>
@@ -268,7 +268,7 @@ export function registerPrompt(on: On): void {
     // Cockpit off: the classic rule with the submit time, as on main.
     const claimed = claimPrompt(e.requestId, e.props.text, await readPrompts($))
     const rule = Rule(ui, claimed ? { text: fmtClock(claimed.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
-    const rows = wrapPlain(e.props.text, width - 2)
+    const rows = wrapPlain(pasteShown(e.props.text, false), width - 2)
 
     return (
       <Box flexDirection="column">

@@ -300,6 +300,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 
 - A `surface` card across the 86-cell text column, its content indented 2 cells. The top and bottom edges are half-block rows: `▄` and `▀` in `surface` on `bg`, so the card has soft half-cell edges. The canvas draws them as exact half cells.
 - `❯` in accent, the text in `textBright`, wrapped inside the card.
+- **A paste** reaches the row inside the engine's wrapper (`<pasted_content id="…">`). The tags never draw: each paste shows as Claude Code's composer names it, `[Pasted text #1 +59 lines]` (its line breaks counted), in its place among the typed words, and ctrl+o shows the pasted text itself. With Cockpit off the classic row does the same.
 - **Added mid-turn** (folded into the running turn, amendment 12): the label column has the clock it arrived at, the glyph is `↳` (muted), and `added` (muted) sits at the card's right end, 2 cells from its edge.
 - **Queued** (waiting for the turn to end): the label has its clock, the glyph is `⋯`, `QUEUED` (muted, bold) sits at the right end. The row under the card reads `Sends when this turn ends · ctrl+enter send now` in dim. A queued message gets its turn number only when its turn starts.
 - **To an agent:** `›` and the label `from main` (screen 27).
