@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { splitBlocks } from '../../../hooks/transcript/blocks/split'
-import { cellLines, headerAlign } from '../../../hooks/transcript/table/cells'
+import { cellLines, clipRuns, headerAlign } from '../../../hooks/transcript/table/cells'
 import { layoutTable } from '../../../hooks/transcript/table/layout'
 import { parseTable } from '../../../hooks/transcript/table/parse'
 import { tableText } from '../../support/table'
@@ -56,4 +56,13 @@ test('a header right-aligns over a column whose non-empty cells are mostly numbe
 
   expect(head.indexOf('Issues fixed') + 'Issues fixed'.length).toBe(row.indexOf('271') + 3)
   expect(head.indexOf('Contributors') + 'Contributors'.length).toBe(row.indexOf('39') + 2)
+})
+
+test('a code chip cut in a cell keeps whole emoji clusters within the room', () => {
+  const runs = clipRuns([{ t: '⚠️⚠️⚠️⚠️⚠️', s: 'code' }], 8)
+
+  expect(runs).toEqual([
+    { t: '⚠️⚠️', s: 'code' },
+    { t: '…', s: 'plain' }
+  ])
 })

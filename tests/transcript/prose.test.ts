@@ -87,3 +87,10 @@ test('chips: tight against punctuation, padded before a space and at the end', a
     ])
   ).toBe('run  bun test ')
 })
+
+test('plain text hard-breaks a word of emoji clusters without splitting one or overflowing', () => {
+  const lines = wrapPlain('⚠️⚠️⚠️⚠️👨‍👩‍👧👨‍👩‍👧', 5)
+
+  for (const line of lines) expect(vw(line)).toBeLessThanOrEqual(5)
+  expect(lines).toEqual(['⚠️⚠️', '⚠️⚠️', '👨‍👩‍👧👨‍👩‍👧'])
+})

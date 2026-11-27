@@ -52,6 +52,11 @@ function clusterCells(cluster: string): number {
   return WIDE.some(([lo, hi]) => first >= lo && first <= hi) ? 2 : 1
 }
 
+/** The grapheme clusters of `s`: what a terminal draws as one character, so a cut never splits one. */
+export function graphemesOf(s: string): string[] {
+  return Array.from(graphemes.segment(s), g => g.segment)
+}
+
 export function widthOf(s: string): number {
   let total = 0
   for (const { segment } of graphemes.segment(stripAnsi(s))) total += clusterCells(segment)
