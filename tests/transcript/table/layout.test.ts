@@ -186,7 +186,7 @@ test('a prose column is never narrower than its longest word (≤ 24); the fixed
 test('streamLayout: freezes on the first complete row, holds while live, re-flows when done unless off screen', async () => {
   const head = '| Id | Status |\n|---|---|\n'
   const table = (text: string) => {
-    const b = splitBlocks(text)[0]
+    const b = splitBlocks(text, true)[0]
     if (b?.kind !== 'table') throw new Error('not a table')
     return b
   }
