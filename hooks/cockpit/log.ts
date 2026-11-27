@@ -34,7 +34,7 @@ import { commitIn, hookWords, ruledStatement } from './steps/failures'
 import { showPath } from '../shared/look/paths'
 import { parseShip, shellText } from '../shared/calls/ships'
 import { isOn, noticeSink } from './switch'
-import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork } from './work'
+import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork, workSettled } from './work'
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
@@ -229,8 +229,19 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
   await updateLog($, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
-  await noteWork($, e.tool, e, ran, cwd)
+  afterCall($, e.tool, noteWork($, e.tool, e, ran, cwd))
   lastMode = 'requesting'
+}
+
+/**
+ * What a call adds to the turn's files and pages (the work tree's diff, the new files' counts) is worked out after the
+ * call has returned, in the order calls ended, never inside its hook: a call is never held up by it.
+ * @param $ the engine interface
+ * @param tool the call's tool
+ * @param noted the work under way
+ */
+function afterCall($: EngineInterface, tool: string, noted: Promise<void>): void {
+  noted.catch((error: unknown) => $.ui.log(`cockpit: a ${tool} call's files not noted: ${String(error)}`, { to: 'debug' }))
 }
 
 /**
@@ -372,6 +383,9 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
  */
 export async function logTurnEnd($: EngineInterface, durationMs: number, isAborted: boolean, answer = ''): Promise<void> {
   if (!isOn()) return
+
+  // The turn's calls' files are noted after each call returns: the receipt and history count them all.
+  await workSettled()
 
   const now = await $.clock.now()
   await updateLog($, log => endTurn(log, durationMs, isAborted, now))
@@ -532,7 +546,7 @@ export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCal
   await noteEnd($, e.tool_use_id, e, ran, at)
   await update($, roster, list => agentStepEnd(list, id, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
   await updateLog($, log => noteAgentWork(log, e.tool, e, ran, cwd))
-  await noteWork($, e.tool, e, ran, cwd, true)
+  afterCall($, e.tool, noteWork($, e.tool, e, ran, cwd, true))
 }
 
 /**
