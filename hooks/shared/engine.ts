@@ -60,7 +60,12 @@ async function runCheck($: EngineInterface): Promise<void> {
     $.ui.log(notice)
     $.ui.log(`engine check: dormant, Claude Code ${version} is outside ${text}`, { to: 'debug' })
   } catch (error: unknown) {
-    $.ui.log(`engine check: the Claude Code version was not checked: ${String(error)}`, { to: 'debug' })
+    try {
+      $.ui.log(`engine check: the Claude Code version was not checked: ${String(error)}`, { to: 'debug' })
+    } catch {
+      // The debug log itself failed, so nothing is left to say it with. Every first draw awaits this one stored check:
+      // rejecting it would stop them all, so ghostframe stays awake, as for any check that could not run.
+    }
   }
 }
 

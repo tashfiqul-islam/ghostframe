@@ -155,5 +155,5 @@ export function pad(s: string, n: number, align: 'left' | 'right' | 'center' = '
 const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹'
 
 /** A footnote mark, `¹²`: the answer's, the left's Sources frame and Cockpit's `[ SOURCES ]` all number with it. */
-// oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: width is measured per code point until grapheme segmentation lands
+// oxlint-disable-next-line typescript/no-misused-spread -- code points on purpose: a digit and a superscript digit are each one code point and one cluster
 export const sup = (n: number): string => [...String(n)].map(d => SUP[Number(d)] ?? d).join('')
