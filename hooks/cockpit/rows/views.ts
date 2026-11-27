@@ -8,6 +8,7 @@ import { GLYPH, superscript } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { cutPath, cutTitle, splitPath } from '../../shared/look/paths'
 import { widthOf } from '../../shared/look/width'
+import { isOffProject } from '../../shared/url'
 import { drawerRows, fit, keyParts, paneCard, pill, selected, spread } from './pane'
 
 /** A kind word in its 6 cells, a space after one that fills them (`search`, `failed`). */
@@ -19,12 +20,20 @@ function summary(left: readonly Part[], right: readonly Part[], line: readonly P
 
 /** A path drawn folder dim, file bright (5.4), cut from the middle to `cells`. */
 function pathParts(path: string, cells: number): Part[] {
-  const { folder, file } = splitPath(cutPath(path, cells))
+  const { folder, file } = splitPath(cutPath(path, Math.max(1, cells)))
+  // A path cut to nothing but its folder still names its file: the file name, cut in the middle if it must be.
+  const name = file.length > 0 ? file : cutPath(splitPath(path).file || path, Math.max(1, cells))
 
-  return [...(folder.length > 0 ? [dim(folder)] : []), { t: file, color: TOKEN.textBright }]
+  return [...(folder.length > 0 && file.length > 0 ? [dim(folder)] : []), { t: name, color: TOKEN.textBright }]
 }
 
 // ─── 8.5 Files, 8.6 the full diff ────────────────────────────────────────────
+
+/** The cells a file row's counts and bar take: `+12   −3  ■■■■■`, and `outside` right-aligned in the same place. */
+const OUTSIDE_CELLS = 16
+
+/** The cells a row's parts take. */
+const partsWidth = (parts: readonly Part[]): number => parts.reduce((n, p) => n + widthOf(p.t), 0)
 
 /** One file the turn changed (8.5). */
 export type FileRow = { path: string; adds: number; dels: number; isAgent: boolean; hunk?: readonly string[] | undefined; isSelected?: boolean }
@@ -120,17 +129,19 @@ export function filesView(
   ]
 
   for (const f of files.slice(0, FILE_ROWS_MAX)) {
-    const counts: Part[] = [
-      { t: f.adds > 0 ? `+${f.adds}`.padStart(4) : '    ', color: TOKEN.ok },
-      { t: f.dels > 0 ? `${GLYPH.minus}${f.dels}`.padStart(5) : '     ', color: TOKEN.err },
-      sp(2),
-      ...changeBar(f.adds, f.dels, largest)
-    ]
-    const row = spread(
-      [sp(2), f.isAgent ? { t: GLYPH.agent, color: TOKEN.agent } : sp(1), sp(1), ...pathParts(f.path, width - 22)],
-      [...counts, sp(width - 71)],
-      width
-    )
+    // A file outside the project has no counts by design (8.5): no bar either, a dim `outside` where the bar ends.
+    const counts: Part[] = isOffProject(f.path)
+      ? [dim('outside'.padStart(OUTSIDE_CELLS))]
+      : [
+          { t: f.adds > 0 ? `+${f.adds}`.padStart(4) : '    ', color: TOKEN.ok },
+          { t: f.dels > 0 ? `${GLYPH.minus}${f.dels}`.padStart(5) : '     ', color: TOKEN.err },
+          sp(2),
+          ...changeBar(f.adds, f.dels, largest)
+        ]
+    const right = [...counts, sp(width - 71)]
+    const lead: Part[] = [sp(2), f.isAgent ? { t: GLYPH.agent, color: TOKEN.agent } : sp(1), sp(1)]
+    // The path gets the room the row leaves it, so it is cut from the middle (its file name kept), never from the end.
+    const row = spread([...lead, ...pathParts(f.path, width - partsWidth(lead) - partsWidth(right) - 1)], right, width)
 
     rows.push(f.isSelected === true ? selected(row) : row)
     if (f.isSelected === true && f.hunk !== undefined) rows.push(...hunkRows(f.hunk, width))

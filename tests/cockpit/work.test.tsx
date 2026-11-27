@@ -273,10 +273,10 @@ test('a file written outside the project is never read nor diffed: nothing reach
   // Not read at the turn's start, at its end, or when its diff opens; the three spelled outside are not even looked at.
   expect(read.filter(p => /harness5|notes\.txt|climbed|linked/.test(p))).toEqual([])
   expect(statted.filter(p => /harness5|notes\.txt|climbed/.test(p))).toEqual([])
-  // No counts: the change bar's empty track only.
-  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/harness5\.py {2,}■{5}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/notes\.txt {2,}■{5}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {4}sub\/\.\.\/\.\.\/climbed\.txt {2,}■{5}$/))
+  // No counts and no change bar: a dim `outside` where the bar ends (8.5).
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/harness5\.py {2,}outside$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/notes\.txt {2,}outside$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}sub\/\.\.\/\.\.\/climbed\.txt {2,}outside$/))
 
   // Each full diff opened (8.6): still nothing outside is read or looked at.
   for (const path of ['~/AppData/Local/Temp/claude/s/scratchpad/notes.txt', 'sub/../../climbed.txt', 'link/linked.txt'])
