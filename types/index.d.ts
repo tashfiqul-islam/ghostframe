@@ -96,9 +96,12 @@ export type LogStep = {
 /** How a finished turn ended, for `[ LAST ]`: its state word, the story in a few words, what waits (or ''), its time, and when it ended (wall clock, ms). */
 export type LastTurn = { state: 'done' | 'failed' | 'interrupted'; story: string; wait: string; durationMs: number; endedAt: number | null }
 
-/** Cockpit's own slash commands as they ran (spec 7.15). */
+/**
+ * Cockpit's own slash commands as they ran (spec 7.15); `turnNo` is the turn a `/steps … all` printed, resolved when
+ * it ran (`/steps all` names the live turn then, not at a later draw).
+ */
 export type CommandRuns = {
-  runs: { id: number; command: string; text: string; isOk: boolean }[]
+  runs: { id: number; command: string; text: string; isOk: boolean; turnNo?: number }[]
 }
 
 /** An interrupted turn as the next one's pane names it (screen 06). */
