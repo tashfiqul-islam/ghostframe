@@ -90,32 +90,33 @@ export function filesFromDiff(
 ): FileChange[] {
   // Keyed by path on both sides: a big untracked folder lists tens of thousands of files, and a search of one list
   // for each entry of the other grows with the square of it. A Map keeps the order its keys were first set in.
-  const was = new Map(before.map(b => [b.path, b]))
-  const list = new Map(files.map(f => [f.path, f]))
+  const was = new Map<string, Counted>()
+  const list = new Map<string, FileChange>()
   const base = root.replace(/[\\/]+$/, '')
   // Git names each path from the root; where the root is the session's folder, that is already the path as shown.
   const isHere = shownPath(`${base}/x`, cwd) === 'x'
 
+  for (const b of before) was.set(b.path, b)
+  for (const f of files) list.set(f.path, f)
+
   for (const now of after) {
     const had = was.get(now.path)
-    const adds = Math.max(0, now.added - (had?.added ?? 0))
-    const dels = Math.max(0, now.removed - (had?.removed ?? 0))
+    const adds = had === undefined ? now.added : now.added - had.added
+    const dels = had === undefined ? now.removed : now.removed - had.removed
 
-    if (had !== undefined && adds === 0 && dels === 0) continue
+    if (had !== undefined && adds <= 0 && dels <= 0) continue
 
-    const change: FileChange = {
-      path: isHere ? now.path : shownPath(`${base}/${now.path}`, cwd),
-      tag: had === undefined && now.isUntracked ? 'new' : '',
-      adds,
-      dels,
-      ...by(isAgent)
-    }
-    const row = list.get(change.path)
+    const path = isHere ? now.path : shownPath(`${base}/${now.path}`, cwd)
+    const tag = had === undefined && now.isUntracked ? 'new' : ''
+    const change: FileChange = isAgent
+      ? { path, tag, adds: Math.max(0, adds), dels: Math.max(0, dels), isAgent: true }
+      : { path, tag, adds: Math.max(0, adds), dels: Math.max(0, dels) }
+    const row = list.get(path)
 
-    list.set(change.path, row === undefined ? change : merged(row, change))
+    list.set(path, row === undefined ? change : merged(row, change))
   }
 
-  return [...list.values()]
+  return Array.from(list.values())
 }
 
 /**

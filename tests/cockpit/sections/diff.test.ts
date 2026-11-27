@@ -12,6 +12,8 @@ test('comparing file lists of 40,000 entries before and after a call takes under
   const before = listOf(40_000, () => 5)
   // The call appended to three files and added 40,000 new ones.
   const after = [...listOf(40_000, i => (i < 3 ? 6 : 5)), ...listOf(40_000, () => 1).map(f => ({ ...f, path: `new/${f.path}` }))]
+  // A first call on a short list compiles the code, as the session's earlier calls have: the time is the work's own.
+  filesFromDiff([], before.slice(0, 1_000), after.slice(0, 1_000), '/repo', '/repo')
   const t = performance.now()
   const files = filesFromDiff([], before, after, '/repo', '/repo')
   const ms = performance.now() - t
