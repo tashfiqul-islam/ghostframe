@@ -168,7 +168,7 @@ export function noteColumns(width: number | undefined): void {
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
-async function receiptsNow($: EngineInterface): Promise<Receipt[]> {
+export async function receiptsNow($: EngineInterface): Promise<Receipt[]> {
   const live = await readReceipts($)
 
   return live.length > 0 ? live : storedReceiptList($)
@@ -490,9 +490,10 @@ export async function drawTurnReceipt(
   $: EngineInterface,
   e: RenderInput<'AssistantMessage', 'terminal'>,
   turn: string,
-  width: number
+  width: number,
+  receipts?: readonly Receipt[]
 ): Promise<RenderElement | undefined> {
-  const receipt = (await receiptsNow($)).findLast(r => r.turn === turn)
+  const receipt = (receipts ?? (await receiptsNow($))).findLast(r => r.turn === turn)
   const rows = receipt === undefined || receipt.state === 'interrupted' ? [] : receiptRowsOf(receipt, width, isFallbackRow(e))
 
   if (rows.length === 0) return undefined
@@ -505,13 +506,11 @@ export async function drawTurnReceipt(
  * resumed transcript (its rows have no place in the flow).
  * shortcut: a resumed answer split over several messages gets the label on its last row; seed the quiet openers
  * from `$.session.messages()` if that shows.
- * @param $ the engine interface
+ * @param receipts the receipts rows draw from (`receiptsNow`), read once for the row's draw
  * @param row the row's id
  * @returns whether it is
  */
-export async function endsKeptTurn($: EngineInterface, row: string): Promise<boolean> {
-  return (await receiptsNow($)).some(r => r.answer === row && r.turn !== null)
-}
+export const endsKeptTurn = (receipts: readonly Receipt[], row: string): boolean => receipts.some(r => r.answer === row && r.turn !== null)
 
 /**
  * Cockpit's part of an answer row while quiet: the receipt that names the row (its turn's last answer row, by the
@@ -522,6 +521,7 @@ export async function endsKeptTurn($: EngineInterface, row: string): Promise<boo
  * @param turn the row's turn in the flow, null when it has no place there
  * @param endsTurn whether it is its turn's last text block in the flow
  * @param width the transcript rule's width
+ * @param list the receipts rows draw from (`receiptsNow`), read once for the row's draw
  * @returns the tree, or undefined when no receipt ends on this row
  */
 export async function drawAnswerReceipt(
@@ -529,14 +529,14 @@ export async function drawAnswerReceipt(
   e: RenderInput<'AssistantMessage', 'terminal'>,
   turn: string | null,
   endsTurn: boolean,
-  width: number
+  width: number,
+  list: readonly Receipt[]
 ): Promise<RenderElement | undefined> {
-  const list = await receiptsNow($)
   const own = list.findLast(r => r.answer === e.requestId)
   const turns = turn === null || !endsTurn ? undefined : list.findLast(r => r.turn === turn)
   const receipt = own ?? (turns?.answer === '' ? turns : undefined)
 
-  return receipt?.turn === null || receipt === undefined ? undefined : drawTurnReceipt($, e, receipt.turn, width)
+  return receipt?.turn === null || receipt === undefined ? undefined : drawTurnReceipt($, e, receipt.turn, width, list)
 }
 
 /**

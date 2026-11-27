@@ -2,8 +2,8 @@
 import type { EngineInterface } from 'claude-code'
 
 import { isNarrationRow } from '../../../cockpit/left'
-import { runningTurn } from '../../../cockpit/log'
-import { ASKS_THE_PERSON, isNarrationAt, readFlow } from '../../../shared/flow'
+import type { FlowStamp } from '../../../../types'
+import { ASKS_THE_PERSON, isNarrationAt } from '../../../shared/flow'
 import { firstKey, textAt } from '../../ledger/flow'
 import { isStartRow } from '../../ledger/session'
 
@@ -18,12 +18,18 @@ import { isStartRow } from '../../ledger/session'
  * @param $ the engine interface
  * @param text the block's text as the engine draws it
  * @param row the block's row id
+ * @param quietFlow the flow, as the row's draw read it
+ * @param running the main-loop turn running now, as the row's draw read it; undefined when none runs
  * @returns true for narration, and for a running turn's text not yet known not to be narration
  */
-export async function isHiddenNarration($: EngineInterface, text: string, row: string): Promise<boolean> {
-  const quietFlow = await readFlow($)
+export async function isHiddenNarration(
+  $: EngineInterface,
+  text: string,
+  row: string,
+  quietFlow: readonly FlowStamp[],
+  running: string | undefined
+): Promise<boolean> {
   const at = textAt(quietFlow, firstKey(text.replace(/…$/, '')))
-  const running = await runningTurn($)
   const block = quietFlow[at]
   const nextTool = block === undefined ? undefined : quietFlow.slice(at + 1).find(f => f.turn === block.turn && f.kind === 'tool')
   // A row the session held when it started (a resumed answer, drawn before the start) is never the running turn's:

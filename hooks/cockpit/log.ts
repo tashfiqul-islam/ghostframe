@@ -38,6 +38,11 @@ import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork }
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
+// The main-loop turn running now (null when none runs), written beside the step log whenever that changes: a
+// transcript row asks only this, never the step log, whose every step it would otherwise read on each draw.
+const running = atom({ plugin: 'ghostframe', key: 'running' } as const, null as string | null, { shape: 'running-1' })
+/** The running turn as this copy of the module last wrote it; undefined until it writes (a reload writes once). */
+let mirrored: string | null | undefined
 // The agents of the current (or last) turn, and background agents still running from earlier ones (E.40).
 const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-2' })
 // Every agent this session launched, for the whole session: the roster drops finished agents at each typed turn and
@@ -59,6 +64,24 @@ const FRAME_MS = 100 // H.1 asks 80 ms; the engine redraws a site at most ten ti
 let timers: Timer[] = []
 /** The session's folder, as the last call gave it: where the turn's files are read for their diffs. */
 let lastCwd: string | undefined
+
+/**
+ * Changes the step log, and the running turn beside it when that changed.
+ * @param $ the engine interface
+ * @param change the log's change
+ * @returns the log as written
+ */
+async function updateLog($: EngineInterface, change: (log: StepLog) => StepLog): Promise<StepLog> {
+  const log = await update($, stepLog, change)
+  const now = log.isTurnRunning ? log.turn : null
+
+  if (now !== mirrored) {
+    mirrored = now
+    await update($, running, () => now)
+  }
+
+  return log
+}
 
 /**
  * A second passed: the pane, which reads `second`, draws again.
@@ -110,12 +133,12 @@ export async function logTurnStart($: EngineInterface, turn: string, at: number 
   await noteShown($)
 
   if (at === undefined) {
-    await update($, stepLog, log => continueTurn(log, turn, now))
+    await updateLog($, log => continueTurn(log, turn, now))
   } else {
     // A rewind took the last turns out: they leave first, and the new turn follows the last that remains (7.1).
     await noteRewind($, true)
     await applyRewind($)
-    await update($, stepLog, log => newTurn({ ...log, turnNo: lastRemaining(log) }, turn, at))
+    await updateLog($, log => newTurn({ ...log, turnNo: lastRemaining(log) }, turn, at))
     rewound.clear()
     // A typed prompt means the person has moved on: the pin goes (E.45), and the new turn's files are read afresh.
     await setPin($, null, 0)
@@ -165,7 +188,7 @@ export async function logMode($: EngineInterface, what: string): Promise<void> {
 
   lastMode = mode
   const at = await $.clock.now()
-  await update($, stepLog, log => (log.isTurnRunning ? noteMode(log, mode, at) : log))
+  await updateLog($, log => (log.isTurnRunning ? noteMode(log, mode, at) : log))
 }
 
 /**
@@ -182,7 +205,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
   await snapshotBefore($, e.tool, e, cwd)
   noteFetchStart(e.tool, e)
 
-  await update($, stepLog, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
+  await updateLog($, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
   await noteStart($, e.tool_use_id, e.tool, e, at)
 }
 
@@ -205,7 +228,7 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   const blockedSubject = block?.rule === undefined ? undefined : ruledSubject(e, block.rule, cwd)
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
-  await update($, stepLog, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
+  await updateLog($, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
   await noteWork($, e.tool, e, ran, cwd)
   lastMode = 'requesting'
 }
@@ -310,7 +333,7 @@ export function logBlocked(id: string, verdict: { hook?: string | undefined; rul
 export async function logAsk($: EngineInterface, id: string): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => askStep(log, id))
+  await updateLog($, log => askStep(log, id))
 }
 
 /**
@@ -335,7 +358,7 @@ export async function logSaid($: EngineInterface, content: readonly { type: stri
 
   const text = content.findLast(b => b.type === 'text' && typeof b['text'] === 'string' && b['text'].trim().length > 0)?.['text']
 
-  if (typeof text === 'string') await update($, stepLog, log => noteSaid(log, text))
+  if (typeof text === 'string') await updateLog($, log => noteSaid(log, text))
 }
 
 /**
@@ -351,7 +374,7 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   if (!isOn()) return
 
   const now = await $.clock.now()
-  await update($, stepLog, log => endTurn(log, durationMs, isAborted, now))
+  await updateLog($, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
   const ended = await read($, stepLog)
@@ -371,7 +394,7 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
     if (had !== undefined) await update($, receipts, list => list.map(r => (r === had || r.turnNo === receipt.turnNo ? { ...receipt, turn: had.turn } : r)))
     else await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
     // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
-    await update($, stepLog, log => clearAgentWork(log, ended.agentWork))
+    await updateLog($, log => clearAgentWork(log, ended.agentWork))
   }
 
   if (anyRunning(await read($, roster))) startTimers($, false)
@@ -419,7 +442,7 @@ export async function logSessionStart($: EngineInterface): Promise<void> {
 
   if (last === undefined || (await read($, stepLog)).turnNo > 0) return
 
-  await update($, stepLog, log => restoredLog(log, last))
+  await updateLog($, log => restoredLog(log, last))
   await update($, receipts, list => (list.length > 0 ? list : records.flatMap(r => r.receipts).slice(-RECEIPTS_MAX)))
   await update($, roster, list => (list.length > 0 ? list : last.roster))
   await restoreWork($, last)
@@ -435,7 +458,7 @@ export async function logSessionStart($: EngineInterface): Promise<void> {
 export async function seedTurnNo($: EngineInterface, turnNo: number): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => (log.turnNo < turnNo && !log.isTurnRunning ? { ...log, turnNo } : log))
+  await updateLog($, log => (log.turnNo < turnNo && !log.isTurnRunning ? { ...log, turnNo } : log))
 }
 
 /**
@@ -508,7 +531,7 @@ export async function logAgentStepEnd($: EngineInterface, id: string, e: ToolCal
   const ran = outcome ?? { isError: true as const, text: 'failed' }
   await noteEnd($, e.tool_use_id, e, ran, at)
   await update($, roster, list => agentStepEnd(list, id, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran }))
-  await update($, stepLog, log => noteAgentWork(log, e.tool, e, ran, cwd))
+  await updateLog($, log => noteAgentWork(log, e.tool, e, ran, cwd))
   await noteWork($, e.tool, e, ran, cwd, true)
 }
 
@@ -530,7 +553,7 @@ export async function logAgentEnd($: EngineInterface, end: Omit<AgentEnd, 'at'>)
 
   // The launch counts each agent once (`endLaunched` keeps which); a later report of a finished one counts nothing.
   if (agent.parent === null && agent.call.length > 0) {
-    await update($, stepLog, log => endLaunched(log, agent.call, end.status !== 'completed', at))
+    await updateLog($, log => endLaunched(log, agent.call, end.status !== 'completed', at))
   } else if (agent.parent !== null && agent.call.length > 0) {
     // A nested agent's launch is a row of its parent's own log.
     const parent = agent.parent
@@ -557,9 +580,7 @@ export async function readRoster($: EngineInterface): Promise<RosterAgent[]> {
  * @returns the running turn's id, or undefined
  */
 export async function runningTurn($: EngineInterface): Promise<string | undefined> {
-  const log = await read($, stepLog)
-
-  return log.isTurnRunning ? (log.turn ?? undefined) : undefined
+  return (await read($, running)) ?? undefined
 }
 
 /**
