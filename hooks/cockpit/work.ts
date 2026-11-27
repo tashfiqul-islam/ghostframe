@@ -28,17 +28,23 @@ const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 // the files a shell command names as write targets.
 // shortcut: the work tree and the last diff live in the module; a reload forgets them, and the next shell step then
 // starts from a fresh diff, listing nothing it changed before. Move them to $.state if that matters.
+/** A Git work tree as the session sees it: its root, the session's folder spelled the same way, and Git's path between. */
+type Tree = { root: string; here: string; prefix: string }
 /**
- * The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). Its root is
- * spelled from the session's folder, and `prefix` is that folder from the root as Git says it (`app/`, or empty).
+ * The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). `root` and
+ * `here` share one spelling, so a file's path from the root is placed against the session's folder; `prefix` is that
+ * folder from the root as Git says it (`app/`, or empty).
  */
-let copy: { root: string; prefix: string } | null | undefined
+let copy: Tree | null | undefined
 /** The session's folder, as the last turn or call gave it: where a file's diff is read (`workDiff`). */
 let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
 let lastDiff: Counted[] | undefined
 /** The work tree's diff at the typed turn's start: what was changed before the turn. */
-let startDiff: { root: string; files: Counted[] } | undefined
+let startDiff: (Tree & { files: Counted[] }) | undefined
+
+/** A path with forward slashes and no trailing one. */
+const slashed = (path: string): string => path.replaceAll('\\', '/').replace(/\/+$/, '')
 
 /** The session's folder, as the last turn or call gave it. */
 export const cwdNow = (): string | undefined => lastCwd
@@ -49,11 +55,9 @@ export const cwdNow = (): string | undefined => lastCwd
  * @returns true or false; undefined where there is no Git work tree to say
  */
 export function wasChangedBefore(path: string): boolean | undefined {
-  if (startDiff === undefined || lastCwd === undefined) return undefined
+  if (startDiff === undefined) return undefined
 
-  const root = startDiff.root.replaceAll('\\', '/').replace(/\/+$/, '')
-  const here = lastCwd.replaceAll('\\', '/').replace(/\/+$/, '')
-  const fromRoot = here.toLowerCase().startsWith(root.toLowerCase()) ? `${here.slice(root.length + 1)}/${path}`.replace(/^\//, '') : path
+  const fromRoot = `${startDiff.prefix}${path}`
 
   return startDiff.files.some(f => f.path === fromRoot)
 }
@@ -113,7 +117,7 @@ async function newLines($: EngineInterface, root: string, path: string, isRecoun
  * @param cwd the session's folder
  * @returns its root and files, or undefined where there is no Git work tree to read
  */
-async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ root: string; files: Counted[] } | undefined> {
+async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tree & { files: Counted[] }) | undefined> {
   if (cwd === undefined || copy === null) return undefined
 
   try {
@@ -122,21 +126,35 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
 
       if (top.exitCode === 0 && top.stdout.trim().length > 0) {
         // Git names the root with every link resolved (macOS `/tmp`, a Windows junction), where the session's folder
-        // may keep its link: the root is spelled from the session's folder instead, less Git's path down to it.
+        // may keep its link. Where that folder ends with Git's path down to it, the root is spelled from the folder,
+        // less that path (a link to the root, or above it). Else a link lies below the root: the folder's real path
+        // stands for it, beside Git's root, and the two must agree.
         const at = await $.process.run(['git', 'rev-parse', '--show-prefix'], { cwd })
 
         if (at.exitCode !== 0) throw new Error(at.stderr.trim())
 
         const prefix = at.stdout.trim()
-        const up = prefix.split('/').filter(p => p.length > 0).length
-        const here = cwd.replaceAll('\\', '/').replace(/\/+$/, '').split('/')
-        copy = { root: here.slice(0, here.length - up).join('/'), prefix }
+        const down = prefix.replace(/\/+$/, '')
+        const here = slashed(cwd)
+
+        if (down.length === 0 || here.toLowerCase().endsWith(`/${down.toLowerCase()}`)) {
+          copy = { root: here.slice(0, here.length - down.length).replace(/\/+$/, ''), here, prefix }
+        } else {
+          const root = slashed(top.stdout.trim())
+          const real = (await $.fs.stat(cwd, { resolve: true })).realPath
+
+          if (real === undefined) throw new Error(`cannot resolve the session's folder ${cwd}`)
+          if (slashed(real).toLowerCase() !== `${root}/${down}`.toLowerCase())
+            throw new Error(`the session's folder ${real} is not ${down} under Git's root ${root}`)
+
+          copy = { root, here: `${root}/${down}`, prefix }
+        }
       } else copy = null
     }
 
     if (copy === null) return undefined
 
-    const { root, prefix } = copy
+    const { root, here, prefix } = copy
     // No commit yet (asked again until there is one): nothing to diff against, so no tracked rows, and the index's
     // files count as new beside the untracked ones.
     const hasHead = (await $.process.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root })).exitCode === 0
@@ -153,7 +171,7 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ r
     const isRecount = fresh.length <= RECOUNT_MAX
     const untracked = await Promise.all(fresh.map(async path => ({ path, added: await newLines($, root, path, isRecount), removed: 0, isUntracked: true })))
 
-    return { root, files: [...numstat(tracked.stdout), ...untracked] }
+    return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
     copy = null
     $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, noticeSink())
@@ -183,7 +201,7 @@ async function shellFiles(
   // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
   // main loop's may take the other's `◇` mark. The counts stay right: calls are noted one at a time (`noteWork`).
   return now !== undefined && before !== undefined
-    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, cwd, isAgent), command, cwd, isAgent, true)
+    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, now.here, isAgent), command, cwd, isAgent, true)
     : files => filesFromCommand(files, command, cwd, isAgent)
 }
 
@@ -214,8 +232,8 @@ const inFetchOrder = (pages: readonly SourcePage[]): SourcePage[] =>
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
   fetchOrder = new Map()
-  lastDiff = (await diffNow($, cwd))?.files
-  startDiff = lastDiff === undefined ? undefined : { root: copy?.root ?? '', files: lastDiff }
+  startDiff = await diffNow($, cwd)
+  lastDiff = startDiff?.files
   await update($, work, w => {
     const todo = startTodo({ items: w.todo, isRevised: w.isRevised })
 

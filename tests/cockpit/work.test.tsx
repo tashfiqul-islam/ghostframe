@@ -467,34 +467,47 @@ test('two agents` shells ending together count each change once, and a file two 
   expect(reads).toBe(1)
 })
 
-test('a project opened through a link (macOS /tmp, a Windows junction): Git names the real root, its files stay the project`s', ON, async ($, on) => {
-  const clock = { now: T0 }
-  engine(on, clock)
-  // The session is at `/link/repo`, a link to `/real/repo`: Git resolves it, so its root is the real folder.
-  let diffs = 0
-  on('process.run', (_, e) => {
-    const argv = e.argv.join(' ')
+// Where a session sits against the work tree Git names (macOS /tmp, a Windows junction): its folder, what a link in it
+// leads to, Git's root (every link resolved) and Git's path from that root down to the session's folder.
+const PLACES = [
+  { name: 'a project opened through a link to its root', cwd: '/link/repo', link: ['/link/repo', '/real/repo'], root: '/real/repo', prefix: '' },
+  { name: 'a session started inside a linked subfolder', cwd: '/repo/linked', link: ['/repo/linked', '/repo/real/sub'], root: '/repo', prefix: 'real/sub/' },
+  { name: 'a session in a plain subfolder', cwd: '/repo/app', link: undefined, root: '/repo', prefix: 'app/' }
+] as const
 
-    if (argv === 'git rev-parse --show-toplevel') return ran('/real/repo\n')
-    if (argv === 'git rev-parse --show-prefix') return ran('\n')
-    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
-    if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : `1\t0\tnotes.txt${e.argv.includes('-z') ? '\0' : '\n'}`)
+for (const place of PLACES) {
+  test(`${place.name}: Git's root and the session's folder agree, and a shell's change is the project's own row`, ON, async ($, on) => {
+    const clock = { now: T0 }
+    engine(on, clock)
+    let diffs = 0
+    on('process.run', (_, e) => {
+      const argv = e.argv.join(' ')
 
-    return ran('')
+      if (argv === 'git rev-parse --show-toplevel') return ran(`${place.root}\n`)
+      if (argv === 'git rev-parse --show-prefix') return ran(`${place.prefix}\n`)
+      if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+      if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : `1\t0\t${place.prefix}notes.txt\0`)
+
+      return ran('')
+    })
+    // The disk answers as POSIX does: the engine hands the hook the path made absolute (on Windows with its drive).
+    on('fs.stat', (_, e) => {
+      const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
+      const realPath = place.link === undefined || !path.startsWith(place.link[0]) ? path : `${place.link[1]}${path.slice(place.link[0].length)}`
+
+      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath } }
+    })
+    on('fs.read', () => ({ value: 'one\n' }))
+    await $.session.start({ cwd: place.cwd, surface: 'terminal', isInteractive: false })
+    await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text: 'notes', turnId: 't1' })
+    await call($, 'Bash', 'b1', { command: `printf 'one\n' >> notes.txt` })
+
+    const rows = await paneText($)
+    expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes\.txt +\+1 {7}■+$/))
+    expect(rows.some(r => r.includes(`${place.root}/`))).toBe(false)
   })
-  on('fs.stat', (_, e) => ({
-    value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath: e.path.replace(/[\\/]link[\\/]repo(?=[\\/]|$)/, '/real/repo') }
-  }))
-  on('fs.read', () => ({ value: 'one\n' }))
-  await $.session.start({ cwd: '/link/repo', surface: 'terminal', isInteractive: false })
-  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
-  await $.turn.start({ text: 'notes', turnId: 't1' })
-  await call($, 'Bash', 'b1', { command: `printf 'one\n' >> notes.txt` })
-
-  const rows = await paneText($)
-  expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes\.txt +\+1 {7}■+$/))
-  expect(rows.some(r => r.includes('real/repo'))).toBe(false)
-})
+}
 
 test('a session in a repo`s subfolder: an untracked file outside that folder is never read', ON, async ($, on) => {
   const clock = { now: T0 }
