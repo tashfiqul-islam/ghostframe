@@ -8,8 +8,8 @@ import type { FileDiff } from '../../../types'
 import { obj, s } from '../../shared/calls/fields'
 import { deleted, shownPath, writeTargets } from '../sections/files'
 import { isOffProject } from '../../shared/url'
-import { diskPath, wasChangedBefore, workDiff } from '../work'
-import { DIFF_LINES_MAX, lineDiff } from './linediff'
+import { cwdNow, diskPath, ignoresCase, landsOutside, wasChangedBefore, workDiff } from '../work'
+import { DIFF_CHANGES_MAX, DIFF_LINES_MAX, lineDiff } from './linediff'
 
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 const SNAPSHOT_MAX = 2_000_000 // characters of a file kept; a larger one is not snapshotted, and its diff says so
@@ -62,6 +62,8 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
   if (cwd === undefined) return
 
   const named = [...new Set(targets(tool, input, cwd))].filter(path => !isOffProject(path))
+  // Read before the paths are claimed: no wait may fall between finding them unread and claiming them.
+  const caseless = named.length > 0 && (await ignoresCase($))
   const fresh = named.filter(path => !snapshots.has(path) && !tooLarge.has(path) && !reading.has(path))
 
   // Each path is claimed before its read: a call of an agent beside the main loop's waits for the first read rather
@@ -71,6 +73,9 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
       path,
       (async () => {
         try {
+          // Through a link to elsewhere: outside the project after all, never read (its diff says so).
+          if (await landsOutside($, path, cwd, caseless)) return
+
           const text = await $.fs.read(await diskPath($, path, cwd))
 
           if (text.length > SNAPSHOT_MAX) tooLarge.add(path)
@@ -96,8 +101,12 @@ export async function snapshotBefore($: EngineInterface, tool: string, input: un
  * @returns the diff, or its note when there is none
  */
 export async function fileDiff($: EngineInterface, path: string, cwd: string | undefined): Promise<FileDiff> {
-  // Outside the project (the home folder, temp, a scratchpad): listed, never diffed (8.5).
-  if (isOffProject(path)) return { path, patch: [], note: 'no diff · outside the project' }
+  // Outside the project (the home folder, temp, a scratchpad, or through a link to there): listed, never diffed (8.5).
+  // The folder Git's fallback reads from is checked when the caller names none.
+  const here = cwd ?? cwdNow()
+
+  if (isOffProject(path) || (here !== undefined && (await landsOutside($, path, here, await ignoresCase($)))))
+    return { path, patch: [], note: 'no diff · outside the project' }
 
   const snap = snapshots.get(path)
 
@@ -112,7 +121,9 @@ export async function fileDiff($: EngineInterface, path: string, cwd: string | u
 
     const patch = lineDiff(snap ?? '', now)
 
-    return patch === undefined ? { path, patch: [], note: `no diff · over ${DIFF_LINES_MAX} lines` } : { path, patch: patch.slice(0, DIFF_MAX) }
+    if (Array.isArray(patch)) return { path, patch: patch.slice(0, DIFF_MAX) }
+
+    return { path, patch: [], note: patch.over === 'lines' ? `no diff · over ${DIFF_LINES_MAX} lines` : `no diff · over ${DIFF_CHANGES_MAX} changed lines` }
   }
 
   if (tooLarge.has(path)) return { path, patch: [], note: 'no diff · the file was too large to keep a copy of' }

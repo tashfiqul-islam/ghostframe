@@ -21,21 +21,61 @@ const work = atom({ plugin: 'ghostframe', key: 'work' } as const, EMPTY, { shape
 const EDITS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit'])
 
 // What changed on disk outside Write and Edit (a shell's `printf >> f`, a formatter) is read from Git: the working
-// tree against HEAD (`git diff --numstat HEAD`, and `git ls-files --others` for new files, their lines counted once) at
+// tree against HEAD (`git diff --numstat -z HEAD`, and `git ls-files --others` for new files, their lines counted once) at
 // the typed turn's start and after each call that can change files, a shell step's rows being what moved between the
 // two. The engine's `$.vcs.diff` answers `unknown` unless another plugin implements it, so Git is run directly.
 // Before its first commit Git has seen nothing: every file it lists, staged or not, is new. Outside a Git work tree,
 // the files a shell command names as write targets.
 // shortcut: the work tree and the last diff live in the module; a reload forgets them, and the next shell step then
 // starts from a fresh diff, listing nothing it changed before. Move them to $.state if that matters.
-/** The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). */
-let copy: { root: string } | null | undefined
+/** A Git work tree as the session sees it: its root, the session's folder spelled the same way, and Git's path between. */
+type Tree = { root: string; here: string; prefix: string }
+/**
+ * The session's Git work tree: unknown until asked, null where there is none (or it cannot be read). `root` and
+ * `here` share one spelling, so a file's path from the root is placed against the session's folder; `prefix` is that
+ * folder from the root as Git says it (`app/`, or empty).
+ */
+let copy: Tree | null | undefined
 /** The session's folder, as the last turn or call gave it: where a file's diff is read (`workDiff`). */
 let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
 let lastDiff: Counted[] | undefined
 /** The work tree's diff at the typed turn's start: what was changed before the turn. */
-let startDiff: { root: string; files: Counted[] } | undefined
+let startDiff: (Tree & { files: Counted[] }) | undefined
+
+/** A path with forward slashes and no trailing one; Windows' long forms (`\\?\D:\…`, `\\?\UNC\host\…`) as plain ones. */
+const slashed = (path: string): string =>
+  path
+    .replace(/^\\\\\?\\UNC\\/i, '\\\\')
+    .replace(/^\\\\\?\\/, '')
+    .replaceAll('\\', '/')
+    .replace(/\/+$/, '')
+
+/** A folder as a command's `cwd` takes it: a drive's or the filesystem's root keeps its slash (`C:/`, `/`). */
+const asFolder = (path: string): string => (path.length === 0 || /^[A-Za-z]:$/.test(path) ? `${path}/` : path)
+
+/**
+ * Whether the session's disk ignores case in a path: Windows' and macOS's do. Linux and WSL compare exactly, and so
+ * does a platform not known: a path that differs only in case is then another one, outside, never read.
+ * @param $ the engine interface
+ * @returns true on Windows and macOS
+ */
+export async function ignoresCase($: EngineInterface): Promise<boolean> {
+  try {
+    const { platform } = await $.session.info()
+
+    return platform === 'windows' || platform === 'macos'
+  } catch {
+    return false // a platform that cannot be read is not known: exact, the side that reads nothing it should not
+  }
+}
+
+/** A path as it is compared: slashes and long forms aside, its case kept where the disk keeps it. */
+const compared = (path: string, isCaseless: boolean): string => (isCaseless ? slashed(path).toLowerCase() : slashed(path))
+
+/** Whether a real path is the path Git names, slashes and long forms aside, and case where the disk ignores it. */
+const isSame = (real: string | null | undefined, path: string, isCaseless: boolean): boolean =>
+  real !== undefined && real !== null && compared(real, isCaseless) === compared(path, isCaseless)
 
 /** The session's folder, as the last turn or call gave it. */
 export const cwdNow = (): string | undefined => lastCwd
@@ -46,11 +86,9 @@ export const cwdNow = (): string | undefined => lastCwd
  * @returns true or false; undefined where there is no Git work tree to say
  */
 export function wasChangedBefore(path: string): boolean | undefined {
-  if (startDiff === undefined || lastCwd === undefined) return undefined
+  if (startDiff === undefined) return undefined
 
-  const root = startDiff.root.replaceAll('\\', '/').replace(/\/+$/, '')
-  const here = lastCwd.replaceAll('\\', '/').replace(/\/+$/, '')
-  const fromRoot = here.toLowerCase().startsWith(root.toLowerCase()) ? `${here.slice(root.length + 1)}/${path}`.replace(/^\//, '') : path
+  const fromRoot = `${startDiff.prefix}${path}`
 
   return startDiff.files.some(f => f.path === fromRoot)
 }
@@ -58,14 +96,27 @@ export function wasChangedBefore(path: string): boolean | undefined {
 const NEW_FILE_MAX = 2_000_000 // a new file past this many characters is listed, its lines not counted
 const RECOUNT_MAX = 50 // up to this many new files are read again at every diff; past it, each is read once
 
-/** `added, removed, path` lines of `git diff --numstat`; a binary file's `-` counts as 0. */
+/**
+ * The records of `git diff --numstat -z`: `added TAB removed TAB path NUL`, each path as it is (no quotes, no escapes);
+ * a rename's path field is empty and its old and new paths follow, each ended by NUL. A binary file's `-` counts as 0.
+ */
 function numstat(text: string): Counted[] {
-  return text.split('\n').flatMap(line => {
-    const [added, removed, ...rest] = line.split('\t')
-    const path = rest.join('\t')
+  const fields = text.split('\0')
+  const files: Counted[] = []
 
-    return path.length === 0 ? [] : [{ path, added: Number(added) || 0, removed: Number(removed) || 0, isUntracked: false }]
-  })
+  for (let i = 0; i < fields.length; i++) {
+    const [added, removed, ...rest] = (fields[i] ?? '').split('\t')
+    let path = rest.join('\t')
+
+    if (rest.length > 0 && path.length === 0) {
+      i += 2 // a rename: the new path is the second field after it
+      path = fields[i] ?? ''
+    }
+
+    if (path.length > 0) files.push({ path, added: Number(added) || 0, removed: Number(removed) || 0, isUntracked: false })
+  }
+
+  return files
 }
 
 /**
@@ -83,7 +134,7 @@ async function newLines($: EngineInterface, root: string, path: string, isRecoun
   if (had !== undefined && !isRecount) return had.added
 
   try {
-    const text = await $.fs.read(`${root}/${path}`)
+    const text = await $.fs.read(`${root.replace(/\/$/, '')}/${path}`)
 
     return text.length > NEW_FILE_MAX || text.length === 0 ? 0 : text.replace(/\n+$/, '').split('\n').length
   } catch {
@@ -97,33 +148,68 @@ async function newLines($: EngineInterface, root: string, path: string, isRecoun
  * @param cwd the session's folder
  * @returns its root and files, or undefined where there is no Git work tree to read
  */
-async function diffNow($: EngineInterface, cwd: string | undefined): Promise<{ root: string; files: Counted[] } | undefined> {
+async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tree & { files: Counted[] }) | undefined> {
   if (cwd === undefined || copy === null) return undefined
 
   try {
+    const caseless = await ignoresCase($)
+
     if (copy === undefined) {
       const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
-      copy = top.exitCode === 0 && top.stdout.trim().length > 0 ? { root: top.stdout.trim() } : null
+
+      if (top.exitCode === 0 && top.stdout.trim().length > 0) {
+        // Git names the root with every link resolved (macOS `/tmp`, a Windows junction), where the session's folder
+        // may keep its link. Where that folder ends with Git's path down to it, and the folder less that path lands
+        // at Git's root (a link to the root, or above it), the root is spelled from the folder. Else (a link below
+        // the root, or one named as its target: `~/app` to `/repo/app`) the folder's real path stands for it, beside
+        // Git's root, and the two must agree.
+        const at = await $.process.run(['git', 'rev-parse', '--show-prefix'], { cwd })
+
+        if (at.exitCode !== 0) throw new Error(at.stderr.trim())
+
+        const prefix = at.stdout.trim()
+        const down = prefix.replace(/\/+$/, '')
+        const gitRoot = slashed(top.stdout.trim())
+        const here = slashed(cwd)
+        const isBelow = down.length === 0 || compared(here, caseless).endsWith(`/${compared(down, caseless)}`)
+        const derived = isBelow ? here.slice(0, here.length - (down.length === 0 ? 0 : down.length + 1)) : undefined
+
+        if (derived !== undefined && isSame(await realPath($, asFolder(derived)), gitRoot, caseless)) {
+          copy = { root: asFolder(derived), here: asFolder(here), prefix }
+        } else {
+          const real = await realPath($, cwd)
+          const wanted = down.length === 0 ? gitRoot : `${gitRoot}/${down}`
+
+          if (real === undefined || real === null) throw new Error(`cannot resolve the session's folder ${cwd}`)
+          if (!isSame(real, wanted, caseless)) throw new Error(`the session's folder ${real} is not ${down} under Git's root ${gitRoot}`)
+
+          copy = { root: asFolder(gitRoot), here: asFolder(wanted), prefix }
+        }
+      } else copy = null
     }
 
     if (copy === null) return undefined
 
-    const root = copy.root
+    const { root, here, prefix } = copy
     // No commit yet (asked again until there is one): nothing to diff against, so no tracked rows, and the index's
     // files count as new beside the untracked ones.
     const hasHead = (await $.process.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root })).exitCode === 0
     const tracked = hasHead
-      ? await $.process.run(['git', 'diff', '--numstat', '--no-renames', 'HEAD', '--'], { cwd: root })
+      ? await $.process.run(['git', 'diff', '--numstat', '-z', '--no-renames', 'HEAD', '--'], { cwd: root })
       : { exitCode: 0, stdout: '', stderr: '' }
     const others = await $.process.run(['git', 'ls-files', ...(hasHead ? [] : ['--cached']), '--others', '--exclude-standard', '-z'], { cwd: root })
 
     if (tracked.exitCode !== 0 || others.exitCode !== 0) throw new Error((tracked.stderr || others.stderr).trim())
 
-    const fresh = others.stdout.split('\0').filter(p => p.length > 0)
+    // Git lists the whole work tree's new files: only the session's folder's are read and counted (a session in a
+    // repo's subfolder, a dotfiles repo at the home folder).
+    const fresh = others.stdout.split('\0').filter(p => p.length > 0 && p.startsWith(prefix))
     const isRecount = fresh.length <= RECOUNT_MAX
-    const untracked = await Promise.all(fresh.map(async path => ({ path, added: await newLines($, root, path, isRecount), removed: 0, isUntracked: true })))
+    // A new file that is a link out of the project (SEC-T3) keeps its row, never read, so never counted.
+    const counted = async (path: string) => ((await landsOutside($, path.slice(prefix.length), here, caseless)) ? 0 : newLines($, root, path, isRecount))
+    const untracked = await Promise.all(fresh.map(async path => ({ path, added: await counted(path), removed: 0, isUntracked: true })))
 
-    return { root, files: [...numstat(tracked.stdout), ...untracked] }
+    return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
     copy = null
     $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, noticeSink())
@@ -153,7 +239,7 @@ async function shellFiles(
   // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
   // main loop's may take the other's `◇` mark. The counts stay right: calls are noted one at a time (`noteWork`).
   return now !== undefined && before !== undefined
-    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, cwd, isAgent), command, cwd, isAgent, true)
+    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, now.here, isAgent), command, cwd, isAgent, true)
     : files => filesFromCommand(files, command, cwd, isAgent)
 }
 
@@ -184,8 +270,8 @@ const inFetchOrder = (pages: readonly SourcePage[]): SourcePage[] =>
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
   fetchOrder = new Map()
-  lastDiff = (await diffNow($, cwd))?.files
-  startDiff = lastDiff === undefined ? undefined : { root: copy?.root ?? '', files: lastDiff }
+  startDiff = await diffNow($, cwd)
+  lastDiff = startDiff?.files
   await update($, work, w => {
     const todo = startTodo({ items: w.todo, isRevised: w.isRevised })
 
@@ -268,6 +354,35 @@ export async function diskPath($: EngineInterface, path: string, cwd: string): P
   home ??= (async () => (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')))()
 
   return onDisk(path, cwd, await home)
+}
+
+/** Where a path lands, every link followed (`$.fs.stat`); null when nothing is there, undefined when it cannot be told. */
+async function realPath($: EngineInterface, path: string): Promise<string | null | undefined> {
+  try {
+    return (await $.fs.stat(path, { resolve: true })).realPath
+  } catch (error: unknown) {
+    // A look that failed for another reason cannot place the file: the guard denies it, as it denies a refused look.
+    return error instanceof Error && error.message.endsWith(' failed: ENOENT') ? null : undefined
+  }
+}
+
+/**
+ * Whether a file the session's folder names lands outside that folder once links are followed (a link or junction in
+ * the project to elsewhere, SEC-T3), or where it lands cannot be told. A file not there yet lands nowhere: nothing to
+ * read.
+ * @param $ the engine interface
+ * @param path the file, as the pane names it
+ * @param cwd the session's folder
+ * @param isCaseless whether the disk ignores case (`ignoresCase`), read once for the whole diff
+ * @returns true when it must not be read
+ */
+export async function landsOutside($: EngineInterface, path: string, cwd: string, isCaseless: boolean): Promise<boolean> {
+  const [file, root] = await Promise.all([realPath($, await diskPath($, path, cwd)), realPath($, cwd)])
+
+  if (file === null) return false
+  if (file === undefined || root === undefined || root === null) return true
+
+  return !compared(file, isCaseless).startsWith(`${compared(root, isCaseless)}/`)
 }
 
 /**

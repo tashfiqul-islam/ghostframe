@@ -54,7 +54,7 @@ draws what it has. Its colours come from the same palette module as Cockpit's. T
 | What                      | Budget                                                                                                                                                     |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Turn history in `$.store` | 4,194,304 characters of JSON (`STORE_MAX`); the oldest parts fold first.                                                                                   |
-| A line diff               | 5,000 lines per file (`DIFF_LINES_MAX`).                                                                                                                   |
+| A line diff               | 5,000 lines per file (`DIFF_LINES_MAX`), 500 changed lines (`DIFF_CHANGES_MAX`).                                                                           |
 | Files tab                 | No file read or git run per frame: rows keep the steps' counts, only the selected file is diffed ([ADR 0005](decisions/0005-files-counts-known-limit.md)). |
 | Status line, warm         | A whole run under 100 ms with git cached, checked by `statusline/render.spec.ts`; about 55 ms measured.                                                    |
 | Status line, git          | At most one `git status` per render, cached 5 s per folder.                                                                                                |

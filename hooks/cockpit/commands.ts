@@ -16,7 +16,7 @@ const RUNS_MAX = 50
 const ROWS_MAX = 200
 // Each output row's run, by the row's id.
 const rows = new Map<string, Run>()
-const state = atom({ plugin: 'ghostframe', key: 'commandRuns' } as const, { runs: [] } as CommandRuns, { shape: 'commandRuns-1' })
+const state = atom({ plugin: 'ghostframe', key: 'commandRuns' } as const, { runs: [] } as CommandRuns, { shape: 'commandRuns-2' })
 
 /**
  * A command answered: keeps the run for its row, and hands back the answer for `command.run` to return.
@@ -25,12 +25,14 @@ const state = atom({ plugin: 'ghostframe', key: 'commandRuns' } as const, { runs
  * @param args its arguments as typed
  * @param text what it answers
  * @param isOk whether it did what was asked; an answer that says it could not is an error row (`×`)
+ * @param turnNo for `/steps … all`, the turn it printed, kept so a later draw prints that turn
  * @returns `{ text }`, the hook's answer
  */
-export async function answered($: EngineInterface, command: string, args: string, text: string, isOk: boolean): Promise<{ text: string }> {
+export async function answered($: EngineInterface, command: string, args: string, text: string, isOk: boolean, turnNo?: number): Promise<{ text: string }> {
   const typed = `/${command}${args.trim().length > 0 ? ` ${args.trim()}` : ''}`
+  const run = { id: 0, command: typed, text, isOk, ...(turnNo === undefined ? {} : { turnNo }) }
 
-  await update($, state, s => ({ ...s, runs: [...s.runs, { id: (s.runs.at(-1)?.id ?? 0) + 1, command: typed, text, isOk }].slice(-RUNS_MAX) }))
+  await update($, state, s => ({ ...s, runs: [...s.runs, { ...run, id: (s.runs.at(-1)?.id ?? 0) + 1 }].slice(-RUNS_MAX) }))
 
   return { text }
 }

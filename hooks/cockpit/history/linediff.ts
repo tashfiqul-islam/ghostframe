@@ -5,14 +5,26 @@
 const CONTEXT = 3 // rows of context around each change
 /** Past this many lines on either side the diff is not computed: the caller says so. */
 export const DIFF_LINES_MAX = 5_000
+/**
+ * Past this many changed lines (added plus removed) in a walk the diff is given up: the walk keeps one copy of its
+ * state per change, so a rewrite at the line cap would hold near a gigabyte; under it, at most 40 MB. The view keeps
+ * 400 rows anyway, so such a diff could not be shown whole. Lines only added or only removed are never walked.
+ */
+export const DIFF_CHANGES_MAX = 500
+
+/** Why a diff was not computed: either side past `DIFF_LINES_MAX` lines, or past `DIFF_CHANGES_MAX` changed lines. */
+export type DiffOver = { over: 'lines' | 'changes' }
 
 type Op = { kind: ' ' | '-' | '+'; text: string; a: number; b: number }
 
 /** The texts' lines: a final newline makes no empty last line. */
 const linesOf = (text: string): string[] => (text.length === 0 ? [] : text.replace(/\r\n/g, '\n').replace(/\n$/, '').split('\n'))
 
-/** The shortest edit script from `a` to `b`, as one op per line (Myers, with the trace kept for the walk back). */
-function script(a: readonly string[], b: readonly string[]): Op[] {
+/**
+ * The shortest edit script from `a` to `b`, as one op per line (Myers, with the trace kept for the walk back); none
+ * when it is longer than `DIFF_CHANGES_MAX`.
+ */
+function script(a: readonly string[], b: readonly string[]): Op[] | undefined {
   const n = a.length
   const m = b.length
   const max = n + m
@@ -21,6 +33,8 @@ function script(a: readonly string[], b: readonly string[]): Op[] {
   const trace: Int32Array[] = []
 
   outer: for (let d = 0; d <= max; d++) {
+    if (d > DIFF_CHANGES_MAX) return undefined
+
     trace.push(v.slice())
 
     for (let k = -d; k <= d; k += 2) {
@@ -70,18 +84,54 @@ function script(a: readonly string[], b: readonly string[]): Op[] {
 }
 
 /**
+ * The edit script from `a` to `b`: the lines they share at the start and the end kept, and only what lies between
+ * walked. Lines only added (a new file, an append) or only removed need no walk, so no budget; a walk over
+ * `DIFF_CHANGES_MAX` gives none.
+ */
+function edits(a: readonly string[], b: readonly string[]): Op[] | undefined {
+  let head = 0
+
+  while (head < a.length && head < b.length && a[head] === b[head]) head++
+
+  let tail = 0
+
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++
+
+  const aMid = a.slice(head, a.length - tail)
+  const bMid = b.slice(head, b.length - tail)
+  const walked =
+    aMid.length === 0
+      ? bMid.map((text, i): Op => ({ kind: '+', text, a: 0, b: i }))
+      : bMid.length === 0
+        ? aMid.map((text, i): Op => ({ kind: '-', text, a: i, b: 0 }))
+        : script(aMid, bMid)
+
+  if (walked === undefined) return undefined
+
+  return [
+    ...a.slice(0, head).map((text, i): Op => ({ kind: ' ', text, a: i, b: i })),
+    ...walked.map(op => ({ ...op, a: op.a + head, b: op.b + head })),
+    ...a.slice(a.length - tail).map((text, i): Op => ({ kind: ' ', text, a: a.length - tail + i, b: b.length - tail + i }))
+  ]
+}
+
+/**
  * The unified diff of `before` and `after`, three rows of context around each change; none when they are equal.
  * @param before the text at the start (empty for a file that did not exist)
  * @param after the text now (empty for a file that was removed)
- * @returns the hunks' rows, or undefined when either side passes `DIFF_LINES_MAX` lines
+ * @returns the hunks' rows, or why there are none: either side passes `DIFF_LINES_MAX` lines, or the change passes
+ *          `DIFF_CHANGES_MAX` lines
  */
-export function lineDiff(before: string, after: string): string[] | undefined {
+export function lineDiff(before: string, after: string): string[] | DiffOver {
   const a = linesOf(before)
   const b = linesOf(after)
 
-  if (a.length > DIFF_LINES_MAX || b.length > DIFF_LINES_MAX) return undefined
+  if (a.length > DIFF_LINES_MAX || b.length > DIFF_LINES_MAX) return { over: 'lines' }
 
-  const ops = script(a, b)
+  const ops = edits(a, b)
+
+  if (ops === undefined) return { over: 'changes' }
+
   const changed = ops.flatMap((op, i) => (op.kind === ' ' ? [] : [i]))
   const out: string[] = []
   let at = 0

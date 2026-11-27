@@ -642,10 +642,8 @@ export async function drawCommandOutput($: EngineInterface, e: RenderInput<'Comm
   const ui = $.ui.resolve(e)
   const clock = clockTime(at)
   const isOk = run.isOk && !e.props.isErrored
-  const words = run.command.split(/\s+/)
-  // `/steps n all`, or `/steps all` for the live turn.
-  const isAll = run.command.startsWith('/steps ') && words.at(-1) === 'all' && isOk
-  const steps = !isAll ? Number.NaN : words.length > 2 ? Number(words[1]) : (await readLog($)).turnNo
+  // `/steps n all`, or `/steps all` for the turn live when it ran: the run keeps the turn it printed.
+  const steps = isOk ? (run.turnNo ?? Number.NaN) : Number.NaN
   const lines = Number.isInteger(steps) ? await stepsAllLines($, steps) : undefined
 
   if (lines !== undefined && lines.total > 0) {

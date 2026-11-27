@@ -1,6 +1,6 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
-import { ON, PANE, SLOW, T0, VIEW } from '../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW, posixPath, statAsSpelled } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
@@ -48,6 +48,9 @@ function engine(on: On, clock: { now: number }, fetch?: (url: string) => Promise
 }
 
 const call = ($: Engine, tool: string, id: string, input: Record<string, unknown>) => $.tool.call({ tool, ...input, tool_use_id: id } as never)
+
+/** A command that ran and printed `stdout`, as `$.process.run` answers it. */
+const ran = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } }) as never
 
 /** Every tab's rows (8.1): the pane focused, each tab shown in turn by its key, then the timeline again. */
 async function paneText($: Engine): Promise<string[]> {
@@ -160,7 +163,7 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
   engine(on, clock)
   // Git as the work tree reads at the turn's start, after the printf, and after the formatter: README.md was changed
   // before the turn; the printf adds notes3.txt (new, untracked); the formatter changes src/app.ts.
-  const tracked = ['4\t0\tREADME.md\n', '4\t0\tREADME.md\n', '4\t0\tREADME.md\n2\t1\tsrc/app.ts\n']
+  const tracked = ['4\t0\tREADME.md\0', '4\t0\tREADME.md\0', '4\t0\tREADME.md\x002\t1\tsrc/app.ts\0']
   const others = ['', 'notes3.txt\0', 'notes3.txt\0']
   let diffs = 0
   let lists = 0
@@ -169,11 +172,13 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '\n', stderr: '' } } as never
     if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: tracked[Math.min(diffs++, 2)] ?? '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: others[Math.min(lists++, 2)] ?? '', stderr: '' } } as never
   })
   on('fs.read', () => ({ value: 'three\n' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -190,17 +195,22 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
 })
 
 /**
- * A turn that writes two files outside the project, one by a Write to its full path and one by a shell to a `~/` path,
- * then ends: what the engine printed on the main screen (not the debug log), and what it was asked to read.
+ * A turn that writes four files outside the project, then ends: one by a Write to its full path, one by a shell to a
+ * `~/` path, one by a Write to a path that climbs out (`sub/../../climbed.txt`), and one by a Write through a link
+ * in the project (`link/`, a junction to `/outside`). What the engine printed on the main screen (not the debug log), and
+ * what it was asked to read and to stat.
  */
-async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: string[] }> {
+async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: string[]; statted: string[] }> {
   const clock = { now: T0 }
   engine(on, clock)
   const said: string[] = []
   const read: string[] = []
+  const statted: string[] = []
   on('session.id', () => ({ value: 's1' }))
   on('store.get', () => ({ value: undefined }))
   on('store.set', () => ({ value: undefined }))
+  // The home folder is known, so a `~/` path expands to a real one and only the guards keep it unread.
+  mock.env(on, { USERPROFILE: 'C:/Users/me' })
   on('ui.log', (_, e) => {
     if ((e as { to?: unknown }).to !== 'debug') said.push(e.text)
 
@@ -215,11 +225,15 @@ async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: s
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
-  on('fs.read', (_, e) => {
-    const path = String((e as { path?: unknown }).path)
-    read.push(path)
+  // Every path lands where it is spelled, but `/repo/link/`, which lands in `/outside/`. The engine hands a hook the
+  // path made absolute, on Windows with its drive (`D:\repo\link\linked.txt`); the disk answers as POSIX does.
+  on('fs.stat', (_, e) => {
+    statted.push(e.path)
 
-    if (path.includes('~')) throw new Error(`ENOENT: no such file or directory, open '${path}'`)
+    return { value: { kind: 'file', size: 2, mtimeMs: 0, isLink: false, realPath: posixPath(e.path).replace(/^\/repo\/link(?=\/|$)/, '/outside') } }
+  })
+  on('fs.read', (_, e) => {
+    read.push(e.path)
 
     return { value: 'x\n' }
   })
@@ -228,22 +242,48 @@ async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: s
   await $.turn.start({ text: 'scratch', turnId: 't1' })
   await call($, 'Write', 'w1', { file_path: 'C:\\Users\\me\\AppData\\Local\\Temp\\claude\\s\\scratchpad\\harness5.py', content: 'x\ny\n' })
   await call($, 'Bash', 'b1', { command: `printf 'x\n' > ~/AppData/Local/Temp/claude/s/scratchpad/notes.txt` })
+  await call($, 'Write', 'w2', { file_path: 'sub/../../climbed.txt', content: 'x\ny\n' })
+  await call($, 'Write', 'w3', { file_path: '/repo/link/linked.txt', content: 'x\ny\n' })
   clock.now += 1_000
   await $.turn.complete({ answer: 'x', durationMs: 9_000, isAborted: false, turnId: 't1', reason: 'answer' })
 
-  return { said, read }
+  return { said, read, statted }
 }
 
-test('a file written outside the project is never diffed: nothing reaches the main screen, and Files shows it with no counts', ON, async ($, on) => {
-  const { said, read } = await outsideTurn($, on)
+/** A FILES row's full diff (8.6): its rows, from the Files tab. */
+async function fullDiff($: Engine, path: string): Promise<string[]> {
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: `file:${path}` })
+  await ui.redraw()
+  const rows = (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd())
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+
+  return rows
+}
+
+test('a file written outside the project is never read nor diffed: nothing reaches the main screen, Files shows no counts', ON, async ($, on) => {
+  const { said, read, statted } = await outsideTurn($, on)
   const rows = await paneText($)
 
   expect(said).toEqual([])
-  expect(read.filter(p => /harness5|notes\.txt/.test(p))).toEqual([])
+  // Not read at the turn's start, at its end, or when its diff opens; the three spelled outside are not even looked at.
+  expect(read.filter(p => /harness5|notes\.txt|climbed|linked/.test(p))).toEqual([])
+  expect(statted.filter(p => /harness5|notes\.txt|climbed/.test(p))).toEqual([])
   // No counts: the change bar's empty track only.
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/harness5\.py {2,}■{5}$/))
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}~\/AppData\/.*\/scratchpad\/notes\.txt {2,}■{5}$/))
-  expect(rows).toContainEqual(expect.stringMatching(/^ {2}2 files changed$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}sub\/\.\.\/\.\.\/climbed\.txt {2,}■{5}$/))
+
+  // Each full diff opened (8.6): still nothing outside is read or looked at.
+  for (const path of ['~/AppData/Local/Temp/claude/s/scratchpad/notes.txt', 'sub/../../climbed.txt', 'link/linked.txt'])
+    expect((await fullDiff($, path)).some(r => r.includes(path.split('/').at(-1) ?? path))).toBe(true)
+
+  expect(read.filter(p => /harness5|notes\.txt|climbed|linked/.test(p))).toEqual([])
+  expect(statted.filter(p => /harness5|notes\.txt|climbed/.test(p))).toEqual([])
 })
 
 test('with Cockpit off, a file written outside the project prints nothing either', async ($, on) => {
@@ -263,11 +303,12 @@ test('an append to a file the turn created counts too: its lines are read again 
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
-    if (argv.startsWith('git diff --numstat')) return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
+    if (argv.startsWith('git diff --numstat') || argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: lists++ === 0 ? '' : 'notes5.txt\0', stderr: '' } } as never
   })
   on('fs.read', () => ({ value: content[Math.min(++reads, 2)] ?? '' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -293,6 +334,7 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
     const argv = e.argv.join(' ')
 
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
+    if (argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 1, stdout: '', stderr: '' } } as never
     if (argv.startsWith('git diff')) return { value: { exitCode: 128, stdout: '', stderr: "fatal: bad revision 'HEAD'" } } as never
     if (argv === 'git ls-files --cached --others --exclude-standard -z')
@@ -301,6 +343,7 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
     return { value: { exitCode: 1, stdout: '', stderr: `unexpected: ${argv}` } } as never
   })
   on('fs.read', () => ({ value: 'one\n' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'add a file', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'add a file', turnId: 't1' })
@@ -318,6 +361,7 @@ test('an agent`s edit and fetch reach FILES and SOURCES marked ◇, never the ma
   on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
   let content = 'old line\nkept\n'
   on('fs.read', () => ({ value: content }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -379,7 +423,7 @@ test('two agents` shells ending together count each change once, and a file two 
   engine(on, clock)
   on('agent.spawn', (_, e) => ({ model: 'haiku', agentId: `ag-${e.description}` }))
   // The work tree's diff: clean at the turn's start, then one line, then two, as the shells append.
-  const tracked = ['', '1\t0\tlog.txt\n', '2\t0\tlog.txt\n']
+  const tracked = ['', '1\t0\tlog.txt\0', '2\t0\tlog.txt\0']
   let diffs = 0
   let reads = 0
   on('process.run', (_, e) => {
@@ -397,6 +441,7 @@ test('two agents` shells ending together count each change once, and a file two 
 
     return { value: 'x\n' }
   })
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'logs', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'logs', turnId: 't1' })
@@ -423,4 +468,331 @@ test('two agents` shells ending together count each change once, and a file two 
   expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {2}◇ log\.txt +\+2 {7}■+$/))
   // Both commands name log.txt as a write target: its turn-start content is read once.
   expect(reads).toBe(1)
+})
+
+// Where a session sits against the work tree Git names (macOS /tmp, a Windows junction): its folder, what a link in it
+// leads to, Git's root (every link resolved), Git's path from that root down to the session's folder, and the folder
+// Git is then run in. `isLong`: the disk spells real paths in Windows' long form (`\\?\D:\…`).
+type Place = { name: string; cwd: string; link?: readonly [string, string]; root: string; prefix: string; gitAt: string; isLong?: true }
+const PLACES: readonly Place[] = [
+  {
+    name: 'a project opened through a link to its root',
+    cwd: '/link/repo',
+    link: ['/link/repo', '/real/repo'],
+    root: '/real/repo',
+    prefix: '',
+    gitAt: '/link/repo'
+  },
+  {
+    name: 'a session started inside a linked subfolder',
+    cwd: '/repo/linked',
+    link: ['/repo/linked', '/repo/real/sub'],
+    root: '/repo',
+    prefix: 'real/sub/',
+    gitAt: '/repo'
+  },
+  { name: 'a session in a plain subfolder', cwd: '/repo/app', root: '/repo', prefix: 'app/', gitAt: '/repo' },
+  // `~/app` is a link to `/repo/app`: its name ends with Git's path, but `~` is not the root (a dotfiles repo there
+  // must never be the one Git reads).
+  {
+    name: 'a session through a link named as its target',
+    cwd: '/home/me/app',
+    link: ['/home/me/app', '/repo/app'],
+    root: '/repo',
+    prefix: 'app/',
+    gitAt: '/repo'
+  },
+  {
+    // Windows: Git spells the root `D:/repo`, the disk the same folder `\\?\D:\repo`.
+    name: 'a linked subfolder whose real path the disk spells long',
+    cwd: '/repo/linked',
+    link: ['/repo/linked', '/repo/real/sub'],
+    root: 'D:/repo',
+    prefix: 'real/sub/',
+    gitAt: 'D:/repo',
+    isLong: true
+  },
+  { name: 'a repo at the filesystem`s root', cwd: '/', root: '/', prefix: '', gitAt: '/' }
+]
+
+for (const place of PLACES) {
+  test(`${place.name}: Git's root and the session's folder agree, and a shell's change is the project's own row`, ON, async ($, on) => {
+    const clock = { now: T0 }
+    engine(on, clock)
+    let diffs = 0
+    // Where each Git call after the two that find the work tree ran.
+    const ranAt: string[] = []
+    on('process.run', (_, e) => {
+      const argv = e.argv.join(' ')
+
+      if (argv === 'git rev-parse --show-toplevel') return ran(`${place.root}\n`)
+      if (argv === 'git rev-parse --show-prefix') return ran(`${place.prefix}\n`)
+      ranAt.push(String(e.init?.cwd))
+      if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+      if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : `1\t0\t${place.prefix}notes.txt\0`)
+
+      return ran('')
+    })
+    // The disk answers as POSIX does: the engine hands the hook the path made absolute (on Windows with its drive).
+    on('fs.stat', (_, e) => {
+      const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/') || '/'
+      const real = place.link === undefined || !path.startsWith(place.link[0]) ? path : `${place.link[1]}${path.slice(place.link[0].length)}`
+
+      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath: place.isLong === true ? `\\\\?\\D:${real.replaceAll('/', '\\')}` : real } }
+    })
+    on('fs.read', () => ({ value: 'one\n' }))
+    await $.session.start({ cwd: place.cwd, surface: 'terminal', isInteractive: false })
+    await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text: 'notes', turnId: 't1' })
+    await call($, 'Bash', 'b1', { command: `printf 'one\n' >> notes.txt` })
+
+    const rows = await paneText($)
+    expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes\.txt +\+1 {7}■+$/))
+    expect(rows.some(r => r.includes(`${place.root.replace(/\/$/, '')}/notes`))).toBe(false)
+    expect([...new Set(ranAt)]).toEqual([place.gitAt])
+  })
+}
+
+test('a session whose folder lands neither where Git`s root nor its path say: no work tree is guessed, and the notice says why', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const said: string[] = []
+  on('ui.log', (_, e) => {
+    said.push(e.text)
+
+    return { value: undefined }
+  })
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('real/sub/\n')
+
+    return ran('')
+  })
+  // `/repo/linked` lands in `/elsewhere/sub`, not in `/repo/real/sub` as Git's root and path would have it.
+  on('fs.stat', () => ({ value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: true, realPath: '/elsewhere/sub' } }))
+  await $.session.start({ cwd: '/repo/linked', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+
+  expect(said).toContainEqual(expect.stringMatching(/git work tree unreadable.*\/elsewhere\/sub is not real\/sub under Git's root \/repo/))
+})
+
+test('a session in a repo`s subfolder: an untracked file outside that folder is never read', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const read: string[] = []
+  let lists = 0
+  // The session is at `/repo/app`; Git lists the whole work tree's new files, one of them beside `app/`.
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('app/\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'app/new.txt\0secrets.env\0')
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', (_, e) => {
+    read.push(e.path)
+
+    return { value: 'one\n' }
+  })
+  await $.session.start({ cwd: '/repo/app', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: `printf 'one\n' > new.txt` })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+1 {7}■+$/))
+  expect(read.filter(p => p.includes('secrets'))).toEqual([])
+  expect(rows.some(r => r.includes('secrets'))).toBe(false)
+})
+
+test('an untracked link to a file outside the project is never read, so its lines are never counted', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const read: string[] = []
+  let lists = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'new.txt\0keys.txt\0')
+
+    return ran('')
+  })
+  // `keys.txt` is a link Git lists as a new file; it leads to `/home/me/.ssh/keys.txt`.
+  on('fs.stat', (_, e) => {
+    const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
+
+    return {
+      value: { kind: 'file', size: 4, mtimeMs: 0, isLink: path.endsWith('keys.txt'), realPath: path.endsWith('keys.txt') ? '/home/me/.ssh/keys.txt' : path }
+    }
+  })
+  on('fs.read', (_, e) => {
+    read.push(e.path)
+
+    return { value: 'one\ntwo\n' }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'make' })
+
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+2 {7}■+$/))
+  expect(read.filter(p => p.includes('keys'))).toEqual([])
+})
+
+// The project is `/repo/app`; `linked.txt` in it is a new file, a link to `/repo/App/secret.txt`, a sibling folder
+// whose name differs only in case. Where the disk ignores case (Windows, macOS) that is the project's own folder;
+// elsewhere, and where the platform is not known, it is another folder: outside, never read.
+const CASES = [
+  ['linux', false],
+  ['wsl', false],
+  ['unknown', false],
+  ['windows', true],
+  ['macos', true]
+] as const
+
+for (const [platform, isSameFolder] of CASES) {
+  test(`on ${platform}, a link to a folder named as the project in another case is ${isSameFolder ? 'the project' : 'outside it'}`, ON, async ($, on) => {
+    const clock = { now: T0 }
+    engine(on, clock)
+    on('session.info', () => ({ value: { platform } as never }))
+    const read: string[] = []
+    let lists = 0
+    on('process.run', (_, e) => {
+      const argv = e.argv.join(' ')
+
+      if (argv === 'git rev-parse --show-toplevel') return ran('/repo/app\n')
+      if (argv === 'git rev-parse --show-prefix') return ran('\n')
+      if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+      if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'linked.txt\0')
+
+      return ran('')
+    })
+    on('fs.stat', (_, e) => {
+      const path = posixPath(e.path)
+      const isLinked = path.endsWith('linked.txt')
+
+      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: isLinked, realPath: isLinked ? '/repo/App/secret.txt' : path } }
+    })
+    on('fs.read', (_, e) => {
+      read.push(e.path)
+
+      return { value: 'one\ntwo\n' }
+    })
+    await $.session.start({ cwd: '/repo/app', surface: 'terminal', isInteractive: false })
+    await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+    await $.turn.start({ text: 'notes', turnId: 't1' })
+    await call($, 'Bash', 'b1', { command: 'make' })
+
+    const row = (await paneText($)).find(r => r.includes('linked.txt'))
+    expect({ row, read: read.filter(p => p.includes('linked')).length }).toEqual(
+      isSameFolder
+        ? { row: expect.stringMatching(/^ {4}linked\.txt +\+2 {7}■+$/), read: 1 }
+        : { row: expect.stringMatching(/^ {4}linked\.txt {2,}■{5}$/), read: 0 }
+    )
+  })
+}
+
+test('a file whose name Git would quote (`café.txt`, `my notes/a b.md`): its row and its diff name it as it is', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const asked: string[] = []
+  let diffs = 0
+  // As Git prints them: without `-z` a non-ASCII name is quoted and escaped; with `-z` each path is as it is.
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+    asked.push(argv)
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git diff --numstat')) {
+      const isZ = e.argv.includes('-z')
+
+      return ran(diffs++ === 0 ? '' : isZ ? '1\t0\tcafé.txt\x002\t0\tmy notes/a b.md\x00' : '1\t0\t"caf\\303\\251.txt"\n2\t0\tmy notes/a b.md\n')
+    }
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', () => ({ value: 'one\n' }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'fmt', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'fmt', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'bun run fmt' })
+
+  const rows = await paneText($)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}café\.txt +\+1 {7}■+$/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {4}my notes\/a b\.md +\+2 {7}■+$/))
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:café.txt' })
+  await ui.redraw()
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+  expect(asked).toContain('git diff HEAD -- café.txt')
+})
+
+test('8.6: a file over the diff budget opens to its note in place of the diff; `n` and Escape still work from it', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  // A shell rewrites all 600 lines of big.txt (over the 500-line budget) and one line of small.txt.
+  const lines = (word: string) => Array.from({ length: 600 }, (_, i) => `${word} ${i}`).join('\n')
+  let big = lines('old')
+  let small = 'one\ntwo\n'
+  let diffs = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : '600\t600\tbig.txt\x001\t1\tsmall.txt\0')
+
+    return ran('')
+  })
+  statAsSpelled(on)
+  on('fs.read', (_, e) => ({ value: e.path.endsWith('big.txt') ? big : small }))
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'rewrite', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'rewrite', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'gen > big.txt; fix > small.txt' })
+  big = lines('new')
+  small = 'one\nTWO\n'
+
+  const ui = await $.ui.mount({ ...PANE, props: { ...PANE.props, isFocused: true } })
+  const shown = async () => (await ui.findAll({ type: 'Text' })).map(t => t.text.trimEnd())
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:big.txt' })
+  await ui.redraw()
+  expect(await shown()).toContainEqual('  no diff · over 500 changed lines')
+
+  // `n`: the next file's diff, its hunk drawn and no note.
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  const next = await shown()
+  expect(next).toContainEqual(expect.stringMatching(/^ {2}small\.txt +\+1 −1  ·  1 hunk$/))
+  expect(next.some(r => r.includes('no diff'))).toBe(false)
+
+  // Back to the note, then Escape: the engine hands the keyboard back, and the pane draws its timeline, no note.
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'file:big.txt' })
+  await ui.redraw()
+  expect(await shown()).toContainEqual('  no diff · over 500 changed lines')
+  await ui.unmount()
+  const after = await $.ui.mount(PANE)
+  expect((await after.findAll({ type: 'Text' })).some(t => t.text.includes('no diff'))).toBe(false)
+  await after.unmount()
 })

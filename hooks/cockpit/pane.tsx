@@ -323,7 +323,7 @@ export function registerPane(on: On): void {
 
       const said = await stepsAllText($, n, e.presentation.columns)
 
-      return answered($, STEPS, e.args, said.text, said.isOk)
+      return answered($, STEPS, e.args, said.text, said.isOk, n)
     }
 
     const text = await pinFromCommand($, e.args)

@@ -3,7 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { PANE_HINT } from '../../../hooks/cockpit/pane'
 import { ringMoveOf } from '../../../hooks/cockpit/rows/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
-import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW, statAsSpelled } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 
 // Phase 7 keys in the pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
@@ -166,6 +166,61 @@ test('Enter on an edit step (every step), or on its Files row, shows its diff (8
   await ui.unmount()
 })
 
+test('8.6: `n` in the full diff opens the next file`s diff, as its hint row offers; the last file stays and says so', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  await aTurn($)
+  await $.tool.call({ tool: 'Edit', file_path: 'hooks/shared/look.ts', old_string: 'a', new_string: 'b', tool_use_id: 'e2' } as never)
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:hooks/shared/text.ts' })
+  await ui.redraw()
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/text\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(await texts(ui)).toContainEqual(expect.stringMatching(/n next file/))
+
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  let rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/look\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(rows.some(r => /^ {2}hooks\/shared\/text\.ts +\+2/.test(r))).toBe(false)
+
+  await ui.press({ key: 'key-n' })
+  await ui.redraw()
+  rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}hooks\/shared\/look\.ts +\+2 −1  ·  1 hunk *$/))
+  expect(rows).toContainEqual(expect.stringMatching(/no next file/))
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+})
+
+test('8.6: an edited file past the 5,000-line cap shows its Edit`s own patch, with no diff of the whole file', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('fs.read', () => ({ value: 'line\n'.repeat(5_001) }))
+  statAsSpelled(on)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'edit', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'edit', turnId: 't1' })
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/big.md', old_string: 'a', new_string: 'b', tool_use_id: 'e1' } as never)
+
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:big.md' })
+  await ui.redraw()
+  const rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}@@ 40,1 @@/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {6}40 \+ new line/))
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+})
+
 test('`s` shows every step of the turn, unfolded (8.11); `s` again fits', SLOW, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, [])
@@ -254,7 +309,7 @@ test('a FILES row a shell also changed: its diff is the whole turn`s, the file a
   const clock = { now: T0 }
   engine(on, clock, [])
   // Git, as the work tree reads at the turn's start, after the Edit, and after the shell's append.
-  const numstat = ['', '1\t1\tnotes.md\n', '2\t1\tnotes.md\n']
+  const numstat = ['', '1\t1\tnotes.md\0', '2\t1\tnotes.md\0']
   let diffs = 0
   on('process.run', (_, e) => {
     const argv = e.argv.join(' ')
@@ -267,6 +322,7 @@ test('a FILES row a shell also changed: its diff is the whole turn`s, the file a
   // The file before the Edit (read as the Edit starts), and after the shell's append (read when the diff opens).
   let content = 'old line\nkept\n'
   on('fs.read', () => ({ value: content }))
+  statAsSpelled(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
@@ -300,7 +356,7 @@ test('a FILES row no call named, which had changes from before the turn: its dif
   const clock = { now: T0 }
   engine(on, clock, [])
   // src/app.ts was already changed when the turn started; a formatter changes it again without naming it.
-  const numstat = ['3\t0\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n', '5\t1\tsrc/app.ts\n']
+  const numstat = ['3\t0\tsrc/app.ts\0', '5\t1\tsrc/app.ts\0', '5\t1\tsrc/app.ts\0']
   let diffs = 0
   on('process.run', (_, e) => {
     const argv = e.argv.join(' ')
@@ -310,6 +366,7 @@ test('a FILES row no call named, which had changes from before the turn: its dif
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
+  statAsSpelled(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
