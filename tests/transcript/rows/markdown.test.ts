@@ -37,6 +37,7 @@ test('B4. `Note:` ends at a fence: the code below keeps its code card', () => {
   expect(rows.some(r => r.trim().endsWith('after'))).toBe(true)
 })
 
+// A guard, not a proof: Cockpit on draws the raw text and never used the streaming cut, so this passed before the fix.
 for (const said of FINISHED) {
   test(`B2, B3. Cockpit on: the finished reply ${JSON.stringify(said)} keeps every word`, () => {
     const shown = answerRows(said, { width: 70, hasLead: true }).map(text).join(' ')

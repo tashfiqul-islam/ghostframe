@@ -12,6 +12,7 @@ for (const [mode, options] of [
   ['off', OFF]
 ] as const) {
   test(
+    // Cockpit off is the proof; Cockpit on never used the streaming cut, so its case is a guard.
     `B2, B3. Cockpit ${mode}: finished replies that end like streaming text draw every word, mid-turn too`,
     { ...options, timeoutMs: 30_000 },
     async ($, on) => {
