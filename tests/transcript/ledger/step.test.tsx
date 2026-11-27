@@ -11,6 +11,8 @@ const LONG = { ...ON, timeoutMs: 120_000 }
 const files = (n: number) => Array.from({ length: n }, (_, i) => `cache/d${Math.floor(i / 200)}/f${i % 200}.txt`)
 
 function engine(on: On, clock: { now: number }, untracked: readonly string[]): void {
+  // Git's answer, built once: the test's own work is not the hook's.
+  const listing = untracked.map(p => `${p}\0`).join('')
   on('clock.now', () => ({ value: clock.now }))
   on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
   on('ui.open', () => ({ value: { isPlaced: true } }))
@@ -39,7 +41,7 @@ function engine(on: On, clock: { now: number }, untracked: readonly string[]): v
     if (argv === 'git rev-parse --show-toplevel') return { value: { exitCode: 0, stdout: '/repo\n', stderr: '' } } as never
     if (argv === 'git rev-parse --show-prefix') return { value: { exitCode: 0, stdout: '\n', stderr: '' } } as never
     if (argv === 'git rev-parse --verify --quiet HEAD') return { value: { exitCode: 0, stdout: 'f00d\n', stderr: '' } } as never
-    if (argv.startsWith('git ls-files')) return { value: { exitCode: 0, stdout: untracked.map(p => `${p}\0`).join(''), stderr: '' } } as never
+    if (argv.startsWith('git ls-files')) return { value: { exitCode: 0, stdout: listing, stderr: '' } } as never
 
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
