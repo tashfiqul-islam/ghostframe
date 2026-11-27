@@ -12,6 +12,7 @@ import { noteSources, sameUrl } from './sections/sources'
 import type { SourcePage } from '../../types'
 import { noteTodo, startTodo } from './sections/todo'
 import type { Outcome } from './steps/log'
+import { remember } from '../shared/held'
 
 const EMPTY: TurnWork = { todo: [], isRevised: false, files: [], sources: [], cited: [] }
 
@@ -41,7 +42,9 @@ let lastCwd: string | undefined
 /** The work tree's diff after the last call that could change files. */
 let lastDiff: Counted[] | undefined
 /** The work tree's diff at the typed turn's start: what was changed before the turn. */
-let startDiff: (Tree & { files: Counted[] }) | undefined
+let startDiff: Diff | undefined
+/** A diff: the work tree, its changed and new files, and how many new files the listing left out (`many`: not known). */
+type Diff = Tree & { files: Counted[]; more: number | 'many' }
 
 /** A path with forward slashes and no trailing one; Windows' long forms (`\\?\D:\…`, `\\?\UNC\host\…`) as plain ones. */
 const slashed = (path: string): string =>
@@ -93,8 +96,22 @@ export function wasChangedBefore(path: string): boolean | undefined {
   return startDiff.files.some(f => f.path === fromRoot)
 }
 
-const NEW_FILE_MAX = 2_000_000 // a new file past this many characters is listed, its lines not counted
-const RECOUNT_MAX = 50 // up to this many new files are read again at every diff; past it, each is read once
+// A big untracked folder (a cache, node_modules before its .gitignore, build output) lists tens of thousands of files,
+// and every listed file would cost a FILES row, a link check and a read. So a listing keeps the first 2,000 and counts
+// the rest (`+n more untracked`); a diff reads at most 50 new files to count their lines, 8 at a time, checks only
+// those for links out of the project, never reads a file over 1 MB, and counts a file with a NUL byte (binary) as 0.
+const UNTRACKED_MAX = 2_000
+const COUNT_BYTES_MAX = 1_048_576 // a new file larger than this is listed and never read: its lines are not counted
+const RECOUNT_MAX = 50 // the most new files one diff reads to count their lines; the rest are listed without a count
+const AT_ONCE = 8 // link checks and reads in flight at once
+const GIT_TIMEOUT_MS = 5_000 // a git call that takes longer is given up: FILES falls back to the commands' targets
+const COUNTS_MAX = 5_000 // new files whose counts are kept between diffs
+
+/** A new file's lines as last read, with the size and modified time it had then: unchanged, it is not read again. */
+type Count = { size: number; mtimeMs: number; lines: number }
+const counts = new Map<string, Count>()
+/** The last listing of new files: the paths it kept and how many it left out. An Edit reuses it: it adds no file. */
+let listed: { paths: string[]; more: number | 'many' } | undefined
 
 /**
  * The records of `git diff --numstat -z`: `added TAB removed TAB path NUL`, each path as it is (no quotes, no escapes);
@@ -120,42 +137,131 @@ function numstat(text: string): Counted[] {
 }
 
 /**
- * A new file's lines. Read at every diff while the work tree has few new files, so an append to one counts; past
- * that, read once, a file the last diff already counted keeping that count.
- * @param $ the engine interface
- * @param root the work tree's root
- * @param path the file, from the root
- * @param isRecount whether to read it even when it was counted before
- * @returns its lines, or 0 when it cannot be read or is too large to count
+ * A text's lines; 0 for an empty text or one with a NUL byte (a binary file).
+ * @param text the file's content
+ * @returns its lines
  */
-async function newLines($: EngineInterface, root: string, path: string, isRecount: boolean): Promise<number> {
-  const had = lastDiff?.find(f => f.isUntracked && f.path === path)
+export function linesOf(text: string): number {
+  if (text.length === 0 || text.includes('\0')) return 0
 
-  if (had !== undefined && !isRecount) return had.added
+  return text.replace(/\n+$/, '').split('\n').length
+}
+
+/**
+ * The new files a listing keeps: the first 2,000 under the session's folder, from git's `-z` output, and how many it
+ * leaves out (`many` when git's output was cut, so the total is not known).
+ * @param stdout `git ls-files --others -z`'s output
+ * @param prefix the session's folder from the root
+ * @param isCut whether the output was cut short
+ * @returns the paths and the count left out
+ */
+export function untrackedIn(stdout: string, prefix: string, isCut: boolean): { paths: string[]; more: number | 'many' } {
+  const paths: string[] = []
+  let more = 0
+
+  for (let from = 0, end = stdout.indexOf('\0'); end >= 0; from = end + 1, end = stdout.indexOf('\0', from)) {
+    const path = stdout.slice(from, end)
+
+    if (path.length === 0 || !path.startsWith(prefix)) continue
+    if (paths.length < UNTRACKED_MAX) paths.push(path)
+    else more++
+  }
+
+  return { paths, more: isCut ? 'many' : more }
+}
+
+/**
+ * Runs `run` on each path, at most `n` at once.
+ * @param paths the paths
+ * @param n how many at once
+ * @param run what to do with one
+ * @returns each path with its result
+ */
+async function atMost<R>(paths: readonly string[], n: number, run: (path: string) => Promise<R>): Promise<Map<string, R>> {
+  const out = new Map<string, R>()
+  let next = 0
+  // Each worker takes the next path when its last one is done.
+  const worker = async (): Promise<void> => {
+    const path = paths[next++]
+
+    if (path === undefined) return
+    out.set(path, await run(path))
+
+    return worker()
+  }
+
+  await Promise.all(Array.from({ length: Math.min(n, paths.length) }, worker))
+
+  return out
+}
+
+/**
+ * A git command in the work tree, given up after 5 s: a hung git (a lock, a network drive) never holds the session.
+ * @param $ the engine interface
+ * @param args git's arguments
+ * @param cwd where it runs
+ * @returns what it printed
+ */
+async function git($: EngineInterface, args: readonly string[], cwd: string): Promise<Awaited<ReturnType<EngineInterface['process']['run']>>> {
+  const ran = $.process.run(['git', ...args], { cwd, timeoutMs: GIT_TIMEOUT_MS })
+  // The engine kills a child past its timeout; this also gives up on a call that never comes back. A timer, not a
+  // `$.clock.sleep`: a sleep is the hook's own time, and one left running would charge the hook's budget for it.
+  let timer: { cancel: () => void } | undefined
+  const late = new Promise<never>((_, reject) => {
+    timer = $.clock.after(GIT_TIMEOUT_MS, () => reject(new Error(`git ${args.join(' ')} timed out after ${GIT_TIMEOUT_MS} ms`)))
+  })
 
   try {
-    const text = await $.fs.read(`${root.replace(/\/$/, '')}/${path}`)
-
-    return text.length > NEW_FILE_MAX || text.length === 0 ? 0 : text.replace(/\n+$/, '').split('\n').length
-  } catch {
-    return 0 // a file that cannot be read (binary, locked, gone) keeps its row without a count
+    return await Promise.race([ran, late])
+  } finally {
+    timer?.cancel()
   }
 }
 
 /**
- * The work tree's diff against HEAD now, with its new files.
+ * A new file's lines, read only when its size and time moved since it was last counted, never past 1 MB, and never
+ * through a link out of the project (SEC-T3).
+ * @param $ the engine interface
+ * @param tree the work tree
+ * @param path the file, from the root
+ * @param caseless whether the disk ignores case
+ * @returns its lines, or 0 when it is not counted
+ */
+async function countOf($: EngineInterface, tree: Tree, path: string, caseless: boolean): Promise<number> {
+  try {
+    if (await landsOutside($, path.slice(tree.prefix.length), tree.here, caseless)) return 0
+
+    const file = `${tree.root.replace(/\/$/, '')}/${path}`
+    const { size, mtimeMs } = await $.fs.stat(file)
+    const had = counts.get(path)
+
+    if (had !== undefined && had.size === size && had.mtimeMs === mtimeMs) return had.lines
+
+    const lines = size > COUNT_BYTES_MAX ? 0 : linesOf(await $.fs.read(file))
+    remember(counts, path, { size, mtimeMs, lines }, COUNTS_MAX)
+
+    return lines
+  } catch {
+    return 0 // a file that cannot be read (locked, gone) keeps its row without a count
+  }
+}
+
+/**
+ * The work tree's diff against HEAD now, with its new files: listed again, or for a call that adds no file (an Edit),
+ * the last listing's.
  * @param $ the engine interface
  * @param cwd the session's folder
+ * @param isRelisted whether to list the new files again
  * @returns its root and files, or undefined where there is no Git work tree to read
  */
-async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tree & { files: Counted[] }) | undefined> {
+async function diffNow($: EngineInterface, cwd: string | undefined, isRelisted = true): Promise<Diff | undefined> {
   if (cwd === undefined || copy === null) return undefined
 
   try {
     const caseless = await ignoresCase($)
 
     if (copy === undefined) {
-      const top = await $.process.run(['git', 'rev-parse', '--show-toplevel'], { cwd })
+      const top = await git($, ['rev-parse', '--show-toplevel'], cwd)
 
       if (top.exitCode === 0 && top.stdout.trim().length > 0) {
         // Git names the root with every link resolved (macOS `/tmp`, a Windows junction), where the session's folder
@@ -163,7 +269,7 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
         // at Git's root (a link to the root, or above it), the root is spelled from the folder. Else (a link below
         // the root, or one named as its target: `~/app` to `/repo/app`) the folder's real path stands for it, beside
         // Git's root, and the two must agree.
-        const at = await $.process.run(['git', 'rev-parse', '--show-prefix'], { cwd })
+        const at = await git($, ['rev-parse', '--show-prefix'], cwd)
 
         if (at.exitCode !== 0) throw new Error(at.stderr.trim())
 
@@ -190,26 +296,32 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
 
     if (copy === null) return undefined
 
-    const { root, here, prefix } = copy
+    const tree = copy
+    const { root, here, prefix } = tree
     // No commit yet (asked again until there is one): nothing to diff against, so no tracked rows, and the index's
     // files count as new beside the untracked ones.
-    const hasHead = (await $.process.run(['git', 'rev-parse', '--verify', '--quiet', 'HEAD'], { cwd: root })).exitCode === 0
-    const tracked = hasHead
-      ? await $.process.run(['git', 'diff', '--numstat', '-z', '--no-renames', 'HEAD', '--'], { cwd: root })
-      : { exitCode: 0, stdout: '', stderr: '' }
-    const others = await $.process.run(['git', 'ls-files', ...(hasHead ? [] : ['--cached']), '--others', '--exclude-standard', '-z'], { cwd: root })
+    const hasHead = (await git($, ['rev-parse', '--verify', '--quiet', 'HEAD'], root)).exitCode === 0
+    const tracked = hasHead ? await git($, ['diff', '--numstat', '-z', '--no-renames', 'HEAD', '--'], root) : { exitCode: 0, stdout: '', stderr: '' }
 
-    if (tracked.exitCode !== 0 || others.exitCode !== 0) throw new Error((tracked.stderr || others.stderr).trim())
+    if (tracked.exitCode !== 0) throw new Error(tracked.stderr.trim())
 
-    // Git lists the whole work tree's new files: only the session's folder's are read and counted (a session in a
-    // repo's subfolder, a dotfiles repo at the home folder).
-    const fresh = others.stdout.split('\0').filter(p => p.length > 0 && p.startsWith(prefix))
-    const isRecount = fresh.length <= RECOUNT_MAX
-    // A new file that is a link out of the project (SEC-T3) keeps its row, never read, so never counted.
-    const counted = async (path: string) => ((await landsOutside($, path.slice(prefix.length), here, caseless)) ? 0 : newLines($, root, path, isRecount))
-    const untracked = await Promise.all(fresh.map(async path => ({ path, added: await counted(path), removed: 0, isUntracked: true })))
+    if (isRelisted || listed === undefined) {
+      const others = await git($, ['ls-files', ...(hasHead ? [] : ['--cached']), '--others', '--exclude-standard', '-z'], root)
 
-    return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked] }
+      if (others.exitCode !== 0) throw new Error(others.stderr.trim())
+
+      // Git lists the whole work tree's new files: only the session's folder's are kept (a session in a repo's
+      // subfolder, a dotfiles repo at the home folder).
+      listed = untrackedIn(others.stdout, prefix, others.isStdoutTruncated)
+    }
+
+    const { paths, more } = listed
+    // The files to count: every one while there are few (an append to one counts), else the ones not counted yet.
+    const toCount = new Set((paths.length <= RECOUNT_MAX ? paths : paths.filter(p => !counts.has(p))).slice(0, RECOUNT_MAX))
+    const counted = await atMost([...toCount], AT_ONCE, async path => countOf($, tree, path, caseless))
+    const untracked = paths.map(path => ({ path, added: counted.get(path) ?? counts.get(path)?.lines ?? 0, removed: 0, isUntracked: true }))
+
+    return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked], more }
   } catch (error: unknown) {
     copy = null
     $.ui.log(`cockpit: git work tree unreadable, [ FILES ] falls back to command targets: ${String(error)}`, noticeSink())
@@ -231,16 +343,19 @@ async function shellFiles(
   command: string,
   cwd: string | undefined,
   isAgent: boolean
-): Promise<(files: readonly FileChange[]) => FileChange[]> {
+): Promise<{ apply: (files: readonly FileChange[]) => FileChange[]; more: number | 'many' | undefined }> {
   const before = lastDiff
   const now = await diffNow($, cwd)
   lastDiff = now?.files
+  // The new files past the listing, since the turn's start: FILES counts them in one row.
+  const was = startDiff?.more ?? 0
+  const more = now === undefined ? undefined : now.more === 'many' || was === 'many' ? now.more : Math.max(0, now.more - was)
 
   // shortcut: a shell step is credited with every change since the last diff, so an agent's shell running beside the
   // main loop's may take the other's `◇` mark. The counts stay right: calls are noted one at a time (`noteWork`).
   return now !== undefined && before !== undefined
-    ? files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, now.here, isAgent), command, cwd, isAgent, true)
-    : files => filesFromCommand(files, command, cwd, isAgent)
+    ? { apply: files => filesFromCommand(filesFromDiff(files, before, now.files, now.root, now.here, isAgent), command, cwd, isAgent, true), more }
+    : { apply: files => filesFromCommand(files, command, cwd, isAgent), more }
 }
 
 /** Each page's place in the order its fetch started this turn (8.7), by `sameUrl`: fetches in parallel end out of order. */
@@ -270,13 +385,15 @@ const inFetchOrder = (pages: readonly SourcePage[]): SourcePage[] =>
 export async function startWork($: EngineInterface, cwd?: string): Promise<void> {
   lastCwd = cwd ?? lastCwd
   fetchOrder = new Map()
-  startDiff = await diffNow($, cwd)
-  lastDiff = startDiff?.files
+  // FILES says it is reading while the work tree's diff is worked out; the pane draws meanwhile.
   await update($, work, w => {
     const todo = startTodo({ items: w.todo, isRevised: w.isRevised })
 
-    return { ...EMPTY, todo: todo.items, isRevised: todo.isRevised }
+    return { ...EMPTY, todo: todo.items, isRevised: todo.isRevised, isReading: true as const }
   })
+  startDiff = await diffNow($, cwd)
+  lastDiff = startDiff?.files
+  await update($, work, w => ({ ...w, isReading: undefined }))
 }
 
 /**
@@ -310,18 +427,21 @@ async function noteWorkNow($: EngineInterface, tool: string, input: unknown, out
   // A shell step that failed may still have written: its diff counts. Its own `rm` targets come last, so `del` stands.
   const shell = isShell && outcome.deny === undefined ? await shellFiles($, command, cwd, isAgent) : undefined
 
-  if (isOk && EDITS.has(tool)) lastDiff = (await diffNow($, cwd))?.files
+  // A Write may add a file; an Edit changes one that is there: the new files' listing is reused.
+  if (isOk && EDITS.has(tool)) lastDiff = (await diffNow($, cwd, tool === 'Write'))?.files
 
   await update($, work, w => {
     const todo = isOk && !isAgent ? noteTodo({ items: w.todo, isRevised: w.isRevised }, tool, input, outcome.result) : { items: w.todo, isRevised: w.isRevised }
-    const files = shell === undefined ? w.files : shell(w.files)
+    const files = shell === undefined ? w.files : shell.apply(w.files)
+    const more = shell?.more === undefined ? {} : shell.more === 0 ? { moreUntracked: undefined } : { moreUntracked: shell.more }
 
     return {
       ...w,
       todo: todo.items,
       isRevised: todo.isRevised,
       files: isOk ? noteFiles(files, tool, input, outcome.result, cwd, isAgent) : files,
-      sources: outcome.deny === undefined ? inFetchOrder(noteSources(w.sources, tool, input, outcome, isAgent)) : w.sources
+      sources: outcome.deny === undefined ? inFetchOrder(noteSources(w.sources, tool, input, outcome, isAgent)) : w.sources,
+      ...more
     }
   })
 }

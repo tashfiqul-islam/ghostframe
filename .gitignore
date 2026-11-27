@@ -1,6 +1,10 @@
 # Dependencies (dev tooling lives in tools/, never at the plugin root)
 node_modules/
 
+# Local tool caches: Bun's install cache and tools a review run installs (tens of thousands of files)
+.bun/
+.scratch/
+
 # Environment files
 .env
 .env.*

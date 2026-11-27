@@ -16,7 +16,7 @@ import { foldGroups, groupsOf, paneResult } from './groups'
 import type { TimedStep } from './groups'
 import { cutRow, drawerRows, framed, headCard, hintRow, rulerRows, tabRows, timelineRows } from './pane'
 import type { AgentBar, Group, Head, Stat } from './pane'
-import { agentHead, agentsView, allStepsView, countsOf, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
+import { FILE_ROWS_MAX, agentHead, agentsView, allStepsView, countsOf, diffView, filesView, interruptedRow, pinnedHead, sourcesView, todoView } from './views'
 import type { StepRow } from './views'
 
 /** What the pane reads to draw (8). */
@@ -556,10 +556,11 @@ export function assemblePane(i: PaneInput): Pane {
       })),
       shown.turnNo,
       i.width,
-      isOutside
+      isOutside,
+      i.pinned === undefined && i.remains == null ? { untracked: i.work.moreUntracked, isReading: i.work.isReading } : {}
     )
     // Each file's row opens it; the rows of a hunk open in place under it are plain.
-    const ids = files.flatMap(f => [`file:${f.path}`, ...Array.from({ length: hunkHeight(hunkOf(f.path)) }, () => undefined)])
+    const ids = files.slice(0, FILE_ROWS_MAX).flatMap(f => [`file:${f.path}`, ...Array.from({ length: hunkHeight(hunkOf(f.path)) }, () => undefined)])
 
     body = [
       ...plainLines(rows.slice(0, 5)),
