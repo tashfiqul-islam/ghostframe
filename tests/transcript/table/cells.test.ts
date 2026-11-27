@@ -4,8 +4,7 @@ import { splitBlocks } from '../../../hooks/transcript/blocks/split'
 import { cellLines, headerAlign } from '../../../hooks/transcript/table/cells'
 import { layoutTable } from '../../../hooks/transcript/table/layout'
 import { parseTable } from '../../../hooks/transcript/table/parse'
-import { textAt } from '../../support/text'
-import { OFF } from '../../support/cockpit'
+import { tableText } from '../../support/table'
 
 test('tables: a short number starting a prose cell stays with the next word', async () => {
   // Two prose columns competing, the case seen on screen: without the glue, Fixes
@@ -36,7 +35,7 @@ const RELEASES = [
   '| v1.4.2 | Sep 5, 2026 | dylan-conway | not stated | 3 |'
 ].join('\n')
 
-test('a header right-aligns over a column whose non-empty cells are mostly numbers', OFF, async ($, on) => {
+test('a header right-aligns over a column whose non-empty cells are mostly numbers', () => {
   const t = parseTable(RELEASES.split('\n'))
   if (t === undefined) throw new Error('no table')
 
@@ -50,17 +49,8 @@ test('a header right-aligns over a column whose non-empty cells are mostly numbe
   if (half === undefined) throw new Error('no table')
   expect(headerAlign(half, 1)).toBe('left')
 
-  // On screen: the header ends on the same column as the numbers under it.
-  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-  const ui = await $.ui.mount({
-    plugin: 'ghostframe',
-    surface: 'terminal',
-    component: 'AssistantMessage',
-    viewport: { columns: 140, rows: 40 },
-    props: { text: RELEASES, isFirstOfReply: false }
-  } as never)
-  const lines = textAt(await ui.drawn(), 140)
-  await ui.unmount()
+  // As drawn: the header ends on the same column as the numbers under it.
+  const lines = tableText(RELEASES, 140)
   const head = lines.find(l => l.includes('Contributors')) ?? ''
   const row = lines.find(l => l.includes('v1.4.4')) ?? ''
 

@@ -3,6 +3,7 @@ import type { TestBody } from 'claude-code/testing'
 
 import { splitBlocks } from '../../../../hooks/transcript/blocks/split'
 import { WIDER_NOTE, figureLines } from '../../../../hooks/transcript/figure/draw'
+import { layout } from '../../../../hooks/shared/layout'
 import { partsWidth } from '../../../../hooks/shared/parts'
 import { vw } from '../../../../hooks/shared/text'
 import { HOOKS } from '../../../support/figures'
@@ -49,9 +50,18 @@ async function rows(ui: { findAll: (q: { type: string }) => Promise<{ props: Rec
   return (await ui.findAll({ type: 'Text' })).filter(t => t.props['wrap'] === 'truncate').map(t => t.text)
 }
 
+/** The figure block a reply holding `body` in a fence splits out. */
+function figureOf(body: string) {
+  const fig = splitBlocks(fenced(body)).find(b => b.kind === 'figure')
+  if (fig?.kind !== 'figure') throw new Error('not a figure')
+
+  return fig
+}
+
+// The site draws every figure kind the same way, `figureLines` at the reply's measure (blocks.tsx), so the recipes
+// are checked here without the engine and one mounted reply below checks that route.
 for (const [name, body] of Object.entries(FENCES)) {
-  test(`figure: ${name} parses and draws in our frame, every row the measure`, OFF, async ($, on) => {
-    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+  test(`figure: ${name} parses and draws in our frame, every row the measure`, () => {
     const blocks = splitBlocks(fenced(body))
     const fig = blocks.find(b => b.kind === 'figure')
     if (fig?.kind !== 'figure') throw new Error(`${name}: not a figure`)
@@ -67,18 +77,25 @@ for (const [name, body] of Object.entries(FENCES)) {
       expect(lines[0]?.map(p => p.t).join('')).toContain(`[ ${fig.title} ]`)
       expect(lines[lines.length - 1]?.map(p => p.t).join('')).toMatch(/^\+┄+/)
     }
+  })
+}
 
+for (const columns of [120, 50]) {
+  test(`a reply with a figure draws \`figureLines\` at the measure, row for row, never the engine: ${columns} columns`, OFF, async ($, on) => {
+    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+    const body = FENCES['timeline'] ?? ''
+    const lay = layout(columns)
+    if (lay === undefined) throw new Error(`no measure at ${columns} columns`)
     const ui = await $.ui.mount({
       plugin: 'ghostframe',
       surface: 'terminal',
       component: 'AssistantMessage',
-      viewport: { columns: 120, rows: 40 },
+      viewport: { columns, rows: 40 },
       props: { text: fenced(body), isFirstOfReply: false }
     })
     expect(await ui.find({ type: 'Text', text: /^engine$/ })).toBeUndefined()
     const frame = (await rows(ui)).filter(l => /^[+┆]/.test(l))
-    expect(frame.length).toBe(figureLines(fig, 96).length)
-    for (const l of frame) expect(vw(l)).toBe(96)
+    expect(frame).toEqual(figureLines(figureOf(body), lay.width, lay.narrow).map(l => l.map(p => p.t).join('')))
     await ui.unmount()
   })
 }
@@ -129,45 +146,25 @@ test('a streaming figure: the frame opens at the measure, drawn rows never chang
   await ui.unmount()
 })
 
-test('a figure wider than the frame is cut at the right, never wrapped, with a dim note on the bottom rule', OFF, async ($, on) => {
-  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
+test('a figure wider than the frame is cut at the right, never wrapped, with a dim note on the bottom rule', () => {
   const wide = '+' + '-'.repeat(60) + ' [ WIDE ] ' + '-'.repeat(60) + '+'
   const body = [wide, '|' + ' '.repeat(128) + '|', '| ' + 'x'.repeat(126) + ' |', '| short row' + ' '.repeat(118) + '|', '+' + '-'.repeat(128) + '+'].join('\n')
-  const fig = splitBlocks(fenced(body)).find(b => b.kind === 'figure')
-  if (fig?.kind !== 'figure') throw new Error('not a figure')
+  const fig = figureOf(body)
   const lines = figureLines(fig, 96).map(l => l.map(p => p.t).join(''))
+  expect(lines).toHaveLength(4) // top, the two rows (the frame's blank padding row is gone), bottom
   for (const l of lines) expect(vw(l)).toBe(96)
   expect(lines[1]).toMatch(/x…\s┆$/)
   expect(lines[lines.length - 1]).toContain(WIDER_NOTE)
   expect(figureLines(fig, 96)[lines.length - 1]?.find(p => p.t === WIDER_NOTE)?.color).toBe('#4e4e5a')
-
-  const ui = await $.ui.mount({
-    plugin: 'ghostframe',
-    surface: 'terminal',
-    component: 'AssistantMessage',
-    viewport: { columns: 120, rows: 40 },
-    props: { text: fenced(body), isFirstOfReply: false }
-  })
-  const drawn = (await rows(ui)).filter(l => /^[+┆]/.test(l))
-  expect(drawn).toHaveLength(4)
-  for (const l of drawn) expect(vw(l)).toBe(96)
-  await ui.unmount()
 })
 
 for (const columns of [90, 70, 50]) {
-  test(`narrow at ${columns} columns: a figure takes the full width less the inset`, OFF, async ($, on) => {
-    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-    const ui = await $.ui.mount({
-      plugin: 'ghostframe',
-      surface: 'terminal',
-      component: 'AssistantMessage',
-      viewport: { columns, rows: 40 },
-      props: { text: fenced(FENCES['gantt'] ?? ''), isFirstOfReply: false }
-    })
-    const frame = (await rows(ui)).filter(l => /^[+┆]/.test(l))
+  test(`narrow at ${columns} columns: a figure takes the full width less the inset`, () => {
+    const lay = layout(columns)
+    if (lay === undefined) throw new Error(`no layout at ${columns} columns`)
+    const frame = figureLines(figureOf(FENCES['gantt'] ?? ''), lay.width, lay.narrow)
     expect(frame.length).toBeGreaterThan(3)
-    for (const l of frame) expect(vw(l)).toBe(columns - 2)
-    await ui.unmount()
+    for (const l of frame) expect(partsWidth(l)).toBe(columns - 2)
   })
 }
 

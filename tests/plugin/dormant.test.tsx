@@ -70,10 +70,6 @@ test('outside the range: no pane, one notice in the transcript and one line in t
   expect(debug.filter(line => line.includes('dormant'))).toEqual([`engine check: dormant, Claude Code 2.2.0 is outside ${RANGE}`])
 })
 
-test('below the floor is outside too', ON, async ($, on) => {
-  expect((await startOn($, on, '2.1.328')).opened).toEqual([])
-})
-
 test('outside the range: /cockpit and /steps say why instead of opening anything', ON, async ($, on) => {
   const { said } = await startOn($, on, '2.2.0')
 

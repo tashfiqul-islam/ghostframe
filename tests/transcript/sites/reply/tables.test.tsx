@@ -7,6 +7,7 @@ import { REPLY, TABLE_ONLY } from '../../../support/releases'
 import { respondText } from '../../../support/respond'
 import type { Engine, On } from '../../../support/engine'
 import { OFF } from '../../../support/cockpit'
+import { tableText } from '../../../support/table'
 
 /** Every line the reply's own blocks drew (one Text per block, lines joined by \n). */
 async function lines(ui: { findAll: (q: { type: string }) => Promise<{ props: Record<string, unknown>; text: string }[]> }) {
@@ -29,16 +30,8 @@ const CHIPS = [
 ].join('\n')
 
 for (const columns of [120, 70]) {
-  test(`at ${columns} columns, a chip before , ; ) mid-cell or at the end never shifts later columns`, OFF, async ($, on) => {
-    on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
-    const ui = await $.ui.mount({
-      plugin: 'ghostframe',
-      surface: 'terminal',
-      component: 'AssistantMessage',
-      viewport: { columns, rows: 40 },
-      props: { text: CHIPS, isFirstOfReply: false }
-    })
-    const drawn = (await lines(ui)).filter(l => l.trim().length > 0)
+  test(`at ${columns} columns, a chip before , ; ) mid-cell or at the end never shifts later columns`, () => {
+    const drawn = tableText(CHIPS, columns).filter(l => l.trim().length > 0)
     const rule = drawn.find(l => /^─+$/.test(l))
     if (rule === undefined) throw new Error('no table drawn')
     // No row past the rule, and each Post cell starts in the same column.
@@ -51,7 +44,6 @@ for (const columns of [120, 70]) {
     expect(drawn.join('\n')).toContain(' bun check,')
     expect(drawn.join('\n')).toContain(' bun fmt;')
     expect(drawn.join('\n')).toContain(' Bun.Image)')
-    await ui.unmount()
   })
 }
 
@@ -167,6 +159,9 @@ test('the on-screen reply (no web tools): our table, (post¹) markers, footnote 
   expect(notes).toHaveLength(1)
   expect(notes[0]).toContain('¹ bun.com · bun-v1.4.4')
   expect(notes[0]).toContain('³ bun.com · bun-v1.4.2')
+  // Every number a note line gives has its marker in the reply above it.
+  const above = rows.filter(l => !/^\s*┄┄┄┄ /.test(l)).join('\n')
+  for (const m of notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []) expect(above).toContain(m)
   const listed = rows.find(l => /^\s*┄┄┄┄ · /.test(l)) ?? ''
   expect(listed).toContain('Releases · oven-sh/bun · GitHub')
   expect(listed).not.toMatch(/[¹²³⁴]/)
@@ -292,15 +287,4 @@ test('with a link in the opening line too: numbering follows reading order, ever
   // The opening line's note sits right under it, before the table.
   const lead = rows.findIndex(l => l.includes('GitHub releases page¹'))
   expect(rows[lead + 1]).toBe(notes[0])
-})
-
-test('the on-screen turn as sent: every numbered note has its marker; the listed-only source has none', OFF, async ($, on) => {
-  const rows = await draw($, on, REPLY)
-  const notes = rows.filter(l => /^\s*┄┄┄┄ /.test(l))
-  const body = rows.filter(l => !/^\s*┄┄┄┄ /.test(l)).join('\n')
-
-  const marks = notes.join(' ').match(/[¹²³⁴⁵⁶⁷⁸⁹]/g) ?? []
-  expect(marks.length).toBeGreaterThan(0)
-  for (const m of marks) expect(body).toContain(m)
-  expect(notes.find(l => l.includes('Releases'))).toMatch(/┄┄┄┄ · /)
 })
