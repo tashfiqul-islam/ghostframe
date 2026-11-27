@@ -6,9 +6,9 @@ const CONTEXT = 3 // rows of context around each change
 /** Past this many lines on either side the diff is not computed: the caller says so. */
 export const DIFF_LINES_MAX = 5_000
 /**
- * Past this many changed lines (added plus removed) the diff is given up: the walk keeps one copy of its state per
- * change, so a rewrite at the line cap would hold near a gigabyte; under it, at most 40 MB. The view keeps 400 rows
- * anyway, so such a diff could not be shown whole.
+ * Past this many changed lines (added plus removed) in a walk the diff is given up: the walk keeps one copy of its
+ * state per change, so a rewrite at the line cap would hold near a gigabyte; under it, at most 40 MB. The view keeps
+ * 400 rows anyway, so such a diff could not be shown whole. Lines only added or only removed are never walked.
  */
 export const DIFF_CHANGES_MAX = 500
 
@@ -84,6 +84,38 @@ function script(a: readonly string[], b: readonly string[]): Op[] | undefined {
 }
 
 /**
+ * The edit script from `a` to `b`: the lines they share at the start and the end kept, and only what lies between
+ * walked. Lines only added (a new file, an append) or only removed need no walk, so no budget; a walk over
+ * `DIFF_CHANGES_MAX` gives none.
+ */
+function edits(a: readonly string[], b: readonly string[]): Op[] | undefined {
+  let head = 0
+
+  while (head < a.length && head < b.length && a[head] === b[head]) head++
+
+  let tail = 0
+
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail++
+
+  const aMid = a.slice(head, a.length - tail)
+  const bMid = b.slice(head, b.length - tail)
+  const walked =
+    aMid.length === 0
+      ? bMid.map((text, i): Op => ({ kind: '+', text, a: 0, b: i }))
+      : bMid.length === 0
+        ? aMid.map((text, i): Op => ({ kind: '-', text, a: i, b: 0 }))
+        : script(aMid, bMid)
+
+  if (walked === undefined) return undefined
+
+  return [
+    ...a.slice(0, head).map((text, i): Op => ({ kind: ' ', text, a: i, b: i })),
+    ...walked.map(op => ({ ...op, a: op.a + head, b: op.b + head })),
+    ...a.slice(a.length - tail).map((text, i): Op => ({ kind: ' ', text, a: a.length - tail + i, b: b.length - tail + i }))
+  ]
+}
+
+/**
  * The unified diff of `before` and `after`, three rows of context around each change; none when they are equal.
  * @param before the text at the start (empty for a file that did not exist)
  * @param after the text now (empty for a file that was removed)
@@ -96,7 +128,7 @@ export function lineDiff(before: string, after: string): string[] | DiffOver {
 
   if (a.length > DIFF_LINES_MAX || b.length > DIFF_LINES_MAX) return { over: 'lines' }
 
-  const ops = script(a, b)
+  const ops = edits(a, b)
 
   if (ops === undefined) return { over: 'changes' }
 

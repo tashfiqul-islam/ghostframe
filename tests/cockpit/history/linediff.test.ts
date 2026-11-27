@@ -39,6 +39,25 @@ test('a rewrite of every line, at the line cap, is over the change budget: given
   expect(diff).toEqual({ over: 'changes' })
 })
 
+test('lines only added or only removed are no walk, so no budget: a new 600-line file, 600 lines appended, a file emptied', () => {
+  const many = Array.from({ length: 600 }, (_, i) => `line ${i}`)
+  const created = lineDiff('', `${many.join('\n')}\n`)
+  const appended = lineDiff('a\nb\n', `a\nb\n${many.join('\n')}\n`)
+  const emptied = lineDiff(`${many.join('\n')}\n`, '')
+
+  expect(created).toEqual(['@@ -0,0 +1,600 @@', ...many.map(l => `+${l}`)])
+  expect(appended).toEqual(['@@ -1,2 +1,602 @@', ' a', ' b', ...many.map(l => `+${l}`)])
+  expect(emptied).toEqual(['@@ -1,600 +0,0 @@', ...many.map(l => `-${l}`)])
+})
+
+test('600 lines inserted between kept lines: the kept head and tail are context, the insert is all `+`', () => {
+  const many = Array.from({ length: 600 }, (_, i) => `new ${i}`)
+  const kept = Array.from({ length: 10 }, (_, i) => `kept ${i}`)
+  const diff = lineDiff(kept.join('\n'), [...kept.slice(0, 5), ...many, ...kept.slice(5)].join('\n'))
+
+  expect(diff).toEqual(['@@ -3,6 +3,606 @@', ' kept 2', ' kept 3', ' kept 4', ...many.map(l => `+${l}`), ' kept 5', ' kept 6', ' kept 7'])
+})
+
 test('a change inside the budget is still diffed in full', () => {
   const before = Array.from({ length: DIFF_LINES_MAX }, (_, i) => `line ${i}`).join('\n')
   const after = before.replace('line 10\n', 'line ten\n')

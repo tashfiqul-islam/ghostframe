@@ -195,6 +195,32 @@ test('8.6: `n` in the full diff opens the next file`s diff, as its hint row offe
   await ui.unmount()
 })
 
+test('8.6: an edited file past the 5,000-line cap shows its Edit`s own patch, with no diff of the whole file', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, [])
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('session.messages', () => ({ value: [] }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('fs.read', () => ({ value: 'line\n'.repeat(5_001) }))
+  statAsSpelled(on)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'edit', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'edit', turnId: 't1' })
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/big.md', old_string: 'a', new_string: 'b', tool_use_id: 'e1' } as never)
+
+  const ui = await $.ui.mount(pane(true))
+  await ui.press({ key: 'key-2' })
+  await ui.redraw()
+  await ui.press({ key: 'file:big.md' })
+  await ui.redraw()
+  const rows = await texts(ui)
+  expect(rows).toContainEqual(expect.stringMatching(/^ {2}@@ 40,1 @@/))
+  expect(rows).toContainEqual(expect.stringMatching(/^ {6}40 \+ new line/))
+  await ui.press({ key: 'key-b' })
+  await ui.press({ key: 'key-1' })
+  await ui.unmount()
+})
+
 test('`s` shows every step of the turn, unfolded (8.11); `s` again fits', SLOW, async ($, on) => {
   const clock = { now: T0 }
   engine(on, clock, [])

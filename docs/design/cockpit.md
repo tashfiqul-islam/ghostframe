@@ -574,7 +574,7 @@ Opens in place under the selected row, on `paneCard`: kind and command, the exit
 
 `enter` on a file: path, `+12 · 2 hunks`, the baseline line, then every hunk with its `@@` header in `machine`, two gutters (old, new), tinted rows. A line longer than the pane wraps under itself, marked `↩` in the gutter. Nothing is cut. Hunks in file order.
 
-A diff too large to work out is not computed, and the full diff draws its note under the baseline line, in place of the hunks: `no diff · over 5000 lines` for a file past 5,000 lines on either side, `no diff · over 500 changed lines` for a change of more than 500 lines added and removed (a rewrite of a long file). The pane keeps 400 rows of a diff, so such a change could not be shown whole, and working it out would hold up to a gigabyte while the turn ends.
+A diff too large to work out is not computed, and the full diff draws its note under the baseline line, in place of the hunks: `no diff · over 5000 lines` for a file past 5,000 lines on either side, `no diff · over 500 changed lines` for a change of more than 500 lines added and removed between the lines the two sides share at their start and end (a rewrite of a long file). Lines only added (a new file, an append) or only removed are always diffed, their first 400 rows shown. The pane keeps 400 rows of a diff, so such a change could not be shown whole, and working it out would hold up to a gigabyte while the turn ends. A file past 5,000 lines that the turn's Edits and Writes touched shows their own patches instead.
 
 **Keys:** `b` back, `c` copy, `↑↓` scroll, `n` next file (the Files tab's order; at the last file it stays and says `no next file`).
 
