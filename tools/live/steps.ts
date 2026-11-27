@@ -20,6 +20,7 @@ import {
 import { focusPane, slash, startTurn, turn, waitIdle, type Step } from './harness.ts'
 import { rowText, textOf, type Capture } from './screen.ts'
 import type { Session } from './session.ts'
+import { demo } from './demo.ts'
 import { shots } from './shots.ts'
 import { statusline } from './statusline.ts'
 
@@ -799,5 +800,6 @@ export const SUITES: Suite[] = [
   rewind,
   flood('J', 100, '12'),
   statusline,
-  shots
+  shots,
+  demo
 ]

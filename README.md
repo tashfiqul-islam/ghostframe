@@ -1,7 +1,15 @@
+<!--
+  Section headings are images on purpose. Each numbered section's heading is an <h3> holding only its band, the
+  section's name in the image's alt text, after an <a name> anchor that its links use. GitHub's outline menu lists
+  headings by their text, so it leaves these sections out; the nav row and the anchors cover navigation, and screen
+  readers read the alt text. Visible heading text would repeat the band, so there is none.
+-->
+
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/design/brand/readme/readme-hero-dark.png">
-    <img alt="ghostframe: the cockpit for Claude Code" src="docs/design/brand/readme/readme-hero-light.png">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/banner-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/banner-light.svg">
+    <img alt="ghostframe, the cockpit for Claude Code" src="docs/design/brand/readme/readme-hero-light.png">
   </picture>
 </p>
 
@@ -12,37 +20,66 @@
   and a status line that shows what your session is costing you.
 </p>
 
+<!-- tools/scripts/engines.ts --check fails if the Claude Code badge's or the SPEC box's range disagrees with plugin.json's engines. -->
+<!-- release-please rewrites the first version on each line of the block below: the release badge's alt text and its address (tools/scripts/readme.ts checks). -->
 <p align="center">
-  <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/tashfiqul-islam/ghostframe/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="docs/guide/compatibility.md"><img alt="Supported Claude Code versions 2.1.329 to 2.1.x" src="https://img.shields.io/badge/Claude_Code-2.1.329_%E2%86%92_2.1.x-D97757?style=flat&labelColor=2c333b&logo=claude"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-30363d?style=flat&labelColor=2c333b"></a>
+  <!-- x-release-please-start-version -->
+  <a href="https://github.com/tashfiqul-islam/ghostframe/releases"><img alt="Release v1.0.0"
+    src="https://img.shields.io/static/v1?label=release&message=v1.0.0&color=FFC83D&style=flat&labelColor=2c333b"></a>
+  <!-- x-release-please-end -->
 </p>
 
-<!-- The version is the only semver on its line: release-please's marker rewrites the first one it finds. -->
-<!-- tools/scripts/engines.ts --check fails if the Claude Code range here disagrees with plugin.json's engines. -->
+<!-- The designed images below are drawn by tools/scripts/readme-art.ts. -->
 <p align="center">
-  v1.0.0 <!-- x-release-please-version -->
-  · <a href="LICENSE">MIT</a> · Claude Code 2.1.329 to 2.1.x · <a href="docs/guide/compatibility.md">Windows, macOS, Linux</a>
+  <a href="docs/guide/compatibility.md"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/platforms-dark.svg"><img alt="Runs on Windows, macOS and Linux" src="docs/assets/readme/platforms-light.svg"></picture></a>
 </p>
 
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/divider-dark.svg"><img alt="" src="docs/assets/readme/divider-light.svg"></picture></p>
+
 <p align="center">
-  <a href="#02-install">Install</a> ·
-  <a href="#01-features">Features</a> ·
-  <a href="#03-keys">Keys</a> ·
+  <picture>
+    <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/features-narrow-dark.svg">
+    <source media="(max-width: 600px)" srcset="docs/assets/readme/features-narrow-light.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/features-dark.svg">
+    <img alt="A live timeline of every step of the turn as it runs; the files changed, the sources read and the to-do list, one tab each in the pane; and a status line with the model, repository, context and your 5-hour and weekly limits in two rows" src="docs/assets/readme/features-light.svg">
+  </picture>
+</p>
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/divider-dark.svg"><img alt="" src="docs/assets/readme/divider-light.svg"></picture></p>
+
+<p align="center">
+  <b><a href="#install">Install</a></b> ·
+  <a href="#features">Features</a> ·
+  <a href="#keys">Keys</a> ·
   <a href="docs/README.md">Docs</a> ·
   <a href="https://github.com/tashfiqul-islam/ghostframe/releases">Changelog</a>
 </p>
 
+<!-- docs/assets/README.md says how to record the demo again. Phones get a cut of the pane; with reduced motion a still shows instead. -->
 <p align="center">
-  <img src="docs/assets/readme-hero.png" width="960" alt="Cockpit at 200 columns after a turn: the commit, Claude's answer with its diff and the DONE receipt on the left; the turn's timeline with its fixed failure in the pane; the status line at the bottom">
+  <picture>
+    <source media="(max-width: 600px) and (prefers-reduced-motion: reduce)" srcset="docs/assets/readme-demo-phone.png">
+    <source media="(max-width: 600px)" srcset="docs/assets/readme-demo-phone.webp">
+    <source media="(prefers-reduced-motion: reduce)" srcset="docs/assets/readme-hero.png">
+    <img src="docs/assets/readme-demo.webp" width="960" alt="One real turn in Claude Code at 144 columns, sped up: the prompt is typed; Cockpit's timeline fills as the tests fail, the fix lands, the tests pass and the commit is made; the pane counts one file changed by +2 −2; the status line's edits, context and budget meters move">
+  </picture>
 </p>
 
-ghostframe is a plugin for Claude Code's terminal. **Cockpit** keeps the conversation on the left and puts the work on
-the right: each step of the turn on a timeline, the files it changed, the pages it read, its to-do list and its agents.
-**The status line** gives you the model, the repository, your context and your 5-hour and weekly budgets in two rows.
-It changes how your session looks, never what Claude does.
+**Install**, in a Claude Code session ([every step](#install)):
+
+```text
+/plugin marketplace add tashfiqul-islam/ghostframe
+/plugin install ghostframe@ghostframe
+```
 
 > [!NOTE]
 > **Private by design.** ghostframe runs inside your own Claude Code session. It makes no network requests and never
 > reads, stores or sends your credentials. The [security policy](SECURITY.md) has the threat model.
+
+<!-- tools/scripts/readme.ts --check fails if a line of a box here is not as wide as its top rule. -->
 
 ```text
 +-------------------------- [ SPEC ] --------------------------+
@@ -51,14 +88,19 @@ It changes how your session looks, never what Claude does.
 | cockpit      the conversation left, the turn's work right    |
 | status line  model, repo, context, 5-hour and weekly budgets |
 | network      none: no requests, no telemetry, no credentials |
-| engine       Claude Code >=2.1.329 <2.2.0, dormant outside   |
+| engine       Claude Code 2.1.329 to 2.1.x, dormant outside   |
 | systems      Windows, Linux, macOS                           |
 | license      MIT                                             |
 |                                                              |
 +--------------------------------------------------------------+
 ```
 
-## `01` Features
+<a name="features"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-features-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-features-dark.svg"><img alt="Features" src="docs/assets/readme/band-features-light.svg"></picture></h3>
+
+**Cockpit** keeps the conversation on the left and puts the work on the right: each step of the turn on a timeline, the
+files it changed, the pages it read, its to-do list and its agents. **The status line** gives you the model, the
+repository, your context and your 5-hour and weekly budgets in two rows.
 
 <table>
 <tr>
@@ -104,7 +146,8 @@ that left the machine, and a receipt with how long the turn took and whether it 
 fallback without the pane. The pane follows Claude's agents into their own work, steps back through earlier turns, and
 knows when you rewind. [The spec →](docs/design/cockpit.md)
 
-## `02` Install
+<a name="install"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-install-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-install-dark.svg"><img alt="Install" src="docs/assets/readme/band-install-light.svg"></picture></h3>
 
 In a Claude Code session:
 
@@ -144,7 +187,8 @@ The [install guide](docs/guide/install.md) has every step.
 | Font        | A [Nerd Font](https://www.nerdfonts.com/) for the status line's icons, or turn **Status line icons** off. |
 | Bun         | [Bun](https://bun.sh), for the status line only.                                                          |
 
-## `03` Keys
+<a name="keys"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-keys-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-keys-dark.svg"><img alt="Keys" src="docs/assets/readme/band-keys-light.svg"></picture></h3>
 
 Cockpit's keys work only while the pane has the keyboard, so they never take one from your prompt.
 
@@ -163,7 +207,8 @@ Cockpit's keys work only while the pane has the keyboard, so they never take one
 
 `/cockpit` opens or closes the pane, and `/steps 3` pins turn 3 into it. [Every key →](docs/guide/keys.md)
 
-## `04` How it works
+<a name="how-it-works"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-how-it-works-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-how-it-works-dark.svg"><img alt="How it works" src="docs/assets/readme/band-how-it-works-light.svg"></picture></h3>
 
 ghostframe is a hooks module that Claude Code loads into your session. It listens to the engine's events, keeps what
 each turn did, and draws through the engine's own render sites, so it never writes to your terminal behind Claude
@@ -179,7 +224,11 @@ Code's back.
 Outside the Claude Code versions it is tested with, ghostframe goes dormant and hands every row back to Claude Code.
 [Architecture →](docs/architecture.md) · [Decisions →](docs/decisions/README.md)
 
-## `05` Where it runs
+<a name="where-it-runs"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-where-it-runs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-where-it-runs-dark.svg"><img alt="Where it runs" src="docs/assets/readme/band-where-it-runs-light.svg"></picture></h3>
+
+Cockpit and the status line, by system and by Claude Code surface. "Tested live" is a real session checked by
+hand; "CI" means the plugin's tests and the status line's specs pass there.
 
 ```text
 +--------------------- [ WHERE IT RUNS ] ----------------------+
@@ -204,33 +253,78 @@ run the real `claude` binary. Other agent tools, such as OpenCode or Codex, don'
 doesn't run there.
 [Compatibility →](docs/guide/compatibility.md)
 
-## `06` FAQ
+<a name="faq"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-faq-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-faq-dark.svg"><img alt="FAQ" src="docs/assets/readme/band-faq-light.svg"></picture></h3>
 
-```text
-+-------------------------- [ FAQ ] ---------------------------+
-|                                                              |
-| ?  Does it change what Claude does?                          |
-|    No. Prompts, tools, permissions and answers stay          |
-|    Claude Code's. ghostframe changes how they are drawn.     |
-|                                                              |
-| ?  How do I turn Cockpit off?                                |
-|    Cockpit pane off in /config, or one session with          |
-|    GHOSTFRAME_COCKPIT=0.                                     |
-|                                                              |
-| ?  The status line shows empty boxes.                        |
-|    Its icons need a Nerd Font. Set one in your terminal,     |
-|    or turn Status line icons off; the layout stays.          |
-|                                                              |
-| ?  Can I keep my own status line?                            |
-|    Yes. It is opt-in, and uninstall puts yours back.         |
-|                                                              |
-+--------------------------------------------------------------+
-```
+Short answers to what people ask first. Open a question for its answer; the guides linked under them go further.
+
+<details open>
+<summary><b>Does it change what Claude does?</b></summary>
+
+No. Prompts, tools, permissions and answers stay Claude Code's; ghostframe changes only how they are drawn.
+
+</details>
+
+<details>
+<summary><b>How do I turn Cockpit off?</b></summary>
+
+Turn **Cockpit pane** off in `/config`, or set `GHOSTFRAME_COCKPIT=0` for one session.
+[Configuration](docs/guide/configuration.md) lists every option.
+
+</details>
+
+<details>
+<summary><b>The status line shows empty boxes.</b></summary>
+
+Its icons need a [Nerd Font](https://www.nerdfonts.com/). Set one in your terminal, or turn **Status line icons**
+off in `/config`; the layout stays the same.
+
+</details>
+
+<details>
+<summary><b>My Claude Code version is newer than the supported range.</b></summary>
+
+On a Claude Code outside its tested range, ghostframe goes dormant: it draws nothing, Claude Code draws everything
+itself, and the session says so once; the status line keeps working. `GHOSTFRAME_ENGINE_CHECK=0` runs it anyway, but
+its look may break on a version it was not tested with. [Compatibility](docs/guide/compatibility.md) has the range.
+
+</details>
+
+<details>
+<summary><b>Can I keep my own status line?</b></summary>
+
+Yes. ghostframe's status line is opt-in (`/ghostframe-statusline install`), and
+`/ghostframe-statusline uninstall` puts yours back ([Install](docs/guide/install.md#the-status-line)).
+
+</details>
+
+<details>
+<summary><b>Does ghostframe send anything anywhere?</b></summary>
+
+No. It has no network code: it reads what Claude Code gives it, your project's files and `git`'s answers, and never
+your credentials. It writes only Claude Code's plugin store (Cockpit's turn history), the status line's build and its
+per-user cache folder, and, when you install the status line, `settings.json`'s `statusLine` entry after a backup;
+[SECURITY.md](SECURITY.md#threat-model) has the details.
+
+</details>
+
+<details>
+<summary><b>How do I uninstall it?</b></summary>
+
+If you installed the status line, run `/ghostframe-statusline uninstall` first: it restores the status line you had
+before. Then run `/plugin marketplace remove ghostframe`; removing the marketplace also uninstalls ghostframe.
+[Install](docs/guide/install.md#uninstall) has the same steps from your shell.
+
+</details>
 
 [Configuration →](docs/guide/configuration.md) · [Troubleshooting →](docs/guide/troubleshooting.md) ·
 [Nerd Fonts →](https://www.nerdfonts.com/)
 
-## `07` Docs
+<a name="docs"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-docs-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-docs-dark.svg"><img alt="Docs" src="docs/assets/readme/band-docs-light.svg"></picture></h3>
+
+The guides live in `docs/`, grouped by what you're doing: using ghostframe, understanding how it works, or working
+on it.
 
 | Use it                                           | Understand it                                 | Work on it                                     |
 | ------------------------------------------------ | --------------------------------------------- | ---------------------------------------------- |
@@ -241,7 +335,8 @@ doesn't run there.
 | [Troubleshooting](docs/guide/troubleshooting.md) | [Security](SECURITY.md)                       | [Brand kit](docs/design/brand/README.md)       |
 | [Compatibility](docs/guide/compatibility.md)     |                                               | [All docs](docs/README.md)                     |
 
-## `08` Contributing
+<a name="contributing"></a>
+<h3><picture><source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-narrow-dark.svg"><source media="(max-width: 600px)" srcset="docs/assets/readme/band-contributing-narrow-light.svg"><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/band-contributing-dark.svg"><img alt="Contributing" src="docs/assets/readme/band-contributing-light.svg"></picture></h3>
 
 Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, the checks and how a change
 ships; everyone here follows the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -254,9 +349,7 @@ mise run check                    # types, lint, format, tests, workflows, docs
 <br>
 
 <p align="center">
-  <img src="docs/design/brand/ghostframe-mark-small-amber.svg" width="44" alt="">
-  <br>
-  <sub><code>ghostframe</code> haunts your terminal, never your code.</sub>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/footer-dark.svg"><img alt="ghostframe haunts your terminal, never your code." src="docs/assets/readme/footer-light.svg"></picture>
   <br>
   <sub><a href="LICENSE">MIT</a> · Made for Claude Code. Not affiliated with or endorsed by Anthropic.</sub>
 </p>

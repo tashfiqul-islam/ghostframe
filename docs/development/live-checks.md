@@ -58,5 +58,6 @@ removing the worktree deletes ignored files.
 | 10    | Rewind                                                        | 200, 100 |
 | 13    | The status line, normal and under pressure                    | 200, 100 |
 | 14    | The README's screenshots ([docs/assets](../assets/README.md)) | 200      |
+| 15    | The README's demo ([docs/assets](../assets/README.md))        | 144      |
 
 `tools/live/steps.ts` is the full list, with each check's name.

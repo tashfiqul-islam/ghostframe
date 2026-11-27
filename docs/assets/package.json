@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "shots": "bun screenshots.ts",
-    "diagrams": "bun diagrams.ts"
+    "diagrams": "bun diagrams.ts",
+    "demo": "bun demo.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.4",
-    "playwright-core": "1.65.0"
+    "playwright-core": "1.65.0",
+    "sharp": "0.35.5"
   }
 }
