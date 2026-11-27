@@ -226,6 +226,31 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
 }
 
 /**
+ * The conversation compacted: every kept turn's receipts say so (`isCompacted`), in the session's state and in the
+ * store, so the rows the summary replaced never read as rewound, after a reload or a resume either.
+ * @param $ the engine interface
+ */
+export async function markCompacted($: EngineInterface): Promise<void> {
+  const all = (await read($, history)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
+
+  await update($, history, () => all)
+  try {
+    await write($, all)
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, noticeSink())
+    await readStore($)
+    await write($, all)
+  }
+}
+
+/**
+ * A receipt whose turn the conversation compacted away.
+ * @param r the receipt
+ * @returns it, marked
+ */
+export const compacted = (r: Receipt): Receipt => ({ ...r, isCompacted: true })
+
+/**
  * Turns a rewind took out of the conversation leave history (7.1): the session's copy at once, the store's at the
  * next turn's write, which starts from the session's copy.
  * @param $ the engine interface
