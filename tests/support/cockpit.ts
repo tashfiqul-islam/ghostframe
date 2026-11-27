@@ -28,8 +28,12 @@ export const failed = (said: string): Outcome => ({ isError: true, text: said })
 
 /**
  * A disk with no links: every path lands where it is spelled (`$.fs.stat`), so a file of the project is read and
- * diffed. Cockpit asks where a file lands before it reads it (SEC-T3).
+ * diffed. Cockpit asks where a file lands before it reads it (SEC-T3). The disk answers as POSIX does, as a test's
+ * Git spells its root (`/repo`): the engine hands the hook the path made absolute, on Windows with its drive.
  */
 export function statAsSpelled(on: On): void {
-  on('fs.stat', (_, e) => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: e.path } }))
+  on('fs.stat', (_, e) => ({ value: { kind: 'file', size: 0, mtimeMs: 0, isLink: false, realPath: posixPath(e.path) } }))
 }
+
+/** A path as POSIX spells it: no drive, forward slashes (`D:\repo\x` is `/repo/x`). */
+export const posixPath = (path: string): string => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/') || '/'

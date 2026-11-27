@@ -43,8 +43,22 @@ let lastDiff: Counted[] | undefined
 /** The work tree's diff at the typed turn's start: what was changed before the turn. */
 let startDiff: (Tree & { files: Counted[] }) | undefined
 
-/** A path with forward slashes and no trailing one. */
-const slashed = (path: string): string => path.replaceAll('\\', '/').replace(/\/+$/, '')
+/** A path with forward slashes and no trailing one; Windows' long forms (`\\?\D:\…`, `\\?\UNC\host\…`) as plain ones. */
+const slashed = (path: string): string =>
+  path
+    .replace(/^\\\\\?\\UNC\\/i, '\\\\')
+    .replace(/^\\\\\?\\/, '')
+    .replaceAll('\\', '/')
+    .replace(/\/+$/, '')
+
+/** A folder as a command's `cwd` takes it: a drive's or the filesystem's root keeps its slash (`C:/`, `/`). */
+const asFolder = (path: string): string => (path.length === 0 || /^[A-Za-z]:$/.test(path) ? `${path}/` : path)
+
+// shortcut: case is ignored on every platform, as Windows and macOS folders do; on a case-sensitive Linux disk two
+// folders differing only in case count as one. Compare exactly off Windows and macOS if that ever matters.
+/** Whether a real path is the path Git names, slashes, long forms and case aside. */
+const isSame = (real: string | null | undefined, path: string): boolean =>
+  real !== undefined && real !== null && slashed(real).toLowerCase() === slashed(path).toLowerCase()
 
 /** The session's folder, as the last turn or call gave it. */
 export const cwdNow = (): string | undefined => lastCwd
@@ -103,7 +117,7 @@ async function newLines($: EngineInterface, root: string, path: string, isRecoun
   if (had !== undefined && !isRecount) return had.added
 
   try {
-    const text = await $.fs.read(`${root}/${path}`)
+    const text = await $.fs.read(`${root.replace(/\/$/, '')}/${path}`)
 
     return text.length > NEW_FILE_MAX || text.length === 0 ? 0 : text.replace(/\n+$/, '').split('\n').length
   } catch {
@@ -126,28 +140,31 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
 
       if (top.exitCode === 0 && top.stdout.trim().length > 0) {
         // Git names the root with every link resolved (macOS `/tmp`, a Windows junction), where the session's folder
-        // may keep its link. Where that folder ends with Git's path down to it, the root is spelled from the folder,
-        // less that path (a link to the root, or above it). Else a link lies below the root: the folder's real path
-        // stands for it, beside Git's root, and the two must agree.
+        // may keep its link. Where that folder ends with Git's path down to it, and the folder less that path lands
+        // at Git's root (a link to the root, or above it), the root is spelled from the folder. Else (a link below
+        // the root, or one named as its target: `~/app` to `/repo/app`) the folder's real path stands for it, beside
+        // Git's root, and the two must agree.
         const at = await $.process.run(['git', 'rev-parse', '--show-prefix'], { cwd })
 
         if (at.exitCode !== 0) throw new Error(at.stderr.trim())
 
         const prefix = at.stdout.trim()
         const down = prefix.replace(/\/+$/, '')
+        const gitRoot = slashed(top.stdout.trim())
         const here = slashed(cwd)
+        const isBelow = down.length === 0 || here.toLowerCase().endsWith(`/${down.toLowerCase()}`)
+        const derived = isBelow ? here.slice(0, here.length - (down.length === 0 ? 0 : down.length + 1)) : undefined
 
-        if (down.length === 0 || here.toLowerCase().endsWith(`/${down.toLowerCase()}`)) {
-          copy = { root: here.slice(0, here.length - down.length).replace(/\/+$/, ''), here, prefix }
+        if (derived !== undefined && isSame(await realPath($, asFolder(derived)), gitRoot)) {
+          copy = { root: asFolder(derived), here: asFolder(here), prefix }
         } else {
-          const root = slashed(top.stdout.trim())
-          const real = (await $.fs.stat(cwd, { resolve: true })).realPath
+          const real = await realPath($, cwd)
+          const wanted = down.length === 0 ? gitRoot : `${gitRoot}/${down}`
 
-          if (real === undefined) throw new Error(`cannot resolve the session's folder ${cwd}`)
-          if (slashed(real).toLowerCase() !== `${root}/${down}`.toLowerCase())
-            throw new Error(`the session's folder ${real} is not ${down} under Git's root ${root}`)
+          if (real === undefined || real === null) throw new Error(`cannot resolve the session's folder ${cwd}`)
+          if (!isSame(real, wanted)) throw new Error(`the session's folder ${real} is not ${down} under Git's root ${gitRoot}`)
 
-          copy = { root, here: `${root}/${down}`, prefix }
+          copy = { root: asFolder(gitRoot), here: asFolder(wanted), prefix }
         }
       } else copy = null
     }
@@ -169,7 +186,9 @@ async function diffNow($: EngineInterface, cwd: string | undefined): Promise<(Tr
     // repo's subfolder, a dotfiles repo at the home folder).
     const fresh = others.stdout.split('\0').filter(p => p.length > 0 && p.startsWith(prefix))
     const isRecount = fresh.length <= RECOUNT_MAX
-    const untracked = await Promise.all(fresh.map(async path => ({ path, added: await newLines($, root, path, isRecount), removed: 0, isUntracked: true })))
+    // A new file that is a link out of the project (SEC-T3) keeps its row, never read, so never counted.
+    const counted = async (path: string) => ((await landsOutside($, path.slice(prefix.length), here)) ? 0 : newLines($, root, path, isRecount))
+    const untracked = await Promise.all(fresh.map(async path => ({ path, added: await counted(path), removed: 0, isUntracked: true })))
 
     return { root, here, prefix, files: [...numstat(tracked.stdout), ...untracked] }
   } catch (error: unknown) {
@@ -343,8 +362,10 @@ export async function landsOutside($: EngineInterface, path: string, cwd: string
   if (file === null) return false
   if (file === undefined || root === undefined || root === null) return true
 
-  const f = file.replaceAll('\\', '/').toLowerCase()
-  const r = root.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase()
+  // shortcut: case is ignored, as in `isSame`; on a case-sensitive Linux disk a sibling folder named as the project in
+  // another case counts as inside it. Compare exactly off Windows and macOS if that ever matters.
+  const f = slashed(file).toLowerCase()
+  const r = slashed(root).toLowerCase()
 
   return !f.startsWith(`${r}/`)
 }

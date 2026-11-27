@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { ON, PANE, SLOW, T0, VIEW, statAsSpelled } from '../support/cockpit'
+import { ON, PANE, SLOW, T0, VIEW, posixPath, statAsSpelled } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
@@ -178,6 +178,7 @@ test('a shell step`s writes reach [ FILES ] from the working copy`s diff: `print
     return { value: { exitCode: 0, stdout: others[Math.min(lists++, 2)] ?? '', stderr: '' } } as never
   })
   on('fs.read', () => ({ value: 'three\n' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -225,11 +226,11 @@ async function outsideTurn($: Engine, on: On): Promise<{ said: string[]; read: s
     return { value: { exitCode: 0, stdout: '', stderr: '' } } as never
   })
   // Every path lands where it is spelled, but `/repo/link/`, which lands in `/outside/`. The engine hands a hook the
-  // path made absolute, on Windows with its drive (`D:\repo\link\linked.txt`).
+  // path made absolute, on Windows with its drive (`D:\repo\link\linked.txt`); the disk answers as POSIX does.
   on('fs.stat', (_, e) => {
     statted.push(e.path)
 
-    return { value: { kind: 'file', size: 2, mtimeMs: 0, isLink: false, realPath: e.path.replace(/[\\/]repo[\\/]link(?=[\\/]|$)/, '/outside') } }
+    return { value: { kind: 'file', size: 2, mtimeMs: 0, isLink: false, realPath: posixPath(e.path).replace(/^\/repo\/link(?=\/|$)/, '/outside') } }
   })
   on('fs.read', (_, e) => {
     read.push(e.path)
@@ -307,6 +308,7 @@ test('an append to a file the turn created counts too: its lines are read again 
     return { value: { exitCode: 0, stdout: lists++ === 0 ? '' : 'notes5.txt\0', stderr: '' } } as never
   })
   on('fs.read', () => ({ value: content[Math.min(++reads, 2)] ?? '' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'notes', turnId: 't1' })
@@ -341,6 +343,7 @@ test('a repo with no commits yet: Git has seen nothing, so every file it lists i
     return { value: { exitCode: 1, stdout: '', stderr: `unexpected: ${argv}` } } as never
   })
   on('fs.read', () => ({ value: 'one\n' }))
+  statAsSpelled(on)
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
   await $.prompt.submit({ text: 'add a file', wait: false, origin: { kind: 'composer' } })
   await $.turn.start({ text: 'add a file', turnId: 't1' })
@@ -468,23 +471,63 @@ test('two agents` shells ending together count each change once, and a file two 
 })
 
 // Where a session sits against the work tree Git names (macOS /tmp, a Windows junction): its folder, what a link in it
-// leads to, Git's root (every link resolved) and Git's path from that root down to the session's folder.
-const PLACES = [
-  { name: 'a project opened through a link to its root', cwd: '/link/repo', link: ['/link/repo', '/real/repo'], root: '/real/repo', prefix: '' },
-  { name: 'a session started inside a linked subfolder', cwd: '/repo/linked', link: ['/repo/linked', '/repo/real/sub'], root: '/repo', prefix: 'real/sub/' },
-  { name: 'a session in a plain subfolder', cwd: '/repo/app', link: undefined, root: '/repo', prefix: 'app/' }
-] as const
+// leads to, Git's root (every link resolved), Git's path from that root down to the session's folder, and the folder
+// Git is then run in. `isLong`: the disk spells real paths in Windows' long form (`\\?\D:\…`).
+type Place = { name: string; cwd: string; link?: readonly [string, string]; root: string; prefix: string; gitAt: string; isLong?: true }
+const PLACES: readonly Place[] = [
+  {
+    name: 'a project opened through a link to its root',
+    cwd: '/link/repo',
+    link: ['/link/repo', '/real/repo'],
+    root: '/real/repo',
+    prefix: '',
+    gitAt: '/link/repo'
+  },
+  {
+    name: 'a session started inside a linked subfolder',
+    cwd: '/repo/linked',
+    link: ['/repo/linked', '/repo/real/sub'],
+    root: '/repo',
+    prefix: 'real/sub/',
+    gitAt: '/repo'
+  },
+  { name: 'a session in a plain subfolder', cwd: '/repo/app', root: '/repo', prefix: 'app/', gitAt: '/repo' },
+  // `~/app` is a link to `/repo/app`: its name ends with Git's path, but `~` is not the root (a dotfiles repo there
+  // must never be the one Git reads).
+  {
+    name: 'a session through a link named as its target',
+    cwd: '/home/me/app',
+    link: ['/home/me/app', '/repo/app'],
+    root: '/repo',
+    prefix: 'app/',
+    gitAt: '/repo'
+  },
+  {
+    // Windows: Git spells the root `D:/repo`, the disk the same folder `\\?\D:\repo`.
+    name: 'a linked subfolder whose real path the disk spells long',
+    cwd: '/repo/linked',
+    link: ['/repo/linked', '/repo/real/sub'],
+    root: 'D:/repo',
+    prefix: 'real/sub/',
+    gitAt: 'D:/repo',
+    isLong: true
+  },
+  { name: 'a repo at the filesystem`s root', cwd: '/', root: '/', prefix: '', gitAt: '/' }
+]
 
 for (const place of PLACES) {
   test(`${place.name}: Git's root and the session's folder agree, and a shell's change is the project's own row`, ON, async ($, on) => {
     const clock = { now: T0 }
     engine(on, clock)
     let diffs = 0
+    // Where each Git call after the two that find the work tree ran.
+    const ranAt: string[] = []
     on('process.run', (_, e) => {
       const argv = e.argv.join(' ')
 
       if (argv === 'git rev-parse --show-toplevel') return ran(`${place.root}\n`)
       if (argv === 'git rev-parse --show-prefix') return ran(`${place.prefix}\n`)
+      ranAt.push(String(e.init?.cwd))
       if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
       if (argv.startsWith('git diff --numstat')) return ran(diffs++ === 0 ? '' : `1\t0\t${place.prefix}notes.txt\0`)
 
@@ -492,10 +535,10 @@ for (const place of PLACES) {
     })
     // The disk answers as POSIX does: the engine hands the hook the path made absolute (on Windows with its drive).
     on('fs.stat', (_, e) => {
-      const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
-      const realPath = place.link === undefined || !path.startsWith(place.link[0]) ? path : `${place.link[1]}${path.slice(place.link[0].length)}`
+      const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/') || '/'
+      const real = place.link === undefined || !path.startsWith(place.link[0]) ? path : `${place.link[1]}${path.slice(place.link[0].length)}`
 
-      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath } }
+      return { value: { kind: 'file', size: 4, mtimeMs: 0, isLink: false, realPath: place.isLong === true ? `\\\\?\\D:${real.replaceAll('/', '\\')}` : real } }
     })
     on('fs.read', () => ({ value: 'one\n' }))
     await $.session.start({ cwd: place.cwd, surface: 'terminal', isInteractive: false })
@@ -505,9 +548,36 @@ for (const place of PLACES) {
 
     const rows = await paneText($)
     expect(rows).toContainEqual(expect.stringMatching(/^ {4}notes\.txt +\+1 {7}■+$/))
-    expect(rows.some(r => r.includes(`${place.root}/`))).toBe(false)
+    expect(rows.some(r => r.includes(`${place.root.replace(/\/$/, '')}/notes`))).toBe(false)
+    expect([...new Set(ranAt)]).toEqual([place.gitAt])
   })
 }
+
+test('a session whose folder lands neither where Git`s root nor its path say: no work tree is guessed, and the notice says why', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const said: string[] = []
+  on('ui.log', (_, e) => {
+    said.push(e.text)
+
+    return { value: undefined }
+  })
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('real/sub/\n')
+
+    return ran('')
+  })
+  // `/repo/linked` lands in `/elsewhere/sub`, not in `/repo/real/sub` as Git's root and path would have it.
+  on('fs.stat', () => ({ value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: true, realPath: '/elsewhere/sub' } }))
+  await $.session.start({ cwd: '/repo/linked', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+
+  expect(said).toContainEqual(expect.stringMatching(/git work tree unreadable.*\/elsewhere\/sub is not real\/sub under Git's root \/repo/))
+})
 
 test('a session in a repo`s subfolder: an untracked file outside that folder is never read', ON, async ($, on) => {
   const clock = { now: T0 }
@@ -540,6 +610,43 @@ test('a session in a repo`s subfolder: an untracked file outside that folder is 
   expect(rows).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+1 {7}■+$/))
   expect(read.filter(p => p.includes('secrets'))).toEqual([])
   expect(rows.some(r => r.includes('secrets'))).toBe(false)
+})
+
+test('an untracked link to a file outside the project is never read, so its lines are never counted', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock)
+  const read: string[] = []
+  let lists = 0
+  on('process.run', (_, e) => {
+    const argv = e.argv.join(' ')
+
+    if (argv === 'git rev-parse --show-toplevel') return ran('/repo\n')
+    if (argv === 'git rev-parse --show-prefix') return ran('\n')
+    if (argv === 'git rev-parse --verify --quiet HEAD') return ran('f00d\n')
+    if (argv.startsWith('git ls-files')) return ran(lists++ === 0 ? '' : 'new.txt\0keys.txt\0')
+
+    return ran('')
+  })
+  // `keys.txt` is a link Git lists as a new file; it leads to `/home/me/.ssh/keys.txt`.
+  on('fs.stat', (_, e) => {
+    const path = e.path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
+
+    return {
+      value: { kind: 'file', size: 4, mtimeMs: 0, isLink: path.endsWith('keys.txt'), realPath: path.endsWith('keys.txt') ? '/home/me/.ssh/keys.txt' : path }
+    }
+  })
+  on('fs.read', (_, e) => {
+    read.push(e.path)
+
+    return { value: 'one\ntwo\n' }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  await $.prompt.submit({ text: 'notes', wait: false, origin: { kind: 'composer' } })
+  await $.turn.start({ text: 'notes', turnId: 't1' })
+  await call($, 'Bash', 'b1', { command: 'make' })
+
+  expect(await paneText($)).toContainEqual(expect.stringMatching(/^ {4}new\.txt +\+2 {7}■+$/))
+  expect(read.filter(p => p.includes('keys'))).toEqual([])
 })
 
 test('a file whose name Git would quote (`café.txt`, `my notes/a b.md`): its row and its diff name it as it is', ON, async ($, on) => {
