@@ -8,7 +8,7 @@ import { readFlow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
 import { answerRowOf, sessionCwd } from './session'
-import type { PromptStamp } from '../../../types'
+import type { PromptStamp, TaskNotice } from '../../../types'
 import {
   isSameText,
   keepPrompts,
@@ -18,6 +18,7 @@ import {
   takePending,
   updateAwaitingFirst,
   updateCaps,
+  noteTaskNotice,
   updateCloses,
   updatePrompts,
   updateStreaming,
@@ -105,6 +106,20 @@ async function numberTurn($: EngineInterface, isIt: (s: PromptStamp) => boolean)
 }
 
 /**
+ * A task notice's id, summary and duration, from the engine's `<task-notification>` text.
+ * @param text the notice as submitted
+ * @returns them, or undefined when it names no task
+ */
+function taskNoticeOf(text: string): TaskNotice | undefined {
+  const tag = (name: string) => new RegExp(String.raw`<${name}>([\s\S]*?)</${name}>`).exec(text)?.[1]?.trim()
+  const id = tag('task-id')
+  const took = tag('duration_ms')
+  const ms = took === undefined ? Number.NaN : Number(took)
+
+  return id === undefined ? undefined : { id, text: tag('summary') ?? '', ...(Number.isFinite(ms) ? { durationMs: ms } : {}) }
+}
+
+/**
  * Adds the turn observe hooks: `turn.start`, `prompt.submit`, `turn.complete` and `turn.step`.
  * @param on the `on` that `register` receives
  */
@@ -148,6 +163,11 @@ export function registerTurns(on: On): void {
   // (`peer`, meta) and a task's notice are not typed: the turn they start carries on the typed one.
   on('prompt.submit', async ($, e, next) => {
     const isTyped = e.origin.kind === 'composer' || e.origin.kind === 'bridge'
+
+    // A task's notice (it can notify again under the same id, an agent that waits again): its row shows the newest.
+    const task = e.origin.kind === 'task-notification' ? taskNoticeOf(e.text) : undefined
+
+    if (task !== undefined) await noteTaskNotice($, task)
 
     if (isTyped && !e.isMeta && e.command === undefined && e.text.trim().length > 0) {
       const at = await $.clock.now()

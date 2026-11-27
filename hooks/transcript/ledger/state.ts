@@ -3,7 +3,19 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
-import type { CapsStamp, FirstText, OpenerCaps, PromptStamp, ShipStamp, StepStamp, TallyStamp, TestRunStamp, TurnAfter, TurnClose } from '../../../types'
+import type {
+  CapsStamp,
+  FirstText,
+  OpenerCaps,
+  PromptStamp,
+  ShipStamp,
+  StepStamp,
+  TallyStamp,
+  TaskNotice,
+  TestRunStamp,
+  TurnAfter,
+  TurnClose
+} from '../../../types'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -34,6 +46,29 @@ const firstTools = atom({ plugin: 'ghostframe', key: 'firstTools' } as const, []
 const streaming = atom({ plugin: 'ghostframe', key: 'streaming' } as const, false, { shape: 'streaming-1' })
 // Main-loop calls whose permission check asked the person, until the call returns.
 const asked = atom({ plugin: 'ghostframe', key: 'asked' } as const, [] as string[], { shape: 'asked-1' })
+
+// Each background task's newest notice, by task id: its notices share one row, which shows the newest (7.10).
+const taskNotices = atom({ plugin: 'ghostframe', key: 'taskNotices' } as const, [] as TaskNotice[], { shape: 'taskNotices-1' })
+const TASK_NOTICES_MAX = 200
+
+/**
+ * A background task notified (again): its newest notice replaces the one kept for its id.
+ * @param $ the engine interface
+ * @param notice the task's id, what it says, how long it ran
+ */
+export async function noteTaskNotice($: EngineInterface, notice: TaskNotice): Promise<void> {
+  await update($, taskNotices, list => [...list.filter(n => n.id !== notice.id), notice].slice(-TASK_NOTICES_MAX))
+}
+
+/**
+ * A background task's newest notice; read while drawing, so its row draws again when the task notifies again.
+ * @param $ the engine interface
+ * @param id the task's id
+ * @returns the notice, or undefined when none was kept
+ */
+export async function readTaskNotice($: EngineInterface, id: string): Promise<TaskNotice | undefined> {
+  return (await read($, taskNotices)).find(n => n.id === id)
+}
 
 // The prompts' stamps are also kept in $.store under the session's id: $.state does not outlive the process, and
 // a resumed session's turn rules show their times from there.

@@ -420,7 +420,7 @@ One row each, on the spine, label = the duration into the turn at which it happe
 - `↗` rows draw the moment the call returns (E.5).
 - A WAITING countdown updates in place; the row does not move.
 - Notices (`●`, the context `!`) are grey and one line. The memory notice carries its clock in the label.
-- A task's notice that is no agent's (`Background command … completed`, `Monitor event: …`) draws the same way, `●` in the spine column and its words muted from column 16, but whole: wrapped by words to the text column, a continuation row on the spine (`│`), and the task's duration, when the notice gives one, dim at its end (` · 2m 02s`). Nothing is cut with `…`. An agent's notice is the Agents tab's (8.9).
+- A task's notice that is no agent's (`Background command … completed`, `Monitor event: …`) draws the same way, `●` in the spine column and its words muted from column 16, but whole: wrapped by words to the text column, a continuation row on the spine (`│`), and the task's duration, when the notice gives one, dim at its end (` · 2m 02s`). Nothing is cut with `…`. An agent's notice is the Agents tab's (8.9). A task that notifies again under the same task id (an agent that keeps waiting on its own background work) keeps one row: the first one drawn, showing the newest notice and its duration; the later ones draw nothing. With Cockpit off the classic row keeps the same rule.
 
 ### 7.11 The live line
 
@@ -622,6 +622,7 @@ A progress bar (ok for done, hairline for the rest), then the items in the order
 
 - One row per agent: `◇` (or `×` when it ended failing), the name, its open failures `×n` in err, its steps and duration. Under it, its current or last step with its state; nothing before its first step. Once it reports, `✓ reported · n steps` and `done`, never the report's own words. A launch's drawer names its agents' work: the description and the first line of the brief.
 - An agent's failed edit or command shows only here and on its bar, never as a main-loop failure (amendment 13).
+- Every agent the session launched is known as its own for the whole session, whatever the roster and history have dropped since (the roster drops finished agents at each typed turn; history drops old turns under the store's budget): its notices and messages, however late, are this tab's, and the left draws nothing for them (a failure row in fallback only).
 - **Keys:** `enter` opens the agent's conversation, `tab` moves, `1` timeline.
 
 ### 8.10 An agent in view

@@ -3,7 +3,7 @@
 import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
 
 import { isOn, noticeSink, readEnvOnce } from '../../cockpit/switch'
-import type { PromptStamp, RosterAgent } from '../../../types'
+import type { LaunchedAgent, PromptStamp } from '../../../types'
 import { drawAgentNotice, drawTaskNotice, isFallbackRow, isQuietRow, keptAgents, leftCells } from '../../cockpit/left'
 import { readLog } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
@@ -17,7 +17,8 @@ import { claim } from '../claim'
 import { cell } from '../draw/cell'
 import { drawRows } from '../draw/parts'
 import { sessionCwd } from '../ledger/session'
-import { isSameText, readPrompts, storedPrompts } from '../ledger/state'
+import { isSameText, readPrompts, readTaskNotice, storedPrompts } from '../ledger/state'
+import { remember } from '../../shared/held'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
 import { messageCard, turnHeader } from '../rows/turn'
@@ -114,6 +115,25 @@ function openingRows(o: Opening, text: string, width: number): Part[][] {
     : [...messageCard(text, o.kind, width, o.at), spineOnly()]
 }
 
+// The row each task's notices share, by task id: the first drawn (rows draw again in transcript order after a
+// reload, so the first claims it again). Written while drawing.
+const noticeRows = new Map<string, string>()
+const NOTICE_ROWS_MAX = 200
+
+/**
+ * Whether a task notice's row is the one its task's notices share: the first drawn for its id.
+ * @param taskId the task's id
+ * @param row the row's request
+ * @returns whether it is
+ */
+function isFirstNoticeRow(taskId: string, row: string): boolean {
+  const first = noticeRows.get(taskId) ?? row
+
+  remember(noticeRows, taskId, first, NOTICE_ROWS_MAX)
+
+  return first === row
+}
+
 function durationLabel(ms: number) {
   const s = Math.max(0, Math.round(ms / 1000))
 
@@ -137,7 +157,7 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 
   const task = p.origin.kind === 'task-notification' ? p.task : undefined
 
-  const isIt = (a: RosterAgent) =>
+  const isIt = (a: LaunchedAgent) =>
     a.id === id ||
     (task?.toolUseId !== undefined && a.call === task.toolUseId) ||
     (from !== undefined && (a.name === from || a.called?.includes(from) === true))
@@ -196,14 +216,24 @@ export function registerPrompt(on: On): void {
       return drawAgentNotice($, e, leftCells(e))
     }
 
+    // A task that notifies again under its id (an agent that waits again) keeps one row: the first draws the newest
+    // notice, kept as it was submitted, and the later ones draw nothing (7.10).
+    const taskId = e.props.origin.kind === 'task-notification' ? e.props.task?.id : undefined
+
+    if (taskId !== undefined && !isFirstNoticeRow(taskId, e.requestId)) return <Box />
+
+    const newest = taskId === undefined ? undefined : await readTaskNotice($, taskId)
+    const said = newest !== undefined && newest.text.length > 0 ? newest.text : (e.props.text.split('\n')[0] ?? '')
+    const took = newest?.durationMs ?? e.props.task?.durationMs
+
     // Cockpit on: on the left's grid like every other row (6.1, 7.10).
     if (e.props.origin.kind === 'task-notification' && isOn()) {
-      return drawTaskNotice($, e)
+      return drawTaskNotice($, e, said, took)
     }
 
     if (e.props.origin.kind === 'task-notification') {
-      const launched = /launched|started/i.test(e.props.text)
-      const ms = e.props.task?.durationMs
+      const launched = /launched|started/i.test(said)
+      const ms = took
 
       return (
         <Box flexWrap="nowrap">
@@ -212,7 +242,7 @@ export function registerPrompt(on: On): void {
           </Box>
           <Box flexShrink={1} minWidth={0}>
             <Text color={C.text} wrap="truncate-end">
-              {e.props.text.split('\n')[0] ?? ''}
+              {said}
             </Text>
           </Box>
           {ms !== undefined && (

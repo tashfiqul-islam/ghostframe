@@ -5,13 +5,13 @@ import type { LogStep, StepLog } from '../../types'
 import { runOf } from './commands'
 import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
-import type { Receipt, RosterAgent } from '../../types'
+import type { LaunchedAgent, Receipt } from '../../types'
 import { remember } from '../shared/held'
 import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
-import { readFrame, readLog, readReceipts, readRoster } from './log'
+import { readFrame, readLaunched, readLog, readReceipts, readRoster } from './log'
 import { readWork } from './work'
 import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
@@ -187,13 +187,15 @@ export function setDocked($: EngineInterface, value: boolean): void {
 }
 
 /**
- * Every agent this session launched that Cockpit still knows of: the live roster's, then each kept turn's (the store's
- * for rows drawn before the session starts, amendment 8), so a resumed agent's rows are known as its (amendment 9).
+ * Every agent this session launched that Cockpit still knows of: the live roster's, every one launched this session
+ * (the roster drops finished ones at each typed turn, history drops old turns under the store's budget), then each
+ * kept turn's (the store's for rows drawn before the session starts, amendment 8), so a resumed agent's rows are
+ * known as its (amendment 9).
  * @param $ the engine interface
  * @returns the agents, the live roster's first
  */
-export async function keptAgents($: EngineInterface): Promise<RosterAgent[]> {
-  return [...(await readRoster($)), ...(await keptRecords($)).flatMap(r => r.roster)]
+export async function keptAgents($: EngineInterface): Promise<LaunchedAgent[]> {
+  return [...(await readRoster($)), ...(await readLaunched($)), ...(await keptRecords($)).flatMap(r => r.roster)]
 }
 
 /**
@@ -619,13 +621,14 @@ export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMe
  * grid (6.1, 7.10), wrapped to the text column, its duration kept.
  * @param $ the engine interface
  * @param e the notice's render
+ * @param text what the notice says, its newest
+ * @param ms how long the task ran, when the notice says
  * @returns the rows' tree
  */
-export function drawTaskNotice($: EngineInterface, e: RenderInput<'UserMessage', 'terminal'>): RenderElement {
+export function drawTaskNotice($: EngineInterface, e: RenderInput<'UserMessage', 'terminal'>, text: string, ms: number | undefined): RenderElement {
   const ui = $.ui.resolve(e)
-  const task = e.props.origin.kind === 'task-notification' ? e.props.task : undefined
 
-  return <ui.Box flexDirection="column">{drawRows(ui, taskNoticeRows(e.props.text.split('\n')[0] ?? '', task?.durationMs, leftCells(e)))}</ui.Box>
+  return <ui.Box flexDirection="column">{drawRows(ui, taskNoticeRows(text, ms, leftCells(e)))}</ui.Box>
 }
 
 // When each command's output row first drew (7.15: its clock labels its `/` node). shortcut: kept in the module, so a

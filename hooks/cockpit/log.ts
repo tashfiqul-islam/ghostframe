@@ -22,7 +22,7 @@ import {
   startStep
 } from './steps/log'
 import type { Outcome } from './steps/log'
-import type { Receipt, RosterAgent, StepLog } from '../../types'
+import type { LaunchedAgent, Receipt, RosterAgent, StepLog } from '../../types'
 import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
@@ -40,6 +40,10 @@ import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork }
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
 // The agents of the current (or last) turn, and background agents still running from earlier ones (E.40).
 const roster = atom({ plugin: 'ghostframe', key: 'roster' } as const, [] as RosterAgent[], { shape: 'roster-2' })
+// Every agent this session launched, for the whole session: the roster drops finished agents at each typed turn and
+// history drops old turns under the store's budget, but an agent can notify again long after (8.9).
+const launched = atom({ plugin: 'ghostframe', key: 'launched' } as const, [] as LaunchedAgent[], { shape: 'launched-1' })
+const LAUNCHED_MAX = 1_000
 // Counters the timers bump while a turn runs: each second (the pane's running clock) and each spinner frame.
 const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape: 'second-1' })
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
@@ -444,6 +448,17 @@ export async function logAgentStart($: EngineInterface, start: Omit<AgentStart, 
 
   const at = await $.clock.now()
   await update($, roster, list => addAgent(list, { ...start, at }))
+  const known: LaunchedAgent = { id: start.id, call: start.call, name: start.name, ...(start.called === undefined ? {} : { called: [...start.called] }) }
+  await update($, launched, list => [...list.filter(a => a.id !== start.id), known].slice(-LAUNCHED_MAX))
+}
+
+/**
+ * Every agent this session launched (8.9), whatever the roster and history have dropped since.
+ * @param $ the engine interface
+ * @returns the agents, oldest first
+ */
+export async function readLaunched($: EngineInterface): Promise<LaunchedAgent[]> {
+  return read($, launched)
 }
 
 /**
