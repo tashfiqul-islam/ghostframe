@@ -28,7 +28,7 @@ import { turnOfCall, turnView } from './fallback/facts'
 import { isKeptNarration, keptRecords, storedReceiptList } from './history/store'
 import { isOn } from './switch'
 import { noteUnfolded, unfolded } from './unfolded'
-import { noticeRow, sentenceRows } from './rows/events'
+import { noticeRow, sentenceRows, taskNoticeRows } from './rows/events'
 import { stepLineRow } from './rows/left'
 import { diffCard } from '../shared/look/code'
 import { clockTime } from '../shared/look/format'
@@ -612,6 +612,20 @@ export async function drawAgentNotice($: EngineInterface, e: RenderInput<'UserMe
   const failed = isFallbackRow(e) && task !== undefined ? await drawAgentFailure($, ui, task, width) : undefined
 
   return failed ?? <ui.Box />
+}
+
+/**
+ * A task's notice that is no agent's (a background command, a monitor's event) while Cockpit is on: on the left's
+ * grid (6.1, 7.10), wrapped to the text column, its duration kept.
+ * @param $ the engine interface
+ * @param e the notice's render
+ * @returns the rows' tree
+ */
+export function drawTaskNotice($: EngineInterface, e: RenderInput<'UserMessage', 'terminal'>): RenderElement {
+  const ui = $.ui.resolve(e)
+  const task = e.props.origin.kind === 'task-notification' ? e.props.task : undefined
+
+  return <ui.Box flexDirection="column">{drawRows(ui, taskNoticeRows(e.props.text.split('\n')[0] ?? '', task?.durationMs, leftCells(e)))}</ui.Box>
 }
 
 // When each command's output row first drew (7.15: its clock labels its `/` node). shortcut: kept in the module, so a

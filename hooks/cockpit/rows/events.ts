@@ -159,6 +159,30 @@ export function noticeRow(kind: 'notice' | 'warning', text: string, width: numbe
 }
 
 /**
+ * A task's notice that is no agent's (7.10): a background command finished, a monitor's event. `●` in the spine
+ * column, its words muted in the text column, wrapped there by words (a word wider than the row breaks where it must,
+ * never cut off), and its duration, when the notice gives one, dim at its end.
+ * @param text what the notice says, its first line
+ * @param ms how long the task ran, when the notice says
+ * @param width the text column's cells
+ * @returns the rows
+ */
+export function taskNoticeRows(text: string, ms: number | undefined, width: number): Part[][] {
+  const took = ms === undefined ? '' : `${GLYPH.sep}${duration(ms)}`
+  const lines = wrapWords(text, width)
+  const last = lines.at(-1) ?? ''
+  // The duration stays on the last row when it fits there, else it takes a row of its own.
+  const tail = took.length === 0 || widthOf(last) + widthOf(took) <= width ? [] : [took.trimStart()]
+
+  return [...lines, ...tail].map((r, i, all) =>
+    spineRow(NO_LABEL, i === 0 ? glyph(GLYPH.notice, TOKEN.muted) : SPINE, [
+      { t: r, color: TOKEN.muted },
+      ...(i === all.length - 1 && tail.length === 0 && took.length > 0 ? [dim(took)] : [])
+    ])
+  )
+}
+
+/**
  * A sentence Claude said while working, in ctrl+o (amendment 11, screen 30): its clock, the spine, the sentence muted.
  * @param clock the clock it was said at, '' for none
  * @param text the sentence
