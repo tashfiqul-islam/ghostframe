@@ -119,6 +119,11 @@ export function askStep(log: StepLog, id: string): StepLog {
   return log.asking.includes(id) ? log : { ...log, asking: [...log.asking, id] }
 }
 
+/** A step no longer waits on the person: the mode's decider (auto mode's classifier) answers it instead. */
+export function unaskStep(log: StepLog, id: string): StepLog {
+  return log.asking.includes(id) ? { ...log, asking: log.asking.filter(x => x !== id) } : log
+}
+
 /**
  * Whether a step failed in a way the turn is answerable for (13.1): a test, shell, edit, write or agent step that
  * errored. A failed fetch or search is a source problem (amendment 6), and a blocked or denied step is no failure.

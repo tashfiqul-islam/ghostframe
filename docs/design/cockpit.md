@@ -686,7 +686,7 @@ Switching follows amendment 10: an unasked pane leaves at once below 144, and re
 
 ### 9.3 Waits
 
-- **NEEDS YOU** (permission, question): the engine draws the dialog or card in the left region (correction C), its own signal; the left draws no row of its own for it. The pane's pill is `! NEEDS YOU` and the waiting group is selected with a one-line drawer.
+- **NEEDS YOU** (permission, question, a plan to approve): the engine draws the dialog or card in the left region (correction C), its own signal; the left draws no row of its own for it. The pane's pill is `! NEEDS YOU` and the waiting group is selected with a one-line drawer. It shows only while a person is asked: a check's `ask` that auto mode's classifier settles (`tool.judge`) asks nobody, so the pill stays `● LIVE` while it judges, and turns to `! NEEDS YOU` only when the classifier gives no verdict and hands the call to the person. A call a rule, a hook or the classifier refuses is a blocked step (13.7), on its row in its colour; the pill keeps the turn's own state. The engine's `(ctrl+b to run in background)` hint under a running shell row is its own; Cockpit draws nothing over it.
 - **WAITING** (rate limit, API retry): a pause, not a failure. The turn continues by itself. The pane stays `● LIVE` for a retry and shows `! NEEDS YOU` for a rate limit (you can `/model` to switch).
 
 ### 9.4 Pins
