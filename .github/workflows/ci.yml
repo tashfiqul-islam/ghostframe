@@ -158,6 +158,45 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun test ./statusline
 
+  # The performance budgets (tools/bench/budgets.ts, docs/development/performance.md): the harness benchmark over the
+  # long-session fixture, the status line's run time, and the real session against a local stand-in for the API. On
+  # Windows, where process start and the status line are slowest. It reports only for now (continue-on-error, and
+  # the suite without --strict): time budgets get 3× headroom on a shared runner (CI_HEADROOM in budgets.ts).
+  bench:
+    name: Benchmarks (report only)
+    runs-on: windows-2025
+    continue-on-error: true
+    timeout-minutes: 60
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise)
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ env.CLAUDE_CODE_SHA256_WIN32_X64 }}
+
+      # node-pty's install script places its prebuilt binary; the live checks' lockfile pins it and trusts it alone.
+      - name: Install the live harness (node-pty, xterm headless)
+        run: bun install --cwd tools/live --frozen-lockfile
+
+      - name: Run the benchmarks against the budgets (report only)
+        env:
+          BENCH_REPO: ${{ runner.temp }}\ghostframe-perf-repo
+          BENCH_REPO_SMALL: ${{ runner.temp }}\ghostframe-perf-lite
+        run: bun tools/bench/run.ts --live
+
   dependencies:
     name: Dependency review
     if: github.event_name == 'pull_request'
