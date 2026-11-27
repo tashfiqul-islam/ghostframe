@@ -175,14 +175,15 @@ export function planOf(text: string, entry: StatusLineEntry | null): Plan {
 
 /**
  * The command the status line runs: Bun on the bundled script, by an absolute path with forward slashes (Git Bash
- * eats backslashes; docs: Windows configuration), quoted when it holds a space.
+ * eats backslashes; docs: Windows configuration), always in single quotes, since a shell runs it: nothing inside
+ * expands, and a quote in the path is written `'\''`.
  * @param script the bundled script's absolute path
  * @returns the command line
  */
 export function commandOf(script: string): string {
   const path = script.replaceAll('\\', '/')
 
-  return `bun ${/\s/.test(path) ? `"${path}"` : path}`
+  return `bun '${path.replaceAll("'", "'\\''")}'`
 }
 
 /**

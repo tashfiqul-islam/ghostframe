@@ -16,9 +16,21 @@ const SETTINGS = `{
 }
 `
 
-test('the entry: bun on the bundled script, padding 0, refresh 10 s; forward slashes, quoted when spaced', async () => {
-  expect(ENTRY).toEqual({ type: 'command', command: 'bun C:/Users/me/.claude/ghostframe/statusline.js', padding: 0, refreshInterval: 10 })
-  expect(commandOf('C:\\Users\\Jo Ann\\.claude\\ghostframe\\statusline.js')).toBe('bun "C:/Users/Jo Ann/.claude/ghostframe/statusline.js"')
+test('the entry: bun on the bundled script, padding 0, refresh 10 s; forward slashes, single-quoted', async () => {
+  expect(ENTRY).toEqual({ type: 'command', command: "bun 'C:/Users/me/.claude/ghostframe/statusline.js'", padding: 0, refreshInterval: 10 })
+})
+
+// The command runs in a shell (Git Bash on Windows): inside single quotes nothing expands, and a quote in the path
+// closes, escapes and reopens them.
+test('the command quotes paths with a quote, brackets, spaces and $ so the shell reads them as one word', () => {
+  const cases: [string, string][] = [
+    ["C:\\Users\\O'Neil\\.claude\\ghostframe\\statusline.js", "bun 'C:/Users/O'\\''Neil/.claude/ghostframe/statusline.js'"],
+    ['C:\\Users\\a(b)\\.claude\\ghostframe\\statusline.js', "bun 'C:/Users/a(b)/.claude/ghostframe/statusline.js'"],
+    ['C:\\Users\\Jo Ann\\.claude\\ghostframe\\statusline.js', "bun 'C:/Users/Jo Ann/.claude/ghostframe/statusline.js'"],
+    ['/home/$USER/.claude/ghostframe/statusline.js', "bun '/home/$USER/.claude/ghostframe/statusline.js'"]
+  ]
+
+  for (const [script, command] of cases) expect(commandOf(script)).toBe(command)
 })
 
 test('finds a top-level key past strings that hold braces and quotes', async () => {
@@ -74,7 +86,7 @@ test('the diff shows the changed lines with context; no change, no diff', async 
 
   expect(plan.isChange).toBe(true)
   expect(plan.diff).toContain('-     "command": "bun ~/.claude/ghostframe-statusline.ts",')
-  expect(plan.diff).toContain('+     "command": "bun C:/Users/me/.claude/ghostframe/statusline.js",')
+  expect(plan.diff).toContain(`+     "command": "bun 'C:/Users/me/.claude/ghostframe/statusline.js'",`)
   expect(plan.diff).toContain('+     "refreshInterval": 10')
   // Two lines of context above the first change: the entry's key and its unchanged `type`.
   expect(plan.diff.split('\n').slice(0, 3)).toEqual(['@@ line 3 @@', '    "statusLine": {', '      "type": "command",'])

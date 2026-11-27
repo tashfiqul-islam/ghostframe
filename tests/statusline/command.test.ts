@@ -85,7 +85,7 @@ test('install: builds the bundle, backs up settings.json, sets only statusLine, 
   expect(runs.some(r => r[1] === 'build' && r.at(-1) === `${HOME}/.claude/ghostframe/statusline.js`)).toBe(true)
   expect(after).toEqual({
     model: 'opus',
-    statusLine: { type: 'command', command: `bun ${HOME}/.claude/ghostframe/statusline.js`, padding: 0, refreshInterval: 10 },
+    statusLine: { type: 'command', command: `bun '${HOME}/.claude/ghostframe/statusline.js'`, padding: 0, refreshInterval: 10 },
     theme: 'dark'
   })
   expect(backups.length).toBe(1)
@@ -173,7 +173,7 @@ test('the diff is one transcript row per line, its - and + prefixes kept', async
 
   expect(logs[0]).toBe(`Installing ghostframe\u2019s status line changes ${SETTINGS}:`)
   expect(logs).toContain('-     "command": "bun ~/.claude/ghostframe-statusline.ts",')
-  expect(logs).toContain(`+     "command": "bun ${HOME}/.claude/ghostframe/statusline.js",`)
+  expect(logs).toContain(`+     "command": "bun '${HOME}/.claude/ghostframe/statusline.js'",`)
   expect(logs.every(l => !l.includes('\n'))).toBe(true)
 })
 
