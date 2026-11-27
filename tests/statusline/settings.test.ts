@@ -22,9 +22,13 @@ test('the entry: bun on the bundled script, padding 0, refresh 10 s; forward sla
 
 // The command runs in a shell (Git Bash on Windows): inside single quotes nothing expands, and a quote in the path
 // closes, escapes and reopens them.
-test('the command quotes paths with a quote, brackets, spaces and $ so the shell reads them as one word', () => {
+// On Windows the command runs through Git Bash, or PowerShell where Git Bash is absent (docs: statusline, Windows
+// configuration). Single quotes are one word in both; a path with a quote takes double quotes, unless it also holds
+// $ ` " or !, which only the bash form '\'' keeps literal.
+test('the command quotes paths with a quote, brackets, spaces and $ so bash and PowerShell read them as one word', () => {
   const cases: [string, string][] = [
-    ["C:\\Users\\O'Neil\\.claude\\ghostframe\\statusline.js", "bun 'C:/Users/O'\\''Neil/.claude/ghostframe/statusline.js'"],
+    ["C:\\Users\\O'Neil\\.claude\\ghostframe\\statusline.js", `bun "C:/Users/O'Neil/.claude/ghostframe/statusline.js"`],
+    ["/home/O'Neil$x/.claude/ghostframe/statusline.js", "bun '/home/O'\\''Neil$x/.claude/ghostframe/statusline.js'"],
     ['C:\\Users\\a(b)\\.claude\\ghostframe\\statusline.js', "bun 'C:/Users/a(b)/.claude/ghostframe/statusline.js'"],
     ['C:\\Users\\Jo Ann\\.claude\\ghostframe\\statusline.js', "bun 'C:/Users/Jo Ann/.claude/ghostframe/statusline.js'"],
     ['/home/$USER/.claude/ghostframe/statusline.js', "bun '/home/$USER/.claude/ghostframe/statusline.js'"]

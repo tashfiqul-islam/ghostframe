@@ -234,3 +234,20 @@ test('install when settings.json already runs it asks before rebuilding, and Can
   expect(await runStatusline($, 'install', yes)).toContain('Built')
   expect(disk.get(`${DIR}statusline.js`)).toBe('// bundled')
 })
+
+test('status on Windows says in one line when the installed path needs Git Bash, and only then', async () => {
+  const bashOnly = { type: 'command', command: "bun 'C:/Users/O'\\''Neil$x/.claude/ghostframe/statusline.js'", padding: 0, refreshInterval: 10 }
+  const quoted = { ...bashOnly, command: `bun "C:/Users/O'Neil/.claude/ghostframe/statusline.js"` }
+  const on = (statusLine: unknown, platform: string): EngineInterface => {
+    const { $ } = machine(new Map([[SETTINGS, settings(statusLine)]]))
+
+    return Object.assign($, { session: { info: async () => ({ platform }) } })
+  }
+  const windows = await runStatusline(on(bashOnly, 'windows'), 'status', yes)
+
+  expect(windows).toContain('is installed')
+  expect(windows).toContain('needs Git Bash')
+  expect(windows).not.toContain('\n')
+  expect(await runStatusline(on(bashOnly, 'linux'), 'status', yes)).not.toContain('Git Bash')
+  expect(await runStatusline(on(quoted, 'windows'), 'status', yes)).not.toContain('Git Bash')
+})

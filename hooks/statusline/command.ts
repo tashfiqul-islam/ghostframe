@@ -6,7 +6,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 import { isRecord } from '../shared/calls/fields'
-import { entryOf, planOf } from './settings'
+import { entryOf, needsBash, planOf } from './settings'
 import type { StatusLineEntry } from './settings'
 
 type On = Parameters<Register>[0]
@@ -174,8 +174,13 @@ async function status($: EngineInterface): Promise<string> {
   const current = currentOf(await readSettings($, p))
   const built = await $.fs.exists(p.script)
 
-  if (isOurs(current))
-    return `ghostframe’s status line is installed: ${JSON.stringify(current)}${built ? '' : ` (but ${p.script} is missing: run install again)`}`
+  if (isOurs(current)) {
+    const installed = `ghostframe’s status line is installed: ${JSON.stringify(current)}${built ? '' : ` (but ${p.script} is missing: run install again)`}`
+    // Only bash reads the '\'' form; on Windows without Git Bash, Claude Code runs the command through PowerShell.
+    const isBashOnly = isEntry(current) && needsBash(current.command) && (await $.session.info()).platform === 'windows'
+
+    return isBashOnly ? `${installed}. Its path holds a ' with $, \`, " or !, so it needs Git Bash: PowerShell cannot run it.` : installed
+  }
 
   return current === null ? 'No status line is set in your user settings.' : `Your user settings run another status line: ${JSON.stringify(current)}`
 }

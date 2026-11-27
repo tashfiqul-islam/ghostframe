@@ -26,7 +26,11 @@ it into your user settings, and never silently.
 - It needs [Bun](https://bun.sh) on `PATH` and stops with a message when it is missing.
 - It bundles `statusline/main.ts` to `~/.claude/ghostframe/statusline.js` (or under `CLAUDE_CONFIG_DIR`), so a plugin
   update never breaks the path, and writes:
-  `"statusLine": { "type": "command", "command": "bun <absolute path>/statusline.js", "padding": 0, "refreshInterval": 10 }`.
+  `"statusLine": { "type": "command", "command": "bun '<absolute path>/statusline.js'", "padding": 0, "refreshInterval": 10 }`.
+- The path is quoted so that both shells Claude Code may run it through on Windows read it as one word: Git Bash,
+  or PowerShell when Git Bash is absent. A path with no `'` takes single quotes. A path with a `'` but none of `$`,
+  `` ` ``, `"` or `!` takes double quotes. Any other path takes bash's `'\''` form, which only Git Bash can run: on
+  Windows, `/ghostframe-statusline status` says so in one line.
 - It shows the exact diff and asks first. It writes nothing before "Write it": on Cancel or Esc no file changes, the
   bundle included. Then it keeps a backup (`~/.claude/ghostframe/settings.json.bak-<time>`) and changes only the
   `statusLine` entry: every other key, its order, the indentation and the line endings stay as they were.
