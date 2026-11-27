@@ -90,7 +90,17 @@ function spreadIn(left: readonly Part[], right: readonly Part[], width: number):
  * @param isOutside whether a file's diff and the turn's own steps disagree: it changed outside them too
  * @returns the rows
  */
-export function filesView(files: readonly FileRow[], turnNo: number, width: number, isOutside: boolean = false): Part[][] {
+// The file rows the Files tab draws (8.5): the engine refuses a pane tree of more than 20,000 nodes, and a file row
+// is about ten, so a turn that adds thousands of files would leave no pane at all. The rest are counted in one row.
+export const FILE_ROWS_MAX = 500
+
+export function filesView(
+  files: readonly FileRow[],
+  turnNo: number,
+  width: number,
+  isOutside: boolean = false,
+  more: { untracked?: number | 'many' | undefined; isReading?: boolean | undefined } = {}
+): Part[][] {
   const adds = files.reduce((n, f) => n + f.adds, 0)
   const dels = files.reduce((n, f) => n + f.dels, 0)
   const largest = Math.max(1, ...files.map(f => f.adds + f.dels))
@@ -109,7 +119,7 @@ export function filesView(files: readonly FileRow[], turnNo: number, width: numb
     []
   ]
 
-  for (const f of files) {
+  for (const f of files.slice(0, FILE_ROWS_MAX)) {
     const counts: Part[] = [
       { t: f.adds > 0 ? `+${f.adds}`.padStart(4) : '    ', color: TOKEN.ok },
       { t: f.dels > 0 ? `${GLYPH.minus}${f.dels}`.padStart(5) : '     ', color: TOKEN.err },
@@ -126,6 +136,12 @@ export function filesView(files: readonly FileRow[], turnNo: number, width: numb
     if (f.isSelected === true && f.hunk !== undefined) rows.push(...hunkRows(f.hunk, width))
   }
 
+  // Rows past the tab's 500, and new files past the listing's 2,000, are counted; while the turn's first diff is read,
+  // one row says so.
+  if (files.length > FILE_ROWS_MAX) rows.push([sp(2), dim(`+${(files.length - FILE_ROWS_MAX).toLocaleString('en-US')} more files`)])
+  if (more.untracked === 'many') rows.push([sp(2), dim('2,000+ untracked')])
+  else if (more.untracked !== undefined && more.untracked > 0) rows.push([sp(2), dim(`+${more.untracked.toLocaleString('en-US')} more untracked`)])
+  if (more.isReading === true && files.length === 0) rows.push([sp(2), dim('reading changes…')])
   if (files.some(f => f.isAgent)) rows.push([], [sp(2), { t: GLYPH.agent, color: TOKEN.agent }, dim(' changed by an agent')])
 
   return rows

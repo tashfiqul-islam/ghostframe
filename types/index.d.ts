@@ -262,6 +262,10 @@ export type TurnWork = {
   files: FileChange[]
   sources: SourcePage[]
   cited: { url: string; title: string }[]
+  /** New files a shell step added past the listing's 2,000, since the turn's start; `many` when not known (8.5). */
+  moreUntracked?: number | 'many' | undefined
+  /** The work tree's diff at the turn's start is still being worked out (8.5). */
+  isReading?: true | undefined
 }
 
 /**
