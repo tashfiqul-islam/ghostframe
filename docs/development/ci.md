@@ -11,12 +11,16 @@ For an agent, in one line: **run `mise run ci:plan` before pushing; the PR's CI 
 `map.ts` holds three lists:
 
 - **Rules:** paths (`Bun.Glob` patterns) and the areas they touch, each with its reason. The first rule a path matches
-  decides, so narrow rules come first. Shared setup (workflows, actions, `mise.toml`, `hk.pkl`, `package.json`,
-  lockfiles, `tsconfig`, lint and format configs, git attributes) and this map itself touch `all`, which runs
-  everything. A file no rule claims falls to the last rule, `unclassified`, which runs everything too.
-- **Decisions:** the yes or no each guard needs (`gate`, `docs`, `tests`, `plugin_tests`, `perf`, `readme`, `site`),
-  each turned on by its areas and saying what it guards. `all` turns on every one but `docs`: the Quality gate checks
-  the Markdown itself, so the Docs job runs only for a change with no code.
+  decides, so narrow rules come first. Shared setup (workflows, actions, anything a workflow or tool reads such as
+  `.github/actionlint.yaml`, `mise.toml`, `hk.pkl`, `package.json`, lockfiles, `tsconfig`, lint and format configs,
+  git attributes) and this map itself touch `all`, which runs everything. Repo settings GitHub applies and nothing in
+  CI reads (rulesets, `CODEOWNERS`, issue forms, the pull request template, `dependabot.yml`) touch `settings`: their
+  JSON and YAML only have to parse and be formatted. Before a path leaves shared setup, grep the workflows and tools
+  for a reader; the rule's comment says what was checked. A file no rule claims falls to the last rule, `unclassified`, which runs everything too.
+- **Decisions:** the yes or no each guard needs (`gate`, `docs`, `settings`, `tests`, `plugin_tests`, `perf`,
+  `readme`, `site`), each turned on by its areas and saying what it guards. `all` turns on every one but `docs` and
+  `settings`: the Quality gate checks the Markdown and formats the settings itself, so the Docs and Repo settings jobs
+  run only for a change with no code.
 - **Jobs:** every job in every workflow, when it runs on a pull request (a decision, always, or never), and the steps
   CI runs through `ci.ts`.
 
