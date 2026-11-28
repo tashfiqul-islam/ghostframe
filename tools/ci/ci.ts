@@ -376,9 +376,11 @@ function selfTest(): void {
       ['.github/rulesets/main.json', 'hooks/register.tsx'],
       [...GATE_TESTS, 'perf']
     ],
-    [['README.md'], ['docs', 'readme']],
+    [['README.md'], ['gate', 'readme', 'site']],
+    [['CHANGELOG.md'], ['gate', 'site']],
+    [['statusline/render.ts'], ['gate', 'tests', 'perf', 'site']],
     [['docs/assets/readme/hero.svg'], ['docs', 'readme']],
-    [['docs/design/brand/ghostframe-wordmark-white.svg'], ['docs', 'readme']],
+    [['docs/design/brand/ghostframe-wordmark-white.svg'], ['gate', 'readme', 'site']],
     [['.github/workflows/ci.yml'], ALL],
     [['mise.toml'], ALL],
     [['tools/bun.lock'], ALL],
@@ -389,7 +391,7 @@ function selfTest(): void {
     [['release-please-config.json'], ALL],
     [['tools/ci/map.ts'], ALL],
     [['a-new-top-level-file.toml'], ALL],
-    [['.claude-plugin/plugin.json'], [...GATE_TESTS, 'perf', 'readme']],
+    [['.claude-plugin/plugin.json'], [...GATE_TESTS, 'perf', 'readme', 'site']],
     [['hooks/shared/range.ts'], [...GATE_TESTS, 'perf', 'readme']],
     [['hooks/register.ts'], [...GATE_TESTS, 'perf']],
     [['hooks/cockpit/NOTES.md'], [...GATE_TESTS, 'perf']],
@@ -419,7 +421,7 @@ function selfTest(): void {
   eq(planOf([], 'a push run').decisions.perf, true, 'a push runs everything')
   eq(planOf([], 'a push run').decisions.docs, false, 'everything: the gate checks the docs, the Docs job skips')
 
-  const docsOnly = planOf(['README.md'])
+  const docsOnly = planOf(['docs/development/ci.md'])
   const gate = jobOf('check')
 
   eq(runsIn(gate, docsOnly), false, 'docs only: the gate skips')

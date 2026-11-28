@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { planOf } from '../../../tools/ci/map'
 import { BRAND_FILES, SITE_INPUTS, readSiteData } from './site-data'
 
 const fixture = join(import.meta.dir, 'fixtures', 'repo')
@@ -35,10 +36,11 @@ describe('readSiteData, brand files', () => {
   })
 })
 
+// A folder input stands for any file in it.
+const changed = (input: string): string => (input === 'docs/design/brand' ? `${input}/ghostframe-mascot.svg` : input)
+
 describe('the CI job', () => {
-  test('runs the site checks when any site input changes', () => {
-    const workflow = readFileSync(join(import.meta.dir, '..', '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8')
-    const watched = /git diff --quiet "\$BASE" HEAD -- (.+?);/.exec(workflow)?.[1]?.split(' ') ?? []
-    expect(watched.toSorted()).toEqual(['site', '.github/workflows/ci.yml', ...SITE_INPUTS].toSorted())
+  test.each([...SITE_INPUTS])('runs the site checks when %s changes', input => {
+    expect(planOf([changed(input)]).decisions.site).toBe(true)
   })
 })

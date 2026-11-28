@@ -58,8 +58,8 @@ export const RULES: readonly Rule[] = [
   {
     id: 'manifest',
     paths: ['.claude-plugin/plugin.json'],
-    areas: ['plugin', 'perf', 'readme'],
-    why: "the plugin's manifest: what loads (its runtime), and the engine range README's badge repeats"
+    areas: ['plugin', 'perf', 'readme', 'site'],
+    why: "the plugin's manifest: what loads (its runtime), the engine range README's badge repeats, and the facts the site reads"
   },
   {
     id: 'readme-imports',
@@ -78,6 +78,12 @@ export const RULES: readonly Rule[] = [
     paths: ['types/**'],
     areas: ['plugin'],
     why: "the engine's types: the tests and the gate check against them; nothing measures them"
+  },
+  {
+    id: 'site-render',
+    paths: ['statusline/render.ts'],
+    areas: ['statusline', 'perf', 'site'],
+    why: "the status line's renderer: its specs and benchmark rows, and the eye thresholds the site's facts read from it"
   },
   {
     id: 'statusline',
@@ -121,12 +127,24 @@ export const RULES: readonly Rule[] = [
     areas: ['tools'],
     why: 'the other dev tools (scripts, mockgen, commitlint): the gate lints, type-checks and runs them'
   },
-  { id: 'site', paths: ['site/**'], areas: ['site'], why: 'the website: its job, once it exists' },
+  { id: 'site', paths: ['site/**'], areas: ['site'], why: 'the website: its job' },
+  {
+    id: 'site-changelog',
+    paths: ['CHANGELOG.md'],
+    areas: ['docs', 'site'],
+    why: "the release notes: the Markdown checks, and the site's release pages read them (site/build/site-data)"
+  },
   {
     id: 'readme',
-    paths: ['README.md', 'docs/assets/**', 'docs/design/brand/**'],
+    paths: ['README.md', 'docs/design/brand/**'],
+    areas: ['docs', 'readme', 'site'],
+    why: "README and the brand art it shows: the docs checks and README's own, and the site reads both (site/build/site-data)"
+  },
+  {
+    id: 'readme-assets',
+    paths: ['docs/assets/**'],
     areas: ['docs', 'readme'],
-    why: "README and the art it shows: the docs checks and README's own"
+    why: "the art README shows: the docs checks and README's own"
   },
   {
     id: 'words',
@@ -236,6 +254,17 @@ export const JOBS: readonly Job[] = [
     steps: [
       { id: 'plugin', when: 'plugin_tests', run: 'claude plugin test .' },
       { id: 'statusline', run: 'bun test ./statusline' }
+    ]
+  },
+  {
+    workflow: 'ci.yml',
+    job: 'site',
+    name: 'Site',
+    runs: 'site',
+    why: DECISIONS.site.guards,
+    steps: [
+      { id: 'install', run: 'bun install --cwd site --frozen-lockfile --ignore-scripts' },
+      { id: 'check', run: 'bun run --cwd site check' }
     ]
   },
   {
