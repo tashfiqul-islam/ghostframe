@@ -77,3 +77,4 @@ jobs:
           echo "### Claude Code $TESTED" >> "$GITHUB_STEP_SUMMARY"
           echo "$where" >> "$GITHUB_STEP_SUMMARY"
           if [ "$JOB_STATUS" != success ]; then echo "::error title=Canary failed on Claude Code $TESTED::$where"; fi
+# ci probe: a workflow change
