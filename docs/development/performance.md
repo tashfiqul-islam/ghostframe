@@ -46,7 +46,8 @@ twice that on a runner, so a hook pays for the calls it makes one after another.
 - Reads and writes that do not depend on each other go together, in one `Promise.all`.
 
 The profiler counts no timer's wait (`$.clock.after`, `$.clock.every`) as a hook's time. A timer's dispatch stays
-open until it is due, long after the hook that set it.
+open until it is due, long after the hook that set it. The harness holds every timer, so the quiet store write never
+runs in it: it costs about 3 ms at 50 kept turns, in a moment when no hook runs.
 
 CI has budgets of its own, in the same file:
 
