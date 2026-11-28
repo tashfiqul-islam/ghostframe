@@ -6,6 +6,7 @@ import type { Engine, On } from '../support/engine'
 import { fallbackEngine, MIXED, site } from '../support/fallback'
 import { aTurn } from '../support/history'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // What a transcript row costs to draw again in a long session, Cockpit on and the pane docked at 280 columns (a left
 // region of 207). The engine draws a row again when the person scrolls (the rows at the viewport's edges) and when the
@@ -42,21 +43,28 @@ const answer = (n: number) => `Turn ${n} is done. CI reads Bun from mise.toml no
 
 const prompt = (n: number) => `run every kind of step and explain it, turn ${n}`
 
-async function longSession($: Engine, on: On): Promise<{ reads: { n: number; keys: string[] } }> {
+/** The state reads seen: how many, their keys, and the round trips they took (a run of reads in flight together is one). */
+type Reads = { n: number; keys: string[]; open: number; trips: number }
+
+async function longSession($: Engine, on: On): Promise<{ reads: Reads }> {
   const clock = { now: new Date(2026, 10, 21, 10, 0, 0).getTime() }
-  const reads = { n: 0, keys: [] as string[] }
+  const reads: Reads = { n: 0, keys: [], open: 0, trips: 0 }
   fallbackEngine(on, clock, true)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.log', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }) as never)
-  on('state.get', (_, e, next) => {
+  on('state.get', async (_, e, next) => {
     reads.n++
     reads.keys.push(e.key)
-
-    return next(e)
+    if (reads.open++ === 0) reads.trips++
+    try {
+      return await next(e)
+    } finally {
+      reads.open--
+    }
   })
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   await (await $.ui.mount(PANE)).unmount()
@@ -83,7 +91,7 @@ async function longSession($: Engine, on: On): Promise<{ reads: { n: number; key
 }
 
 /** The reads one draw again of a mounted row makes, the most over every row of its kind, and the heavy values read. */
-async function readsPerDraw($: Engine, reads: { n: number; keys: string[] }, sites: readonly unknown[]): Promise<{ most: number; heavy: string[] }> {
+async function readsPerDraw($: Engine, reads: Reads, sites: readonly unknown[]): Promise<{ most: number; heavy: string[] }> {
   let most = 0
   const heavy = new Set<string>()
 
@@ -125,9 +133,43 @@ test('a long session, docked at 280 columns: drawing a transcript row again stay
   )
 })
 
+/**
+ * Each row drawn twice, unchanged: what the second draw did, beside the first, for every row that differs (none, when
+ * the second is the cache's).
+ */
+async function drawnAgain($: Engine, reads: Reads, sites: readonly unknown[]): Promise<{ row: string; trips: number; same: boolean }[]> {
+  const off: { row: string; trips: number; same: boolean }[] = []
+
+  for (const s of sites) {
+    reads.keys.length = 0
+    const row = await $.ui.mount(s as never)
+    const first = { keys: reads.keys.toSorted(), tree: JSON.stringify(await row.drawn()) }
+    reads.keys.length = 0
+    reads.trips = 0
+    await row.redraw()
+    const same = JSON.stringify(reads.keys.toSorted()) === JSON.stringify(first.keys) && JSON.stringify(await row.drawn()) === first.tree
+
+    if (reads.trips !== 1 || !same) off.push({ row: (s as { requestId: string }).requestId, trips: reads.trips, same })
+    await row.unmount()
+  }
+
+  return off
+}
+
+test('a reply row drawn again unchanged is one round trip: every read its first draw made, at once, and the same tree', LONG, async ($, on) => {
+  const { reads } = await longSession($, on)
+  const turns = Array.from({ length: TURNS }, (_, i) => i + 1)
+  const answers = turns.map(n => site('AssistantMessage', `m${n}-answer`, COLS, { text: answer(n), isFirstOfReply: true }))
+  const narration = turns.flatMap(n =>
+    MIXED(n).map(c => site('AssistantMessage', `m${n}-${c.id}`, COLS, { text: `Next, ${c.tool} for turn ${n}.`, isFirstOfReply: true }))
+  )
+
+  expect(await drawnAgain($, reads, [...answers, ...narration])).toEqual([])
+})
+
 test('a resumed session: its rows draw again within the same reads, never reading every kept turn', LONG, async ($, on) => {
   const clock = { now: new Date(2026, 10, 21, 10, 0, 0).getTime() }
-  const reads = { n: 0, keys: [] as string[] }
+  const reads: Reads = { n: 0, keys: [], open: 0, trips: 0 }
   const receipt = (n: number) => ({
     turn: `e${n}`,
     turnNo: n,

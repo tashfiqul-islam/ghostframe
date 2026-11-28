@@ -340,6 +340,14 @@ declare module 'claude-code' {
       openers: Shaped<OpenerCaps[]>
       tally: Shaped<TallyStamp>
       flow: Shaped<FlowStamp[]>
+      /** Moved at each write of `flow`, `steps`, `stepLog`, `details` and `receipts`: what a draw reads to be drawn again. */
+      flowTick: Shaped<number>
+      stepsTick: Shaped<number>
+      stepLogTick: Shaped<number>
+      detailsTick: Shaped<number>
+      receiptsTick: Shaped<number>
+      keptNarrationTick: Shaped<number>
+      historyTick: Shaped<number>
       testRuns: Shaped<TestRunStamp[]>
       ships: Shaped<ShipStamp[]>
       second: Shaped<number>

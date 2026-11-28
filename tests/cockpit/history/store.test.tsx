@@ -4,25 +4,38 @@ import { TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, SLOW, T0, VIEW } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 import { text } from '../../support/docked'
-import { aTurn } from '../../support/history'
+import { aTurn, answerSessionEnd, endSession } from '../../support/history'
 import { respond, rowOf } from '../../support/respond'
+import { holdTimers } from '../../support/clock'
 
 // Phase 8, history (spec E.45): every typed turn kept in $.state and $.store; a past turn pinned into the pane by
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true, messages: unknown[] = []) {
+function engine(
+  on: On,
+  clock: { now: number },
+  store: Store,
+  session = 's1',
+  sent: string[] = [],
+  isPlaced = true,
+  messages: unknown[] = [],
+  historyWrites: Promise<void> = Promise.resolve()
+) {
+  answerSessionEnd(on)
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.focus', { plugin: '*' }, () => ({}))
   on('session.id', () => ({ value: session }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: messages as never }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('ui.log', () => ({ value: undefined }))
   on('store.keys', () => ({ value: [...store.keys()] }))
   on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
-  on('store.set', (_, e) => {
+  on('store.set', async (_, e) => {
+    if (e.key.startsWith('history:')) await historyWrites
     store.set(e.key, JSON.parse(JSON.stringify(e.value)))
 
     return { value: undefined }
@@ -190,6 +203,7 @@ test('every turn is kept in the store under the session`s key, as the turns end'
   const store: Store = new Map()
   engine(on, clock, store, 'kept')
   await threeTurns($, clock)
+  await endSession($)
   // Beside the history, the transcript keeps its prompts' submit times for the turn rules.
   expect([...store.keys()].toSorted()).toEqual(['history:kept', 'prompts:kept'])
   const saved = store.get('history:kept') as { turns: { turnNo: number; steps: unknown[] }[] }
@@ -197,6 +211,30 @@ test('every turn is kept in the store under the session`s key, as the turns end'
     [1, 1],
     [2, 2],
     [3, 3]
+  ])
+})
+
+test('a turn ends without waiting on the store: its history is kept once the store answers', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  let answer = (): void => undefined
+  const held = new Promise<void>(resolve => {
+    answer = resolve
+  })
+  engine(on, clock, store, 'slow', [], true, [], held)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  // Both turns end while the store holds every history write.
+  await turn($, clock, 1, ['one.ts'])
+  await turn($, clock, 2, ['two-a.ts', 'two-b.ts'])
+  expect(store.has('history:slow')).toBe(false)
+
+  answer()
+  // The write runs on after the turns' ends, and lands by the session's end at the latest.
+  await endSession($)
+  const saved = store.get('history:slow') as { turns: { turnNo: number; steps: unknown[] }[] }
+  expect(saved.turns.map(t => [t.turnNo, t.steps.length])).toEqual([
+    [1, 1],
+    [2, 2]
   ])
 })
 
@@ -255,6 +293,7 @@ test('each kept receipt names its turn`s last answer row, by the id it is drawn 
   const store: Store = new Map()
   engine(on, clock, store, 'answers')
   await threeTurns($, clock)
+  await endSession($)
   const saved = store.get('history:answers') as { turns: { receipts: { turn: string; answer: string }[] }[] }
   expect(saved.turns.flatMap(t => t.receipts).map(r => [r.turn, r.answer])).toEqual([
     ['e1', 'm1'],
@@ -427,6 +466,7 @@ test('two answers with the same text keep their own receipts live, whatever orde
   expect(await receiptOf('m2')).toMatch(/✓  DONE   [⣀-⣿]+   2 steps$/)
   expect(await receiptOf('m1')).toMatch(/✓  DONE   [⣀-⣿]+   1 step$/)
   await pane.unmount()
+  await endSession($)
   const kept = store.get('history:same') as { turns: { receipts: { answer: string; steps: number }[] }[] }
   expect(kept.turns.flatMap(t => t.receipts).map(r => [r.answer, r.steps])).toEqual([
     ['m1', 1],

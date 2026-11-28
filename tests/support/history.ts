@@ -2,6 +2,7 @@
 import { recordOf } from '../../hooks/cockpit/history/record'
 import { newLog, newTurn } from '../../hooks/cockpit/steps/log'
 import type { LogStep, StepDetail, TurnRecord } from '../../types'
+import type { Engine, On } from './engine'
 
 /** A realistic typed turn: 20 steps, 3 files, 5 pages, each step's detail with 10 output rows, 40-row patches. */
 export function aTurn(turnNo: number, startedAt: number): TurnRecord {
@@ -42,4 +43,22 @@ export function aTurn(turnNo: number, startedAt: number): TurnRecord {
     details,
     diffs: [0, 1, 2].map(i => ({ path: `hooks/file-${i}.ts`, patch: Array.from({ length: 30 }, (_, j) => `+line ${j} ${'w'.repeat(60)}`) }))
   })
+}
+
+/**
+ * Answers `session.end` as the engine's end step does; a test that calls `endSession` registers it with its hooks.
+ * @param on the test's `on`
+ */
+export function answerSessionEnd(on: On): void {
+  on('session.end', (_, e) => ({ sessionId: e.sessionId }))
+}
+
+/**
+ * Ends the session as an exit does: Cockpit writes the turns it kept to the store at its end (it writes them once
+ * the session is quiet otherwise, and a test's timers never fire), so the store holds every one of them after this.
+ * The test answers `session.end` (`answerSessionEnd`).
+ * @param $ the test's engine
+ */
+export async function endSession($: Engine): Promise<void> {
+  await $.session.end({ reason: 'other', sessionId: 'ended', resume: {} } as never)
 }

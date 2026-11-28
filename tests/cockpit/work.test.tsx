@@ -4,6 +4,7 @@ import { ON, PANE, SLOW, T0, VIEW, posixPath, statAsSpelled } from '../support/c
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // Phase 6: [ TODO ], [ FILES ] and [ SOURCES ] from the main loop's calls, through the real hooks.
 const URLS = ['https://docs.github.com/en/actions/workflow-syntax', 'https://bun.sh/docs/cli/publish', 'https://docs.sigstore.dev/cosign/overview/']
@@ -15,6 +16,7 @@ type Fetched = { result: unknown; text: string; isError?: true }
 
 function engine(on: On, clock: { now: number }, fetch?: (url: string) => Promise<Fetched>) {
   on('clock.now', () => ({ value: clock.now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

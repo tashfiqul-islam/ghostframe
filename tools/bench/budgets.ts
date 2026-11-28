@@ -3,10 +3,23 @@
 // the real session, tools/bench/statusline.ts the status line. Change a budget here and nowhere else.
 
 /** One budget: its limit, the unit, and why. */
-export type Budget = { limit: number; unit: 'ms' | 'ratio' | '%' | 'MB'; why: string }
+export type Budget = { limit: number; unit: 'ms' | 'ratio' | '%' | 'MB' | 'min'; why: string }
 
 /** Every budget's name. */
-export type BudgetName = 'keystroke' | 'unchangedRow' | 'pane' | 'eventHook' | 'firstDraw' | 'statusline' | 'idleCpu' | 'memoryGrowth' | 'session'
+export type BudgetName =
+  | 'keystroke'
+  | 'unchangedRow'
+  | 'pane'
+  | 'eventHook'
+  | 'firstDraw'
+  | 'statusline'
+  | 'idleCpu'
+  | 'memoryGrowth'
+  | 'session'
+  | 'ciRequired'
+  | 'ciTests'
+  | 'ciQualityGate'
+  | 'ciPerformance'
 
 export const BUDGETS: Readonly<Record<BudgetName, Budget>> = {
   keystroke: {
@@ -27,7 +40,7 @@ export const BUDGETS: Readonly<Record<BudgetName, Budget>> = {
   eventHook: {
     limit: 5,
     unit: 'ms',
-    why: 'Each turn.step and tool.call hook does at most 5 ms of its own work per call. They run on every streamed piece and every tool call; 5 ms keeps a burst of 100 calls under half a second, far inside the engine’s 10 s hook budget, and never lets an event queue behind a slow hook.'
+    why: 'Each turn.step, tool.call and turn.complete hook does at most 5 ms of its own work per call. They run on every streamed piece, every tool call and every turn’s end; 5 ms keeps a burst of 100 calls under half a second, far inside the engine’s 10 s hook budget, and never lets an event queue behind a slow hook.'
   },
   firstDraw: {
     limit: 300,
@@ -53,6 +66,26 @@ export const BUDGETS: Readonly<Record<BudgetName, Budget>> = {
     limit: 1.2,
     unit: 'ratio',
     why: 'The whole session (CPU time and wall time of the same scripted work) within 1.2× of the same session with ghostframe off: ghostframe may cost a fifth on top of Claude Code, never more.'
+  },
+  ciRequired: {
+    limit: 10,
+    unit: 'min',
+    why: 'A pull request’s required checks, push to all green, in 10 minutes of wall time: short enough to wait for rather than switch away from. The jobs run side by side, so the slowest one sets it.'
+  },
+  ciTests: {
+    limit: 4,
+    unit: 'min',
+    why: 'Each Tests job (Ubuntu, Windows, macOS) in 4 minutes: the suite itself takes 2 to 4 on a shared runner, so this is the suite and its setup with nothing else. Its timeout is twice this, so a hang fails fast.'
+  },
+  ciQualityGate: {
+    limit: 3,
+    unit: 'min',
+    why: 'The Quality gate in 3 minutes: types, lint, format, workflows and docs are each seconds; the plugin’s tests run in the Tests jobs, not again here. Its timeout is twice this.'
+  },
+  ciPerformance: {
+    limit: 10,
+    unit: 'min',
+    why: 'The Performance check in 10 minutes, main’s runs and the pull request’s together: inside the required checks’ 10, side by side with them. That is why it runs the harness alone (the live benchmark runs on main) and Cockpit on alone (only on is budgeted). Its timeout is twice this.'
   }
 }
 

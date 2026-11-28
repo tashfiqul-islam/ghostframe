@@ -4,8 +4,9 @@ import { ON, PANE, T0 } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { On } from '../support/engine'
 import { rowsOf, site } from '../support/fallback'
-import { aTurn } from '../support/history'
+import { aTurn, answerSessionEnd, endSession } from '../support/history'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // Narration after a resume (amendment 10): live, a text block that a tool call follows leaves the left, decided from
 // the flow in the session's state. A resumed session starts with no flow, so each kept turn records its narration's
@@ -13,8 +14,10 @@ import { respond } from '../support/respond'
 type Store = Map<string, unknown>
 
 function engine(on: On, clock: { now: number }, store: Store, session: string, isPlaced: boolean) {
+  answerSessionEnd(on)
+  on('ui.log', () => ({ value: undefined }))
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.close', () => ({ value: undefined }))
   on('ui.panes', () => ({ value: [] }))
@@ -60,6 +63,7 @@ test('a live turn keeps its narration`s row ids in its history entry in the stor
   await $.tool.call({ tool: 'Bash', command: 'echo hi', tool_use_id: 'c1' } as never)
   await $.session.append(respond([text(ANSWER)], 'row-answer'))
   await $.turn.complete({ answer: ANSWER, durationMs: 2_000, isAborted: false, turnId: 'e1', reason: 'answer' })
+  await endSession($)
 
   const kept = store.get('history:live') as { turns: { narration?: string[] }[] }
   expect(kept.turns.map(t => t.narration)).toEqual([['row-said']])

@@ -1,0 +1,74 @@
+name: Benchmarks
+run-name: "Benchmarks · ${{ github.event_name == 'schedule' && 'nightly' || github.ref_name }}"
+
+# The whole benchmark suite (docs/development/performance.md): the harness benchmark over the long-session fixture,
+# the status line's run time, and the real session against a local stand-in for the API, held to the budgets. On
+# Windows, where process start and the status line are slowest. It reports only and never blocks: it runs on main
+# (each push, and nightly) and never on a pull request, whose Performance check (performance.yml) runs the harness
+# alone. The Performance comment links its latest run. Time budgets get 3× headroom on a shared runner (CI_HEADROOM).
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 20 * * *' # 02:17 in Dhaka, when main is quiet
+  workflow_dispatch:
+
+concurrency:
+  group: benchmarks-main
+  cancel-in-progress: false
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Bump with ci.yml's pin: the same version and Windows checksum.
+  CLAUDE_CODE_VERSION: 2.1.329
+  CLAUDE_CODE_SHA256_WIN32_X64: 527162bb4578e3dc36319fa913a530d5dc1f752115a6a4fd139981702bf282d0
+  DISABLE_AUTOUPDATER: '1'
+
+jobs:
+  bench:
+    name: Benchmarks (report only)
+    runs-on: windows-2025
+    continue-on-error: true
+    # No budget of its own (it never gates); an hour stops a hang.
+    timeout-minutes: 60
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise)
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ env.CLAUDE_CODE_SHA256_WIN32_X64 }}
+
+      - name: Restore Bun's install cache (the live harness's lockfile)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-live-${{ hashFiles('tools/live/bun.lock') }}
+
+      # node-pty's install script places its prebuilt binary; the live checks' lockfile pins it and trusts it alone.
+      - name: Install the live harness (node-pty, xterm headless)
+        run: bun install --cwd tools/live --frozen-lockfile
+
+      - name: Run the benchmarks against the budgets (report only)
+        env:
+          BENCH_REPO: ${{ runner.temp }}\ghostframe-perf-repo
+          BENCH_REPO_SMALL: ${{ runner.temp }}\ghostframe-perf-lite
+        run: bun tools/bench/run.ts --live

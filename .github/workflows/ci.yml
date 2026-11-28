@@ -30,7 +30,8 @@ jobs:
   check:
     name: Quality gate
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Budget 3 minutes (tools/bench/budgets.ts, ciQualityGate); twice that, so a hang fails fast.
+    timeout-minutes: 6
     permissions:
       contents: read # check out this repo
     steps:
@@ -77,13 +78,14 @@ jobs:
           cmp docs/design/history/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
           sha256sum docs/design/history/cockpit-v7.md
 
+      # The plugin's tests run in the Tests jobs, on all three systems; running them here too doubled this job's time.
       - name: Validate plugin (claude plugin validate)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
         run: claude plugin validate .
 
-      - name: Run plugin tests (claude plugin test)
-        if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
-        run: claude plugin test .
+      - name: Check the Performance check's rating rules (tools/bench/compare.ts)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun tools/bench/compare.ts --self-test
 
       - name: Lint TypeScript (oxlint, syntax rules)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
@@ -130,72 +132,46 @@ jobs:
           - os: macos-15
             sha256: DARWIN_ARM64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Budget 4 minutes (tools/bench/budgets.ts, ciTests); twice that, so a hang fails fast.
+    timeout-minutes: 8
     permissions:
       contents: read # check out this repo
+      pull-requests: read # list a pull request's files, to pass at once when it changes no code
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # A required check that does not run blocks the merge, so this job always runs: with no code changed it passes here.
+      - name: See whether the pull request changes code
+        id: changes
+        uses: $/.github/actions/changes
+
       - name: Set up toolchain (mise)
+        if: steps.changes.outputs.code == 'true'
         uses: $/.github/actions/setup
         with:
           tools: bun
           install: 'false'
 
       - name: Install Claude Code CLI (pinned, checksum-verified)
+        if: steps.changes.outputs.code == 'true'
         uses: $/.github/actions/claude
         with:
           version: ${{ env.CLAUDE_CODE_VERSION }}
           sha256: ${{ matrix.sha256 == 'WIN32_X64' && env.CLAUDE_CODE_SHA256_WIN32_X64 || matrix.sha256 == 'DARWIN_ARM64' && env.CLAUDE_CODE_SHA256_DARWIN_ARM64 || env.CLAUDE_CODE_SHA256_LINUX_X64 }}
 
       - name: Run the plugin's tests (claude plugin test)
+        if: steps.changes.outputs.code == 'true'
         run: claude plugin test .
 
       - name: Run the status line's unit tests (bun test)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.changes.outputs.code == 'true' }}
         run: bun test ./statusline
 
-  # The performance budgets (tools/bench/budgets.ts, docs/development/performance.md): the harness benchmark over the
-  # long-session fixture, the status line's run time, and the real session against a local stand-in for the API. On
-  # Windows, where process start and the status line are slowest. It reports only for now (continue-on-error, and
-  # the suite without --strict): time budgets get 3× headroom on a shared runner (CI_HEADROOM in budgets.ts).
-  bench:
-    name: Benchmarks (report only)
-    runs-on: windows-2025
-    continue-on-error: true
-    timeout-minutes: 60
-    permissions:
-      contents: read # check out this repo
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up toolchain (mise)
-        uses: $/.github/actions/setup
-        with:
-          tools: bun
-          install: 'false'
-
-      - name: Install Claude Code CLI (pinned, checksum-verified)
-        uses: $/.github/actions/claude
-        with:
-          version: ${{ env.CLAUDE_CODE_VERSION }}
-          sha256: ${{ env.CLAUDE_CODE_SHA256_WIN32_X64 }}
-
-      # node-pty's install script places its prebuilt binary; the live checks' lockfile pins it and trusts it alone.
-      - name: Install the live harness (node-pty, xterm headless)
-        run: bun install --cwd tools/live --frozen-lockfile
-
-      - name: Run the benchmarks against the budgets (report only)
-        env:
-          BENCH_REPO: ${{ runner.temp }}\ghostframe-perf-repo
-          BENCH_REPO_SMALL: ${{ runner.temp }}\ghostframe-perf-lite
-        run: bun tools/bench/run.ts --live
+  # The benchmarks run in their own workflows: benchmarks.yml (the live run, on main) and performance.yml (the
+  # Performance check, on pull requests).
 
   dependencies:
     name: Dependency review

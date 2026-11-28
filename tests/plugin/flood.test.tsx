@@ -7,6 +7,7 @@ import type { Engine, On } from '../support/engine'
 import { groupOf, rowsOf, site } from '../support/fallback'
 import type { Clock } from '../support/fallback'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // Spec 13.1 against a real flood: this session's own turn of 455 steps, 80 of them errors, most of them exploratory
 // PowerShell (`$t = Get-Content …`, `[IO.File]::ReadAllText(…)`, `foreach …`), the gate run with its output
@@ -30,7 +31,7 @@ function floodEngine(on: On, clock: Clock, placed: boolean): void {
   })
   on('ui.panes', () => ({ value: isPlaced ? [{ id: 'cockpit', title: 'cockpit', isShown: true, isFocused: false, isPlaced: true }] : [] }))
   on('agent.list', () => ({ value: [] as never }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))

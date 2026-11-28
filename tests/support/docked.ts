@@ -1,6 +1,7 @@
 import type { On, Engine } from './engine'
 import { T0, VIEW } from './cockpit'
 import { respond, rowOf } from './respond'
+import { holdTimers } from './clock'
 
 export const text = (t: string) => ({ type: 'text', text: t })
 
@@ -17,6 +18,7 @@ export type Call = { id: string; tool: string; input: Record<string, unknown>; r
 /** The engine's side of a turn: the clock, the calls' results, and an engine drawing beneath every site. */
 export function engine(on: On, calls: readonly Call[], clock: { now: number }) {
   on('clock.now', () => ({ value: clock.now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

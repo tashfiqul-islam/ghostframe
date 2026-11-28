@@ -22,6 +22,8 @@ export type HookSummary = {
   max: number
   total: number
   overlapped: number
+  /** Every own time kept (at most SAMPLES_MAX, the latest), in ms to the microsecond: what a comparison resamples. */
+  samples: number[]
 }
 
 export const register: Register = on => {
@@ -74,7 +76,8 @@ export const register: Register = on => {
         p95: quantile(sorted, 0.95),
         max: r.max,
         total: r.total,
-        overlapped: r.overlapped
+        overlapped: r.overlapped,
+        samples: r.own.map(n => Math.round(n * 1000) / 1000)
       }
     })
 
@@ -142,6 +145,10 @@ export const register: Register = on => {
     }
 
     const t0 = performance.now()
+
+    // A timer ghostframe set (`$.clock.after`, `$.clock.every`): its dispatch stays open until the timer is due, beside
+    // the hook that set it and after, which never waits on it. It is no time of any hook's, and opens no overlap.
+    if (next.origin.plugin === PLUGIN && (next.event === 'clock.after' || next.event === 'clock.every')) return next(e)
 
     // One of ghostframe's own `$` calls: its time comes out of the innermost dispatch open.
     if (next.origin.plugin === PLUGIN) {

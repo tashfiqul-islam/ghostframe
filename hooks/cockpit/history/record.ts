@@ -90,7 +90,28 @@ export function trimmed(r: TurnRecord): TurnRecord {
  */
 export type Kept = { key: string; savedAt: number; turns: TurnRecord[]; extra?: number; also?: string[] }
 
-const sizeOf = (k: Kept): number => k.key.length + JSON.stringify({ savedAt: k.savedAt, turns: k.turns }).length + 8 + (k.extra ?? 0)
+// Each record's JSON length, by the record: records keep their identity from one turn's write to the next, so a turn
+// measures only its new and trimmed records, not every session's every turn again.
+const recordSizes = new WeakMap<TurnRecord, number>()
+const recordSize = (r: TurnRecord): number => {
+  const known = recordSizes.get(r)
+
+  if (known !== undefined) return known
+  const n = JSON.stringify(r).length
+
+  recordSizes.set(r, n)
+
+  return n
+}
+
+/** The characters `{ savedAt, turns }` takes as JSON under its key: the wrapper, each record, and the commas between. */
+const sizeOf = (k: Kept): number =>
+  k.key.length +
+  JSON.stringify({ savedAt: k.savedAt, turns: [] }).length +
+  k.turns.reduce((n, r) => n + recordSize(r), 0) +
+  Math.max(0, k.turns.length - 1) +
+  8 +
+  (k.extra ?? 0)
 
 /** What to write to and delete from the store so every session's history fits. */
 export type Plan = { own: Kept; others: Kept[]; deleted: string[] }

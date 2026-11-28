@@ -9,8 +9,8 @@ import { logCited, logCompacted, logSaid, readLog, seedTurnNo } from '../../cock
 import { isOn, noticeSink } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
-import { readFlow, updateFlow } from '../../shared/flow'
-import { capTurns } from '../../shared/held'
+import { flowNow, updateFlow } from '../../shared/flow'
+import { capTurns, forgetHeld } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
 import { claudeFootnotes } from '../rows/markdown'
@@ -83,7 +83,7 @@ async function noteFlow($: EngineInterface, content: Content, row: string | unde
   const turn = await readTurn($)
   const items: FlowStamp[] = []
   const links: string[] = []
-  const earlier = turnCites(await readFlow($), turn)
+  const earlier = turnCites(await flowNow($), turn)
   // Cockpit's Sources marks are the footnotes Claude wrote (7.4, 8.7), the same numbers the left draws.
   const footnotes: { url: string; title: string }[] = []
 
@@ -235,6 +235,8 @@ async function noteSteer($: EngineInterface, content: Content, row: string): Pro
 export function registerSession(on: On): void {
   on('session.start', async ($, e, next) => {
     try {
+      // A session that starts in a module already loaded reads every held value again (shared/held.ts).
+      forgetHeld()
       cwd = e.cwd
 
       // Seed turn openers from history (a resumed session, or the turns before a reload):

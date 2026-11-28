@@ -5,6 +5,7 @@ import type { Engine, On } from '../../support/engine'
 import { respond } from '../../support/respond'
 import { use } from '../../support/docked'
 import { textAt } from '../../support/text'
+import { holdTimers } from '../../support/clock'
 
 // An agent that stopped with background work of its own still running notifies again, with the same task id, each
 // time it wakes and waits again: `Agent "PR4 cockpit fixes" is waiting on its own background work`. Docked, every
@@ -15,8 +16,7 @@ const WAITING = 'Agent "PR4 cockpit fixes" is waiting on its own background work
 
 function engine(on: On, clock: { now: number }, store: Map<string, unknown>, isPlaced: boolean): void {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.panes', () => ({ value: [] }))
   on('ui.log', () => ({ value: undefined }))

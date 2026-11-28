@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { ON, PANE, T0, posixPath } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
+import { holdTimers } from '../support/clock'
 
 // A tool.call hook answers the call and returns: the work tree's diff, the new files' counts and the snapshots' diffs
 // are worked out after it, never inside it, and nothing kept grows with each call.
@@ -30,7 +31,7 @@ type Tree = { untracked: readonly string[]; gate?: Promise<void>; edited?: boole
 
 function engine(on: On, clock: { now: number }, seen: Seen, tree: Tree): void {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
   on('ui.log', (_, e) => {

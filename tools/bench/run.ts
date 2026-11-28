@@ -7,6 +7,9 @@
 //   bun tools/bench/run.ts --live [--memory]   and the real session (and its ten-minute memory run)
 //   bun tools/bench/run.ts --strict            exit 1 when a budget breaks
 //   --harness-log <file>, --live-log <file>      judge the output of runs already made instead of running them
+//   --plugin <dir>    measure the plugin (manifest, hooks, types, statusline) in another checkout with this harness
+//   --on-only         the harness's Cockpit-on configs alone, and the status line's installed form alone
+//   --report <file>   also write the report's JSON there
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -22,8 +25,10 @@ const isCi = process.env['CI'] === 'true'
 const argOf = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const harnessLog = argOf('--harness-log')
 const liveLog = argOf('--live-log')
+const plugin = resolve(argOf('--plugin') ?? REPO)
+const isOnOnly = args.includes('--on-only')
 
-type Hook = { hook: string; calls: number; p50: number; p95: number; max: number; total: number; overlapped: number; perSec: number }
+type Hook = { hook: string; calls: number; p50: number; p95: number; max: number; total: number; overlapped: number; perSec: number; samples?: number[] }
 type Phase = { config: string; phase: string; wallMs: number; hooks: Hook[] } & Record<string, unknown>
 
 /** Every `BENCH {…}` line a run printed, parsed. */
@@ -33,20 +38,37 @@ const benchLines = (output: string): Record<string, unknown>[] =>
     .filter(l => l.startsWith('BENCH '))
     .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
 
-/** One budget checked: the measure, its value, the limit, and whether it held. */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean }
+/**
+ * One budget checked: the measure, its value, the limit, and whether it held. A measure taken from samples also keeps
+ * them, and the quantile its value is when not the p95, so tools/bench/compare.ts can pool them over the runs instead
+ * of trusting one run's.
+ */
+type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean; samples?: number[]; quantile?: number }
 
 const checks: Check[] = []
-const check = (budget: BudgetName, measure: string, value: number | null): void => {
+const check = (budget: BudgetName, measure: string, value: number | null, samples?: number[], quantile?: number): void => {
   const limit = limitOf(budget, isCi)
 
-  checks.push({ budget, measure, value, limit, ok: value !== null && Number.isFinite(value) && value <= limit })
+  checks.push({
+    budget,
+    measure,
+    value,
+    limit,
+    ok: value !== null && Number.isFinite(value) && value <= limit,
+    ...(samples === undefined ? {} : { samples }),
+    ...(quantile === undefined ? {} : { quantile })
+  })
 }
 
 // The harness: the long session, Cockpit on and off.
 const harness =
   harnessLog === undefined
-    ? runInRoot(['tests/bench/session.bench.tsx'])
+    ? runInRoot(
+        ['tests/bench/session.bench.tsx', 'tests/bench/only.ts'],
+        {},
+        plugin,
+        isOnOnly ? { 'tests/bench/only.ts': "export const ONLY: readonly string[] = ['on-280x70', 'on-120x40']\n" } : {}
+      )
     : { status: 0, output: readFileSync(harnessLog, 'utf8'), root: mkdtempSync(join(tmpdir(), 'ghostframe-bench-')) }
 const phases = benchLines(harness.output) as Phase[]
 
@@ -63,19 +85,25 @@ const hookOf = (p: Phase | undefined, hook: string): Hook | undefined => p?.hook
 
 for (const config of ['on-280x70', 'on-120x40']) {
   const keys = phaseOf(config, 'keystroke')
+  const band = hookOf(keys, 'ui.render AbovePrompt')?.samples
+  const hint = hookOf(keys, 'ui.render PromptHint')?.samples
 
+  // Each key draws the band and the hint once, in that order: the i-th of each is the same key's.
   check(
     'keystroke',
     `${config}: AbovePrompt + PromptHint p95 per key`,
-    keys === undefined ? null : (hookOf(keys, 'ui.render AbovePrompt')?.p95 ?? 0) + (hookOf(keys, 'ui.render PromptHint')?.p95 ?? 0)
+    keys === undefined ? null : (hookOf(keys, 'ui.render AbovePrompt')?.p95 ?? 0) + (hookOf(keys, 'ui.render PromptHint')?.p95 ?? 0),
+    band !== undefined && hint !== undefined && band.length === hint.length ? band.map((b, i) => b + (hint[i] ?? 0)) : undefined
   )
   for (const h of phaseOf(config, 'redraw-unchanged')?.hooks.filter(x => x.hook.startsWith('ui.render ')) ?? []) {
-    check('unchangedRow', `${config}: ${h.hook} unchanged, p95`, h.p95)
+    check('unchangedRow', `${config}: ${h.hook} unchanged, p95`, h.p95, h.samples)
   }
-  check('pane', `${config}: ui.render Pane p95`, hookOf(phaseOf(config, 'pane'), 'ui.render Pane')?.p95 ?? null)
+  const pane = hookOf(phaseOf(config, 'pane'), 'ui.render Pane')
+
+  check('pane', `${config}: ui.render Pane p95`, pane?.p95 ?? null, pane?.samples)
   for (const name of ['stream', 'turn-step']) {
-    for (const h of phaseOf(config, name)?.hooks.filter(x => x.hook === 'turn.step' || x.hook.startsWith('tool.call')) ?? []) {
-      check('eventHook', `${config} ${name}: ${h.hook} p95`, h.calls > h.overlapped ? h.p95 : null)
+    for (const h of phaseOf(config, name)?.hooks.filter(x => x.hook === 'turn.step' || x.hook === 'turn.complete' || x.hook.startsWith('tool.call')) ?? []) {
+      check('eventHook', `${config} ${name}: ${h.hook} p95`, h.calls > h.overlapped ? h.p95 : null, h.calls > h.overlapped ? h.samples : undefined)
     }
   }
 }
@@ -85,11 +113,15 @@ for (const config of ['on-280x70', 'on-120x40']) {
 const bigRepo = process.env['BENCH_REPO']
 
 if (bigRepo !== undefined && !args.includes('--no-statusline')) buildRepo(bigRepo)
-const statusline = args.includes('--no-statusline') ? [] : measureStatusline([REPO, ...(bigRepo === undefined ? [] : [bigRepo])])
+const statusline = args.includes('--no-statusline')
+  ? []
+  : measureStatusline([REPO, ...(bigRepo === undefined ? [] : [bigRepo])], plugin, isOnOnly ? ['bun statusline.js (installed today)'] : undefined)
+// Named by kind, not path, so a comparison of two checkouts lines the same measure up.
+const repoName = (repo: string): string => (repo === bigRepo ? 'the 40,000-file repo' : 'this repo')
 
 for (const s of statusline.filter(x => x.form.startsWith('bun statusline.js'))) {
-  check('statusline', `${s.form}, cold p50 (${s.repo})`, s.coldP50)
-  check('statusline', `${s.form}, warm p50 (${s.repo})`, s.warmP50)
+  check('statusline', `${s.form}, cold p50 (${repoName(s.repo)})`, s.coldP50, s.cold, 0.5)
+  check('statusline', `${s.form}, warm p50 (${repoName(s.repo)})`, s.warmP50, s.warm, 0.5)
 }
 
 // The real session.
@@ -137,6 +169,9 @@ for (const c of checks) console.log(`| ${c.ok ? 'ok' : 'OVER'} | ${c.budget} | $
 
 const out = join(harness.root, 'bench-report.json')
 writeFileSync(out, JSON.stringify({ isCi, checks, phases, statusline, live, memory }, null, 2))
+const report = argOf('--report')
+
+if (report !== undefined) writeFileSync(report, readFileSync(out))
 console.log(`\n${checks.filter(c => !c.ok).length} of ${checks.length} over budget. Full numbers: ${out}`)
 if (process.env['GITHUB_STEP_SUMMARY'] !== undefined) {
   writeFileSync(

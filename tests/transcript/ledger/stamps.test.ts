@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { ON, T0 } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
 import { aTurn } from '../../support/history'
+import { holdTimers } from '../../support/clock'
 
 // Each typed prompt's stamp carries what its turn rule needs after a resume (amendment 12): the row the engine draws
 // it under, its turn number (the step log's) and what came right before it. Kept in the state and in the store.
@@ -11,7 +12,7 @@ type Stamp = { text: string; at: number; row?: string; turnNo?: number; after?: 
 
 function engine(on: On, clock: { now: number }, store: Store, denied: Set<string> = new Set()) {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.close', () => ({ value: undefined }))
   on('ui.panes', () => ({ value: [] }))

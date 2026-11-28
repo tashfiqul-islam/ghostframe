@@ -5,6 +5,7 @@ import { ringMoveOf } from '../../../hooks/cockpit/rows/draw'
 import { TINT, TOKEN } from '../../../hooks/shared/look/palette'
 import { ON, PANE, SLOW, T0, VIEW, statAsSpelled } from '../../support/cockpit'
 import type { Engine, On } from '../../support/engine'
+import { holdTimers } from '../../support/clock'
 
 // Phase 7 keys in the pane (8.1 to 8.11, 9.5): Cockpit's keys are hotkey Buttons drawn only while the pane holds the
 // keyboard; `1` to `5` switch tabs, Enter on a row opens it (a drawer, a diff, a URL copy, an agent); Escape (the
@@ -14,7 +15,7 @@ const ASYNC = { result: { status: 'async_launched', agentId: 'x', description: '
 
 function engine(on: On, clock: { now: number }, copies: string[]) {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.copy', (_, e) => {
     copies.push(e.text)

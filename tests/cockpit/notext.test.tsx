@@ -6,6 +6,7 @@ import type { Engine, On } from '../support/engine'
 import { groupOf, rowsOf, site } from '../support/fallback'
 import { aTurn } from '../support/history'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // E.47: no turn is left without its numbers. A turn that wrote no answer row draws its receipt (in fallback with its
 // capsule) under the row of its last call, which the receipt names (`lastCall`). Nothing comes from what an earlier
@@ -15,7 +16,7 @@ type Store = Map<string, unknown>
 function engine(on: On, clock: { now: number }, store: Store, session: string, isPlaced: boolean) {
   let placed = false
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => {
     placed = isPlaced
 

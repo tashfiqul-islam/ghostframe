@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { TOKEN } from '../../hooks/shared/look/palette'
+import { holdTimers } from '../support/clock'
 import { ON, PANE, T0, VIEW } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
@@ -17,7 +18,11 @@ const ANSWER = (t: string) =>
   ({ plugin: 'ghostframe', surface: 'terminal', component: 'AssistantMessage', ...rowOf(t), viewport: VIEW, props: { text: t, isFirstOfReply: true } }) as const
 
 function engine(on: On, clock?: { now: number }) {
-  if (clock !== undefined) on('clock.now', () => ({ value: clock.now }))
+  // A test with no clock of its own moves `mock.clock`, which answers the timers too.
+  if (clock !== undefined) {
+    on('clock.now', () => ({ value: clock.now }))
+    holdTimers(on)
+  }
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

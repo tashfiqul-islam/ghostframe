@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { ON, PANE, T0, posixPath } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
+import { holdTimers } from '../support/clock'
 
 // A work tree with a big untracked folder (a cache, node_modules before its .gitignore, build output): 40,000 small
 // files and 20 large binaries. Git answers at once; what Cockpit does with the list is what costs. Before these
@@ -21,8 +22,7 @@ type Tree = { untracked: readonly string[]; hang?: (argv: string) => boolean; is
 function engine(on: On, clock: { now: number }, seen: Seen, tree: Tree): void {
   if (tree.isClockMocked !== true) {
     on('clock.now', () => ({ value: clock.now }))
-    on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-    on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+    holdTimers(on)
   }
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))

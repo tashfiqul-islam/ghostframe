@@ -1,6 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { ON, PANE, T0 } from '../../support/cockpit'
+import { holdTimers } from '../../support/clock'
 
 // 8.3's `└` detail line under a failed group: the decisive line of the output, from the same source fallback's
 // failure rows use, never the engine's `Error: Exit code n` wrapper (the manual run's turn 9, docked).
@@ -8,7 +9,7 @@ test('8. docked, a failed `ls`: its detail line is `ls: cannot access …`, neve
   const clock = { now: T0 }
   const said = "Error: Exit code 2\nls: cannot access '/nope1': No such file or directory"
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
@@ -34,7 +35,7 @@ test('8. docked, an error that says only its exit code: no `└` line at all, ne
   const clock = { now: T0 }
   const said = 'Error: Exit code 2'
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

@@ -118,6 +118,7 @@ test('rows: ours when readable, the engine when expanded or unknown', OFF, async
 test('a turn that opens on tools: `claude` on its first step (the activity header)', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.messages', () => ({
     value: [
       { role: 'user', text: 'read package.json', toolUses: [] },
@@ -157,6 +158,7 @@ test('a turn that opens on tools: `claude` on its first step (the activity heade
 test('an unknown tool that opens the turn: `claude` beside the engine row', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.messages', () => ({
     value: [
       { role: 'user', text: 'do the thing', toolUses: [] },

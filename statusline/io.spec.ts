@@ -1,12 +1,12 @@
 // The status line's I/O: git's answer, the rate-limit cache across sessions, the icons setting, colour depth.
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { ansi, depthOf, xterm256 } from './ansi.ts'
 import { factsOf, limitsOf } from './facts.ts'
-import { cacheDir, gitOf, iconsOn, isOwnFile, parseStatus, readLimits, writeLimits } from './io.ts'
+import { cacheDir, dirtyOf, gitOf, headOf, iconsOn, isOwnFile, readLimits, refreshGit, spawnRefresh, writeLimits } from './io.ts'
 import { len, render } from './render.ts'
 import { NORMAL, PRESSURE } from './samples.ts'
 import type { Seg } from './render.ts'
@@ -16,32 +16,136 @@ const dir = mkdtempSync(join(tmpdir(), 'gf-statusline-spec-'))
 const text = (row: readonly Seg[] | undefined): string => (row ?? []).map(s => s.t).join('')
 
 describe('git', () => {
-  test('branch and dirty state from porcelain v1 with --branch', () => {
-    expect(parseStatus('## main...origin/main [ahead 1]\n M a.ts\n')).toEqual({ branch: 'main', dirty: true })
-    expect(parseStatus('## feat/x\n')).toEqual({ branch: 'feat/x', dirty: false })
-    expect(parseStatus('## No commits yet on main\n')).toEqual({ branch: 'main', dirty: false })
-    expect(parseStatus('## HEAD (no branch)\n')).toEqual({ branch: 'detached', dirty: false })
-  })
+  const git = (cwd: string, ...args: string[]): void => {
+    const r = Bun.spawnSync(['git', '-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { stderr: 'pipe' })
 
-  test('outside a repository: null, cached, and nothing thrown', () => {
+    if (r.exitCode !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr.toString()}`)
+  }
+  const repo = (): string => {
+    const at = mkdtempSync(join(tmpdir(), 'gf-git-'))
+
+    git(at, 'init', '-q', '-b', 'main')
+    writeFileSync(join(at, 'a.txt'), 'one\n')
+    git(at, 'add', 'a.txt')
+    git(at, 'commit', '-q', '-m', 'one')
+
+    return at
+  }
+  const fresh = (): string => mkdtempSync(join(tmpdir(), 'gf-git-cache-'))
+  /** What the status line shows for a folder once git has answered: the branch, and whether anything is uncommitted. */
+  const stateOf = (at: string): { branch: string | null; dirty: boolean | null } => ({ branch: headOf(at), dirty: dirtyOf(at) })
+
+  test('outside a repository: null, no git run asked for, and nothing thrown', () => {
     const outside = mkdtempSync(join(tmpdir(), 'gf-not-a-repo-'))
+    const asked: string[] = []
 
-    expect(gitOf(outside, NOW, dir)).toBeNull()
-    expect(gitOf(outside, NOW + 1000, dir)).toBeNull()
+    expect(gitOf(outside, NOW, dir, d => asked.push(d))).toBeNull()
+    expect(gitOf(outside, NOW + 1000, dir, d => asked.push(d))).toBeNull()
+    expect(asked).toEqual([])
   })
 
-  test('this repository: a branch, and the answer reused within 5 s', () => {
-    const root = join(import.meta.dir, '..')
+  test('the render never waits on git: the branch at once, the dirty mark from the last answer, and one refresh asked for', () => {
+    const r = repo()
+    const cache = fresh()
+    const asked: string[] = []
+    const refresh = (d: string, c: string): void => {
+      asked.push(d)
+      refreshGit(d, NOW, c)
+    }
 
-    // Cold-start allowance: a fresh Windows runner's first git run (loading git and reading the index cold) can take
-    // longer than GIT_TIMEOUT_MS. One run first pays that, so the check below still holds gitOf to its real limit.
-    Bun.spawnSync(['git', '-C', root, '--no-optional-locks', 'status', '--porcelain=v1', '--branch'], { stdout: 'ignore', stderr: 'ignore' })
-    const first = gitOf(root, NOW, dir)
+    writeFileSync(join(r, 'c.txt'), 'c\n')
+    // The first draw in a folder: no answer yet, so no mark; a refresh is asked for once, however often it draws.
+    expect(gitOf(r, NOW, cache, () => asked.push(r))).toEqual({ branch: 'main', dirty: false })
+    expect(gitOf(r, NOW + 100, cache, () => asked.push(r))).toEqual({ branch: 'main', dirty: false })
+    expect(asked).toEqual([r])
+    // The refresh's answer is drawn from then on, for 5 s.
+    refresh(r, cache)
+    expect(gitOf(r, NOW + 200, cache, () => asked.push('again'))).toEqual({ branch: 'main', dirty: true })
+    expect(asked).toEqual([r, r])
+    // Older than that, it is still drawn while one more refresh is asked for.
+    expect(gitOf(r, NOW + 6000, cache, () => asked.push('stale'))).toEqual({ branch: 'main', dirty: true })
+    expect(asked).toEqual([r, r, 'stale'])
+  })
+
+  test('the refresh as the status line starts it: a process of its own, which writes the answer for the next draw', async () => {
+    const r = repo()
+    const cache = fresh()
+
+    writeFileSync(join(r, 'c.txt'), 'c\n')
+    expect(gitOf(r, Date.now(), cache, spawnRefresh(join(import.meta.dir, 'main.ts')))?.dirty).toBe(false)
+    for (let i = 0; i < 100 && gitOf(r, Date.now(), cache, () => undefined)?.dirty !== true; i++) await Bun.sleep(50)
+    expect(gitOf(r, Date.now(), cache, () => undefined)).toEqual({ branch: 'main', dirty: true })
+  })
+
+  test('a .git file naming a git folder that is gone is no branch, never the parent repository’s', () => {
+    const parent = repo()
+    const inner = join(parent, 'vendored')
+
+    mkdirSync(inner)
+    writeFileSync(join(inner, '.git'), 'gitdir: ../.git/modules/gone\n')
+    expect(headOf(inner)).toBeNull()
+    expect(headOf(parent)).toBe('main')
+  })
+
+  describe('what a repository is in', () => {
+    test('clean: the branch, nothing uncommitted', () => {
+      expect(stateOf(repo())).toEqual({ branch: 'main', dirty: false })
+    })
+
+    test('a changed tracked file, a staged new file, or an untracked file alone: uncommitted', () => {
+      const changed = repo()
+      const staged = repo()
+      const untracked = repo()
+
+      writeFileSync(join(changed, 'a.txt'), 'two, longer\n')
+      writeFileSync(join(staged, 'b.txt'), 'b\n')
+      git(staged, 'add', 'b.txt')
+      writeFileSync(join(untracked, 'c.txt'), 'c\n')
+      for (const r of [changed, staged, untracked]) expect(stateOf(r)).toEqual({ branch: 'main', dirty: true })
+    })
+
+    test('an ignored file alone is not uncommitted', () => {
+      const r = repo()
+
+      writeFileSync(join(r, '.gitignore'), 'out/\n')
+      git(r, 'add', '.gitignore')
+      git(r, 'commit', '-q', '-m', 'ignore')
+      mkdirSync(join(r, 'out'))
+      writeFileSync(join(r, 'out', 'x.log'), 'x\n')
+      expect(stateOf(r)).toEqual({ branch: 'main', dirty: false })
+    })
+
+    test('a folder inside the repository, a linked worktree, a detached HEAD and a repository with no commits yet', () => {
+      const r = repo()
+      const linked = join(mkdtempSync(join(tmpdir(), 'gf-git-wt-')), 'wt')
+
+      mkdirSync(join(r, 'sub', 'deeper'), { recursive: true })
+      expect(stateOf(join(r, 'sub', 'deeper'))).toEqual({ branch: 'main', dirty: false })
+      git(r, 'worktree', 'add', '-q', '-b', 'feat/x', linked)
+      expect(stateOf(linked)).toEqual({ branch: 'feat/x', dirty: false })
+      git(r, 'checkout', '-q', '--detach')
+      expect(headOf(r)).toBe('detached')
+
+      const empty = mkdtempSync(join(tmpdir(), 'gf-git-empty-'))
+
+      git(empty, 'init', '-q', '-b', 'trunk')
+      expect(stateOf(empty)).toEqual({ branch: 'trunk', dirty: false })
+      writeFileSync(join(empty, 'new.txt'), 'n\n')
+      expect(stateOf(empty)).toEqual({ branch: 'trunk', dirty: true })
+    })
+  })
+
+  test('this repository: a branch, and a cached answer read in well under a frame', () => {
+    const root = join(import.meta.dir, '..')
+    const cache = fresh()
+
+    refreshGit(root, NOW, cache)
+    const first = gitOf(root, NOW, cache, () => undefined)
 
     expect(first?.branch).toBeTruthy()
     const t0 = performance.now()
 
-    expect(gitOf(root, NOW + 4000, dir)).toEqual(first)
+    expect(gitOf(root, NOW + 4000, cache, () => undefined)).toEqual(first)
     expect(performance.now() - t0).toBeLessThan(15)
   })
 })
@@ -105,7 +209,7 @@ describe('the cache folder (SECURITY.md, T7)', () => {
 
     writeLimits({ five_hour: { used_percentage: 12, resets_at: Math.floor((NOW + 3600e3) / 1000) } }, file)
     expect(readLimits(file)?.five_hour?.used_percentage).toBe(12)
-    gitOf(join(import.meta.dir, '..'), NOW, cache)
+    refreshGit(join(import.meta.dir, '..'), NOW, cache)
     expect(readdirSync(cache).filter(f => f.startsWith('git-')).length).toBe(1)
     expect(readdirSync(cache).some(f => f.endsWith('.tmp'))).toBe(false)
     if (process.platform !== 'win32') {

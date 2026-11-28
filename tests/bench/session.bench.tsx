@@ -12,6 +12,7 @@ import * as long from '../fixtures/long-session'
 import { PANE } from '../support/cockpit'
 import type { Engine } from '../support/engine'
 import { blockRow, liveEngine, liveTurn, type Recorded } from '../support/live'
+import { ONLY } from './only'
 
 // The harness prints a test's console to its output; the engine's own lib leaves `console` undeclared.
 declare const console: { log: (line: string) => void }
@@ -31,6 +32,8 @@ type Mounted = Awaited<ReturnType<Engine['ui']['mount']>>
 
 /** The pieces each streamed response arrives in. */
 const STEP_CHUNKS = 100
+/** The streamed turns: enough that a p95 is no single turn's (over 10 it was the slowest one, a GC pause's). */
+const STEP_TURNS = 40
 
 const PERF = { command: 'ghostframe', origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 200 } } as const
 
@@ -94,7 +97,7 @@ function rowsOf(config: Config, transcript: number): Site[] {
   return rows
 }
 
-for (const config of CONFIGS) {
+for (const config of CONFIGS.filter(c => ONLY.length === 0 || ONLY.includes(c.name))) {
   test(
     `bench: the long session, ${config.name}`,
     { options: { cockpit: config.cockpit }, timeoutMs: 600_000, plugins: [{ name: 'ghostframe-perf', tier: 'prepend', register }] },
@@ -136,9 +139,9 @@ for (const config of CONFIGS) {
       for (const n of turns.slice(40)) await liveTurn($, clock, n, config.columns, REC)
       await phase($, config, 'stream-docked', t)
 
-      // A streamed model response: 10 turns of STEP_CHUNKS pieces each, through every turn.step hook.
+      // A streamed model response: STEP_TURNS turns of STEP_CHUNKS pieces each, through every turn.step hook.
       t = performance.now()
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < STEP_TURNS; i++) {
         await $.turn.start({ text: `stream ${i}`, turnId: `s${i}` })
         for await (const _ of $.turn.step({ turnId: `s${i}`, index: 0, model: 'm', messageCount: 1 })) {
           // drain, as the engine does

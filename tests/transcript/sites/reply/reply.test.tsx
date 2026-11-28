@@ -285,6 +285,7 @@ test('a command whose turn ends with no reply: the next unprompted turn’s pros
 test('history: a typed prompt that starts with `<` (pasted HTML) still opens its turn; injected tags do not', OFF, async ($, on) => {
   engine(on)
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.messages', () => ({
     value: [
       { role: 'user', text: '<command-name>/model</command-name>', toolUses: [] },
@@ -336,6 +337,7 @@ test('mid-turn prose that starts like an earlier turn’s opener gets no `claude
 test('claude prose: `claude` once per turn, code chip padded, engine never asked', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.messages', () => ({
     value: [
       { role: 'user', text: 'What is a worktree?', toolUses: [] },

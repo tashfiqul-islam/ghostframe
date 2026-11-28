@@ -16,6 +16,8 @@ import type {
   TurnAfter,
   TurnClose
 } from '../../../types'
+import { capTurns, changeHeld, type Held, heldValue, loadHeld, nextTick } from '../../shared/held'
+import { noteRead } from '../../shared/trace'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -209,16 +211,68 @@ export async function updateShips($: EngineInterface, change: (list: ShipStamp[]
   return update($, ships, change)
 }
 
+/**
+ * Every call's stamp, the calls still running last; read while drawing a tool row.
+ * @param $ the engine interface
+ * @returns the stamps
+ */
 export async function readSteps($: EngineInterface): Promise<StepStamp[]> {
-  return read($, steps)
+  await read($, stepsTick)
+  if (heldSteps.value === undefined) await loadHeld(heldSteps, read($, steps))
+
+  return [...heldValue(heldSteps), ...stamping.values()]
 }
 
-export async function updateSteps($: EngineInterface, change: (list: StepStamp[]) => StepStamp[]): Promise<StepStamp[]> {
-  return update($, steps, change)
+// Up to 400 stamps, so each tool call writes the list once, at its end, and never reads it back (shared/held.ts): a
+// running call's stamp is held here until then, and `readSteps` gives it with the rest. A draw reads `stepsTick`, which
+// moves at a call's start and at its end, so its rows draw again at both, as they did, with no copy of the list.
+// shortcut: a reload while a call runs loses that call's stamp: its end then writes none, and its row shows no time.
+// Upgrade by stamping from the end with the call's tool and turn if a reload mid-call proves common.
+const stamping = new Map<string, StepStamp>()
+const heldSteps: Held<StepStamp[]> = {}
+const stepsTick = atom({ plugin: 'ghostframe', key: 'stepsTick' } as const, 0, { shape: 'stepsTick-1' })
+
+/**
+ * A main-loop call started: its stamp, held until it ends, and its rows told.
+ * @param $ the engine interface
+ * @param stamp the call's id, turn, start and tool
+ */
+export async function stampStart($: EngineInterface, stamp: StepStamp): Promise<void> {
+  stamping.set(stamp.id, stamp)
+  await $.state.set({ plugin: 'ghostframe', key: 'stepsTick' }, { shape: 'stepsTick-1', value: nextTick(heldSteps) })
+}
+
+/**
+ * A main-loop call ended: its stamp joins the list, in start order, which keeps its turns within `max` (oldest turn
+ * first, never `turn`'s), with no read of the list.
+ * @param $ the engine interface
+ * @param id the call's id
+ * @param end what its end adds: the start where the clock gave none, its time and whether it worked; null drops it
+ * @param max the stamps kept
+ */
+export async function stampEnd($: EngineInterface, id: string, end: Pick<StepStamp, 'at' | 'ms' | 'ok'> | null, max: number): Promise<void> {
+  const start = stamping.get(id)
+
+  stamping.delete(id)
+  if (end === null || start === undefined) return
+  if (heldSteps.value === undefined) await loadHeld(heldSteps, read($, steps))
+  const stamp = { ...start, ...end }
+  const value = changeHeld(heldSteps, list => {
+    const after = list.findLastIndex(s => s.at <= stamp.at) + 1
+
+    return capTurns([...list.slice(0, after), stamp, ...list.slice(after)], max, stamp.turn)
+  })
+
+  await $.state.set({ plugin: 'ghostframe', key: 'steps' }, { shape: 'steps-1', value })
+  await $.state.set({ plugin: 'ghostframe', key: 'stepsTick' }, { shape: 'stepsTick-1', value: nextTick(heldSteps) })
 }
 
 export async function readTurn($: EngineInterface): Promise<string | null> {
-  return read($, currentTurn)
+  const turn = await read($, currentTurn)
+
+  noteRead('turn', turn)
+
+  return turn
 }
 
 export async function updateTurn($: EngineInterface, change: (turn: string | null) => string | null): Promise<string | null> {
@@ -226,7 +280,11 @@ export async function updateTurn($: EngineInterface, change: (turn: string | nul
 }
 
 export async function readFirstTexts($: EngineInterface): Promise<FirstText[]> {
-  return read($, firstTexts)
+  const list = await read($, firstTexts)
+
+  noteRead('firstTexts', JSON.stringify(list))
+
+  return list
 }
 
 export async function updateFirstTexts($: EngineInterface, change: (list: FirstText[]) => FirstText[]): Promise<FirstText[]> {
@@ -250,7 +308,11 @@ export async function updateFirstTools($: EngineInterface, change: (list: string
 }
 
 export async function readStreaming($: EngineInterface): Promise<boolean> {
-  return read($, streaming)
+  const is = await read($, streaming)
+
+  noteRead('streaming', is)
+
+  return is
 }
 
 export async function updateStreaming($: EngineInterface, change: (is: boolean) => boolean): Promise<boolean> {
@@ -265,6 +327,15 @@ export async function updateAsked($: EngineInterface, change: (list: string[]) =
   return update($, asked, change)
 }
 
+/** The openers' capability stamps, for a draw (noted in its trace). */
+export async function readOpeners($: EngineInterface): Promise<OpenerCaps[]> {
+  const list = await read($, openers)
+
+  noteRead('openers', JSON.stringify(list))
+
+  return list
+}
+
 /**
  * How long Claude thought before a turn's opener (7.3), from the opener's capability stamp; 0 when it did not.
  * @param $ the engine interface
@@ -272,12 +343,12 @@ export async function updateAsked($: EngineInterface, change: (list: string[]) =
  * @returns the thinking time in ms
  */
 export async function openerThought($: EngineInterface, match: (o: OpenerCaps) => boolean): Promise<number> {
-  return (await read($, openers)).toReversed().find(match)?.caps.thoughtMs ?? 0
+  return (await readOpeners($)).toReversed().find(match)?.caps.thoughtMs ?? 0
 }
 
 // The capability line a turn's opener carries (by its text key or its first call's id).
 export async function openerCaps($: EngineInterface, match: (o: OpenerCaps) => boolean, width: number): Promise<Part[] | undefined> {
-  const found = (await read($, openers)).toReversed().find(match)
+  const found = (await readOpeners($)).toReversed().find(match)
 
   return found === undefined ? undefined : capsLine(found.caps, width)
 }

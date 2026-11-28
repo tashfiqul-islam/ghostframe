@@ -5,6 +5,7 @@ import { textAt } from '../support/text'
 import { respond } from '../support/respond'
 import { SLOW } from '../support/cockpit'
 import { FOOTNOTED, SOURCED } from '../support/sources'
+import { holdTimers } from '../support/clock'
 
 // One transcript holding every component, rendered at 140, 90 and 60 columns and written
 // to docs/specimens/specimen-<columns>.txt for review. Each row of the transcript is
@@ -159,6 +160,7 @@ test('specimen: every component at 140, 90 and 60 columns, written for review', 
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   let now = Date.UTC(2026, 10, 17, 8, 30)
   on('clock.now', () => ({ value: (now += 700) }))
+  holdTimers(on)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))
   // Only the permission row asks; every other call goes ahead.

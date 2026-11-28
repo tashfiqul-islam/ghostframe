@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { ON, PANE, T0, posixPath } from '../support/cockpit'
+import { holdTimers } from '../support/clock'
 
 // A turn that writes four files: two Writes outside the project (the home folder, a temp folder), a shell's write to a
 // temp folder, and a Write in the project. Each is a row that names its file; only the project's has counts and a bar.
@@ -8,7 +9,7 @@ for (const body of [60, 90]) {
   test(`${body} pane columns: every written file is a row naming its file; outside ones say so, with no bar`, ON, async ($, on) => {
     let now = T0
     on('clock.now', () => ({ value: now }))
-    on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+    holdTimers(on)
     on('ui.open', () => ({ value: { isPlaced: true } }))
     on('ui.log', () => ({ value: undefined }))
     on('session.id', () => ({ value: 's' }))

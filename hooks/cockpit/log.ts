@@ -27,8 +27,10 @@ import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
-import { isNarrationAt, readFlow } from '../shared/flow'
-import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
+import { flowNow, isNarrationAt } from '../shared/flow'
+import { changeHeld, type Held, heldValue, loadHeld, nextTick } from '../shared/held'
+import { noteRead } from '../shared/trace'
+import { detailsNow, noteEnd, noteStart, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { commitIn, hookWords, ruledStatement } from './steps/failures'
 import { showPath } from '../shared/look/paths'
@@ -38,6 +40,8 @@ import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork, 
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
+const heldLog: Held<StepLog> = {}
+const stepLogTick = atom({ plugin: 'ghostframe', key: 'stepLogTick' } as const, 0, { shape: 'stepLogTick-1' })
 // The main-loop turn running now (null when none runs), written beside the step log whenever that changes: a
 // transcript row asks only this, never the step log, whose every step it would otherwise read on each draw.
 const running = atom({ plugin: 'ghostframe', key: 'running' } as const, null as string | null, { shape: 'running-1' })
@@ -54,6 +58,9 @@ const second = atom({ plugin: 'ghostframe', key: 'second' } as const, 0, { shape
 const frame = atom({ plugin: 'ghostframe', key: 'frame' } as const, 0, { shape: 'frame-1' })
 // Each finished turn's receipt, by turn id, so a receipt drawn again later (a resize, a scroll) shows its own turn.
 const receipts = atom({ plugin: 'ghostframe', key: 'receipts' } as const, [] as Receipt[], { shape: 'receipts-7' })
+// Up to 500, read by every answer row's draw: held as last written and followed by a tick (shared/held.ts).
+const heldReceipts: Held<Receipt[]> = {}
+const receiptsTick = atom({ plugin: 'ghostframe', key: 'receiptsTick' } as const, 0, { shape: 'receiptsTick-1' })
 const RECEIPTS_MAX = 500
 
 const SECOND_MS = 1_000
@@ -66,13 +73,30 @@ let timers: Timer[] = []
 let lastCwd: string | undefined
 
 /**
+ * The step log for a hook that is not drawing: as last written, with no copy through $.state after a reload's first
+ * read. A draw reads it with `readLog`, which redraws it when the log changes.
+ * @param $ the engine interface
+ * @returns the log
+ */
+async function logNow($: EngineInterface): Promise<StepLog> {
+  if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
+
+  return heldValue(heldLog)
+}
+
+/**
  * Changes the step log, and the running turn beside it when that changed.
  * @param $ the engine interface
  * @param change the log's change
  * @returns the log as written
  */
 async function updateLog($: EngineInterface, change: (log: StepLog) => StepLog): Promise<StepLog> {
-  const log = await update($, stepLog, change)
+  // Written twice per tool call: changed without being read back (shared/held.ts). This is its only writer.
+  if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
+  const log = changeHeld(heldLog, change)
+
+  await $.state.set({ plugin: 'ghostframe', key: 'stepLog' }, { shape: 'stepLog-4', value: log })
+  await $.state.set({ plugin: 'ghostframe', key: 'stepLogTick' }, { shape: 'stepLogTick-1', value: nextTick(heldLog) })
   const now = log.isTurnRunning ? log.turn : null
 
   if (now !== mirrored) {
@@ -356,7 +380,7 @@ export async function logAsk($: EngineInterface, id: string): Promise<void> {
 export async function logUnask($: EngineInterface, id: string): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => unaskStep(log, id))
+  await updateLog($, log => unaskStep(log, id))
 }
 
 /**
@@ -386,27 +410,28 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
 
   // The turn's calls' files are noted after each call returns: the receipt and history count them all.
   await workSettled()
-
   const now = await $.clock.now()
-  await updateLog($, log => endTurn(log, durationMs, isAborted, now))
-  await update($, roster, list => endTurnAgents(list, isAborted, now))
-  const waiting = waitingOn(await read($, roster))
-  const ended = await read($, stepLog)
+  const [, agents] = await Promise.all([
+    updateLog($, log => endTurn(log, durationMs, isAborted, now)),
+    update($, roster, list => endTurnAgents(list, isAborted, now))
+  ])
+  const waiting = waitingOn(agents)
+  const ended = await logNow($)
 
   // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none; the first
   // that ends with none running writes the whole turn's. A report turn after it (an agent that had finished before
   // its report reached Claude) that answers takes the receipt: the receipt goes under the turn's last answer.
-  const isWritten = (await read($, receipts)).some(r => r.turnNo === ended.turnNo)
+  const isWritten = (await receiptsHeld($)).some(r => r.turnNo === ended.turnNo)
 
   if (waiting === 0 && (!isWritten || answer !== '')) {
     // A turn that wrote no answer row has its receipt drawn under its last call's row: that call is kept with it.
     const last = answer === '' ? ended.steps.slice(Math.max(0, ended.segmentFrom - ended.dropped)).at(-1) : undefined
     const receipt = { ...receiptOf(ended), answer, ...(last === undefined ? {} : { lastCall: last.calls?.at(-1) ?? last.id }) }
-    const had = (await read($, receipts)).find(r => r.turnNo === receipt.turnNo)
+    const had = (await receiptsHeld($)).find(r => r.turnNo === receipt.turnNo)
 
     // A later report turn's answer: the turn's receipt moves under it, the same receipt, its engine turn kept.
-    if (had !== undefined) await update($, receipts, list => list.map(r => (r === had || r.turnNo === receipt.turnNo ? { ...receipt, turn: had.turn } : r)))
-    else await update($, receipts, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
+    if (had !== undefined) await changeReceipts($, list => list.map(r => (r === had || r.turnNo === receipt.turnNo ? { ...receipt, turn: had.turn } : r)))
+    else await changeReceipts($, list => [...list.filter(r => r.turn !== receipt.turn), receipt].slice(-RECEIPTS_MAX))
     // Only what this receipt counted: an agent call that ended meanwhile goes to the next one.
     await updateLog($, log => clearAgentWork(log, ended.agentWork))
   }
@@ -426,18 +451,17 @@ const DIFFS_MAX = 50 // files whose diff a turn keeps
  */
 async function keepTurn($: EngineInterface): Promise<void> {
   try {
-    const log = await read($, stepLog)
-    const work = await readWork($)
-    const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
-
-    const mine = (await read($, receipts)).filter(r => r.turnNo === log.turnNo)
+    const [log, work, agents] = await Promise.all([logNow($), readWork($), read($, roster)])
+    const mine = (await receiptsHeld($)).filter(r => r.turnNo === log.turnNo)
     // The turn's narration, by row id, so a resumed transcript (no flow) leaves it hidden as the live one did.
     const turns = new Set([...mine.flatMap(r => (r.turn === null ? [] : [r.turn])), ...(log.turn === null ? [] : [log.turn])])
-    const flow = await readFlow($)
+    const flow = await flowNow($)
     const narration = flow.flatMap((f, i) =>
       f.kind === 'text' && f.row !== undefined && f.turn !== null && turns.has(f.turn) && isNarrationAt(flow, i) ? [f.row] : []
     )
-    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
+    const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
+
+    await saveTurn($, { log, work, roster: agents, receipts: mine, details: await detailsNow($), diffs, narration })
   } catch (error: unknown) {
     $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, noticeSink())
   }
@@ -457,7 +481,7 @@ export async function logSessionStart($: EngineInterface): Promise<void> {
   if (last === undefined || (await read($, stepLog)).turnNo > 0) return
 
   await updateLog($, log => restoredLog(log, last))
-  await update($, receipts, list => (list.length > 0 ? list : records.flatMap(r => r.receipts).slice(-RECEIPTS_MAX)))
+  await changeReceipts($, list => (list.length > 0 ? list : records.flatMap(r => r.receipts).slice(-RECEIPTS_MAX)))
   await update($, roster, list => (list.length > 0 ? list : last.roster))
   await restoreWork($, last)
   await restoreDetails($, last.details)
@@ -594,7 +618,11 @@ export async function readRoster($: EngineInterface): Promise<RosterAgent[]> {
  * @returns the running turn's id, or undefined
  */
 export async function runningTurn($: EngineInterface): Promise<string | undefined> {
-  return (await read($, running)) ?? undefined
+  const turn = (await read($, running)) ?? undefined
+
+  noteRead('running', turn)
+
+  return turn
 }
 
 /**
@@ -603,16 +631,51 @@ export async function runningTurn($: EngineInterface): Promise<string | undefine
  * @returns the log
  */
 export async function readLog($: EngineInterface): Promise<StepLog> {
-  return read($, stepLog)
+  // The tick moves at each write of the log: the draw follows it, with no copy of the log.
+  await read($, stepLogTick)
+  const log = await logNow($)
+
+  noteRead('stepLog', log)
+
+  return log
 }
 
 /**
- * The finished turns' receipts.
+ * The finished turns' receipts, for a draw: it is drawn again when they change, with no copy of the list.
  * @param $ the engine interface
  * @returns the receipts, oldest first
  */
 export async function readReceipts($: EngineInterface): Promise<Receipt[]> {
-  return read($, receipts)
+  await read($, receiptsTick)
+  const list = await receiptsHeld($)
+
+  noteRead('receipts', list)
+
+  return list
+}
+
+/**
+ * The receipts as last written, for a hook that is not drawing.
+ * @param $ the engine interface
+ * @returns the receipts, oldest first
+ */
+async function receiptsHeld($: EngineInterface): Promise<Receipt[]> {
+  if (heldReceipts.value === undefined) await loadHeld(heldReceipts, read($, receipts))
+
+  return heldValue(heldReceipts)
+}
+
+/**
+ * Changes the receipts, with no read of them, and moves their tick.
+ * @param $ the engine interface
+ * @param fn the change
+ */
+async function changeReceipts($: EngineInterface, fn: (list: Receipt[]) => Receipt[]): Promise<void> {
+  if (heldReceipts.value === undefined) await loadHeld(heldReceipts, read($, receipts))
+  const value = changeHeld(heldReceipts, fn)
+
+  await $.state.set({ plugin: 'ghostframe', key: 'receipts' }, { shape: 'receipts-7', value })
+  await $.state.set({ plugin: 'ghostframe', key: 'receiptsTick' }, { shape: 'receiptsTick-1', value: nextTick(heldReceipts) })
 }
 
 // The typed turns a rewind took out of the conversation, by number (7.1): their answer rows are gone. Found while
@@ -646,7 +709,7 @@ export async function noteRewind($: EngineInterface, isForced: boolean = false):
   if (!isForced && now - rewindCheckedAt < REWIND_CHECK_MS) return rewound
   rewindCheckedAt = now
   // A turn the conversation compacted away has no rows left to read after, and was not rewound.
-  const list = (await read($, receipts)).filter(r => r.isCompacted !== true)
+  const list = (await receiptsHeld($)).filter(r => r.isCompacted !== true)
   // The newest few turns, read together; a rewind further back is found 5 turns at a time, at the checks after.
   const turnNos = [...new Set(list.map(r => r.turnNo))]
     .filter(n => !rewound.has(n))
@@ -685,7 +748,7 @@ export async function noteRewind($: EngineInterface, isForced: boolean = false):
 export async function logCompacted($: EngineInterface): Promise<void> {
   if (!isOn()) return
 
-  await update($, receipts, list => list.map(compacted))
+  await changeReceipts($, list => list.map(compacted))
   await markCompacted($)
 }
 
@@ -705,7 +768,7 @@ async function redrawRewound($: EngineInterface): Promise<void> {
 export async function applyRewind($: EngineInterface): Promise<void> {
   if (rewound.size === 0) return
 
-  await update($, receipts, l => l.filter(r => !rewound.has(r.turnNo)))
+  await changeReceipts($, l => l.filter(r => !rewound.has(r.turnNo)))
   await dropTurns($, [...rewound])
 }
 

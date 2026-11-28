@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { ON, PANE, T0 } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
+import { holdTimers } from '../support/clock'
 
 // `! NEEDS YOU` (8.2, 9.3) shows only while something waits on the person: an open permission prompt, a question, a
 // plan to approve. `tool.check`'s `ask` hands the call to the mode's decider, which in auto mode is its classifier
@@ -11,8 +12,7 @@ type Verdict = { decision: 'allow' | 'ask' | 'deny'; rule?: string; reason?: str
 function engine(on: On, clock: { now: number }, check: { verdict: Verdict }, judge: { verdict: Verdict }): { finish: () => void } {
   let release: () => void = () => undefined
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
   on('ui.log', () => ({ value: undefined }))

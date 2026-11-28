@@ -8,6 +8,7 @@ import type { EngineInterface, PluginOptions, SessionStartInput } from 'claude-c
 import { noteOwnTime } from '../shared/budget'
 
 import { logAgentEnd, logAgentStart, logSessionStart } from './log'
+import { flushStore } from './history/store'
 import { PANE, STEPS, markStarted, setDockedFlag } from './mode'
 import { registerBand } from './band'
 import { logSeatError, markStartSeated, registerPane, seatAtStart } from './pane'
@@ -118,4 +119,16 @@ export function registerCockpit(on: On, options: PluginOptions): void {
   registerPane(on)
   registerBand(on)
   registerAgents(on)
+
+  // The session's end (an exit, /clear, a resume): the turns' store write a quiet moment would have made lands first,
+  // so the next session finds every turn this one kept.
+  on('session.end', async ($, e, next) => {
+    try {
+      await flushStore($)
+
+      return await next(e)
+    } finally {
+      noteOwnTime($, 'session.end', next.budget)
+    }
+  })
 }

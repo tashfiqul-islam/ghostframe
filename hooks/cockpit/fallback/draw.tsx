@@ -8,7 +8,7 @@ import type { EngineInterface, RenderElement } from 'claude-code'
 
 import type { Part } from '../../shared/parts'
 import type { Ui } from '../../shared/rule'
-import { readFlow } from '../../shared/flow'
+import { flowNow } from '../../shared/flow'
 import { drawRows } from '../draw'
 import { keptRecords } from '../history/store'
 import { readLog, readRoster } from '../log'
@@ -67,7 +67,8 @@ function failureFor(view: TurnView, id: string): Failure | undefined {
  */
 export async function drawFallbackCalls($: EngineInterface, ui: Pick<Ui, 'Box' | 'Text'>, calls: readonly GroupCall[], width: number): Promise<RenderElement> {
   const ids = calls.flatMap(c => (c.tool_use_id === undefined ? [] : [c.tool_use_id]))
-  const flow = await readFlow($)
+  // As last written (	urnView says why): the log the view reads redraws the row.
+  const flow = await flowNow($)
   const turn = (await Promise.all(ids.map(async id => turnOfCall($, flow, id)))).find(t => t !== undefined)
   if (turn === undefined) return <ui.Box />
 
