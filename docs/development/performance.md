@@ -235,12 +235,17 @@ before.
 
 ### What each colour means
 
-| Rating      | When                                                                                                                                                          | The check |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| 🟢 green    | within its budget, and no more than 5% slower than `main` (for a sampled measure, none it can tell from noise)                                                | passes    |
-| 🟡 yellow   | 5 to 15% slower than `main`, or within 10% of its budget, or measured on neither side                                                                         | passes    |
-| 🔴 red      | over its budget, more than 15% slower than `main` (for a sampled measure, its mean at the near end of its interval), or measured on `main` but no longer here | fails     |
-| 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                                                                                                 | passes    |
+| Rating      | When                                                                                                                                                                                                                                                                  | The check |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 🟢 green    | within its budget, and no more than 5% slower than `main` (for a sampled measure, none it can tell from noise)                                                                                                                                                        | passes    |
+| 🟡 yellow   | 5 to 15% slower than `main`, within 10% of its budget, over its budget with no slowdown the pull request caused (on a slow runner `main` is over it too), or measured on neither side                                                                                 | passes    |
+| 🔴 red      | more than 15% slower than `main`; over its budget and more than 5% slower than `main` (a measure without samples: over it where `main` is not); or measured on `main` but no longer here. For a sampled measure, "slower" is its mean at the near end of its interval | fails     |
+| 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                                                                                                                                                                                                         | passes    |
+
+A budget is a limit on the pull request's own cost, so being over it blocks only when the pull request is the cause.
+A shared runner can be twice as slow as the last: on one, the pull request that only copied the ruleset read 1.87 ms
+for an unchanged ToolGroup redraw against a 1.5 ms limit, and `main` read 1.83 ms on the same runner. That rates
+yellow, never red.
 
 A change smaller than 5% of the measure's budget (as set in `budgets.ts`, never CI's 3× limit) is never called slower,
 whatever its percentage: a shared runner
