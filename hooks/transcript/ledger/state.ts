@@ -16,6 +16,7 @@ import type {
   TurnAfter,
   TurnClose
 } from '../../../types'
+import { capTurns, changeHeld, loadHeld, type Held } from '../../shared/held'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -209,12 +210,52 @@ export async function updateShips($: EngineInterface, change: (list: ShipStamp[]
   return update($, ships, change)
 }
 
+/**
+ * Every call's stamp, the calls still running last; read while drawing a tool row.
+ * @param $ the engine interface
+ * @returns the stamps
+ */
 export async function readSteps($: EngineInterface): Promise<StepStamp[]> {
-  return read($, steps)
+  return [...(await read($, steps)), ...stamping.values()]
 }
 
-export async function updateSteps($: EngineInterface, change: (list: StepStamp[]) => StepStamp[]): Promise<StepStamp[]> {
-  return update($, steps, change)
+// Up to 400 stamps, so each tool call writes the list once, at its end, and never reads it back (shared/held.ts): a
+// running call's stamp is held here until then, and `readSteps` gives it with the rest. Its rows draw again when the
+// call ends, as they did.
+// shortcut: a reload while a call runs loses that call's stamp; its end then stamps it from its end alone.
+const stamping = new Map<string, StepStamp>()
+const heldSteps: Held<StepStamp[]> = {}
+
+/**
+ * A main-loop call started: its stamp, held until it ends.
+ * @param stamp the call's id, turn, start and tool
+ */
+export function stampStart(stamp: StepStamp): void {
+  stamping.set(stamp.id, stamp)
+}
+
+/**
+ * A main-loop call ended: its stamp joins the list, in start order, which keeps its turns within `max` (oldest turn
+ * first, never `turn`'s), with no read of the list.
+ * @param $ the engine interface
+ * @param id the call's id
+ * @param end what its end adds: the start where the clock gave none, its time and whether it worked; null drops it
+ * @param max the stamps kept
+ */
+export async function stampEnd($: EngineInterface, id: string, end: Pick<StepStamp, 'at' | 'ms' | 'ok'> | null, max: number): Promise<void> {
+  const start = stamping.get(id)
+
+  stamping.delete(id)
+  if (end === null || start === undefined) return
+  if (heldSteps.value === undefined) await loadHeld(heldSteps, read($, steps))
+  const stamp = { ...start, ...end }
+  const value = changeHeld(heldSteps, list => {
+    const after = list.findLastIndex(s => s.at <= stamp.at) + 1
+
+    return capTurns([...list.slice(0, after), stamp, ...list.slice(after)], max, stamp.turn)
+  })
+
+  await $.state.set({ plugin: 'ghostframe', key: 'steps' }, { shape: 'steps-1', value })
 }
 
 export async function readTurn($: EngineInterface): Promise<string | null> {

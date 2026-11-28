@@ -5,7 +5,7 @@ import { noteOwnTime } from '../../shared/budget'
 
 import { logMode, logTurnEnd, logTurnStart, readLog } from '../../cockpit/log'
 import { isOn, noticeSink } from '../../cockpit/switch'
-import { readFlow } from '../../shared/flow'
+import { flowNow } from '../../shared/flow'
 import { NO_CAPS, NO_TALLY, tallyText } from '../live'
 import { openRunBefore } from '../browser'
 import { answerRowOf, sessionCwd } from './session'
@@ -212,7 +212,7 @@ export function registerTurns(on: On): void {
           await updateStreaming($, () => false)
 
           const used = await readTally($)
-          const browser = openRunBefore(await readFlow($), Number.MAX_SAFE_INTEGER, e.turnId)
+          const browser = openRunBefore(await flowNow($), Number.MAX_SAFE_INTEGER, e.turnId)
 
           await updateCloses($, list =>
             [...list, { durationMs: e.durationMs, tokens: e.usage?.output_tokens ?? null, tally: tallyText(used), browser, turn: e.turnId }].slice(-500)

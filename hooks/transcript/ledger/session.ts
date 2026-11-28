@@ -9,7 +9,7 @@ import { logCited, logCompacted, logSaid, readLog, seedTurnNo } from '../../cock
 import { isOn, noticeSink } from '../../cockpit/switch'
 import { mcpName } from '../../shared/calls/describe'
 import { isObject } from '../../shared/calls/fields'
-import { readFlow, updateFlow } from '../../shared/flow'
+import { flowNow, updateFlow } from '../../shared/flow'
 import { capTurns } from '../../shared/held'
 import { splitBlocks } from '../blocks/split'
 import { citationsOf, turnCites } from '../citations'
@@ -71,7 +71,7 @@ async function noteFlow($: EngineInterface, content: Content, row: string | unde
   const turn = await readTurn($)
   const items: FlowStamp[] = []
   const links: string[] = []
-  const earlier = turnCites(await readFlow($), turn)
+  const earlier = turnCites(await flowNow($), turn)
   // Cockpit's Sources marks are the footnotes Claude wrote (7.4, 8.7), the same numbers the left draws.
   const footnotes: { url: string; title: string }[] = []
 

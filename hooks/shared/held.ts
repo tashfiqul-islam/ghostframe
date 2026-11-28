@@ -1,5 +1,53 @@
 // ─── Held: bounded in-memory stores ─────────────────────────────────────────
 
+// A value this plugin alone writes, changed without reading it back. What a hook moves through `$.state` is copied
+// into and out of its worker whole, so a change by `update` (a read, then a write) costs twice a write. The value as
+// last written is held in the module and read from `$.state` once per load of it (after a reload, the first change
+// reads it). The engine's rules keep `$` and the atom in the file that owns the value, so it reads and writes there:
+//
+//   if (held.value === undefined) await loadHeld(held, read($, list))
+//   const value = changeHeld(held, fn)
+//   await $.state.set({ plugin: 'ghostframe', key: 'list' }, { shape: 'list-1', value })
+
+/** A value this plugin alone writes, as it last wrote it. */
+export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined }
+
+/**
+ * Holds the value read from `$.state`, once: changes waiting on the same first read share it.
+ * @param held where the value is held
+ * @param reading the read of its atom
+ */
+export async function loadHeld<T>(held: Held<T>, reading: Promise<T>): Promise<void> {
+  if (held.value !== undefined) return
+  held.loading ??= (async () => {
+    try {
+      const v = await reading
+
+      held.value ??= { v }
+    } catch (error: unknown) {
+      held.loading = undefined
+      throw error
+    }
+  })()
+  await held.loading
+}
+
+/**
+ * Changes the held value, at once: run right after `loadHeld`, with nothing awaited between, so two changes in flight
+ * each see the other's.
+ * @param held where the value is held, loaded
+ * @param fn the change
+ * @returns the changed value, to write
+ */
+export function changeHeld<T>(held: Held<T>, fn: (value: T) => T): T {
+  if (held.value === undefined) throw new Error('changeHeld before loadHeld')
+  const v = fn(held.value.v)
+
+  held.value = { v }
+
+  return v
+}
+
 // Least recently remembered goes first: a key written again moves to the newest end.
 export const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number): void => {
   m.delete(k)
