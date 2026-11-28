@@ -185,6 +185,9 @@ the status line's installed form, three times for each side, in turns: main, PR;
 slows down part way slows both. Both sides are measured with the pull request's benchmark, fixtures and test support;
 only the plugin's own code (`.claude-plugin`, `hooks`, `types`, `statusline`) comes from each side. Every budgeted
 measure is then compared by its median over the three runs ([`tools/bench/compare.ts`](../../tools/bench/compare.ts)).
+The rating rules and the limits are `main`'s: `check.ts` runs `main`'s `compare.ts`, which takes each limit from its
+own `budgets.ts`, never from the report, so a pull request cannot loosen its own. A budget `main` does not know yet keeps
+the pull request's limit. The benchmark itself is the pull request's, which is visible in its diff.
 The live benchmark is not run on pull requests: its numbers come from `main` and never block.
 
 ### What each colour means
