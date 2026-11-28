@@ -189,3 +189,4 @@ test('a file over 1 MB is never read for its snapshot, and its diff says why', L
 
   expect(seen.reads.filter(p => p.endsWith('huge.ts'))).toEqual([])
 })
+// ci probe: tests only
