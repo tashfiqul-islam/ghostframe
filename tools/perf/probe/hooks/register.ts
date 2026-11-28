@@ -22,6 +22,8 @@ export type HookSummary = {
   max: number
   total: number
   overlapped: number
+  /** Every own time kept (at most SAMPLES_MAX, the latest), in ms to the microsecond: what a comparison resamples. */
+  samples: number[]
 }
 
 export const register: Register = on => {
@@ -74,7 +76,8 @@ export const register: Register = on => {
         p95: quantile(sorted, 0.95),
         max: r.max,
         total: r.total,
-        overlapped: r.overlapped
+        overlapped: r.overlapped,
+        samples: r.own.map(n => Math.round(n * 1000) / 1000)
       }
     })
 

@@ -1,6 +1,7 @@
 // The Performance check's verdict (docs/development/performance.md, "The Performance check"): main's and the pull
-// request's harness reports, several runs each, compared measure by measure by their medians, each measure rated, and
-// the pull request comment that says so. Exits 1 when a measure is red and the pull request is not perf-accepted.
+// request's harness reports, several runs each, compared measure by measure (a p95 by every run's samples, pooled,
+// with a seeded two-level bootstrap's 99% interval; any other measure by its median), each measure rated, and the pull
+// request comment that says so. Exits 1 when a measure is red and the pull request is not perf-accepted.
 //
 //   bun tools/bench/compare.ts --main a.json,b.json,c.json --pr d.json,e.json,f.json --out comment.md
 //     [--accepted] [--live-url <url>] [--seconds <n>]
@@ -31,11 +32,23 @@ export const NOISE_SHARE = 0.05
  */
 export const floorOf = (budget: BudgetName): number => BUDGETS[budget].limit * NOISE_SHARE
 
-/** One measure as a harness report holds it (tools/bench/run.ts writes `checks`). */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number }
+/** One measure as a harness report holds it (tools/bench/run.ts writes `checks`); a p95 keeps its samples. */
+type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; samples?: readonly number[] }
 
-/** One measure compared: its medians on main and on the pull request, the limit, and the rating. */
-export type Row = { budget: BudgetName; measure: string; main: number | null; pr: number | null; limit: number; rating: Rating }
+/**
+ * One measure compared: main's and the pull request's value (the pooled p95 where both kept samples, else the median
+ * of the runs' values), the limit, the rating, and where samples were kept, the mean's PR/main ratio with its 99%
+ * interval: what, with the p50, a slowdown is rated by.
+ */
+export type Row = {
+  budget: BudgetName
+  measure: string
+  main: number | null
+  pr: number | null
+  limit: number
+  rating: Rating
+  mean?: { ratio: number; interval: [number, number] }
+}
 
 /**
  * The median of the values a measure took over the runs; null when fewer than half the runs measured it.
@@ -76,10 +89,173 @@ export function rate(main: number | null, pr: number | null, limit: number, isAc
   return 'green'
 }
 
+/**
+ * What a sampled measure is compared with main by, over the pooled samples: the median, the hook's usual cost, and the
+ * mean, which moves smoothly as a tail grows (a call in 20 that takes 30 ms more moves it by half). Its p95 is shown
+ * and held to the limit, but never compared: with about 5% of samples slow (a GC pause's), a p95 lands on either side
+ * of the gap from one runner to the next, and identical code read +62% on one runner and +6% on the next.
+ */
+export const STATS = [
+  { name: 'p50', of: (sorted: Float64Array): number => quantile(sorted, 0.5) },
+  { name: 'mean', of: (sorted: Float64Array): number => sorted.reduce((a, b) => a + b, 0) / Math.max(sorted.length, 1) },
+  { name: 'p95', of: (sorted: Float64Array): number => quantile(sorted, 0.95) }
+] as const
+/** Where the p95, the measure's shown value, sits in STATS. */
+const P95 = 2
+/** Where the mean sits in STATS. */
+const MEAN = 1
+/** The statistics a slowdown is rated by: every one in STATS but the p95. */
+const COMPARED = [0, 1] as const
+/**
+ * How sure a rating must be: the share of the bootstrap's ratios left out at each end of the interval. 0.005 a side is
+ * a 99% interval, tested on its slow side only: even counting any slowdown at all, noise alone puts the near end of
+ * one of the two statistics' intervals past main under 1 time in 100, and a red needs it 15% past.
+ */
+export const TAIL = 0.005
+/** Bootstrap resamples per measure: at TAIL, 20 of them fall past each end of the interval. */
+export const RESAMPLES = 4000
+
+/**
+ * A quantile by linear interpolation between order statistics (Hyndman and Fan's type 7, the default of R and NumPy):
+ * it moves smoothly as samples change, where the nearest rank jumps from one sample to the next.
+ * @param sorted the samples, ascending
+ * @param q the quantile, 0 to 1
+ * @returns the quantile, NaN for no samples
+ */
+export function quantile(sorted: ArrayLike<number>, q: number): number {
+  const n = sorted.length
+
+  if (n === 0) return Number.NaN
+  const h = (n - 1) * q
+  const lo = Math.floor(h)
+  const a = sorted[lo] ?? Number.NaN
+
+  return lo + 1 < n ? a + (h - lo) * ((sorted[lo + 1] ?? a) - a) : a
+}
+
+/**
+ * A seeded generator (mulberry32): the same reports always give the same verdict, so a rerun of the comparison can
+ * never turn a red green by the luck of the draw.
+ * @param seed any 32-bit integer
+ * @returns a function that gives the next number in [0, 1)
+ */
+export function seeded(seed: number): () => number {
+  let a = seed >>> 0
+
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/** A string's FNV-1a hash: each measure's own seed. */
+const hashOf = (s: string): number => {
+  let h = 0x811c9dc5
+
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193)
+
+  return h >>> 0
+}
+
+/**
+ * One side of a two-level bootstrap draw (Kalibera and Jones): the picked runs, then the samples of each, picked
+ * with replacement and pooled.
+ * @param runs each run's samples
+ * @param picks the runs drawn, by index
+ * @param random the generator
+ * @returns the draw's STATS
+ */
+function draw(runs: readonly Float64Array[], picks: readonly number[], random: () => number): number[] {
+  const picked = picks.map(k => runs[k] ?? new Float64Array())
+  const pool = new Float64Array(picked.reduce((n, r) => n + r.length, 0))
+  let at = 0
+
+  for (const run of picked) for (let i = 0; i < run.length; i++) pool[at++] = run[Math.floor(random() * run.length)] ?? 0
+  pool.sort()
+
+  return STATS.map(stat => stat.of(pool))
+}
+
+/** A measure's samples compared: each side's pooled STATS, and the 99% interval of each one's PR/main ratio. */
+export type Spread = { main: number[]; pr: number[]; ratios: [number, number][] }
+
+/**
+ * Compares two sides' samples: their pooled STATS, and how far the pull request's could be from main's.
+ * @param mainRuns main's samples, one list per run
+ * @param prRuns the pull request's samples, one list per run
+ * @param seed the generator's seed
+ * @returns the pooled STATS and the intervals of the ratios
+ */
+export function spreadOf(mainRuns: readonly (readonly number[])[], prRuns: readonly (readonly number[])[], seed: number): Spread {
+  const pooled = (runs: readonly (readonly number[])[]): number[] => {
+    const all = Float64Array.from(runs.flat()).toSorted()
+
+    return STATS.map(stat => stat.of(all))
+  }
+  const main = mainRuns.map(r => Float64Array.from(r))
+  const pr = prRuns.map(r => Float64Array.from(r))
+  const random = seeded(seed)
+  const ratios = STATS.map(() => new Float64Array(RESAMPLES))
+  // The runs are picked with replacement first, so a whole run that went slow (a busy neighbour on the runner) widens
+  // the interval instead of passing for a regression. check.ts runs main's run i and the pull request's back to back,
+  // so where both sides have as many runs, the same i is drawn for both: what slowed the runner then slowed both.
+  const isPaired = main.length === pr.length
+  const picksOf = (n: number): number[] => Array.from({ length: n }, () => Math.floor(random() * n))
+
+  for (let b = 0; b < RESAMPLES; b++) {
+    const mainPicks = picksOf(main.length)
+    const m = draw(main, mainPicks, random)
+    const p = draw(pr, isPaired ? mainPicks : picksOf(pr.length), random)
+
+    ratios.forEach((r, i) => (r[b] = (p[i] ?? 0) / Math.max(m[i] ?? 0, Number.EPSILON)))
+  }
+
+  return {
+    main: pooled(mainRuns),
+    pr: pooled(prRuns),
+    ratios: ratios.map((r): [number, number] => {
+      r.sort()
+
+      return [quantile(r, TAIL), quantile(r, 1 - TAIL)]
+    })
+  }
+}
+
+/**
+ * Rates a measure whose samples both sides kept. Red: the pooled p95 over its limit, or its p50 or mean slower than
+ * main by more than the noise floor and by more than 15% even at the near end of its 99% interval. Yellow: either
+ * slower by more than the floor and 5%, and slower at all at the near end of its interval; or the p95 within 10% of the
+ * limit. Green otherwise: a change the interval cannot tell from noise warns nobody.
+ * @param s the compared samples
+ * @param limit the measure's limit on this runner
+ * @param isAccepted whether the pull request has the perf-accepted label
+ * @param floor the noise floor: a slowdown no larger is none
+ * @returns the rating
+ */
+export function rateSpread(s: Spread, limit: number, isAccepted: boolean, floor: number): Rating {
+  const red = (): Rating => (isAccepted ? 'accepted' : 'red')
+  const over = (i: number): number => (s.pr[i] ?? 0) - (s.main[i] ?? 0)
+  const near = (i: number): number => s.ratios[i]?.[0] ?? 0
+  const at = COMPARED
+  const p95 = s.pr[P95] ?? 0
+
+  if (p95 > limit) return red()
+  if (at.some(i => over(i) > floor && near(i) > 1 + BLOCK_SLOWER)) return red()
+  if (at.some(i => over(i) > floor && over(i) > (s.main[i] ?? 0) * WARN_SLOWER && near(i) > 1) || p95 > limit * NEAR_LIMIT) return 'yellow'
+
+  return 'green'
+}
+
 const ORDER: Readonly<Record<Rating, number>> = { red: 0, accepted: 1, yellow: 2, green: 3 }
 
 /**
- * Compares the runs: every measure either side measured, by its medians, reds first.
+ * Compares the runs: every measure either side measured, by its samples where both sides kept them, else by its
+ * medians; reds first.
  * @param mainRuns main's reports, one per run
  * @param prRuns the pull request's reports, one per run
  * @param isAccepted whether the pull request has the perf-accepted label
@@ -92,24 +268,40 @@ export function compare(mainRuns: readonly (readonly Check[])[], prRuns: readonl
   for (const c of [...prRuns.flat(), ...mainRuns.flat()]) if (!byMeasure.has(c.measure)) byMeasure.set(c.measure, c)
   const valuesOf = (runs: readonly (readonly Check[])[], measure: string): (number | null)[] =>
     runs.map(run => run.find(c => c.measure === measure)?.value ?? null)
+  // Every run's samples, or none: a run that kept none (an older harness) leaves the measure to the medians.
+  const samplesOf = (runs: readonly (readonly Check[])[], measure: string): (readonly number[])[] | undefined => {
+    const all = runs.map(run => run.find(c => c.measure === measure)?.samples)
+
+    return all.every(s => s !== undefined && s.length > 0) ? (all as (readonly number[])[]) : undefined
+  }
 
   return [...byMeasure.values()]
-    .map(c => {
-      const main = median(valuesOf(mainRuns, c.measure))
-      const pr = median(valuesOf(prRuns, c.measure))
+    .map((c): Row => {
       // The limit is this file's budgets', not what the report says: run from main's checkout, a pull request cannot
       // loosen its own limits. A budget main does not know yet (new in the pull request) keeps the report's.
       const known = Object.hasOwn(BUDGETS, c.budget)
       const limit = known ? limitOf(c.budget, isCi) : c.limit
+      const floor = known ? floorOf(c.budget) : limit * NOISE_SHARE
+      const mainSamples = samplesOf(mainRuns, c.measure)
+      const prSamples = samplesOf(prRuns, c.measure)
 
-      return {
-        budget: c.budget,
-        measure: c.measure,
-        main,
-        pr,
-        limit,
-        rating: rate(main, pr, limit, isAccepted, known ? floorOf(c.budget) : limit * NOISE_SHARE)
+      if (mainSamples !== undefined && prSamples !== undefined) {
+        const s = spreadOf(mainSamples, prSamples, hashOf(c.measure))
+
+        return {
+          budget: c.budget,
+          measure: c.measure,
+          main: s.main[P95] ?? null,
+          pr: s.pr[P95] ?? null,
+          limit,
+          rating: rateSpread(s, limit, isAccepted, floor),
+          mean: { ratio: (s.pr[MEAN] ?? 0) / Math.max(s.main[MEAN] ?? 0, Number.EPSILON), interval: s.ratios[MEAN] ?? [Number.NaN, Number.NaN] }
+        }
       }
+      const main = median(valuesOf(mainRuns, c.measure))
+      const pr = median(valuesOf(prRuns, c.measure))
+
+      return { budget: c.budget, measure: c.measure, main, pr, limit, rating: rate(main, pr, limit, isAccepted, floor) }
     })
     .toSorted((a, b) => ORDER[a.rating] - ORDER[b.rating] || a.measure.localeCompare(b.measure))
 }
@@ -122,7 +314,12 @@ const change = (r: Row): string => {
   if (r.main === null || r.pr === null) return 'n/a'
   const pct = ((r.pr - r.main) / Math.max(r.main, Number.EPSILON)) * 100
 
-  return `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`
+  const signed = (p: number): string => `${p >= 0 ? '+' : ''}${p.toFixed(1)}%`
+
+  if (r.mean === undefined) return signed(pct)
+  const [low, high] = r.mean.interval.map(x => signed((x - 1) * 100))
+
+  return `${signed(pct)}; mean ${signed((r.mean.ratio - 1) * 100)} (${low} to ${high})`
 }
 const MARK: Readonly<Record<Rating, string>> = { red: '🔴 red', accepted: '🟠 accepted', yellow: '🟡 yellow', green: '🟢 green' }
 
@@ -159,8 +356,11 @@ export function commentOf(rows: readonly Row[], meta: { runs: number; seconds?: 
     '| --- | --- | ---: | ---: | ---: | ---: |',
     ...rows.map(r => `| ${MARK[r.rating]} | ${r.measure} | ${fmt(r.main)} | ${fmt(r.pr)} | ${change(r)} | ${fmt(r.limit)} ${units(r)} |`),
     '',
-    `Harness benchmarks, main and this pull request in one job on one runner, ${meta.runs} runs each, compared by median.` +
-      ` Red blocks: over the limit, or more than ${BLOCK_SLOWER * 100}% slower than main.` +
+    `Harness benchmarks, main and this pull request in one job on one runner, ${meta.runs} runs each.` +
+      ' A p95 pools every sample of every run: it is held to its limit, and a slowdown is rated by the pooled p50 and mean,' +
+      ' each with the 99% interval of its ratio to main from a two-level bootstrap (runs, then samples) seeded by the measure,' +
+      ' so the same reports always rate the same. Other measures take the median of the runs.' +
+      ` Red blocks: over the limit, or more than ${BLOCK_SLOWER * 100}% slower than main (for a p95, by its p50 or mean, even at the near end of its interval).` +
       ` Yellow warns: ${WARN_SLOWER * 100} to ${BLOCK_SLOWER * 100}% slower, or within ${Math.round((1 - NEAR_LIMIT) * 100)}% of the limit.` +
       ` A change under ${NOISE_SHARE * 100}% of a measure's budget is noise.` +
       (meta.seconds === undefined ? '' : ` The check took ${Math.round(meta.seconds)} s.`),
@@ -220,6 +420,71 @@ function selfTest(): void {
   const comment = commentOf(rows, { runs: 3, seconds: 400, liveUrl: 'https://example.invalid/run' })
 
   if (!comment.startsWith(MARKER) || !comment.includes('| 🔴 red | pane | 4.00 | 5.20 | +30.0% | 8.00 ms |')) throw new Error(`comment:\n${comment}`)
+  eq(quantile([1, 2, 3, 4], 0.5), 2.5, 'quantile between two samples')
+  eq(quantile([1, 2, 3, 4], 1), 4, 'quantile at the top')
+  eq(Number.isNaN(quantile([], 0.5)), true, 'quantile of nothing')
+
+  // Runs of 40 samples near 2.7 ms with a tail of slow ones at 5.5 ms, as a GC pause leaves: the shape whose
+  // nearest-rank p95 flipped between 3.2 and 5.7 ms on identical code.
+  const random = seeded(7)
+  const runOf = (slow: number, scale = 1, n = 40): number[] => Array.from({ length: n }, (_, i) => (i < slow ? 5.5 : 2.5 + random() * 0.4) * scale)
+  const flaky = spreadOf([runOf(1), runOf(2), runOf(1)], [runOf(3), runOf(3), runOf(2)], 1)
+
+  eq(rateSpread(flaky, 15, false, 0.25), 'green', 'a tail that moves between runs of the same code warns nobody')
+  eq(
+    rate(
+      median(
+        [runOf(1), runOf(2), runOf(1)].map(r =>
+          quantile(
+            r.toSorted((a, b) => a - b),
+            0.95
+          )
+        )
+      ),
+      5.5,
+      15,
+      false,
+      0.25
+    ),
+    'red',
+    'the same tail, rated by the median of nearest-rank p95s, went red'
+  )
+  eq(JSON.stringify(spreadOf([[1, 2, 3]], [[2, 3, 4]], 9)), JSON.stringify(spreadOf([[1, 2, 3]], [[2, 3, 4]], 9)), 'the same samples rate the same')
+  const same = [runOf(2), runOf(2), runOf(2)]
+
+  eq(rateSpread(spreadOf(same, [runOf(2), runOf(2), runOf(2)], 2), 15, false, 0.25), 'green', 'the same code is green')
+  eq(rateSpread(spreadOf(same, [runOf(2, 1.4), runOf(2, 1.4), runOf(2, 1.4)], 3), 15, false, 0.25), 'red', 'every sample 40% slower is red')
+  eq(rateSpread(spreadOf(same, [runOf(2, 1.4), runOf(2, 1.4), runOf(2, 1.4)], 3), 15, true, 0.25), 'accepted', 'and perf-accepted lets it pass')
+  eq(rateSpread(spreadOf(same, [runOf(2, 1.3), runOf(2), runOf(2)], 4), 15, false, 0.25), 'green', 'one run 30% slower is a slow runner, not a slowdown')
+  eq(rateSpread(spreadOf(same, [runOf(2, 6), runOf(2, 6), runOf(2, 6)], 5), 15, false, 0.25), 'red', 'over the limit is red')
+  eq(
+    rateSpread(spreadOf(same, [runOf(20), runOf(20), runOf(20)], 6), 15, false, 0.25),
+    'red',
+    'a tail that grew in every run (half the samples slow, not 2 of 40) is red, though the p50 holds'
+  )
+  eq(
+    rateSpread(spreadOf(same, [runOf(12), runOf(12), runOf(12)], 6), 15, false, 0.25),
+    'yellow',
+    'a tail that grew to 12 of 40: slower for sure, but not surely 15% slower with 120 samples a side'
+  )
+  const sampled = (v: number, xs: number[]): Check[] => [{ budget: 'pane', measure: 'pane', value: v, limit: 24, samples: xs }]
+  const pooledRow = compare(
+    [sampled(9, same[0] ?? []), sampled(9, same[1] ?? []), sampled(9, same[2] ?? [])],
+    [sampled(1, same[0] ?? []), sampled(1, same[1] ?? []), sampled(1, same[2] ?? [])],
+    false,
+    false
+  )[0]
+
+  eq(
+    [pooledRow?.rating, pooledRow?.main === pooledRow?.pr, pooledRow?.mean !== undefined],
+    ['green', true, true],
+    'compare: samples on both sides are pooled, the values ignored'
+  )
+  eq(
+    compare([sampled(4, same[0] ?? [])], [run(4, 1)], false, false).find(r => r.measure === 'pane')?.mean,
+    undefined,
+    'compare: a side without samples falls back to the medians'
+  )
   console.log('compare.ts self-test: ok')
 }
 

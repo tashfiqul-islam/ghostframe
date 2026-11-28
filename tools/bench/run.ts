@@ -28,7 +28,7 @@ const liveLog = argOf('--live-log')
 const plugin = resolve(argOf('--plugin') ?? REPO)
 const isOnOnly = args.includes('--on-only')
 
-type Hook = { hook: string; calls: number; p50: number; p95: number; max: number; total: number; overlapped: number; perSec: number }
+type Hook = { hook: string; calls: number; p50: number; p95: number; max: number; total: number; overlapped: number; perSec: number; samples?: number[] }
 type Phase = { config: string; phase: string; wallMs: number; hooks: Hook[] } & Record<string, unknown>
 
 /** Every `BENCH {…}` line a run printed, parsed. */
@@ -38,14 +38,17 @@ const benchLines = (output: string): Record<string, unknown>[] =>
     .filter(l => l.startsWith('BENCH '))
     .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
 
-/** One budget checked: the measure, its value, the limit, and whether it held. */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean }
+/**
+ * One budget checked: the measure, its value, the limit, and whether it held. A p95 measure also keeps the samples it
+ * was taken from, so tools/bench/compare.ts can pool them over the runs instead of trusting one run's tail.
+ */
+type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean; samples?: number[] }
 
 const checks: Check[] = []
-const check = (budget: BudgetName, measure: string, value: number | null): void => {
+const check = (budget: BudgetName, measure: string, value: number | null, samples?: number[]): void => {
   const limit = limitOf(budget, isCi)
 
-  checks.push({ budget, measure, value, limit, ok: value !== null && Number.isFinite(value) && value <= limit })
+  checks.push({ budget, measure, value, limit, ok: value !== null && Number.isFinite(value) && value <= limit, ...(samples === undefined ? {} : { samples }) })
 }
 
 // The harness: the long session, Cockpit on and off.
@@ -73,19 +76,25 @@ const hookOf = (p: Phase | undefined, hook: string): Hook | undefined => p?.hook
 
 for (const config of ['on-280x70', 'on-120x40']) {
   const keys = phaseOf(config, 'keystroke')
+  const band = hookOf(keys, 'ui.render AbovePrompt')?.samples
+  const hint = hookOf(keys, 'ui.render PromptHint')?.samples
 
+  // Each key draws the band and the hint once, in that order: the i-th of each is the same key's.
   check(
     'keystroke',
     `${config}: AbovePrompt + PromptHint p95 per key`,
-    keys === undefined ? null : (hookOf(keys, 'ui.render AbovePrompt')?.p95 ?? 0) + (hookOf(keys, 'ui.render PromptHint')?.p95 ?? 0)
+    keys === undefined ? null : (hookOf(keys, 'ui.render AbovePrompt')?.p95 ?? 0) + (hookOf(keys, 'ui.render PromptHint')?.p95 ?? 0),
+    band !== undefined && hint !== undefined && band.length === hint.length ? band.map((b, i) => b + (hint[i] ?? 0)) : undefined
   )
   for (const h of phaseOf(config, 'redraw-unchanged')?.hooks.filter(x => x.hook.startsWith('ui.render ')) ?? []) {
-    check('unchangedRow', `${config}: ${h.hook} unchanged, p95`, h.p95)
+    check('unchangedRow', `${config}: ${h.hook} unchanged, p95`, h.p95, h.samples)
   }
-  check('pane', `${config}: ui.render Pane p95`, hookOf(phaseOf(config, 'pane'), 'ui.render Pane')?.p95 ?? null)
+  const pane = hookOf(phaseOf(config, 'pane'), 'ui.render Pane')
+
+  check('pane', `${config}: ui.render Pane p95`, pane?.p95 ?? null, pane?.samples)
   for (const name of ['stream', 'turn-step']) {
     for (const h of phaseOf(config, name)?.hooks.filter(x => x.hook === 'turn.step' || x.hook === 'turn.complete' || x.hook.startsWith('tool.call')) ?? []) {
-      check('eventHook', `${config} ${name}: ${h.hook} p95`, h.calls > h.overlapped ? h.p95 : null)
+      check('eventHook', `${config} ${name}: ${h.hook} p95`, h.calls > h.overlapped ? h.p95 : null, h.calls > h.overlapped ? h.samples : undefined)
     }
   }
 }
