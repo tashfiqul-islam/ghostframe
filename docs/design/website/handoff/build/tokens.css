@@ -1,0 +1,91 @@
+/* ghostframe website tokens. Dark only for 1.0.0. Map these into Tailwind v4 with @theme. */
+:root {
+  /* surfaces */
+  --bg: #0b0b0e; /* page */
+  --bg-deep: #060608; /* wells, the rail, inside the frame */
+  --surface-1: #111117; /* raised: command rows, nodes, the pane */
+  --surface-2: #17171f; /* tiles, inline code, selected tab */
+  /* lines */
+  --line-1: #1e1d24; /* hairlines, section rules, structural lines */
+  --line-2: #2a2a34; /* borders, minor ruler ticks */
+  --line-3: #3a3a47; /* schematic strokes, major ticks, connectors */
+  /* text */
+  --text: #eceaf2; /* primary */
+  --text-2: #8c8899; /* secondary, labels. 5.7:1 on --bg, 5.2:1 on --surface-2 */
+  --text-3: #7f7b8b; /* ruler numerals only. 4.8:1 on --bg. Replaces the brief's #6E6A7A (3.7:1, fails AA) */
+  /* gold: the eyes, the primary button, focus rings, the frame's corners, the prompt mark. Nowhere else. */
+  --gold: #ffc83d;
+  --gold-hi: #fff3c9;
+  --gold-lo: #ffa21a;
+  /* status: only where they mean a state */
+  --calm: #7ec8be; /* meter under 60, machine text, the phosphor tint */
+  --calm-edge: #2e5a55;
+  --calm-eye: #5beba6; /* ghost eyes under 60, "tested", "ok" */
+  --busy: #e8b98a; /* 60 to 84 */
+  --busy-eye: #fab387; /* ghost eyes 60 to 84, live, effort meter */
+  --hot: #ec84a0; /* from 85, failures */
+  --hot-eye: #d7263d; /* ghost eyes from 85 */
+  --tile-calm: #17171f;
+  --tile-busy: #1e1a15;
+  --tile-hot: #22161c;
+  /* terminal demo (Cockpit's own palette; two dims lifted to pass AA on the web) */
+  --term-text: #b2b2bc;
+  --term-bright: #ececf1;
+  --term-dim: #8c8899;
+  --term-machine: #7ec8be;
+  --term-machine-dim: #5e918b;
+  --term-ok: #96d292;
+  --term-err: #ec84a0;
+  --term-agent: #b4a0de;
+  --term-accent: #fab387;
+  --term-spine: #34343f;
+  --term-card: #14141b;
+  --term-code: #0f0f14;
+  --term-code-head: #16161d;
+  --term-err-card: #1a1216;
+  --term-add: #111b15;
+  --term-del: #1d1317;
+  --cold: 126, 200, 190; /* rgb of --calm, for rgba() mist, tear lines and the crosshair */
+
+  /* type */
+  --font-sans: 'Hanken Grotesk', system-ui, sans-serif; /* 400 prose, 600 UI, 700 titles, 800 display */
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace; /* 400, 500, 700 */
+  --display: 800 64px/0.98 var(--font-sans);
+  --display-track: -0.04em; /* 40px at 390; hero h1 60px / 44px */
+  --title: 700 24px/1.15 var(--font-sans);
+  --title-track: -0.015em;
+  --lead: 400 22px/1.55 var(--font-sans);
+  --body: 400 18px/1.55 var(--font-sans); /* measure 60 to 72ch */
+  --small: 400 15.5px/1.55 var(--font-sans);
+  --mono: 400 14px/1.6 var(--font-mono);
+  --label: 400 11px/1 var(--font-mono);
+  --label-track: 0.13em; /* uppercase */
+
+  /* the cell grid: everything snaps to it */
+  --cell-w: 8px;
+  --cell-h: 16px; /* JetBrains Mono at 13.333px has an 8px advance */
+  --page-max: 1440px;
+  --margin: 80px;
+  --gutter: 24px; /* 12 columns inside 1280px */
+
+  /* space, radius */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 16px;
+  --s-4: 24px;
+  --s-5: 32px;
+  --s-6: 48px;
+  --s-7: 64px;
+  --s-8: 96px;
+  --r-chip: 4px;
+  --r-control: 6px; /* frames, tiles and title blocks are square */
+
+  /* motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-press: 140ms;
+  --t-move: 240ms;
+  --t-frame: 380ms;
+  --t-pupil: 520ms;
+  --t-light: 320ms;
+}

@@ -1,0 +1,159 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-26T19:20:00Z"
+ },
+ "title": "ghostframe website: brief and three directions",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 1360,
+   "title": "Product brief"
+  },
+  "D-hero.dc.html": {
+   "x": 0,
+   "y": 1480,
+   "w": 1440,
+   "h": 900,
+   "title": "The Frame \u00b7 hero",
+   "is_interactive": true
+  },
+  "D-terminal.dc.html": {
+   "x": 1520,
+   "y": 1480,
+   "w": 1440,
+   "h": 900,
+   "title": "The Frame \u00b7 as the terminal"
+  },
+  "D-journey.dc.html": {
+   "x": 3040,
+   "y": 1480,
+   "w": 1440,
+   "h": 900,
+   "title": "The Frame \u00b7 through the page"
+  },
+  "D-eyes.dc.html": {
+   "x": 4560,
+   "y": 1480,
+   "w": 1440,
+   "h": 900,
+   "title": "The Frame \u00b7 the eyes"
+  },
+  "Page-1440-a.dc.html": {
+   "x": 0,
+   "y": 2500,
+   "w": 1440,
+   "h": 5408,
+   "title": "Landing 1440 \u00b7 hero to status line"
+  },
+  "Page-1440-b.dc.html": {
+   "x": 1520,
+   "y": 2500,
+   "w": 1440,
+   "h": 5280,
+   "title": "Landing 1440 \u00b7 the ghost to footer"
+  },
+  "Footer.dc.html": {
+   "x": 3040,
+   "y": 2500,
+   "w": 1440,
+   "h": 704,
+   "title": "Footer \u00b7 hover for the light",
+   "is_interactive": true
+  },
+  "Page-390-a.dc.html": {
+   "x": 0,
+   "y": 8028,
+   "w": 390,
+   "h": 5616,
+   "title": "Landing 390 \u00b7 hero to status line"
+  },
+  "Page-390-b.dc.html": {
+   "x": 470,
+   "y": 8028,
+   "w": 390,
+   "h": 4960,
+   "title": "Landing 390 \u00b7 the ghost to footer"
+  },
+  "NotFound.dc.html": {
+   "x": 1000,
+   "y": 8028,
+   "w": 1440,
+   "h": 900,
+   "title": "404 \u00b7 find the ghost",
+   "is_interactive": true
+  },
+  "Components.dc.html": {
+   "x": 2520,
+   "y": 8028,
+   "w": 1440,
+   "h": 2768,
+   "title": "Component sheet \u00b7 tokens"
+  },
+  "Motion.dc.html": {
+   "x": 4040,
+   "y": 8028,
+   "w": 1440,
+   "h": 2432,
+   "title": "Motion spec"
+  },
+  "Boot.dc.html": {
+   "x": 6080,
+   "y": 1480,
+   "w": 1440,
+   "h": 900,
+   "title": "The Frame \u00b7 boot sequence",
+   "is_interactive": true
+  },
+  "Releases-1440.dc.html": {
+   "x": 6080,
+   "y": 2500,
+   "w": 1440,
+   "h": 5648,
+   "title": "Release notes \u00b7 1440",
+   "is_interactive": true
+  },
+  "Releases-390.dc.html": {
+   "x": 7600,
+   "y": 2500,
+   "w": 390,
+   "h": 6832,
+   "title": "Release notes \u00b7 390"
+  },
+  "Nav.dc.html": {
+   "x": 8080,
+   "y": 2500,
+   "w": 1440,
+   "h": 1984,
+   "title": "Navigation \u00b7 5 states"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "D-hero.dc.html",
+  "D-terminal.dc.html",
+  "D-journey.dc.html",
+  "D-eyes.dc.html",
+  "Page-1440-a.dc.html",
+  "Page-1440-b.dc.html",
+  "Footer.dc.html",
+  "Page-390-a.dc.html",
+  "Page-390-b.dc.html",
+  "NotFound.dc.html",
+  "Components.dc.html",
+  "Motion.dc.html",
+  "Boot.dc.html",
+  "Releases-1440.dc.html",
+  "Releases-390.dc.html",
+  "Nav.dc.html"
+ ],
+ "notes": {},
+ "designSystems": []
+}
