@@ -1,6 +1,6 @@
 # The website stack
 
-Status: accepted, 2026-11-28. The decision records are ADRs 0013 to 0027 in [docs/decisions](../../decisions/README.md);
+Status: accepted, 2026-11-28. The decision records are ADRs 0013 to 0028 in [docs/decisions](../../decisions/README.md);
 this file holds the evidence, the plan and the structure. Words for the site's parts are in [GLOSSARY.md](GLOSSARY.md).
 
 ## The recommendation
@@ -18,6 +18,7 @@ this file holds the evidence, the plan and the structure. Words for the site's p
 | Tests           | `bun test` specs, Playwright with axe, Lighthouse as a spec                       | Bun 1.4.4 (the repo's pin); `@playwright/test` 1.65.1 (2026-11-13); `@axe-core/playwright` 4.14.1 (2026-11-24); `lighthouse` 13.6.0 (2026-10-27) | below                                                                  |
 | Hosting         | An assets-only Cloudflare Worker, `_headers` written at build                     | `wrangler` 4.168.0 (2026-11-24; 4.169.0 is newer than the repo's three-day release-age rule)                                                     | [0020](../../decisions/0020-website-on-workers-static-assets.md)       |
 | Analytics       | None on the page; Cloudflare zone HTTP analytics                                  | none                                                                                                                                             | [0024](../../decisions/0024-website-analytics-without-a-script.md)     |
+| Agents          | `/llms.txt` from site data; no `ard.json`, no WebMCP tools                        | none (Lighthouse 13.6.0 audits it)                                                                                                               | [0028](../../decisions/0028-website-agentic-browsing.md)               |
 
 What changed from the current choices:
 
@@ -215,7 +216,8 @@ mini build (3.5 KB) is the measured upgrade (risk 3).
 - AEO: `/llms.txt` and a Markdown copy of each page, linked with `rel="alternate"`. Evidence of effect is weak (Google
   says the files are not needed for Search, 2026-06-15; Ahrefs logs, 2026-06-15: 97% of llms.txt files got no requests); kept because it is cheap
   and the readers are coding agents. Answer-first copy and real FAQ answers are written for people; no evidence they
-  move AI citations, so they are not justified that way.
+  move AI citations, so they are not justified that way. No `llms-full.txt`: not in the spec, and `index.md` holds the
+  whole landing page. Lighthouse's Agentic Browsing category audits `llms.txt`: see [agentic browsing](#agentic-browsing).
 - Crawlers: all allowed, training included (ADR 0026). Cloudflare's AI bot blocking and managed robots.txt off.
 - Trailing slash: directory-format pages, `/releases/` everywhere, `html_handling: "auto-trailing-slash"`.
 
@@ -262,19 +264,20 @@ yet. COEP and CORP: not needed, nothing needs cross-origin isolation.
 In codebase-design terms. Each module is named with the glossary's words, holds a lot behind a small interface, and is
 tested through that interface.
 
-| Module                                                         | Interface                                                                                                                                  | What it hides                                                                                                                 | Tested by                                                                 |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **site data** (`build/site-data`)                              | `siteData()` for the build, `readSiteData(repo)` for checks and specs → facts, releases, brand bytes; `SITE_INPUTS`, `BRAND_FILES`         | which files hold which fact, the one rule for a missing input, finding the repo; the only module that opens a repository file | specs over a fixture repo; a spec ties `SITE_INPUTS` to the CI job's list |
-| **facts** (`build/facts`), inside site data                    | `readFacts(repo)` → version, Claude Code range, install commands, eye thresholds; `checkFacts(html, facts)`                                | parsing plugin.json, the README and the status line's tone rule; naming the fact and file on failure                          | specs with literal expectations                                           |
-| **release notes** (`build/release-notes`)                      | `readReleases(changelog)` (called by site data), `releaseNotesPage(releases)` → chips with counts, feed path; `atomFeed(releases, origin)` | both heading forms, change-row parsing, counting, escaping                                                                    | specs on the real pending 1.0.0 changelog                                 |
-| **page text** (`build/page-text`)                              | `pageText(html, { demo })`, `pageCode(html)`, `builtPages(dist)`                                                                           | what counts as visible text, the demo exclusion, where each page is served                                                    | specs                                                                     |
-| **brand copy** (`build/brand`)                                 | `bun build/brand/copy.ts`: writes site data's brand bytes into `public/brand`                                                              | nothing beyond the copy; the site check proves the bytes                                                                      | the site check                                                            |
-| **font subsets** (`build/fonts`)                               | `bun build/fonts/subset.ts`: runs fontTools on the upstream fonts with the glyph list                                                      | the glyph list and the fontTools arguments                                                                                    | the font coverage check over `dist/`                                      |
-| **tokens** (`build/tokens`)                                    | `readTokens(css)`, `undeclaredTokens`, `undeclaredBreakpoints`                                                                             | CSS parsing; `tokens.css` is the only token source                                                                            | specs hold `tokens.css` to the Components artboard                        |
-| **headers** (`build/headers`)                                  | `siteHeaders(dist)` → the `_headers` text                                                                                                  | hashing inline scripts and styles, the line limit, rule joining                                                               | specs; browser tests run under the result                                 |
-| **site checks** (`build/checks`)                               | `checkSite({ site, repo })` → findings, each naming its file                                                                               | facts, internal names, hand-written JS, brand bytes, tokens, breakpoints; checker and lint proofs                             | specs per rule over throwaway sites                                       |
-| **words** (`src/content/words.ts` + `src/content/Words.astro`) | one `Wording` per string: text, or text and `short`                                                                                        | showing one variant by CSS                                                                                                    | browser test at 1440 and 390                                              |
-| each **piece** (`src/<area>/`)                                 | `wire<Piece>(root)` over the finished HTML                                                                                                 | its pointer, scroll and keyboard handling                                                                                     | its own `*.e2e.ts` beside it                                              |
+| Module                                                         | Interface                                                                                                                                  | What it hides                                                                                                                 | Tested by                                                                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| **site data** (`build/site-data`)                              | `siteData()` for the build, `readSiteData(repo)` for checks and specs → facts, releases, brand bytes; `SITE_INPUTS`, `BRAND_FILES`         | which files hold which fact, the one rule for a missing input, finding the repo; the only module that opens a repository file | specs over a fixture repo; a spec ties `SITE_INPUTS` to the CI job's list                      |
+| **facts** (`build/facts`), inside site data                    | `readFacts(repo)` → version, Claude Code range, install commands, eye thresholds; `checkFacts(html, facts)`                                | parsing plugin.json, the README and the status line's tone rule; naming the fact and file on failure                          | specs with literal expectations                                                                |
+| **release notes** (`build/release-notes`)                      | `readReleases(changelog)` (called by site data), `releaseNotesPage(releases)` → chips with counts, feed path; `atomFeed(releases, origin)` | both heading forms, change-row parsing, counting, escaping                                                                    | specs on the real pending 1.0.0 changelog                                                      |
+| **page text** (`build/page-text`)                              | `pageText(html, { demo })`, `pageCode(html)`, `builtPages(dist)`                                                                           | what counts as visible text, the demo exclusion, where each page is served                                                    | specs                                                                                          |
+| **llms.txt** (`build/llms`)                                    | `llmsTxt(siteData, { origin, summary })` → the `/llms.txt` text                                                                            | the llmstxt.org layout; which facts and links it carries                                                                      | specs with literal expectations and Lighthouse's own rule; the site checks read the built file |
+| **brand copy** (`build/brand`)                                 | `bun build/brand/copy.ts`: writes site data's brand bytes into `public/brand`                                                              | nothing beyond the copy; the site check proves the bytes                                                                      | the site check                                                                                 |
+| **font subsets** (`build/fonts`)                               | `bun build/fonts/subset.ts`: runs fontTools on the upstream fonts with the glyph list                                                      | the glyph list and the fontTools arguments                                                                                    | the font coverage check over `dist/`                                                           |
+| **tokens** (`build/tokens`)                                    | `readTokens(css)`, `undeclaredTokens`, `undeclaredBreakpoints`                                                                             | CSS parsing; `tokens.css` is the only token source                                                                            | specs hold `tokens.css` to the Components artboard                                             |
+| **headers** (`build/headers`)                                  | `siteHeaders(dist)` → the `_headers` text                                                                                                  | hashing inline scripts and styles, the line limit, rule joining                                                               | specs; browser tests run under the result                                                      |
+| **site checks** (`build/checks`)                               | `checkSite({ site, repo })` → findings, each naming its file                                                                               | facts, internal names, hand-written JS, brand bytes, tokens, breakpoints; checker and lint proofs                             | specs per rule over throwaway sites                                                            |
+| **words** (`src/content/words.ts` + `src/content/Words.astro`) | one `Wording` per string: text, or text and `short`                                                                                        | showing one variant by CSS                                                                                                    | browser test at 1440 and 390                                                                   |
+| each **piece** (`src/<area>/`)                                 | `wire<Piece>(root)` over the finished HTML                                                                                                 | its pointer, scroll and keyboard handling                                                                                     | its own `*.e2e.ts` beside it                                                                   |
 
 Seams: the repository is the one real seam (a fixture repo in specs, the real one in the build: two adapters). Pages
 are thin: they ask site data and words, and render. Nothing else opens a repository file.
@@ -317,7 +320,7 @@ site/
     not-found/                 the search frame
     footer/                    the footer and the footer light
   build/                       build-time modules, never shipped; each folder holds its module, its spec and fixtures
-    site-data/  facts/  release-notes/  page-text/  tokens/  headers/  brand/  fonts/  checks/
+    site-data/  facts/  release-notes/  page-text/  llms/  tokens/  headers/  brand/  fonts/  checks/
   tests/                       whole-site tests: landing, headers, Lighthouse; serve.ts, the local stand-in for Workers
   public/                      served as they are: fonts/ (the committed subsets); brand/ (copied at build, gitignored)
 ```
@@ -340,16 +343,16 @@ Rules behind it:
 
 Every piece of logic is built test-first, and tested at the cheapest level that sees the behaviour.
 
-| Level      | Tool                                                                                                       | What it holds                                                                                                                                                                                       | Why this level                                                                                            |
-| ---------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Spec       | `bun test`, `*.spec.ts` beside the module                                                                  | site data, facts, release notes and the page model, page text, tokens and breakpoints, headers, every site-check rule, the site origin                                                              | pure build-time logic; fast; literal expectations from the design or the real changelog, never recomputed |
-| Proof      | `bun test`                                                                                                 | both type checkers fail on four planted errors (`.ts`, `.astro` frontmatter, `.astro` script, `.tsx`); oxlint reports the planted floating promise                                                  | a checker that silently stops checking fails the build                                                    |
-| Site check | `bun build/checks/run.ts` over `dist/`                                                                     | facts on every page, internal names, hand-written JS, brand bytes, undeclared tokens and breakpoints, font coverage                                                                                 | properties of the built output as a whole                                                                 |
-| Browser    | Playwright with Chrome, `*.e2e.ts` beside each piece; `@axe-core/playwright` on every built page           | each piece's behaviour, keyboard use, no-JS, the real 404 status, the shipped CSP, words at 1440 and 390; on every page: no axe violation at WCAG 2.2 AA, no running animation under reduced motion | behaviour needs a real browser; tests import words and facts instead of pasting them                      |
-| Budget     | `lighthouse` 13.6.0 as a spec, every built page, mobile and desktop                                        | no scored audit below 1 in the four categories; scripts under 120 KB gzipped; CLS 0; LCP under 1.8 s on the mobile run (simulated slow 4G, 4× CPU: the mid-range phone)                             | the hard constraints, as assertions; INP is held by the browser tests' interactions, not Lighthouse       |
-| Design     | `bunx impeccable detect` and the Web Interface Guidelines audit (web-design-guidelines) on the built pages | the brief makes both a gate on the built site; Impeccable's CLI exists on this machine but was not run here, so its fit as a CI step is unverified                                                  | the brief's quality bar, checked by the tools it names                                                    |
-| Visual     | Playwright screenshots, generated on Linux CI                                                              | a report against the artboards; gating waits on the owner's install-size decision                                                                                                                   | artboards are not pixel baselines; committed PNGs reach every user today                                  |
-| Links      | lychee, already in the repo                                                                                | the docs and the built pages' internal links                                                                                                                                                        |                                                                                                           |
+| Level      | Tool                                                                                                        | What it holds                                                                                                                                                                                                                                                     | Why this level                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Spec       | `bun test`, `*.spec.ts` beside the module                                                                   | site data, facts, release notes and the page model, page text, `llms.txt`, tokens and breakpoints, headers, every site-check rule, the site origin                                                                                                                | pure build-time logic; fast; literal expectations from the design or the real changelog, never recomputed |
+| Proof      | `bun test`                                                                                                  | both type checkers fail on four planted errors (`.ts`, `.astro` frontmatter, `.astro` script, `.tsx`); oxlint reports the planted floating promise                                                                                                                | a checker that silently stops checking fails the build                                                    |
+| Site check | `bun build/checks/run.ts` over `dist/`                                                                      | facts and internal names on every page and in `llms.txt`, hand-written JS, brand bytes, undeclared tokens and breakpoints, font coverage                                                                                                                          | properties of the built output as a whole                                                                 |
+| Browser    | Playwright with Chrome, `*.e2e.ts` beside each piece; `@axe-core/playwright` on every built page            | each piece's behaviour, keyboard use, no-JS, the real 404 status, the shipped CSP, words at 1440 and 390; on every page: no axe violation at WCAG 2.2 AA, no running animation under reduced motion                                                               | behaviour needs a real browser; tests import words and facts instead of pasting them                      |
+| Budget     | `lighthouse` 13.6.0 as a spec, every built page, mobile and desktop, Chrome with `--enable-features=WebMCP` | no scored audit below 1 in the four categories; Agentic Browsing: exactly the accessibility tree, CLS and `llms-txt` count, and all pass; scripts under 120 KB gzipped; CLS 0; LCP under 1.8 s on the mobile run (simulated slow 4G, 4× CPU: the mid-range phone) | the hard constraints, as assertions; INP is held by the browser tests' interactions, not Lighthouse       |
+| Design     | `bunx impeccable detect` and the Web Interface Guidelines audit (web-design-guidelines) on the built pages  | the brief makes both a gate on the built site; Impeccable's CLI exists on this machine but was not run here, so its fit as a CI step is unverified                                                                                                                | the brief's quality bar, checked by the tools it names                                                    |
+| Visual     | Playwright screenshots, generated on Linux CI                                                               | a report against the artboards; gating waits on the owner's install-size decision                                                                                                                                                                                 | artboards are not pixel baselines; committed PNGs reach every user today                                  |
+| Links      | lychee, already in the repo                                                                                 | the docs and the built pages' internal links                                                                                                                                                                                                                      |                                                                                                           |
 
 ## The CI job
 
@@ -362,20 +365,22 @@ One job, `Site`, in `ci.yml` (ADR 0021), checked in the skeleton with actionlint
 5. `bun run --cwd site check`: both type checks, lint, format, specs, build (brand copy, Astro, `_headers`), site checks,
    browser tests, Lighthouse. Chrome is the runner's own; no browser download.
 
-Measured locally on the skeleton, on Windows: 72 s for the whole chain. Not measured on a Linux runner; the budget
+Measured locally on the skeleton, on Windows: 74 s for the whole chain. Not measured on a Linux runner; the budget
 there is 4 minutes, and the first CI run of the build measures it.
 
 ## The walking skeleton
 
-Built test-first in a scratch git repo outside this one (27 commits), to prove the structure before any build. Every
+Built test-first in a scratch git repo outside this one (28 commits), to prove the structure before any build. Every
 slice went red for the right reason before its code existed; tests that passed at once were proved by breaking the code
-they guard (the canonical link, the axe and reduced-motion checks, the LCP budget).
+they guard (the canonical link, the axe and reduced-motion checks, the LCP budget, the Agentic Browsing budget with
+`llms.txt` moved aside).
 
 What it holds: the build; `tokens.css` held to the artboard; the copy button in its three states; the release notes,
 page model and feed from the real pending 1.0.0 changelog; facts read from plugin.json, the README and the status line;
 the site checks; both checker proofs and the lint proof; the site origin; `_headers` with CSP hashes; words with phone
-variants; axe and reduced motion on every page; the CI job. Result: 72 specs, 18 browser tests and 15 Lighthouse tests
-(6 runs: 100 in all four categories, scripts under the ceiling, CLS 0, LCP under 1.8 s), in 72 s.
+variants; axe and reduced motion on every page; `llms.txt` from site data; the CI job. Result: 78 specs, 19 browser
+tests and 21 Lighthouse tests (6 runs: 100 in all four categories, Agentic Browsing 3 of 3, scripts under the ceiling,
+CLS 0, LCP under 1.8 s), in 74 s.
 
 The documents' review (a standards reviewer and a spec reviewer, fresh) then found and fixed: site data was not yet the
 only module opening repository files (the brand check and one spec read them directly); `src/page` and `build/page`,
@@ -414,6 +419,46 @@ What the architecture review changed (improve-codebase-architecture; the owner a
   copies, `releases/feed.xml`; `_headers` sets their content types.
 - Headers: the table in areas 10 and 11. HSTS on the zone.
 
+## Agentic browsing
+
+Lighthouse 13.6.0 already runs a fifth category, Agentic Browsing, in its default config: experimental, Chrome 150 or
+later, scored as the fraction of audits that count and pass ([research](research/17-agentic-browsing.md),
+[ADR 0028](../../decisions/0028-website-agentic-browsing.md)). The bar: every audit that counts passes on every page,
+mobile and desktop, beside 100 in the other four. No upgrade was needed, so nothing changed in the other four or the
+harness.
+
+Measured in the skeleton on 2026-11-29 (Chrome 158 headless with `--enable-features=WebMCP`), the same on `/`,
+`/releases/` and `/404.html`, mobile and desktop, with 100 in all four other categories on each:
+
+| Audit                      | Result         | Why                                                                                     |
+| -------------------------- | -------------- | --------------------------------------------------------------------------------------- |
+| `agent-accessibility-tree` | pass           | no failure among its 33 axe rules (names, labels, ARIA); the same pages pass axe AA     |
+| `cumulative-layout-shift`  | pass           | CLS 0                                                                                   |
+| `llms-txt`                 | pass           | `/llms.txt` from `build/llms`: an H1, a blockquote, the commands, links at the origin   |
+| `webmcp-registered-tools`  | informative    | WebMCP on, no tools registered (ADR 0028); informative audits never count               |
+| `webmcp-form-coverage`     | not applicable | no forms                                                                                |
+| `webmcp-schema-validity`   | not applicable | no tools and no form issues                                                             |
+| `ard-schema`               | not applicable | `/.well-known/ard.json` answers 404 and nothing advertises one; no ARD entry to publish |
+
+Agentic Browsing: 3 of 3 on every page.
+
+Decisions, from the source rather than the docs (which describe neither weights nor "not applicable"):
+
+- **`llms.txt` is site data, not a hand-written file.** `build/llms` writes it from the facts and the landing page's
+  words; the site checks read it as they read a page, so a wrong version or an internal name in it fails the build.
+  No `llms-full.txt`.
+- **No `ard.json`.** ARD v0.91 is a proposal that catalogues agents, MCP servers and APIs; the site has none.
+- **No WebMCP tools.** Three read-only tools (install commands, compatibility with a Claude Code version, the latest
+  release) measured 755 bytes gzipped, but they repeat static facts an agent already reads in the HTML and
+  `llms.txt`; the origin trial ends with Chrome 162 (stable 2027-02-02) and its token covers one origin, not chosen yet;
+  the API moved from `navigator` to `document` this year. Without WebMCP, a guard on `document.modelContext` is the
+  whole fallback. Registered tools would be informative: no gain in the category.
+- **The spec turns WebMCP on.** `--enable-features=WebMCP` exposes it without a token, verified on Chrome 158: the
+  WebMCP audits then run, so a form or tool added later is audited. The spec asserts the flag took.
+- **Never `--only-categories=agentic-browsing`:** its CLS audit then errors, as the trace does not run.
+- **CI:** the runner's Chrome is 158.0.8127.36 on `ubuntu-24.04`, past the minimum; the category needs nothing the other
+  four do not. The site job runs it in the same Lighthouse spec. Not yet run on a Linux runner.
+
 ## Risks
 
 | #   | Risk                                                                  | If it happens                                                                                                                                    |
@@ -427,24 +472,26 @@ What the architecture review changed (improve-codebase-architecture; the owner a
 | 7   | the status line's tone rule changes shape                             | the facts check fails, naming the file; update the pattern with it                                                                               |
 | 8   | the release-please override for "(7.14)" is missed before tagging     | the internal-name check fails the site build; the release itself is unaffected                                                                   |
 | 9   | Cloudflare's zone settings (AI blocking, managed robots.txt) turn on  | curl checks after the first deploy; they are on the owner's settings list                                                                        |
+| 10  | a Lighthouse upgrade changes the experimental Agentic Browsing audits | the spec names the audits that count, so it fails by name; review against ADR 0028, then update the list                                         |
 
 ## Deliberately left out
 
-| Left out                                         | Why                                                                                                      |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| React, Preact, Svelte, any UI runtime            | no piece holds shared state; 3.1 KB against 47.9–71.9 KB                                                 |
-| shadcn/ui, Base UI                               | native controls cover four of five; Base UI with React is over the ceiling                               |
-| Tailwind                                         | no component library to serve; the design is raw cell-grid values                                        |
-| Motion, GSAP                                     | the platform covers all 29 moments; GSAP's licence is proprietary                                        |
-| Three.js / WebGL                                 | the brief allows one piece at most; the chosen direction has none                                        |
-| Astro content collections                        | the checks run outside Astro and need the same data                                                      |
-| `astro check`, TypeScript 6                      | tsrs checks `.astro` files on TypeScript 7                                                               |
-| `@lhci/cli`                                      | 294 packages against `lighthouse`'s 106; budgets read better as a TypeScript spec; it reads no TS config |
-| Server islands, SSR, an adapter, a client router | nothing per-request; cross-document view transitions cost 0 KB                                           |
-| Cloudflare Web Analytics                         | its beacon is a third-party script; no self-hosting                                                      |
-| A live GitHub star count                         | a runtime third-party request; the nav artboard draws no count                                           |
-| FAQPage markup, satori OG images                 | no rich result since 2026-05-07; satori is pre-1.0 and resvg unreleased since 2024-03                    |
-| A light theme, i18n                              | dark only for 1.0.0; one language, with no hard-coded locale paths, so room is left                      |
+| Left out                                         | Why                                                                                                       |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| React, Preact, Svelte, any UI runtime            | no piece holds shared state; 3.1 KB against 47.9–71.9 KB                                                  |
+| shadcn/ui, Base UI                               | native controls cover four of five; Base UI with React is over the ceiling                                |
+| Tailwind                                         | no component library to serve; the design is raw cell-grid values                                         |
+| Motion, GSAP                                     | the platform covers all 29 moments; GSAP's licence is proprietary                                         |
+| Three.js / WebGL                                 | the brief allows one piece at most; the chosen direction has none                                         |
+| Astro content collections                        | the checks run outside Astro and need the same data                                                       |
+| `astro check`, TypeScript 6                      | tsrs checks `.astro` files on TypeScript 7                                                                |
+| `@lhci/cli`                                      | 294 packages against `lighthouse`'s 106; budgets read better as a TypeScript spec; it reads no TS config  |
+| Server islands, SSR, an adapter, a client router | nothing per-request; cross-document view transitions cost 0 KB                                            |
+| Cloudflare Web Analytics                         | its beacon is a third-party script; no self-hosting                                                       |
+| A live GitHub star count                         | a runtime third-party request; the nav artboard draws no count                                            |
+| FAQPage markup, satori OG images                 | no rich result since 2026-05-07; satori is pre-1.0 and resvg unreleased since 2024-03                     |
+| A light theme, i18n                              | dark only for 1.0.0; one language, with no hard-coded locale paths, so room is left                       |
+| `ard.json`, WebMCP tools, `llms-full.txt`        | nothing to catalogue; tools would repeat static facts behind a trial; not in the llms.txt spec (ADR 0028) |
 
 ## The owner's list
 
@@ -485,7 +532,7 @@ Added by the build, not by this change.
 ```markdown
 # site/
 
-The ghostframe website: Astro static output, plain TypeScript, plain CSS. Decisions: docs/decisions/0013 to 0027.
+The ghostframe website: Astro static output, plain TypeScript, plain CSS. Decisions: docs/decisions/0013 to 0028.
 Words for its parts: docs/design/website/GLOSSARY.md. Run everything with `bun run check`.
 
 - Every file you write is TypeScript (.ts, .tsx) or .astro with TypeScript scripts. Generated JavaScript stays in
@@ -500,4 +547,7 @@ Words for its parts: docs/design/website/GLOSSARY.md. Run everything with `bun r
 - Name unit tests *.spec.ts and browser tests *.e2e.ts; the plugin's runner picks up *.test.ts.
 - Write the failing test first. Expected values come from the design, the real changelog or a literal.
 - In `.astro`, write `<script>`, not `<script lang="ts">`: an attribute makes Astro ship the script untranspiled.
+- Every page scores 100 in the four Lighthouse categories and passes every Agentic Browsing audit that counts. A new
+  form or a WebMCP tool makes another audit count: read ADR 0028 first. Never run Lighthouse with
+  --only-categories=agentic-browsing; its CLS audit errors.
 ```
