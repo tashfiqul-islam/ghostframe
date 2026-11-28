@@ -360,3 +360,4 @@ export function iconsOn(env: Record<string, string | undefined>): boolean {
 
   return true
 }
+// ci probe: status line only
