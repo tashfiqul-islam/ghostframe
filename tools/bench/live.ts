@@ -9,7 +9,7 @@
 //   bun tools/bench/live.ts --memory        also the ten-minute memory run
 //   bun tools/bench/live.ts --sizes 120x40  one size
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -55,11 +55,38 @@ function usage(pid: number): { cpuMs: number; rssMb: number } {
   return { cpuMs: (Number(m) * 60 + Number(s)) * 1000, rssMb: Number(b) / 1024 }
 }
 
-/** A throwaway config folder: onboarding done, the repos trusted, ghostframe loaded or not. */
+/**
+ * Installs this checkout's plugin into a config folder as a person's install is: copied by `claude plugin install` from
+ * a local marketplace holding only the plugin's files. A plugin loaded with --plugin-dir is a mod being written: the
+ * session watches its whole folder to reload it, node_modules and .git included, which cost 2.5 points of a core while
+ * idle here and an install never pays.
+ * @param dir the config folder
+ */
+function install(dir: string): void {
+  const market = mkdtempSync(join(tmpdir(), 'gf-bench-market-'))
+
+  mkdirSync(join(market, '.claude-plugin'), { recursive: true })
+  for (const part of [join('.claude-plugin', 'plugin.json'), 'hooks', 'types']) cpSync(join(REPO, part), join(market, 'ghostframe', part), { recursive: true })
+  writeFileSync(
+    join(market, '.claude-plugin', 'marketplace.json'),
+    JSON.stringify({ name: 'gf-bench', owner: { name: 'bench' }, plugins: [{ name: 'ghostframe', source: './ghostframe', description: 'this checkout' }] })
+  )
+  for (const args of [
+    ['plugin', 'marketplace', 'add', market],
+    ['plugin', 'install', 'ghostframe@gf-bench']
+  ]) {
+    const r = spawnSync(CLAUDE, args, { env: { ...process.env, CLAUDE_CONFIG_DIR: dir }, encoding: 'utf8' })
+
+    if (r.status !== 0) throw new Error(`claude ${args.join(' ')} exited ${r.status}: ${r.stdout}${r.stderr}`)
+  }
+}
+
+/** A throwaway config folder: onboarding done, the repos trusted, ghostframe installed or not. */
 function configFor(mode: Mode, probe: boolean): string {
   const dir = mkdtempSync(join(tmpdir(), `gf-bench-${mode}-`))
   const trusted = Object.fromEntries([SMALL, BIG].flatMap(r => [r, r.replaceAll('\\', '/')]).map(r => [r, { hasTrustDialogAccepted: true }]))
-  const dirs = [...(mode === 'on' ? [REPO] : []), ...(probe ? [join(REPO, 'tools', 'perf', 'probe')] : [])]
+  // The profiler is a mod of its own above ghostframe (prependPlugins), so a probe run loads both as folders.
+  const dirs = probe ? [REPO, join(REPO, 'tools', 'perf', 'probe')] : []
 
   writeFileSync(join(dir, '.claude.json'), JSON.stringify({ hasCompletedOnboarding: true, theme: 'dark', projects: trusted }))
   writeFileSync(
@@ -73,6 +100,7 @@ function configFor(mode: Mode, probe: boolean): string {
       ...(probe ? { prependPlugins: ['ghostframe-perf@inline'] } : {})
     })
   )
+  if (mode === 'on' && !probe) install(dir)
 
   return dir
 }
