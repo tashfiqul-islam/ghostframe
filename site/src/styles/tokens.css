@@ -1,0 +1,45 @@
+/* The only source of design tokens: the Components artboard (docs/design/website/Components.dc.html), files 11 to 13.
+   build/tokens/tokens.spec.ts holds this file to the artboard. */
+:root {
+  color-scheme: dark;
+
+  /* colour */
+  --bg: #0b0b0e;
+  --bg-deep: #060608;
+  --surface-1: #111117;
+  --surface-2: #17171f;
+  --line-1: #1e1d24;
+  --line-2: #2a2a34;
+  --text: #eceaf2;
+  --text-2: #8c8899;
+  --text-3: #7f7b8b;
+  --gold: #ffc83d;
+  --gold-hi: #fff3c9;
+  --gold-lo: #ffa21a;
+  --calm: #7ec8be;
+  --calm-eye: #5beba6;
+  --busy: #e8b98a;
+  --busy-eye: #fab387;
+  --hot: #ec84a0;
+  --hot-eye: #d7263d;
+
+  /* type */
+  --sans: 'Hanken Grotesk', 'Hanken Fallback', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', 'Mono Fallback', ui-monospace, monospace;
+
+  /* breakpoints: media queries cannot read custom properties, so these record each one and build/checks holds every
+     @media width to them. phone: the 390 artboards. */
+  --bp-phone: 767px;
+
+  /* space, radius */
+  --cell-w: 8px;
+  --cell-h: 16px;
+  --radius-chip: 4px;
+  --radius-button: 6px;
+
+  /* motion */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --press: 140ms;
+  --move: 240ms;
+  --light: 320ms;
+}

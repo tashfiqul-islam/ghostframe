@@ -254,6 +254,60 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun tools/ci/ci.ts step tests statusline
 
+  # The website (site/, ADR 0021). It always runs, so it can be a required check, and passes at once when nothing the
+  # site reads changed. site/build/site-data/site-data.spec.ts holds the path list below to SITE_INPUTS.
+  site:
+    name: Site
+    runs-on: ubuntu-24.04
+    # Budget 4 minutes (docs/design/website/stack.md, the CI job); twice that, so a hang fails fast.
+    timeout-minutes: 8
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the road to 1.0.0 counts commits per day, and the base must be reachable
+          persist-credentials: false
+
+      - name: See whether anything the site reads changed
+        id: changed
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$BASE" && "$BASE" != 0000000000000000000000000000000000000000 ]] && git diff --quiet "$BASE" HEAD -- site .claude-plugin/plugin.json README.md CHANGELOG.md docs/design/brand statusline/render.ts .github/workflows/ci.yml; then
+            echo "site=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing the site reads changed; the site checks are skipped."
+          else
+            echo "site=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Release notes come from release-please only (ADR 0019). Until 1.0.0 is tagged, main has no CHANGELOG.md: the
+      # open release pull request's branch holds the pending one.
+      - name: Write the pending release's CHANGELOG.md (before 1.0.0 is tagged)
+        if: steps.changed.outputs.site == 'true' && hashFiles('CHANGELOG.md') == ''
+        run: |
+          git fetch --no-tags origin release-please--branches--main--components--ghostframe
+          git show FETCH_HEAD:CHANGELOG.md > CHANGELOG.md
+
+      # tools/ too: the site's lint extends the repo's rules (site/oxlint.config.ts imports tools/oxlint.config.ts).
+      - name: Set up toolchain (mise) and dev tools (tools/)
+        if: steps.changed.outputs.site == 'true'
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+
+      - name: Install the site's packages
+        if: steps.changed.outputs.site == 'true'
+        run: bun install --cwd site --frozen-lockfile --ignore-scripts
+
+      # Playwright and Lighthouse use the runner's own Chrome (channel: chrome), so no browser download.
+      - name: Check the site (types, lint, format, specs, build, site checks, browser tests, Lighthouse)
+        if: steps.changed.outputs.site == 'true'
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bun run --cwd site check
+
   # The benchmarks run in their own workflows: benchmarks.yml (the live run, on main) and performance.yml (the
   # Performance check, on pull requests).
 

@@ -1,0 +1,18 @@
+---
+import Page from '../layouts/Page.astro'
+import CommandBlock from '../install/CommandBlock.astro'
+import Words from '../content/Words.astro'
+import { siteData } from '../../build/site-data/site-data'
+import { words } from '../content/words'
+
+const install = siteData().facts.commands.find(c => c.startsWith('/plugin install'))
+if (!install) throw new Error('fact "commands": README.md gives no /plugin install command')
+---
+
+<Page title={words.landing.title} description={words.landing.description}>
+  <h1 translate="no">ghostframe</h1>
+  <CommandBlock command={install} />
+  <section id="cockpit" data-demo>
+    <p data-demo-lede><Words of={words.demo.lede} /></p>
+  </section>
+</Page>

@@ -19,6 +19,7 @@
     "docs/design/statusline-preview.ts",
     "tools/mockgen/tpl/**",
     "tests/support/screens.ts",
+    "site/build/**/fixtures/**",
     "CHANGELOG.md",
     ".release-please-manifest.json"
   ],

@@ -1,0 +1,49 @@
+---
+import { releaseNotesPage } from '../../build/release-notes/releases'
+import { siteData } from '../../build/site-data/site-data'
+import { words } from '../content/words'
+
+const { releases } = siteData()
+const { chips } = releaseNotesPage(releases)
+---
+
+<h1>{words.releaseNotes.heading}</h1>
+<div role="group" aria-label={words.releaseNotes.filters} class="filters">
+  {
+    chips.map(c => (
+      <button type="button" aria-pressed={c.group === null ? 'true' : 'false'}>
+        {c.label} {c.count}
+      </button>
+    ))
+  }
+</div>
+{
+  releases.map(r => (
+    <article id={`v${r.version}`}>
+      <h2>{r.version}</h2>
+      {r.groups.map(g => (
+        <section>
+          <h3>{g.name}</h3>
+          <ul>
+            {g.changes.map(c => (
+              <li>
+                <span>{c.scope}</span> {c.text}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </article>
+  ))
+}
+
+<style>
+  .filters button {
+    min-height: 44px;
+    padding-inline: 12px;
+    font: 400 11px/1 var(--mono);
+    letter-spacing: 0.13em;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-chip);
+  }
+</style>

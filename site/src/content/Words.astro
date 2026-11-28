@@ -1,0 +1,34 @@
+---
+import type { Wording } from './words'
+
+interface Props {
+  of: Wording
+}
+const { of } = Astro.props
+---
+
+{
+  typeof of === 'string' ? (
+    of
+  ) : (
+    <>
+      <span class="wide">{of.text}</span>
+      <span class="narrow">{of.short}</span>
+    </>
+  )
+}
+
+<style>
+  .narrow {
+    display: none;
+  }
+  /* --bp-phone in tokens.css: the 390 artboards. */
+  @media (max-width: 767px) {
+    .wide {
+      display: none;
+    }
+    .narrow {
+      display: inline;
+    }
+  }
+</style>

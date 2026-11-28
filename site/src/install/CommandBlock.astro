@@ -1,0 +1,49 @@
+---
+interface Props {
+  command: string
+}
+const { command } = Astro.props
+---
+
+<div class="command-block" data-command-block data-state="idle">
+  <span class="prompt" aria-hidden="true">❯</span>
+  <code data-command translate="no">{command}</code>
+  <button type="button" data-copy aria-label="Copy the command">COPY</button>
+  <span class="sr-only" role="status" data-copy-status></span>
+</div>
+
+<style>
+  .command-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 48px;
+    padding-inline: 16px;
+    background: var(--surface-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-button);
+    font: 400 14px/1 var(--mono);
+  }
+  .prompt {
+    color: var(--gold);
+  }
+  code {
+    flex: 1;
+  }
+  button {
+    font: 400 11px/1 var(--mono);
+    letter-spacing: 0.13em;
+    padding: 5px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-chip);
+    transition: color var(--press) var(--ease-out);
+  }
+  [data-state='copied'] button {
+    color: var(--calm-eye);
+  }
+</style>
+
+<script>
+  import { wireCopyButtons } from './copy-button'
+  wireCopyButtons(document)
+</script>
