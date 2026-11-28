@@ -85,6 +85,11 @@ curtain covers the stage only (ADR 0025, the owner's call).
 
 ## Requirements the design sets
 
+The sources: the 17 artboards in this folder (the export, newest), the brief at
+[docs/development/website-brief.md](../../development/website-brief.md), and the designer's handoff in
+[handoff/](handoff/README.md) (its text and `build/` data only). The handoff's rendered reference pages, screenshots and
+filmstrips are not in the repository; the owner's main checkout keeps them, untracked, in `docs/design/website/`.
+
 All 51 moving, interactive and responsive pieces are in the [design inventory](research/13-design-inventory.md), each
 with its artboard evidence, implementation, JS cost, reduced-motion and no-JS behaviour. The ones the prompt named:
 
@@ -460,14 +465,3 @@ Words for its parts: docs/design/website/GLOSSARY.md. Run everything with `bun r
 - Write the failing test first. Expected values come from the design, the real changelog or a literal.
 - In `.astro`, write `<script>`, not `<script lang="ts">`: an attribute makes Astro ship the script untranspiled.
 ```
-
-## Leftovers outside the repo
-
-- The spikes: `C:\Users\Tashfiq\AppData\Local\Temp\claude\fb01919585ba1850\42e661c1-57a1-4cfa-875e-fbde673b416e\scratchpad\spikes\`
-  (a local git repo, branch `spike/website-stack`).
-- The walking skeleton: `...\scratchpad\skeleton\` (local git repo), its clone `...\scratchpad\skeleton-clone\`, and
-  `...\scratchpad\skeleton-strays\`.
-- Research scratch: `...\scratchpad\research\`, `...\scratchpad\try\`, `...\scratchpad\install-size\`,
-  `...\scratchpad\txt\`, `...\scratchpad\design-zip\`.
-- The handoff parts left out of this change: `...\scratchpad\handoff-left-out\` (your main checkout keeps the originals
-  in `D:\Projects\ghostframe\docs\design\website\`: reference pages, screenshots, filmstrips, tools).
