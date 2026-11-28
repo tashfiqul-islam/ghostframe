@@ -5,8 +5,9 @@
 // user on the machine can neither plant a file there nor read one, and a file the current user does not own is
 // ignored all the same.
 import { appendFileSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
-import { join, posix, win32 } from 'node:path'
+import { dirname, isAbsolute, join, posix, win32 } from 'node:path'
 
 import { isRecord } from '../hooks/shared/calls/fields.ts'
 import type { Git, Limits } from './facts.ts'
@@ -140,67 +141,155 @@ function writeAtomic(path: string, text: string): void {
 }
 
 /**
- * Reads `git status --porcelain=v1 --branch` output: the branch, and whether anything is uncommitted.
- * @param out git's stdout
- * @returns branch and dirty state
+ * The branch a folder's repository is on, read from its `HEAD` file with no git run: the `.git` folder above the
+ * folder, or the `.git` file a linked worktree or submodule has, which names its git folder.
+ * shortcut: GIT_DIR and bare repositories are not looked for; the status line runs in a work tree. Upgrade if one shows.
+ * @param dir the folder
+ * @returns the branch, `detached` when HEAD names a commit, or null outside a repository
  */
-export function parseStatus(out: string): Git {
-  const lines = out.split('\n').filter(l => l.trim() !== '')
-  const head = (lines[0] ?? '').replace(/^## /, '')
-  let branch = (head.split('...')[0] ?? '').replace(/^No commits yet on /, '').replace(/^Initial commit on /, '')
+export function headOf(dir: string): string | null {
+  for (let at = dir; ;) {
+    const dotGit = join(at, '.git')
 
-  if (branch.startsWith('HEAD')) branch = 'detached'
+    try {
+      const st = lstatSync(dotGit)
+      const gitDir = st.isDirectory() ? dotGit : /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]
 
-  return { branch: branch.trim(), dirty: lines.length > 1 }
+      if (gitDir === undefined) return null
+      const head = readFileSync(join(isAbsolute(gitDir) ? '' : at, gitDir, 'HEAD'), 'utf8').trim()
+      const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head)?.[1]
+
+      return ref ?? 'detached'
+    } catch {
+      // no .git here (or one that cannot be read): look in the folder above
+    }
+    const up = dirname(at)
+
+    if (up === at) return null
+    at = up
+  }
+}
+
+/**
+ * Whether anything in a folder's repository is uncommitted, from at most two git runs, neither of which reads a
+ * file's contents: tracked changes, staged or not, by `diff-index` against HEAD (by each file's size and time, so a
+ * file written again with the same bytes counts as changed until git next refreshes its index), and only when there
+ * are none, any file not ignored and not yet added. A repository with no commits yet has no HEAD to compare: there,
+ * anything in its index or folder counts. `git status` read every changed file to compare it, which in a repository
+ * with large changed files took half a second and more.
+ * @param dir the folder
+ * @returns true when something is uncommitted, false when nothing is, null when git failed
+ */
+export function dirtyOf(dir: string): boolean | null {
+  const git = (...args: string[]): { code: number | null; out: string } => {
+    const r = Bun.spawnSync(['git', '-C', dir, '--no-optional-locks', ...args], { stdout: 'pipe', stderr: 'ignore', timeout: GIT_TIMEOUT_MS })
+
+    return { code: r.exitCode, out: r.stdout.toString() }
+  }
+  const tracked = git('diff-index', '--quiet', 'HEAD', '--')
+
+  debug(`git diff-index ${dir}: exit ${tracked.code}`)
+  if (tracked.code === 1) return true
+
+  const isUnborn = tracked.code !== 0 && git('rev-parse', '--verify', '--quiet', 'HEAD').code === 1
+  if (tracked.code !== 0 && !isUnborn) return null
+  const rest = git('ls-files', ...(isUnborn ? ['--cached'] : []), '--others', '--exclude-standard', '--directory', '--no-empty-directory')
+
+  return rest.code === 0 ? rest.out.trim().length > 0 : null
 }
 
 const hash = (s: string): string => Bun.hash(s).toString(16)
 
+/** How long a refresh asked for may take before another is asked for. */
+const REFRESH_WAIT_MS = 10_000
+
+/** Starts git's answer for a folder off the render: `(dir, cacheDir) => void`. */
+export type Refresh = (dir: string, cacheDir: string) => void
+
 /**
- * Branch and dirty state for a folder: from the cache when it is under 5 s old, else from one git run, whose answer
- * (a repository's state, or none for a folder outside any) is cached.
+ * A refresh in a process of its own, so the render that asks for it never waits on git: `bun <entry> --git-refresh
+ * <dir> <cache>`, detached, its output ignored.
+ * @param entry the status line's entry point (the bundle the installed command runs, or main.ts)
+ * @returns the refresh
+ */
+export function spawnRefresh(entry: string): Refresh {
+  return (dir, cache) => {
+    try {
+      spawn(process.execPath, [entry, '--git-refresh', dir, cache], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
+    } catch (e) {
+      debug(`git refresh not started: ${String(e)}`)
+    }
+  }
+}
+
+/**
+ * Asks git, and keeps its answer for the next render: `dirtyOf`, written to the folder's cache file.
  * @param dir the folder
  * @param now the time now, epoch ms
  * @param cache the cache folder, this user's when not given
- * @returns branch and dirty state, or null outside a repository or when git failed
  */
-export function gitOf(dir: string, now: number, cache?: string): Git | null {
-  const name = `git-${hash(dir)}.json`
+export function refreshGit(dir: string, now: number, cache?: string): void {
+  const dirty = dirtyOf(dir)
 
   try {
-    const c: unknown = JSON.parse(readOwn(cacheFile(name, cache)) ?? '')
-
-    if (isRecord(c) && c['dir'] === dir && typeof c['at'] === 'number' && now - c['at'] >= 0 && now - c['at'] < GIT_TTL_MS) {
-      const g = c['git']
-
-      if (g === null) return null
-      if (isRecord(g) && typeof g['branch'] === 'string' && typeof g['dirty'] === 'boolean') return { branch: g['branch'], dirty: g['dirty'] }
-    }
-  } catch {
-    // no cache yet, or a broken one: ask git
-  }
-
-  let git: Git | null = null
-
-  try {
-    const r = Bun.spawnSync(['git', '-C', dir, '--no-optional-locks', 'status', '--porcelain=v1', '--branch'], {
-      stdout: 'pipe',
-      stderr: 'ignore',
-      timeout: GIT_TIMEOUT_MS
-    })
-
-    git = r.exitCode === 0 ? parseStatus(r.stdout.toString()) : null
-    debug(`git ${dir}: exit ${r.exitCode}`)
-  } catch (e) {
-    debug(`git failed: ${String(e)}`)
-  }
-  try {
-    writeAtomic(cacheFile(name, cache), JSON.stringify({ at: now, dir, git }))
+    writeAtomic(cacheFile(`git-${hash(dir)}.json`, cache), JSON.stringify({ at: now, dir, dirty }))
   } catch (e) {
     debug(`git cache not written: ${String(e)}`)
   }
+}
 
-  return git
+/**
+ * Branch and dirty state for a folder, never waiting on git: the branch from its HEAD file, the dirty state from the
+ * last answer git gave (none, so no mark, at a folder's first draw). An answer older than 5 s, or none, asks for a
+ * refresh, at most one every 10 s, which the next render draws.
+ * @param dir the folder
+ * @param now the time now, epoch ms
+ * @param cache the cache folder, this user's when not given
+ * @param refresh how a refresh is started
+ * @returns branch and dirty state, or null outside a repository
+ */
+export function gitOf(dir: string, now: number, cache: string | undefined, refresh: Refresh): Git | null {
+  const branch = headOf(dir)
+
+  if (branch === null) return null
+
+  let folder: string
+  let file: string
+
+  try {
+    folder = cache ?? cacheDir(process.env)
+    file = cacheFile(`git-${hash(dir)}.json`, folder)
+  } catch (e) {
+    debug(`git cache folder unknown: ${String(e)}`)
+    return { branch, dirty: false }
+  }
+
+  let c: Record<string, unknown> = {}
+
+  try {
+    const read: unknown = JSON.parse(readOwn(file) ?? '')
+
+    if (isRecord(read) && read['dir'] === dir) c = read
+  } catch {
+    // no answer yet, or a broken one: one is asked for below
+  }
+  const age = (key: string): number => {
+    const at = c[key]
+
+    return typeof at === 'number' ? now - at : Number.POSITIVE_INFINITY
+  }
+  const dirty = typeof c['dirty'] === 'boolean' ? c['dirty'] : false
+
+  if (!(age('at') >= 0 && age('at') < GIT_TTL_MS) && !(age('asked') >= 0 && age('asked') < REFRESH_WAIT_MS)) {
+    try {
+      writeAtomic(file, JSON.stringify({ ...c, dir, asked: now }))
+    } catch (e) {
+      debug(`git refresh not noted: ${String(e)}`)
+    }
+    refresh(dir, folder)
+  }
+
+  return { branch, dirty }
 }
 
 /**

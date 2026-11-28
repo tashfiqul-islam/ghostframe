@@ -7,7 +7,7 @@ import { ansi, depthOf } from './ansi.ts'
 import { factsOf, limitsOf, overlay } from './facts.ts'
 import type { Facts } from './render.ts'
 import { fallback, render } from './render.ts'
-import { debug, gitOf, iconsOn, readLimits, widthOf, writeLimits } from './io.ts'
+import { debug, gitOf, iconsOn, readLimits, refreshGit, spawnRefresh, widthOf, writeLimits } from './io.ts'
 
 function main(): string {
   const env = process.env
@@ -51,7 +51,8 @@ function main(): string {
   let facts: Facts | null = null
 
   try {
-    facts = factsOf(json, gitOf(dir, now), live.five_hour || live.seven_day ? live : limitsOf(null, readLimits(), now), now)
+    // Git's answer is asked for in a process of its own, this same program run again (Bun.main: the bundle or main.ts).
+    facts = factsOf(json, gitOf(dir, now, undefined, spawnRefresh(Bun.main)), live.five_hour || live.seven_day ? live : limitsOf(null, readLimits(), now), now)
     debug(`COLUMNS=${env['COLUMNS']} W=${w}`)
 
     return render(facts, w, { icons: iconsOn(env), slab: env['GF_SLAB'] === '1' })
@@ -64,11 +65,19 @@ function main(): string {
   }
 }
 
-let out = 'ghostframe'
+// `--git-refresh <dir> <cache>`: the refresh a render asked for (io.ts, spawnRefresh). It asks git and writes the
+// answer to the cache; it prints nothing.
+const [flag, refreshDir, refreshCache] = process.argv.slice(2)
 
-try {
-  out = main()
-} catch (e) {
-  debug(`failed: ${String(e)}`)
+if (flag === '--git-refresh' && refreshDir !== undefined) {
+  refreshGit(refreshDir, Date.now(), refreshCache)
+} else {
+  let out = 'ghostframe'
+
+  try {
+    out = main()
+  } catch (e) {
+    debug(`failed: ${String(e)}`)
+  }
+  process.stdout.write(`${out}\n`)
 }
-process.stdout.write(`${out}\n`)
