@@ -409,12 +409,12 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   if (!isOn()) return
 
   // The turn's calls' files are noted after each call returns: the receipt and history count them all.
-  await workSettled()
-
-  const now = await $.clock.now()
-  await updateLog($, log => endTurn(log, durationMs, isAborted, now))
-  await update($, roster, list => endTurnAgents(list, isAborted, now))
-  const waiting = waitingOn(await read($, roster))
+  const [, now] = await Promise.all([workSettled(), $.clock.now()])
+  const [, agents] = await Promise.all([
+    updateLog($, log => endTurn(log, durationMs, isAborted, now)),
+    update($, roster, list => endTurnAgents(list, isAborted, now))
+  ])
+  const waiting = waitingOn(agents)
   const ended = await logNow($)
 
   // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none; the first
@@ -450,8 +450,7 @@ const DIFFS_MAX = 50 // files whose diff a turn keeps
  */
 async function keepTurn($: EngineInterface): Promise<void> {
   try {
-    const log = await logNow($)
-    const work = await readWork($)
+    const [log, work, agents] = await Promise.all([logNow($), readWork($), read($, roster)])
     const mine = (await receiptsHeld($)).filter(r => r.turnNo === log.turnNo)
     // The turn's narration, by row id, so a resumed transcript (no flow) leaves it hidden as the live one did.
     const turns = new Set([...mine.flatMap(r => (r.turn === null ? [] : [r.turn])), ...(log.turn === null ? [] : [log.turn])])
@@ -461,7 +460,7 @@ async function keepTurn($: EngineInterface): Promise<void> {
     )
     const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
 
-    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await detailsNow($), diffs, narration })
+    await saveTurn($, { log, work, roster: agents, receipts: mine, details: await detailsNow($), diffs, narration })
   } catch (error: unknown) {
     $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, noticeSink())
   }

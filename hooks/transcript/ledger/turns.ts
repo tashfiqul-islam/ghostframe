@@ -209,20 +209,16 @@ export function registerTurns(on: On): void {
 
         try {
           // Every reader of `streaming` (each reply on screen) draws again: tables re-flow.
-          await updateStreaming($, () => false)
-
-          const used = await readTally($)
-          const browser = openRunBefore(await flowNow($), Number.MAX_SAFE_INTEGER, e.turnId)
+          const [, used, flow] = await Promise.all([updateStreaming($, () => false), readTally($), flowNow($)])
+          const browser = openRunBefore(flow, Number.MAX_SAFE_INTEGER, e.turnId)
 
           await updateCloses($, list =>
             [...list, { durationMs: e.durationMs, tokens: e.usage?.output_tokens ?? null, tally: tallyText(used), browser, turn: e.turnId }].slice(-500)
           )
         } finally {
-          // The next turn starts counting afresh, whatever happened above.
-          await updateTally($, () => NO_TALLY)
-          await updateCaps($, () => NO_CAPS)
-          // A turn that ended before any reply (aborted, a local command) opens nothing later.
-          await updateAwaitingFirst($, () => false)
+          // The next turn starts counting afresh, whatever happened above; a turn that ended before any reply (aborted,
+          // a local command) opens nothing later.
+          await Promise.all([updateTally($, () => NO_TALLY), updateCaps($, () => NO_CAPS), updateAwaitingFirst($, () => false)])
 
           try {
             // The turn's last answer row: its receipt is drawn under it, and again there after a resume.

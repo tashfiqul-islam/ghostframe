@@ -12,7 +12,16 @@ import { holdTimers } from '../../support/clock'
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
 type Store = Map<string, unknown>
 
-function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true, messages: unknown[] = []) {
+function engine(
+  on: On,
+  clock: { now: number },
+  store: Store,
+  session = 's1',
+  sent: string[] = [],
+  isPlaced = true,
+  messages: unknown[] = [],
+  historyWrites: Promise<void> = Promise.resolve()
+) {
   on('clock.now', () => ({ value: clock.now }))
   holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
@@ -21,9 +30,11 @@ function engine(on: On, clock: { now: number }, store: Store, session = 's1', se
   on('session.start', (_, e) => ({ cwd: e.cwd }))
   on('session.messages', () => ({ value: messages as never }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
+  on('ui.log', () => ({ value: undefined }))
   on('store.keys', () => ({ value: [...store.keys()] }))
   on('store.get', (_, e) => ({ value: store.get(e.key) as never }))
-  on('store.set', (_, e) => {
+  on('store.set', async (_, e) => {
+    if (e.key.startsWith('history:')) await historyWrites
     store.set(e.key, JSON.parse(JSON.stringify(e.value)))
 
     return { value: undefined }
@@ -198,6 +209,32 @@ test('every turn is kept in the store under the session`s key, as the turns end'
     [1, 1],
     [2, 2],
     [3, 3]
+  ])
+})
+
+test('a turn ends without waiting on the store: its history is kept once the store answers', ON, async ($, on) => {
+  const clock = { now: T0 }
+  const store: Store = new Map()
+  let answer = (): void => undefined
+  const held = new Promise<void>(resolve => {
+    answer = resolve
+  })
+  engine(on, clock, store, 'slow', [], true, [], held)
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: false })
+  // Both turns end while the store holds every history write.
+  await turn($, clock, 1, ['one.ts'])
+  await turn($, clock, 2, ['two-a.ts', 'two-b.ts'])
+  expect(store.has('history:slow')).toBe(false)
+
+  answer()
+  // The writes run on after the turns' ends: each draw of the pane is a round trip that lets them.
+  for (let i = 0; i < 50 && (store.get('history:slow') as { turns?: unknown[] } | undefined)?.turns?.length !== 2; i++) {
+    await (await $.ui.mount(PANE)).unmount()
+  }
+  const saved = store.get('history:slow') as { turns: { turnNo: number; steps: unknown[] }[] }
+  expect(saved.turns.map(t => [t.turnNo, t.steps.length])).toEqual([
+    [1, 1],
+    [2, 2]
   ])
 })
 
