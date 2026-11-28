@@ -1,6 +1,6 @@
 # 0023. The website is TypeScript everywhere, checked by tsc and tsrs
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

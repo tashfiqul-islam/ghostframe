@@ -1,6 +1,6 @@
 # 0021. One website CI job that always runs, and skips its work when site/ is untouched
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

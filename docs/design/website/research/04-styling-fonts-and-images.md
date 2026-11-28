@@ -328,7 +328,9 @@ TS needs colours.
 1. `✓ ↻ ∴ ▮` exist in neither font. Options: (a) take them from another OFL mono with matching 0.6 em advance (e.g.
    draw them into the subset with fontTools from a donor font; licence permits merging OFL fonts, output stays OFL),
    (b) inline SVG at 1 cell, (c) accept system fallback inside a fixed-width `inline-block` of 1ch. Designer call on
-   look; (b) is cheapest to build.
+   look; (b) is cheapest to build. **Settled 2026-11-28 (owner):** (a) as a separate `unicode-range` face, from
+   JuliaMono v0.63.2 (OFL 1.1), the only measured candidate with all four at 0.600 em; table and numbers in
+   [ADR 0017](../../../decisions/0017-website-font-subsets.md).
 2. Is mono weight 700 used anywhere in the artboards? If not, cap the axis at 500 (already measured at 11.7 KB).
 3. Does any `.astro` (or `.svelte`) source need formatting? oxfmt skips `.astro` today; that's a dependency cost for
    the framework choice.

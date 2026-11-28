@@ -1,6 +1,6 @@
 # 0015. The website is styled with plain CSS and one tokens file, not Tailwind
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

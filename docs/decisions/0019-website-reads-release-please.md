@@ -1,6 +1,6 @@
 # 0019. The release notes read release-please's text, and git only for counts
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

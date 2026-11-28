@@ -1,6 +1,6 @@
 # 0020. The website is an assets-only Worker, with headers written at build
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

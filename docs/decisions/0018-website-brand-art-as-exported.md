@@ -1,6 +1,6 @@
 # 0018. The website ships brand art as exported, and inlines the hero mascot
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

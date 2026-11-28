@@ -1,6 +1,6 @@
 # 0024. The website counts visits without a script
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

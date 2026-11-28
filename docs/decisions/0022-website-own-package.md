@@ -1,6 +1,6 @@
 # 0022. site/ is its own package, beside the plugin, with no workspace
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # The website stack
 
-Status: proposed, 2026-11-28. The decision records are ADRs 0013 to 0027 in [docs/decisions](../../decisions/README.md);
+Status: accepted, 2026-11-28. The decision records are ADRs 0013 to 0027 in [docs/decisions](../../decisions/README.md);
 this file holds the evidence, the plan and the structure. Words for the site's parts are in [GLOSSARY.md](GLOSSARY.md).
 
 ## The recommendation
@@ -131,11 +131,23 @@ colour belongs. Resolved by the owner's rules ([full mapping](research/broken-co
 | Each Components swatch takes its labelled token (the broken value is the swatch's 1 px inset ring; its fill is intact) |     18 | the swatch's own token (the ring then disappears into the fill: owner to confirm) |
 | Tick patterns and borders on surface-1 cards                                                                           |     80 | `--line-2` `#2A2A34`                                                              |
 | Secondary buttons, COPY buttons, the version chip, the tooltip, the process chips (same element intact elsewhere)      |     23 | `--line-2`                                                                        |
-| Not placed with confidence                                                                                             |     26 | the owner's list below                                                            |
+| Not placed with confidence                                                                                             |     26 | `--line-2` by default; check in the build's screenshot review (below)             |
 
 The rule "every intact tick uses `--line-2`" holds for minor ticks only. Major ticks use `#3A3A47` (10 places), and the
-hero frame's ticks use 30% and 42% white. `#3A3A47` is not on the token sheet but draws major ticks and schematic lines;
-it needs a token (`--line-3`) or a decision.
+hero frame's ticks use 30% and 42% white. `#3A3A47` is not on the token sheet but draws major ticks and schematic lines,
+so `tokens.css` adds `--line-3: #3a3a47` (the handoff's own `tokens.css` names it the same way).
+
+Check in the build's screenshot review. These 26 values take `--line-2` until the screenshots say otherwise; each is
+quoted with its file in [broken-colours.md](research/broken-colours.md#c-not-placed-with-confidence-26):
+
+- the inset outlines on the "Docs" and "Source" buttons of the menu sheet (2), and on the Atom and GitHub links of the
+  release notes header at 1440 and 390 (4): `--line-1` is the alternative;
+- the amber release state chip's outline at 1440 and 390 (3): `--busy-eye` or `--busy` are the alternatives;
+- the joined filter chips, ALL to INTERNAL, at 1440 and 390 (10): `--line-1`, like the nav's joined pair, is the
+  alternative;
+- the `f` keycap in "press f to filter" (1);
+- the release rail's version frame at 1440 and 390 (2): the frame's 18% white is the alternative;
+- the 390 demo's two-tab switch (2), the 390 pager's inactive bar (1) and the boot timeline's baseline (1).
 
 ## Findings by area
 
@@ -180,7 +192,10 @@ mini build (3.5 KB) is the measured upgrade (risk 3).
   unique inline declarations, mostly raw pixel values.
 - The Fontsource `latin` files lack the terminal's glyphs (checked: no U+2500, U+2580, U+276F or U+2713). Own subsets:
   Hanken Grotesk 400–800 15.7 KB, JetBrains Mono 400–500 with box and block ranges and no code ligatures 11.7 KB.
-  `✓ ↻ ∴ ▮` are in neither font: the build draws them another way, and the font coverage check keeps it honest.
+  `✓ ↻ ∴ ▮` are in neither font: a third woff2 holds only those four, subset from JuliaMono v0.63.2 (SIL Open Font
+  License 1.1, every glyph 0.600 em like JetBrains Mono's cell, 908 bytes), loaded through `unicode-range` so it is
+  fetched only on a page that draws one ([ADR 0017](../../decisions/0017-website-font-subsets.md)). The font coverage
+  check counts it.
   Fallbacks: metric overrides from Capsize; Courier New has JetBrains Mono's 0.6 em advance, so the grid holds while the
   font loads. Preload both woff2 files, `font-display: swap`.
 - Images: brand SVGs as exported (ADR 0018), the hero mascot inline, other copies lazy `<img>` with sizes; the glyph
@@ -435,24 +450,19 @@ What the architecture review changed (improve-codebase-architecture; the owner a
 
 Decisions and settings only the owner can make, carried out of this research:
 
-1. **The domain.** `site/src/site.ts` holds the origin; the build fails while it is empty. The workers.dev address
+1. **Installing the plugin from a subfolder: investigate before 1.0.** Every plugin install downloads the whole repo
+   (`source: "./"`): a shallow clone is 26 MB on disk (17 MB working tree, 13 MB of it `docs/`), a full clone 29 MB,
+   measured 2026-11-28. `site/` adds an estimated under 1 MB without screenshot baselines (the skeleton commits 55 KB of
+   source and a 127 KB lockfile; fonts 28 KB). Moving the plugin to a subfolder would ship neither `docs/` nor `site/`.
+   Committing visual baselines waits on this.
+2. **The domain.** `site/src/site.ts` holds the origin; the build fails while it is empty. The workers.dev address
    stands in until a domain is chosen.
-2. **Installing the plugin from a subfolder.** Every plugin install downloads the whole repo (`source: "./"`). Measured
-   today: a shallow clone is 26 MB on disk (17 MB working tree, 13 MB of it `docs/`), a full clone 29 MB. `site/` adds
-   an estimated under 1 MB without screenshot baselines (the skeleton commits 55 KB of source and a 127 KB lockfile;
-   fonts 27 KB). Moving the plugin to a subfolder would ship neither `docs/` nor `site/`. Committing visual baselines
-   waits on this.
 3. **The "(7.14)" leak.** A commit override on #56 before 1.0.0 is tagged, rewriting that Docs entry without the spec
    number.
 4. **Cloudflare settings when the domain is set up:** AI bot blocking off, managed robots.txt off, HTTP/3 on, HSTS on
    the zone as in ADR 0020. Later: HSTS preload.
-5. **Colours not placed with confidence (26):** the inset outlines on the "Docs" and "Source" buttons of the menu sheet
-   and on the Atom and GitHub links of the release notes header (`--line-1` or `--line-2`); the amber release state
-   chip's outline (`--busy-eye`, `--busy` or `--line-2`); the joined filter chips (`--line-1` like the nav's joined
-   pair, or `--line-2` like single controls); the `f` keycap; the release rail's version frame (the frame's 18% white
-   or `--line-2`); the 390 demo's two-tab switch; the 390 pager's inactive bar; the boot timeline's baseline. Each is
-   quoted with its file in [broken-colours.md](research/broken-colours.md). Also: whether the 18 swatch rings may vanish
-   into their fills, and a token for `#3A3A47`.
+5. **The 18 swatch rings.** Whether the Components swatches' 1 px rings may vanish into their fills. The 26 unplaced
+   colours are settled (`--line-2`, checked in the build's screenshot review) and `#3A3A47` is `--line-3`.
 6. **The plugin's own thresholds.** `statusline/render.ts` repeats 60 and 85 as literals at lines 313, 325, 326 and 342
    besides the tone rule the site reads; one constant there would keep them together.
 

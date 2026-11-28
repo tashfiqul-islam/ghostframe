@@ -1,6 +1,6 @@
 # 0025. The boot curtain covers the hero stage only
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

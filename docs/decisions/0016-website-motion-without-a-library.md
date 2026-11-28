@@ -1,6 +1,6 @@
 # 0016. The website's motion uses the platform, with no animation library
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

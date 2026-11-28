@@ -1,6 +1,6 @@
 # 0026. The website welcomes every crawler, AI training included
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

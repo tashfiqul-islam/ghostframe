@@ -1,6 +1,6 @@
 # 0027. The 404 answers with a real 404 status, and Lighthouse audits its file
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

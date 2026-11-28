@@ -1,6 +1,6 @@
 # 0014. The website's interactive pieces are plain TypeScript, with no UI framework
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 

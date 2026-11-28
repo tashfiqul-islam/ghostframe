@@ -1,6 +1,6 @@
 # 0013. The website is built with Astro, as static output
 
-Status: proposed.
+Status: accepted.
 
 ## Context
 
