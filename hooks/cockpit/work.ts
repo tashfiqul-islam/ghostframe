@@ -414,11 +414,23 @@ export async function startWork($: EngineInterface, cwd?: string): Promise<void>
  * @param outcome what the call came back with
  * @param cwd the session's folder, for paths from the project root
  * @param isAgent whether the call was an agent's own: its files and pages are marked `◇`, and its to-dos are its own
+ * @param onChanged told the files a shell step changed (13.1: they fix an earlier failed edit of them), before the
+ *   call counts as noted, so a turn's end sees it
  */
-export async function noteWork($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent = false): Promise<void> {
+export async function noteWork(
+  $: EngineInterface,
+  tool: string,
+  input: unknown,
+  outcome: Outcome,
+  cwd: string | undefined,
+  isAgent = false,
+  onChanged?: (paths: string[]) => Promise<void>
+): Promise<void> {
   // One call at a time: each reads the work tree's last diff and moves it on, and agents' calls end beside the main
   // loop's. Two at once would both count the change between the last diff and the first of theirs.
-  const run = noting.then(async () => noteWorkNow($, tool, input, outcome, cwd, isAgent))
+  const run = noting
+    .then(async () => noteWorkNow($, tool, input, outcome, cwd, isAgent))
+    .then(async changed => (changed.length > 0 ? onChanged?.(changed) : undefined))
   noting = run.catch(() => undefined) // a call that fails is the caller's to log; the next one still runs
 
   return run
@@ -435,8 +447,8 @@ export async function workSettled(): Promise<void> {
   await noting
 }
 
-/** `noteWork`'s body, run one call at a time. */
-async function noteWorkNow($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent: boolean): Promise<void> {
+/** `noteWork`'s body, run one call at a time; the files a shell step changed, as [ FILES ] shows them. */
+async function noteWorkNow($: EngineInterface, tool: string, input: unknown, outcome: Outcome, cwd: string | undefined, isAgent: boolean): Promise<string[]> {
   lastCwd = cwd ?? lastCwd
   const isOk = outcome.isError !== true && outcome.deny === undefined
   const isShell = tool === 'Bash' || tool === 'PowerShell'
@@ -447,10 +459,20 @@ async function noteWorkNow($: EngineInterface, tool: string, input: unknown, out
   // A Write may add a file; an Edit changes one that is there: the new files' listing is reused.
   if (isOk && EDITS.has(tool)) lastDiff = (await diffNow($, cwd, tool === 'Write'))?.files
 
+  let changed: string[] = []
+
   await update($, work, w => {
     const todo = isOk && !isAgent ? noteTodo({ items: w.todo, isRevised: w.isRevised }, tool, input, outcome.result) : { items: w.todo, isRevised: w.isRevised }
     const files = shell === undefined ? w.files : shell.apply(w.files)
     const more = shell?.more === undefined ? {} : shell.more === 0 ? { moreUntracked: undefined } : { moreUntracked: shell.more }
+    const was = new Map(w.files.map(f => [f.path, f]))
+
+    // shortcut: a change that leaves a file's counts as they were (a line changed again) is not seen; the diff's
+    // counts are all a shell step's change is known by.
+    changed =
+      shell === undefined
+        ? []
+        : files.filter(f => was.get(f.path)?.adds !== f.adds || was.get(f.path)?.dels !== f.dels || was.get(f.path)?.tag !== f.tag).map(f => f.path)
 
     return {
       ...w,
@@ -461,6 +483,8 @@ async function noteWorkNow($: EngineInterface, tool: string, input: unknown, out
       ...more
     }
   })
+
+  return changed
 }
 
 /**

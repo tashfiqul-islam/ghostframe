@@ -3368,10 +3368,10 @@ A step is a **failure** when all of these hold:
 
 **The failure key.** Each failure has a key: _program_, _subcommand_, _target_.
 
-- _program_: the first word of the command after stripping the `cd` prefix (13.4) and leading `VAR=value` assignments: `bun`, `git`, `npm`, `pytest`. For `edit` and `write` it is the kind itself. A command joined with `;`, `&&`, `||` or `|` keys on its first command, except a `test` step, which keys on the statement that runs its tests (`sed -i … && bun test` keys on `bun · test`, and its subject reads `bun test`); a `;` or `|` inside quotes, brackets or braces joins nothing.
+- _program_: the first word of the command after stripping the `cd` prefix (13.4) and leading `VAR=value` assignments: `bun`, `git`, `npm`, `pytest`. A wrapper is not the program: `timeout`, `time`, `env`, `nice` and `nohup` key on the command they run, their own flags, `timeout`'s duration, `nice`'s level and `env`'s assignments left out (`timeout 600 bun test hooks/width` keys on `bun · test · hooks/width`, so the same run without the wrapper fixes it, and a wrapped run of another file does not). For `edit` and `write` it is the kind itself. A command joined with `;`, `&&`, `||` or `|` keys on its first command, except a `test` step, which keys on the statement that runs its tests (`sed -i … && bun test` keys on `bun · test`, and its subject reads `bun test`); a `;` or `|` inside quotes, brackets or braces joins nothing.
 - In PowerShell, a leading `$name = ` is stripped like `VAR=value` (`$t = Get-Content -Raw a.ts` keys on `Get-Content`), and an assignment that runs no program is skipped like one (`$env:LANG = "C"; bun test` keys on `bun`). The call operator runs the program after it (`& "C:\tools\lint.exe"` keys on `lint`). A statement with no program (an expression such as `[IO.File]::ReadAllText(…)`, a script block, `foreach`, `for`, `while`, `if`) keys on `pwsh` with no target. Bash's own loops and conditionals (`for`, `while`, `until`, `if`, `case`, a `(` or `{` group) key on `bash`.
 - _subcommand_: for tools with subcommands (`bun`, `npm`, `pnpm`, `yarn`, `git`, `gh`, `cargo`, `go`, `docker`, `kubectl`), the first argument that is not a flag: `test`, `audit`, `push`. Otherwise empty.
-- _target_: the first argument that is a path or a test filter, project-relative (13.2); for `edit` and `write`, the file. Otherwise empty. A redirection (`>`, `>>`, `2>`, `*>`, `2>&1`) and the file it writes to are not arguments, and the value of a folder option (`git -C`, `--cwd`, `--prefix`, `--git-dir`, `--work-tree`) is neither a subcommand nor a target.
+- _target_: the first argument that is a path, project-relative (13.2); for a test that names no path, its first argument, its filter; for `edit` and `write`, the file. Otherwise empty. A flag's value is never the target of a test that names its file (`bun test --timeout 1000 tests/a.test.ts` keys on the file). A redirection (`>`, `>>`, `2>`, `*>`, `2>&1`) and the file it writes to are not arguments, and the value of a folder option (`git -C`, `--cwd`, `--prefix`, `--git-dir`, `--work-tree`) is neither a subcommand nor a target.
 
 | Command                                             | Key                             |
 | --------------------------------------------------- | ------------------------------- |
@@ -3384,13 +3384,19 @@ A step is a **failure** when all of these hold:
 | `[IO.File]::ReadAllText("a.ts")`                    | `pwsh · ·`                      |
 | `bun run --cwd tools check *> $env:TEMP\g.txt`      | `bun · run ·`                   |
 | `sed -i "4s/3/4/" a.test.ts && bun test`            | `bun · test ·`                  |
+| `timeout 600 bun test hooks/width`                  | `bun · test · hooks/width`      |
+| `bun test --timeout 1000 tests/a.test.ts`           | `bun · test · tests/a.test.ts`  |
 
 **Fixed.** A failure is fixed when a later step in the same turn succeeds with:
 
 - the same key (a `write` and an `edit` of the same file share it: both leave the file changed); or
 - a broader key: the same program and subcommand, and a target that is empty or contains the failed target. `bun test` passing fixes `bun test hooks/width`. `bun test hooks` passing fixes `bun test hooks/width/grapheme.test.tsx`.
 
-An agent's failure is fixed only by the same agent (amendment 13).
+A failed `edit` or `write` is also fixed when a later step of the same turn changes that file, whatever its kind: a shell step's `sed -i`, or a script it runs (`python fix.py`). What a shell step changed is what `[ FILES ]` reads, the work tree's diff before and after it; a step that leaves the file's counts as they were (a line changed again) is not seen to change it.
+
+An agent's failure is fixed only by the same agent (amendment 13). A turn whose failures are all fixed is `DONE`, never `FAILED`.
+
+Not a fix: a step in a later turn (each turn's receipt counts its own steps, and a drawn receipt never changes, amendment 9).
 
 **Counting.** Counts are by key, not by attempt. Running the same failing command five times is one failure. The receipt's `n still failing` and `n fixed`, the head card's stats and the failure card's count all count keys.
 

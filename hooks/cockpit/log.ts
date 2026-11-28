@@ -15,6 +15,7 @@ import {
   newLog,
   newTurn,
   noteAgentWork,
+  noteChanged,
   noteMode,
   noteSaid,
   receiptOf,
@@ -253,7 +254,13 @@ export async function logStepEnd($: EngineInterface, e: ToolCallInput, outcome: 
   // The detail first: a fallback failure row is decided the moment its step settles, and reads its output then.
   await noteEnd($, e.tool_use_id, e, ran, at)
   await updateLog($, log => settleStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at, outcome: ran, blockedBy, blockedSubject }))
-  afterCall($, e.tool, noteWork($, e.tool, e, ran, cwd))
+  afterCall(
+    $,
+    e.tool,
+    noteWork($, e.tool, e, ran, cwd, false, async paths => {
+      await updateLog($, log => noteChanged(log, e.tool_use_id, paths))
+    })
+  )
   lastMode = 'requesting'
 }
 
