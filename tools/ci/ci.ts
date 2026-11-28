@@ -210,7 +210,7 @@ export function failureOf(job: string, step: Step, output: string, code: number)
     ...shown,
     '```',
     '',
-    `Reproduce: \`${step.run}\`, or the whole job: \`mise run ci:run -- ${job}\`.`
+    `Reproduce: \`${step.repro ?? step.run}\`, or the whole job: \`mise run ci:run -- ${job}\`.`
   ].join('\n')
 }
 
@@ -457,6 +457,13 @@ function selfTest(): void {
 
   eq(failure.includes('src/a.ts:3 error: no-unused') && !failure.includes('0 fail'), true, 'failure: the error lines, not the pass counts')
   eq(failure.includes('`mise run ci:run -- check`'), true, 'failure: the job to rerun')
+  eq(
+    failureOf('check', { id: 'actionlint', run: 'if [ -n "$GITHUB_ACTIONS" ]; then actionlint -format x; fi', repro: 'actionlint' }, 'e: error', 1).includes(
+      'Reproduce: `actionlint`'
+    ),
+    true,
+    'failure: the local command, not the CI-only one'
+  )
   console.log('ci.ts self-test: ok')
 }
 
