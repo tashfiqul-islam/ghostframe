@@ -291,11 +291,15 @@ Performance check see that ([`.github/actions/changes`](../../.github/actions/ch
 They still run: a required check that does not run counts as missing and blocks the merge. A renamed file counts by
 both its names. The Quality gate always does its whole work, since it lints the docs.
 
-### Make it required
+### Required
 
-The ruleset is applied by a maintainer, not by CI. To make the check block merging, add it to the `main` ruleset's
-required status checks ([`.github/rulesets/main.json`](../../.github/rulesets/main.json)) next to the others:
+The check blocks merging: `Performance` is one of the `main` ruleset's required status checks
+([`.github/rulesets/main.json`](../../.github/rulesets/main.json), the live ruleset's copy), beside the others:
 
 ```json
 { "context": "Performance", "integration_id": 15368 }
 ```
+
+The ruleset is applied by a maintainer, not by CI: change the live one and this file together. A pull request opened
+before the check existed reports no Performance until it is brought up to date with `main`, which the ruleset
+requires before a merge anyway.
