@@ -14,6 +14,7 @@ const artboardColours = {
   '--surface-2': '#17171f',
   '--line-1': '#1e1d24',
   '--line-2': '#2a2a34',
+  '--line-3': '#3a3a47',
   '--text': '#eceaf2',
   '--text-2': '#8c8899',
   '--text-3': '#7f7b8b',
@@ -64,6 +65,43 @@ describe('undeclaredBreakpoints', () => {
   })
 })
 
-test('tokens.css declares the phone breakpoint the 390 artboards use', () => {
-  expect(readTokens(tokensCss).get('--bp-phone')).toBe('767px')
+// The grid, type and motion values of the Components artboard (files 12 and 13) and HANDOFF section 9.
+const artboardValues = {
+  '--space-1': '4px',
+  '--space-2': '8px',
+  '--space-3': '16px',
+  '--space-4': '24px',
+  '--space-5': '32px',
+  '--space-6': '48px',
+  '--space-7': '64px',
+  '--space-8': '96px',
+  '--radius-chip': '4px',
+  '--radius-button': '6px',
+  '--radius-frame': '0',
+  '--ease-weight': 'cubic-bezier(0.16, 1, 0.3, 1)',
+  '--stagger': '30ms',
+  '--slide': '380ms',
+  '--pupil': '520ms',
+  '--type-display': '64px',
+  '--type-display-phone': '40px',
+  '--type-hero': '60px',
+  '--type-hero-phone': '44px',
+  '--type-title': '24px',
+  '--type-lead': '22px',
+  '--type-body': '18px',
+  '--type-mono': '14px',
+  '--type-label': '11px',
+  '--track-label': '0.13em',
+  '--bp-narrow': '1023px',
+  '--bp-fluid': '599px',
+  '--bp-pair': '768px'
+}
+
+test('tokens.css holds the grid, type, motion and breakpoint values of the artboard', () => {
+  const tokens = readTokens(tokensCss)
+  for (const [name, value] of Object.entries(artboardValues)) expect([name, tokens.get(name)]).toEqual([name, value])
+})
+
+test('tokens.css no longer declares --bp-phone', () => {
+  expect(readTokens(tokensCss).has('--bp-phone')).toBe(false)
 })

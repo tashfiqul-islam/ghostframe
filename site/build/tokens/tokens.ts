@@ -19,6 +19,34 @@ export function undeclaredTokens(css: string, tokens: Map<string, string>): stri
   return [...missing]
 }
 
+type Table = Record<string, unknown>
+export type DesignRecord = { colors: Table; spacing: Table; rounded: Table; typography: Record<string, Table> }
+
+function isTable(value: unknown): value is Table {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function table(parsed: Table, name: string): Table {
+  const found = parsed[name]
+  if (!isTable(found)) throw new Error(`DESIGN.md frontmatter has no ${name} table`)
+  return found
+}
+
+/** The four token tables in the YAML frontmatter of DESIGN.md, which the design-record spec holds to tokens.css. */
+export function readDesignRecord(markdown: string): DesignRecord {
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown)?.[1]
+  if (frontmatter === undefined) throw new Error('DESIGN.md has no frontmatter')
+  const parsed: unknown = Bun.YAML.parse(frontmatter)
+  if (!isTable(parsed)) throw new Error('DESIGN.md frontmatter is not a YAML mapping')
+  const typography = table(parsed, 'typography')
+  return {
+    colors: table(parsed, 'colors'),
+    spacing: table(parsed, 'spacing'),
+    rounded: table(parsed, 'rounded'),
+    typography: Object.fromEntries(Object.keys(typography).map(key => [key, table(typography, key)]))
+  }
+}
+
 function stripComments(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, '')
 }

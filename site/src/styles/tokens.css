@@ -10,6 +10,7 @@
   --surface-2: #17171f;
   --line-1: #1e1d24;
   --line-2: #2a2a34;
+  --line-3: #3a3a47;
   --text: #eceaf2;
   --text-2: #8c8899;
   --text-3: #7f7b8b;
@@ -26,20 +27,59 @@
   /* type */
   --sans: 'Hanken Grotesk', 'Hanken Fallback', system-ui, sans-serif;
   --mono: 'JetBrains Mono', 'Mono Fallback', ui-monospace, monospace;
+  --type-display: 64px;
+  --type-display-phone: 40px;
+  --type-hero: 60px;
+  --type-hero-phone: 44px;
+  --type-title: 24px;
+  --type-lead: 22px;
+  --type-body: 18px;
+  --type-mono: 14px;
+  --type-label: 11px;
+  --weight-display: 800;
+  --weight-title: 700;
+  --weight-lead: 400;
+  --weight-body: 400;
+  --weight-mono: 400;
+  --weight-label: 400;
+  --leading-display: 0.98;
+  --leading-title: 1.15;
+  --leading-lead: 1.55;
+  --leading-body: 1.55;
+  --leading-mono: 1.6;
+  --track-display: -0.04em;
+  --track-title: -0.015em;
+  --track-label: 0.13em;
 
   /* breakpoints: media queries cannot read custom properties, so these record each one and build/checks holds every
-     @media width to them. phone: the 390 artboards. */
-  --bp-phone: 767px;
+     @media width to them. narrow: the 390 layout below it. fluid: 20px margins below it. pair: two-column groups from
+     it. */
+  --bp-narrow: 1023px;
+  --bp-fluid: 599px;
+  --bp-pair: 768px;
 
   /* space, radius */
   --cell-w: 8px;
   --cell-h: 16px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+  --radius-frame: 0;
   --radius-chip: 4px;
   --radius-button: 6px;
 
   /* motion */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-weight: cubic-bezier(0.16, 1, 0.3, 1);
   --press: 140ms;
   --move: 240ms;
   --light: 320ms;
+  --stagger: 30ms;
+  --slide: 380ms;
+  --pupil: 520ms;
 }
