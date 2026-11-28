@@ -7,6 +7,9 @@
 //   bun tools/bench/run.ts --live [--memory]   and the real session (and its ten-minute memory run)
 //   bun tools/bench/run.ts --strict            exit 1 when a budget breaks
 //   --harness-log <file>, --live-log <file>      judge the output of runs already made instead of running them
+//   --plugin <dir>    measure the plugin (manifest, hooks, types, statusline) in another checkout with this harness
+//   --on-only         the harness's Cockpit-on configs alone, and the status line's installed form alone
+//   --report <file>   also write the report's JSON there
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -22,6 +25,8 @@ const isCi = process.env['CI'] === 'true'
 const argOf = (name: string): string | undefined => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
 const harnessLog = argOf('--harness-log')
 const liveLog = argOf('--live-log')
+const plugin = resolve(argOf('--plugin') ?? REPO)
+const isOnOnly = args.includes('--on-only')
 
 type Hook = { hook: string; calls: number; p50: number; p95: number; max: number; total: number; overlapped: number; perSec: number }
 type Phase = { config: string; phase: string; wallMs: number; hooks: Hook[] } & Record<string, unknown>
@@ -46,7 +51,12 @@ const check = (budget: BudgetName, measure: string, value: number | null): void 
 // The harness: the long session, Cockpit on and off.
 const harness =
   harnessLog === undefined
-    ? runInRoot(['tests/bench/session.bench.tsx'])
+    ? runInRoot(
+        ['tests/bench/session.bench.tsx', 'tests/bench/only.ts'],
+        {},
+        plugin,
+        isOnOnly ? { 'tests/bench/only.ts': "export const ONLY: readonly string[] = ['on-280x70', 'on-120x40']\n" } : {}
+      )
     : { status: 0, output: readFileSync(harnessLog, 'utf8'), root: mkdtempSync(join(tmpdir(), 'ghostframe-bench-')) }
 const phases = benchLines(harness.output) as Phase[]
 
@@ -85,11 +95,15 @@ for (const config of ['on-280x70', 'on-120x40']) {
 const bigRepo = process.env['BENCH_REPO']
 
 if (bigRepo !== undefined && !args.includes('--no-statusline')) buildRepo(bigRepo)
-const statusline = args.includes('--no-statusline') ? [] : measureStatusline([REPO, ...(bigRepo === undefined ? [] : [bigRepo])])
+const statusline = args.includes('--no-statusline')
+  ? []
+  : measureStatusline([REPO, ...(bigRepo === undefined ? [] : [bigRepo])], plugin, isOnOnly ? ['bun statusline.js (installed today)'] : undefined)
+// Named by kind, not path, so a comparison of two checkouts lines the same measure up.
+const repoName = (repo: string): string => (repo === bigRepo ? 'the 40,000-file repo' : 'this repo')
 
 for (const s of statusline.filter(x => x.form.startsWith('bun statusline.js'))) {
-  check('statusline', `${s.form}, cold p50 (${s.repo})`, s.coldP50)
-  check('statusline', `${s.form}, warm p50 (${s.repo})`, s.warmP50)
+  check('statusline', `${s.form}, cold p50 (${repoName(s.repo)})`, s.coldP50)
+  check('statusline', `${s.form}, warm p50 (${repoName(s.repo)})`, s.warmP50)
 }
 
 // The real session.
@@ -137,6 +151,9 @@ for (const c of checks) console.log(`| ${c.ok ? 'ok' : 'OVER'} | ${c.budget} | $
 
 const out = join(harness.root, 'bench-report.json')
 writeFileSync(out, JSON.stringify({ isCi, checks, phases, statusline, live, memory }, null, 2))
+const report = argOf('--report')
+
+if (report !== undefined) writeFileSync(report, readFileSync(out))
 console.log(`\n${checks.filter(c => !c.ok).length} of ${checks.length} over budget. Full numbers: ${out}`)
 if (process.env['GITHUB_STEP_SUMMARY'] !== undefined) {
   writeFileSync(

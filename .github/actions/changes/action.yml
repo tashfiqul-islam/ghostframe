@@ -1,0 +1,39 @@
+name: Changes
+description: >-
+  Whether a pull request changes anything the tests or the benchmarks run, so a required job can pass in seconds when
+  it changes only words and pictures. It never skips a job: a required check that does not run counts as missing and
+  blocks the merge. Anything but a pull request counts as code. The list of what is not code is in
+  docs/development/performance.md ("Changes that skip the work"); change it here and there together.
+
+outputs:
+  code:
+    description: "'true' when the pull request changes code (or this is no pull request), 'false' when it changes only non-code files."
+    value: ${{ steps.files.outputs.code }}
+
+runs:
+  using: composite
+  steps:
+    - name: List the pull request's files and look for code among them
+      id: files
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+        CHANGED: ${{ github.event.pull_request.changed_files }}
+      run: |
+        set -euo pipefail
+        if [ -z "$PR" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; echo "Not a pull request: code."; exit 0; fi
+        # The files API lists at most 3,000 files: a larger change counts as code.
+        if [ "$CHANGED" -gt 3000 ]; then echo "code=true" >> "$GITHUB_OUTPUT"; echo "$CHANGED files: code."; exit 0; fi
+        code=false
+        while IFS= read -r path; do
+          case "$path" in
+            *.md | docs/* | LICENSE | .rumdl.toml | .diagram-design/* | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) ;;
+            *.png | *.jpg | *.jpeg | *.gif | *.webp | *.svg | *.ico) ;;
+            *) code=true; echo "Code: $path"; break ;;
+          esac
+        # A rename lists both paths: code moved into docs/ is still code leaving.
+        done < <(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')
+        echo "code=$code" >> "$GITHUB_OUTPUT"
+        if [ "$code" = false ]; then echo "Only non-code files change: the work is skipped and the job passes."; fi

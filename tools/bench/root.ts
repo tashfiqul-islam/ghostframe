@@ -4,20 +4,15 @@
 // chosen files under its tests/, each renamed to *.test.ts(x). A file keeps its folder under tests/, so its
 // relative imports resolve as they do in the repo.
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 const REPO = resolve(import.meta.dirname, '..', '..')
-const COPIED = [
-  '.claude-plugin',
-  'hooks',
-  'types',
-  join('tests', 'support'),
-  join('tests', 'fixtures'),
-  join('tests', 'tsconfig.json'),
-  join('tools', 'perf', 'probe', 'hooks')
-]
+/** The plugin itself: from `plugin` when one is named (the Performance check measures main's with this tree's harness). */
+const PLUGIN = ['.claude-plugin', 'hooks', 'types']
+/** The harness: always this tree's, so both sides of a comparison are measured with the same benchmark. */
+const COPIED = [join('tests', 'support'), join('tests', 'fixtures'), join('tests', 'tsconfig.json'), join('tools', 'perf', 'probe', 'hooks')]
 
 /** What one harness run printed and how it ended. */
 export type HarnessRun = { status: number; output: string; root: string }
@@ -26,11 +21,19 @@ export type HarnessRun = { status: number; output: string; root: string }
  * Copies the plugin and the given test files into a temporary root and runs the harness there.
  * @param files repo-relative paths under tests/, named `*.test.ts(x)` or `*.bench.ts(x)`
  * @param env extra variables for the harness
+ * @param plugin the folder the plugin's own code (manifest, hooks, types) is copied from; this tree when not given
+ * @param overrides files written into the root after the copy, by root-relative path
  * @returns the harness's exit status and its whole output
  */
-export function runInRoot(files: readonly string[], env: Record<string, string> = {}): HarnessRun {
+export function runInRoot(
+  files: readonly string[],
+  env: Record<string, string> = {},
+  plugin: string = REPO,
+  overrides: Readonly<Record<string, string>> = {}
+): HarnessRun {
   const root = mkdtempSync(join(tmpdir(), 'ghostframe-bench-'))
 
+  for (const part of PLUGIN) cpSync(join(plugin, part), join(root, part), { recursive: true })
   for (const part of COPIED) cpSync(join(REPO, part), join(root, part), { recursive: true })
   for (const file of files) {
     const from = resolve(REPO, file)
@@ -40,6 +43,10 @@ export function runInRoot(files: readonly string[], env: Record<string, string> 
     const to = join(root, 'tests', dirname(under), basename(under).replace(/\.bench\.(tsx?)$/, '.test.$1'))
     mkdirSync(dirname(to), { recursive: true })
     cpSync(from, to)
+  }
+  for (const [path, text] of Object.entries(overrides)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true })
+    writeFileSync(join(root, path), text)
   }
 
   const run = spawnSync(process.env['BENCH_CLAUDE'] ?? 'claude', ['plugin', 'test', '.'], {

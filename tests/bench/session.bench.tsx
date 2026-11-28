@@ -12,6 +12,7 @@ import * as long from '../fixtures/long-session'
 import { PANE } from '../support/cockpit'
 import type { Engine } from '../support/engine'
 import { blockRow, liveEngine, liveTurn, type Recorded } from '../support/live'
+import { ONLY } from './only'
 
 // The harness prints a test's console to its output; the engine's own lib leaves `console` undeclared.
 declare const console: { log: (line: string) => void }
@@ -94,7 +95,7 @@ function rowsOf(config: Config, transcript: number): Site[] {
   return rows
 }
 
-for (const config of CONFIGS) {
+for (const config of CONFIGS.filter(c => ONLY.length === 0 || ONLY.includes(c.name))) {
   test(
     `bench: the long session, ${config.name}`,
     { options: { cockpit: config.cockpit }, timeoutMs: 600_000, plugins: [{ name: 'ghostframe-perf', tier: 'prepend', register }] },

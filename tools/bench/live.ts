@@ -377,7 +377,8 @@ if (import.meta.main) {
     console.log(`BENCH ${JSON.stringify(r)}`)
     process.exit(0)
   }
-  const sizes = (args[args.indexOf('--sizes') + 1] ?? '280x70,120x40').split(',').map(s => {
+  // Only the value after --sizes: with no --sizes, indexOf's -1 would read the first argument (--memory) as the sizes.
+  const sizes = ((args.includes('--sizes') ? args[args.indexOf('--sizes') + 1] : undefined) ?? '280x70,120x40').split(',').map(s => {
     const [c, r] = s.split('x').map(Number)
 
     return { cols: c ?? 280, rows: r ?? 70 }
