@@ -6,7 +6,7 @@ import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
 import { graphemesOf, widthOf } from '../../shared/look/width'
-import { remember } from '../../shared/held'
+import { rememberText } from '../../shared/held'
 import { clipMiddle } from '../../shared/text'
 import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
@@ -111,14 +111,15 @@ export function answerRows(text: string, ctx: AnswerContext): Part[][] {
   if (had !== undefined) return had
   const rows = layOut(text, ctx)
 
-  remember(laidOut, key, rows, LAID_OUT_MAX)
+  rememberText(laidOut, key, rows, LAID_OUT_CHARS)
 
   return rows
 }
 
 // Each answer's rows by width, laid out once: drawn again as the person scrolls, a row only looks them up. Pure, so
-// the key is all it reads; as many as a long session's messages (transcript/citations.ts).
-const LAID_OUT_MAX = 2_000
+// the key is all it reads. Bounded by the characters its keys hold (shared/held.ts, rememberText): a long session's
+// messages fit, and a reply streaming in, which adds a key per piece, pushes out only the oldest.
+const LAID_OUT_CHARS = 1_000_000
 const laidOut = new Map<string, Part[][]>()
 
 function layOut(text: string, ctx: AnswerContext): Part[][] {
@@ -289,7 +290,7 @@ export function claudeFootnotes(text: string): { body: string; notes: Footnote[]
   if (had !== undefined) return had
   const split = splitFootnotes(text)
 
-  remember(footnoted, text, split, LAID_OUT_MAX)
+  rememberText(footnoted, text, split, LAID_OUT_CHARS)
 
   return split
 }

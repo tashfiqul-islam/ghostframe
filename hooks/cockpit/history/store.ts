@@ -269,10 +269,19 @@ async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<Tu
  */
 export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<void> {
   const record = recordOf(parts)
-  const all = withRecord(await historyNow($), record)
 
-  // The session keeps the turn whether or not the store takes it: the pane's pins and fallback's redraw of a past
-  // turn (13.1) read it. A refused write costs the turn its place after a resume, never the session's copy.
+  await keepEverywhere($, withRecord(await historyNow($), record))
+}
+
+/**
+ * Keeps the session's turns here and in the store, under the budget: the store is what a copy of the module loaded
+ * after a `/tui` switch, or a resume, reads them from.
+ * @param $ the engine interface
+ * @param all the turns, oldest first
+ */
+async function keepEverywhere($: EngineInterface, all: TurnRecord[]): Promise<void> {
+  // The session keeps the turns whether or not the store takes them: the pane's pins and fallback's redraw of a past
+  // turn (13.1) read them. A refused write costs the turn its place after a resume, never the session's copy.
   await keepHistory($, all)
   let kept: TurnRecord[]
 
@@ -315,16 +324,21 @@ export async function markCompacted($: EngineInterface): Promise<void> {
 export const compacted = (r: Receipt): Receipt => ({ ...r, isCompacted: true })
 
 /**
- * Turns a rewind took out of the conversation leave history (7.1): the session's copy at once, the store's at the
- * next turn's write, which starts from the session's copy.
+ * Turns a rewind took out of the conversation leave history (7.1): the session's copy and the store's at once.
  * @param $ the engine interface
  * @param turnNos the turns' numbers
  */
 export async function dropTurns($: EngineInterface, turnNos: readonly number[]): Promise<void> {
-  await keepHistory(
-    $,
-    (await historyNow($)).filter(r => !turnNos.includes(r.turnNo))
-  )
+  // The store too: a copy of the module loaded after a `/tui` switch reads history from it. The session's copy goes
+  // first (`keepEverywhere`); a store that refuses costs the drop after a reload, never the rewind.
+  try {
+    await keepEverywhere(
+      $,
+      (await historyNow($)).filter(r => !turnNos.includes(r.turnNo))
+    )
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: rewound turns not dropped from the store: ${String(error)}`, { to: 'debug' })
+  }
 }
 
 /**

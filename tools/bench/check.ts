@@ -6,7 +6,7 @@
 //
 // Exits as compare.ts does: 1 when a measure is red and the pull request is not perf-accepted.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -42,10 +42,16 @@ for (let i = 0; i < runs; i++) {
 }
 
 const liveUrl = argOf('--live-url')
+// The rating rules and the budgets are main's, so a pull request cannot pass its own reds by changing them; main's
+// own copy is used once it has one (this check's first pull request has to rate itself, and says so in the log).
+const mainCompare = join(resolve(main), 'tools', 'bench', 'compare.ts')
+const rater = existsSync(mainCompare) ? mainCompare : join(import.meta.dirname, 'compare.ts')
+
+if (rater !== mainCompare) console.log("main has no tools/bench/compare.ts yet: rated with this pull request's")
 const verdict = spawnSync(
   process.execPath,
   [
-    join(import.meta.dirname, 'compare.ts'),
+    rater,
     '--main',
     reports.main.join(','),
     '--pr',

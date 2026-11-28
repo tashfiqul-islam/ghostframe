@@ -29,6 +29,8 @@ runs:
         code=false
         while IFS= read -r path; do
           case "$path" in
+            # The tools read their own Markdown (tools/mockgen/tpl), and tests read it: code.
+            tools/*) code=true; echo "Code: $path"; break ;;
             *.md | docs/* | LICENSE | .rumdl.toml | .diagram-design/* | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) ;;
             *.png | *.jpg | *.jpeg | *.gif | *.webp | *.svg | *.ico) ;;
             *) code=true; echo "Code: $path"; break ;;

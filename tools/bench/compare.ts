@@ -7,7 +7,7 @@
 //   bun tools/bench/compare.ts --self-test
 import { readFileSync, writeFileSync } from 'node:fs'
 
-import { BUDGETS, type BudgetName } from './budgets.ts'
+import { BUDGETS, limitOf, type BudgetName } from './budgets.ts'
 
 /** A measure's rating: green passes, yellow warns, red blocks; accepted is a red the perf-accepted label lets pass. */
 export type Rating = 'green' | 'yellow' | 'red' | 'accepted'
@@ -83,9 +83,10 @@ const ORDER: Readonly<Record<Rating, number>> = { red: 0, accepted: 1, yellow: 2
  * @param mainRuns main's reports, one per run
  * @param prRuns the pull request's reports, one per run
  * @param isAccepted whether the pull request has the perf-accepted label
+ * @param isCi whether this runs on a CI runner (its time limits get CI_HEADROOM)
  * @returns one row per measure
  */
-export function compare(mainRuns: readonly (readonly Check[])[], prRuns: readonly (readonly Check[])[], isAccepted: boolean): Row[] {
+export function compare(mainRuns: readonly (readonly Check[])[], prRuns: readonly (readonly Check[])[], isAccepted: boolean, isCi: boolean): Row[] {
   const byMeasure = new Map<string, Check>()
 
   for (const c of [...prRuns.flat(), ...mainRuns.flat()]) if (!byMeasure.has(c.measure)) byMeasure.set(c.measure, c)
@@ -96,8 +97,19 @@ export function compare(mainRuns: readonly (readonly Check[])[], prRuns: readonl
     .map(c => {
       const main = median(valuesOf(mainRuns, c.measure))
       const pr = median(valuesOf(prRuns, c.measure))
+      // The limit is this file's budgets', not what the report says: run from main's checkout, a pull request cannot
+      // loosen its own limits. A budget main does not know yet (new in the pull request) keeps the report's.
+      const known = Object.hasOwn(BUDGETS, c.budget)
+      const limit = known ? limitOf(c.budget, isCi) : c.limit
 
-      return { budget: c.budget, measure: c.measure, main, pr, limit: c.limit, rating: rate(main, pr, c.limit, isAccepted, floorOf(c.budget)) }
+      return {
+        budget: c.budget,
+        measure: c.measure,
+        main,
+        pr,
+        limit,
+        rating: rate(main, pr, limit, isAccepted, known ? floorOf(c.budget) : limit * NOISE_SHARE)
+      }
     })
     .toSorted((a, b) => ORDER[a.rating] - ORDER[b.rating] || a.measure.localeCompare(b.measure))
 }
@@ -185,21 +197,29 @@ function selfTest(): void {
     { budget: 'pane', measure: 'pane', value: v, limit: 24 },
     { budget: 'keystroke', measure: 'keys', value: w, limit: 6 }
   ]
-  const rows = compare([run(10, 1), run(10, 1), run(11, 1)], [run(13, 1), run(13, 1), run(12, 1)], false)
+  const rows = compare([run(4, 1), run(4, 1), run(4.4, 1)], [run(5.2, 1), run(5.2, 1), run(4.8, 1)], false, false)
 
   eq(
     rows.map(r => [r.measure, r.main, r.pr, r.rating]),
     [
-      ['pane', 10, 13, 'red'],
+      ['pane', 4, 5.2, 'red'],
       ['keys', 1, 1, 'green']
     ],
     'compare: reds first, medians'
   )
   eq(summaryOf(rows), '1 red, 1 green', 'summary')
-  eq(summaryOf(compare([run(10, 1)], [run(10, 1)], false)), '2 green', 'summary, all green')
+  eq(summaryOf(compare([run(4, 1)], [run(4, 1)], false, false)), '2 green', 'summary, all green')
+  eq(compare([run(4, 1)], [run(4, 1)], false, true).find(r => r.measure === 'pane')?.limit, 24, 'on CI, the time budgets get CI_HEADROOM')
+  // A report claiming a looser limit is rated by this file's budgets all the same.
+  eq(
+    compare([run(4, 1)], [[{ budget: 'pane', measure: 'pane', value: 20, limit: 99 }, ...run(4, 1).slice(1)]], false, false).find(r => r.measure === 'pane')
+      ?.rating,
+    'red',
+    "the report's limit is not trusted"
+  )
   const comment = commentOf(rows, { runs: 3, seconds: 400, liveUrl: 'https://example.invalid/run' })
 
-  if (!comment.startsWith(MARKER) || !comment.includes('| 🔴 red | pane | 10.00 | 13.00 | +30.0% | 24.00 ms |')) throw new Error(`comment:\n${comment}`)
+  if (!comment.startsWith(MARKER) || !comment.includes('| 🔴 red | pane | 4.00 | 5.20 | +30.0% | 8.00 ms |')) throw new Error(`comment:\n${comment}`)
   console.log('compare.ts self-test: ok')
 }
 
@@ -221,7 +241,7 @@ if (import.meta.main) {
   const out = argOf('--out')
 
   if (mainRuns.length === 0 || prRuns.length === 0 || out === undefined) throw new Error('usage: compare.ts --main <json,…> --pr <json,…> --out <file>')
-  const rows = compare(mainRuns, prRuns, args.includes('--accepted'))
+  const rows = compare(mainRuns, prRuns, args.includes('--accepted'), process.env['CI'] === 'true')
   const seconds = argOf('--seconds')
   const liveUrl = argOf('--live-url')
   const comment = commentOf(rows, {
