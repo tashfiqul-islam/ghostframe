@@ -66,7 +66,9 @@ posted twice.
 
 ## Reading a failure
 
-A step that fails ends its log, and its job's summary, with a short block: the command, the first lines that look
+A finding from a linter that speaks GitHub's annotation format (oxlint, actionlint, zizmor) also shows on its line
+in the pull request's diff; `map.ts` turns those formats on only on GitHub, so a local run prints plain text. A step
+that fails ends its log, and its job's summary, with a short block: the command, the first lines that look
 like errors (else the last 20 lines), and how to reproduce it (the step's command, and `mise run ci:run -- <job>`).
 The CI section names each failed job with its local command. To read the first errors without paging through the
 logs:

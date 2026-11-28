@@ -160,7 +160,13 @@ export const DECISIONS: Readonly<Record<Decision, { areas: readonly Area[]; guar
 }
 
 /** One step CI runs through `bun tools/ci/ci.ts step <job> <id>`, and `mise run ci:run` runs locally: the same command. */
-export type Step = { id: string; run: string; when?: Decision }
+export type Step = {
+  id: string
+  run: string
+  when?: Decision
+  /** The command a failure says to run here, when `run` holds CI-only parts (an annotation format). */
+  repro?: string
+}
 
 /**
  * A workflow job: when it runs on a pull request (a decision, `always`, or `never` for jobs that run on main or on a
@@ -201,8 +207,17 @@ const GATE_STEPS: readonly Step[] = [
   { id: 'ci-map', run: 'bun tools/ci/ci.ts --self-test && bun tools/ci/ci.ts --check' },
   { id: 'lint', run: 'bun run --cwd tools lint:ci' },
   { id: 'format', run: 'bun run --cwd tools fmt:check' },
-  { id: 'actionlint', run: 'actionlint' },
-  { id: 'zizmor', run: 'zizmor --offline --persona auditor .github' },
+  // On GitHub each finding is an annotation on its line (actionlint's template, zizmor's github format); here, plain text.
+  {
+    id: 'actionlint',
+    repro: 'actionlint',
+    run: `if [ -n "\${GITHUB_ACTIONS:-}" ]; then actionlint -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}},title=actionlint {{$err.Kind}}::{{$err.Message}}\n{{end}}'; else actionlint; fi`
+  },
+  {
+    id: 'zizmor',
+    repro: 'zizmor --offline --persona auditor .github',
+    run: 'if [ -n "${GITHUB_ACTIONS:-}" ]; then zizmor --offline --persona auditor --format github .github; else zizmor --offline --persona auditor .github; fi'
+  },
   { id: 'shellcheck', run: 'files=$(git ls-files "*.sh"); if [ -n "$files" ]; then shellcheck $files; else echo "No shell scripts."; fi' },
   { id: 'docs', run: 'mise run lint-docs' }
 ]
