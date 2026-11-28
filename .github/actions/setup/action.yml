@@ -22,6 +22,14 @@ runs:
       with:
         install_args: ${{ inputs.tools }}
 
+    # Bun's download cache, by the lockfiles it installs from: a run with the same lockfiles downloads nothing.
+    - name: Restore Bun's install cache
+      if: inputs.install == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.bun/install/cache
+        key: bun-install-${{ runner.os }}-${{ hashFiles('tools/bun.lock', 'tools/live/bun.lock') }}
+
     - name: Install dev tools (frozen lockfile, scripts off)
       if: inputs.install == 'true'
       shell: bash

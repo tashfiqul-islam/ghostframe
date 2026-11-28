@@ -21,6 +21,14 @@ outputs:
 runs:
   using: composite
   steps:
+    # A pinned version's binary, kept between runs. Restored or downloaded, the checksum below is checked all the same.
+    - name: Restore the pinned Claude Code binary
+      if: inputs.version != 'latest'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/claude-bin
+        key: claude-code-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}-${{ inputs.sha256 }}
+
     - name: Download, verify and install Claude Code ${{ inputs.version }}
       id: install
       shell: bash
@@ -53,7 +61,11 @@ runs:
 
         bin="$RUNNER_TEMP/claude-bin"
         mkdir -p "$bin" "$RUNNER_TEMP/claude-config"
-        curl --fail --silent --show-error --location --output "$bin/$binary" "$base/$version/$platform/$binary"
+        if [ "$VERSION" = latest ] || [ ! -f "$bin/$binary" ]; then
+          curl --fail --silent --show-error --location --output "$bin/$binary" "$base/$version/$platform/$binary"
+        else
+          echo "Claude Code $version restored from the cache; checking its checksum."
+        fi
         # From stdin: with a file name, Git Bash's sha256sum on Windows puts a backslash before the hash.
         if command -v sha256sum > /dev/null; then actual=$(sha256sum < "$bin/$binary" | cut -d' ' -f1); else actual=$(shasum -a 256 < "$bin/$binary" | cut -d' ' -f1); fi
         if [ "$actual" != "$expected" ]; then echo "::error::Checksum mismatch for Claude Code $version on $platform: $actual"; exit 1; fi

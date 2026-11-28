@@ -1,0 +1,117 @@
+name: Performance
+run-name: 'Performance · #${{ github.event.pull_request.number }} ${{ github.event.pull_request.title }}'
+
+# The Performance check (docs/development/performance.md): main's plugin and the pull request's, measured by the pull
+# request's harness benchmarks, in turns, in this one job on one runner, three runs each, compared by median. It fails
+# on a red measure unless a maintainer added the perf-accepted label. It runs the pull request's code with a read-only
+# token and no secrets, so it is safe for a fork's pull request; the comment is written by performance-comment.yml,
+# which runs from main's code once this finishes and never checks out the pull request.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+concurrency:
+  group: performance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # The CLI the harness runs in. Bump it with ci.yml's pin: the same version and Linux checksum.
+  CLAUDE_CODE_VERSION: 2.1.329
+  CLAUDE_CODE_SHA256_LINUX_X64: 30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d
+  DISABLE_AUTOUPDATER: '1'
+
+jobs:
+  performance:
+    name: Performance
+    runs-on: ubuntu-24.04
+    # Its budget is 10 minutes (tools/bench/budgets.ts, ciPerformance); twice that, so a hang fails fast.
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out this pull request and main
+      pull-requests: read # list the pull request's files
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: See whether the pull request changes code
+        id: changes
+        uses: $/.github/actions/changes
+
+      - name: Check out main beside it
+        if: steps.changes.outputs.code == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .perf-main
+          persist-credentials: false
+
+      # Out of the pull request's tree, so its git status (which the status line benchmark times) sees no extra folder.
+      - name: Move main's checkout out of the pull request's tree
+        if: steps.changes.outputs.code == 'true'
+        run: mv .perf-main "$RUNNER_TEMP/main"
+
+      - name: Set up toolchain (mise)
+        if: steps.changes.outputs.code == 'true'
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        if: steps.changes.outputs.code == 'true'
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ env.CLAUDE_CODE_SHA256_LINUX_X64 }}
+
+      - name: Measure main and the pull request, three runs each, and rate every measure
+        if: steps.changes.outputs.code == 'true'
+        env:
+          BENCH_REPO: ${{ runner.temp }}/ghostframe-perf-repo
+          ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-accepted') }}
+        run: |
+          set -euo pipefail
+          accepted=()
+          if [ "$ACCEPTED" = true ]; then accepted=(--accepted); fi
+          bun tools/bench/check.ts --main "$RUNNER_TEMP/main" --runs 3 --out "$RUNNER_TEMP/perf" "${accepted[@]}"
+
+      - name: Say that nothing was measured
+        if: steps.changes.outputs.code == 'false'
+        run: |
+          mkdir -p "$RUNNER_TEMP/perf"
+          printf '%s\n' '<!-- ghostframe-performance -->' '## Performance' '' \
+            'This pull request changes no code (docs/development/performance.md, "Changes that skip the work"): nothing to measure, so the check passes.' \
+            > "$RUNNER_TEMP/perf/comment.md"
+          cat "$RUNNER_TEMP/perf/comment.md"
+
+      - name: Keep the comment and the pull request's number for the comment job
+        if: ${{ !cancelled() }}
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/perf"
+          [ -f "$RUNNER_TEMP/perf/comment.md" ] || printf '%s\n' '<!-- ghostframe-performance -->' '## Performance' '' 'The check did not finish: see its run.' > "$RUNNER_TEMP/perf/comment.md"
+          printf '%s\n' "$PR" > "$RUNNER_TEMP/perf/pr.txt"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then cat "$RUNNER_TEMP/perf/comment.md" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Upload the comment
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: performance-comment
+          path: |
+            ${{ runner.temp }}/perf/comment.md
+            ${{ runner.temp }}/perf/pr.txt
+            ${{ runner.temp }}/perf/*.json
+          retention-days: 14
+          if-no-files-found: error
