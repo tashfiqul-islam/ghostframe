@@ -162,11 +162,35 @@ export function isShownFailure(steps: readonly LogStep[], index: number): boolea
   return !before.some(t => t.key === s.key) && new Set(before.map(t => t.key)).size < FAILURE_ROWS
 }
 
-/** Whether a failed step is still open (13.1): a turn failure no later success with the same or a broader key fixed. */
+/**
+ * Whether a later step fixes a failure (13.1): it succeeded with the same or a broader key, or, for a failed edit or
+ * write, it changed that file (a shell step's `sed -i` or script, by the work tree's diff).
+ */
+function fixesFailure(t: LogStep, failed: LogStep): boolean {
+  const key = keyOf(failed.key)
+
+  return (succeeded(t) && fixes(keyOf(t.key), key)) || ((key.program === 'edit' || key.program === 'write') && t.changed?.includes(key.target) === true)
+}
+
+/** Whether a failed step is still open (13.1): a turn failure no later step of the turn fixed. */
 export function isOpen(steps: readonly LogStep[], index: number): boolean {
   const s = steps[index]
 
-  return s !== undefined && isTurnFailure(s) && !steps.slice(index + 1).some(t => succeeded(t) && fixes(keyOf(t.key), keyOf(s.key)))
+  return s !== undefined && isTurnFailure(s) && !steps.slice(index + 1).some(t => fixesFailure(t, s))
+}
+
+/**
+ * The files a step changed are noted on it, once the work tree's diff after it has been read (13.1).
+ * @param log the step log
+ * @param id the step's call id
+ * @param paths the files, as [ FILES ] shows them
+ * @returns the log
+ */
+export function noteChanged(log: StepLog, id: string, paths: readonly string[]): StepLog {
+  const at = log.steps.findIndex(s => s.id === id)
+  const s = log.steps[at]
+
+  return s === undefined ? log : { ...log, steps: log.steps.with(at, { ...s, changed: [...paths] }) }
 }
 
 /** The failures of these steps counted by key (13.1): the same failing command run five times is one failure. */

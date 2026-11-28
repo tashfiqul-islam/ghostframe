@@ -3392,9 +3392,11 @@ A step is a **failure** when all of these hold:
 - the same key (a `write` and an `edit` of the same file share it: both leave the file changed); or
 - a broader key: the same program and subcommand, and a target that is empty or contains the failed target. `bun test` passing fixes `bun test hooks/width`. `bun test hooks` passing fixes `bun test hooks/width/grapheme.test.tsx`.
 
+A failed `edit` or `write` is also fixed when a later step of the same turn changes that file, whatever its kind: a shell step's `sed -i`, or a script it runs (`python fix.py`). What a shell step changed is what `[ FILES ]` reads, the work tree's diff before and after it; a step that leaves the file's counts as they were (a line changed again) is not seen to change it.
+
 An agent's failure is fixed only by the same agent (amendment 13). A turn whose failures are all fixed is `DONE`, never `FAILED`.
 
-Not a fix: a step of another kind on the same target (a shell `sed -i` of a file whose edit failed: the rule asks for an edit or a write of the file), and a step in a later turn (each turn's receipt counts its own steps, and a drawn receipt never changes, amendment 9).
+Not a fix: a step in a later turn (each turn's receipt counts its own steps, and a drawn receipt never changes, amendment 9).
 
 **Counting.** Counts are by key, not by attempt. Running the same failing command five times is one failure. The receipt's `n still failing` and `n fixed`, the head card's stats and the failure card's count all count keys.
 

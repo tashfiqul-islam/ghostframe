@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { failureKey, keyText } from '../../../hooks/cockpit/steps/failures'
-import { endTurn, failureCounts, newLog, newTurn, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
+import { endTurn, failureCounts, newLog, newTurn, noteChanged, receiptOf, settleStep, startStep } from '../../../hooks/cockpit/steps/log'
 import type { StepLog } from '../../../types'
 
 // A failure is fixed when a later step of the same kind on the same target succeeds (13.1): the same file for an edit
@@ -68,9 +68,15 @@ test('13.1: an Edit refused because the file was not read is fixed by the next E
   expect(r).toMatchObject({ failures: 1, fixed: 1, state: 'done', open: [] })
 })
 
-test('13.1: not fixed by another kind or another target: a shell `sed -i` of the file, or an Edit of another file', () => {
-  const sed = receipt([edit('D:\\Projects\\ghostframe\\hooks\\a.ts', NOT_READ), bash("sed -i 's/a/b/' hooks/a.ts", green)])
-  expect(sed).toMatchObject({ failures: 1, fixed: 0, state: 'failed' })
+test('13.1: a failed edit is fixed by a later step that changed the file, a shell step too; not by one that changed another', () => {
+  const steps = [edit('D:\\Projects\\ghostframe\\hooks\\a.ts', NOT_READ), bash("sed -i 's/a/b/' hooks/a.ts", green)]
+  // The work tree's diff after the shell step names what it changed (`noteWork`); until it is read, nothing.
+  expect(receiptOf(endTurn(turn(steps), 0, false, 9_000))).toMatchObject({ failures: 1, fixed: 0, state: 'failed' })
+  expect(receiptOf(endTurn(noteChanged(turn(steps), 'c1', ['hooks/a.ts']), 0, false, 9_000))).toMatchObject({ failures: 1, fixed: 1, state: 'done' })
+  expect(receiptOf(endTurn(noteChanged(turn(steps), 'c1', ['hooks/b.ts']), 0, false, 9_000))).toMatchObject({ failures: 1, fixed: 0, state: 'failed' })
+  // Only an edit or a write is fixed so: a failed command stays failed when a later step changes a file it named.
+  const shell = [bash('bun run build hooks/a.ts', red), bash("sed -i 's/a/b/' hooks/a.ts", green)]
+  expect(receiptOf(endTurn(noteChanged(turn(shell), 'c1', ['hooks/a.ts']), 0, false, 9_000))).toMatchObject({ fixed: 0, state: 'failed' })
 
   const other = receipt([edit('D:\\Projects\\ghostframe\\hooks\\a.ts', NOT_READ), edit('D:\\Projects\\ghostframe\\hooks\\b.ts', EDITED)])
   expect(other).toMatchObject({ failures: 1, fixed: 0, state: 'failed' })
