@@ -61,3 +61,4 @@ removing the worktree deletes ignored files.
 | 15    | The README's demo ([docs/assets](../assets/README.md))        | 144      |
 
 `tools/live/steps.ts` is the full list, with each check's name.
+<!-- ci probe: docs only -->
