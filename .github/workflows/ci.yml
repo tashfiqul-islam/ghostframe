@@ -87,6 +87,10 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun tools/bench/compare.ts --self-test
 
+      - name: Check the budget drift guard's issue logic (tools/bench/drift.ts)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun tools/bench/drift.ts --self-test
+
       - name: Lint TypeScript (oxlint, syntax rules)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bun run --cwd tools lint:ci

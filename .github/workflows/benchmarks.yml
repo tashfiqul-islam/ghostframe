@@ -6,6 +6,7 @@ run-name: "Benchmarks · ${{ github.event_name == 'schedule' && 'nightly' || git
 # Windows, where process start and the status line are slowest. It reports only and never blocks: it runs on main
 # (each push, and nightly) and never on a pull request, whose Performance check (performance.yml) runs the harness
 # alone. The Performance comment links its latest run. Time budgets get 3× headroom on a shared runner (CI_HEADROOM).
+# Its drift job measures main as the Performance check does and keeps an issue open while main is over a budget.
 
 on:
   push:
@@ -25,9 +26,10 @@ defaults:
     shell: bash
 
 env:
-  # Bump with ci.yml's pin: the same version and Windows checksum.
+  # Bump with ci.yml's pin: the same version and checksums.
   CLAUDE_CODE_VERSION: 2.1.329
   CLAUDE_CODE_SHA256_WIN32_X64: 527162bb4578e3dc36319fa913a530d5dc1f752115a6a4fd139981702bf282d0
+  CLAUDE_CODE_SHA256_LINUX_X64: 30e2724e2aecb1bf5dc9f3130901afb71c5fa229051c190a6d7ad9aff6378d6d
   DISABLE_AUTOUPDATER: '1'
 
 jobs:
@@ -72,3 +74,81 @@ jobs:
           BENCH_REPO: ${{ runner.temp }}\ghostframe-perf-repo
           BENCH_REPO_SMALL: ${{ runner.temp }}\ghostframe-perf-lite
         run: bun tools/bench/run.ts --live
+
+  # The budget drift guard (tools/bench/drift.ts): main measured as the Performance check measures it (the same rows,
+  # runner and three runs), held to the budgets, and one issue kept open while any is over. A pull request over a
+  # budget blocks only when it is slower than main, so this is what catches many small slowdowns adding up.
+  drift:
+    name: Budget drift (main, three runs)
+    # Main's alone: a run dispatched on another branch neither files the issue nor leaves the list the next run reads.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    # Three runs of main take about 4 minutes; twice that and more, so a hang fails fast.
+    timeout-minutes: 20
+    permissions:
+      contents: read # check out this repo
+      issues: write # open, update or close the one drift issue
+      actions: read # the run before's list of measures over budget
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise)
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+          install: 'false'
+
+      - name: Install Claude Code CLI (pinned, checksum-verified)
+        uses: $/.github/actions/claude
+        with:
+          version: ${{ env.CLAUDE_CODE_VERSION }}
+          sha256: ${{ env.CLAUDE_CODE_SHA256_LINUX_X64 }}
+
+      - name: Measure main three times, as the Performance check does
+        env:
+          BENCH_REPO: ${{ runner.temp }}/ghostframe-perf-repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/drift"
+          for i in 1 2 3; do bun tools/bench/run.ts --on-only --report "$RUNNER_TEMP/drift/main-$i.json"; done
+
+      - name: Open, update or close the budget drift issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/drift"
+          gh api --paginate --slurp "repos/$REPO/issues?state=open&per_page=100" > "$d/open.json"
+          # The run before's list (runs on main take turns: see concurrency). None on the first run, or after 90 days.
+          previous=()
+          id=$(gh api "repos/$REPO/actions/artifacts?name=budget-drift&per_page=20" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | last | .id // empty')
+          if [ -n "$id" ]; then
+            gh api "repos/$REPO/actions/artifacts/$id/zip" > "$d/before.zip"
+            unzip -p "$d/before.zip" over.json > "$d/before.json"
+            previous=(--previous "$d/before.json")
+          fi
+          bun tools/bench/drift.ts --reports "$d/main-1.json,$d/main-2.json,$d/main-3.json" --issues "$d/open.json" --run-url "$RUN_URL" --out "$d" "${previous[@]}"
+          kind=$(jq -r .kind "$d/action.json")
+          number=$(jq -r '.number // empty' "$d/action.json")
+          case "$kind" in
+            create) gh issue create --repo "$REPO" --title "$(jq -r .title "$d/action.json")" --body-file "$d/body.md" ;;
+            update) gh issue edit "$number" --repo "$REPO" --body-file "$d/body.md" ;;
+            close) gh issue close "$number" --repo "$REPO" --comment "$(cat "$d/body.md")" ;;
+            none) ;;
+            *) echo "::error::unknown action $kind"; exit 1 ;;
+          esac
+
+      # Even when the issue step failed, so the next run compares with this one, never the one before it.
+      - name: Keep this run's list for the next
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: budget-drift
+          path: ${{ runner.temp }}/drift/over.json
+          retention-days: 90

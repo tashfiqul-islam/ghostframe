@@ -36,7 +36,7 @@ export const floorOf = (budget: BudgetName): number => BUDGETS[budget].limit * N
  * One measure as a harness report holds it (tools/bench/run.ts writes `checks`). A measure taken from samples keeps
  * them, and the quantile its value is (0.95 when not given).
  */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; samples?: readonly number[]; quantile?: number }
+export type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; samples?: readonly number[]; quantile?: number }
 
 /**
  * One measure compared: main's and the pull request's value (the pooled p95 where both kept samples, else the median
@@ -68,9 +68,10 @@ export function median(values: readonly (number | null)[]): number | null {
 }
 
 /**
- * Rates one measure. Red: over its limit, more than 15% slower than main, or no longer measured. Yellow: 5 to 15%
- * slower than main, within 10% of its limit, or measured on neither side. Green otherwise. A slowdown under the noise
- * floor is no slowdown.
+ * Rates one measure. Red: over its limit where main is not, more than 15% slower than main, or no longer measured.
+ * Yellow: over its limit as main is too (the runner's or main's, not the pull request's), 5 to 15% slower than main,
+ * within 10% of its limit, or measured on neither side. Green otherwise. A slowdown under the noise floor is no
+ * slowdown.
  * @param main main's median, null when main did not measure it (a new measure)
  * @param pr the pull request's median, null when it did not measure it
  * @param limit the measure's limit on this runner
@@ -82,11 +83,11 @@ export function rate(main: number | null, pr: number | null, limit: number, isAc
   const red = (): Rating => (isAccepted ? 'accepted' : 'red')
 
   if (pr === null) return main === null ? 'yellow' : red()
-  if (pr > limit) return red()
-
   const slower = main !== null && pr - main > floor ? (pr - main) / Math.max(main, Number.EPSILON) : 0
 
+  if (pr > limit && !(main !== null && main > limit)) return red()
   if (slower > BLOCK_SLOWER) return red()
+  if (pr > limit) return 'yellow'
   if (slower > WARN_SLOWER || pr > limit * NEAR_LIMIT) return 'yellow'
 
   return 'green'
@@ -227,9 +228,11 @@ export function spreadOf(mainRuns: readonly (readonly number[])[], prRuns: reado
 }
 
 /**
- * Rates a measure whose samples both sides kept. Red: its pooled quantile over its limit, or its mean slower than main
- * by more than the noise floor and by more than 15% even at the near end of its 99% interval. Yellow: the same, by
- * more than 5%; or the quantile within 10% of the limit. Green otherwise: a change the interval cannot tell from noise
+ * Rates a measure whose samples both sides kept. Red: its mean slower than main by more than the noise floor and by
+ * more than 15% even at the near end of its 99% interval; or its pooled quantile over its limit with the mean slower
+ * than main there by more than 5%. Yellow: the mean slower by more than 5% there; the quantile over its limit with no
+ * slowdown the interval can tell from noise (on a slow runner main is over it too: the runner's, not the pull
+ * request's); or the quantile within 10% of the limit. Green otherwise: a change the interval cannot tell from noise
  * warns nobody.
  * @param s the compared samples
  * @param limit the measure's limit on this runner
@@ -242,10 +245,10 @@ export function rateSpread(s: Spread, limit: number, isAccepted: boolean, floor:
   const over = s.pr[MEAN] - s.main[MEAN]
   const near = s.ratios[MEAN]?.[0] ?? 0
   const shown = s.pr[SHOWN]
+  const isSlower = (by: number): boolean => over > floor && near > 1 + by
 
-  if (shown > limit) return red()
-  if (over > floor && near > 1 + BLOCK_SLOWER) return red()
-  if ((over > floor && near > 1 + WARN_SLOWER) || shown > limit * NEAR_LIMIT) return 'yellow'
+  if (isSlower(BLOCK_SLOWER) || (shown > limit && isSlower(WARN_SLOWER))) return red()
+  if (isSlower(WARN_SLOWER) || shown > limit * NEAR_LIMIT) return 'yellow'
 
   return 'green'
 }
@@ -383,7 +386,9 @@ function selfTest(): void {
   eq(rate(10, 14, 15, false, 0.25), 'red', 'within the limit but 40% slower')
   eq(rate(14, 14, 15, false, 0.25), 'yellow', 'within 10% of the limit')
   eq(rate(10, 16, 15, false, 0.25), 'red', 'over the limit')
-  eq(rate(16, 16, 15, false, 0.25), 'red', 'over the limit, unchanged from main')
+  eq(rate(16, 16, 15, false, 0.25), 'yellow', 'over the limit as main is: the runner, not the pull request')
+  eq(rate(14, 16, 15, false, 0.25), 'red', 'over the limit where main is not')
+  eq(rate(16, 20, 15, false, 0.25), 'red', 'over the limit as main is, and 25% slower')
   eq(rate(0.1, 0.12, 1.5, false, 0.025), 'green', '20% slower, but under the noise floor')
   eq(rate(0.1, 0.13, 1.5, false, 0.025), 'red', '30% slower, over the noise floor')
   eq(floorOf('pane'), 0.4, "the floor is the budget's, never CI's 3x limit")
@@ -455,7 +460,12 @@ function selfTest(): void {
   eq(rateSpread(spreadOf(same, [runOf(2, 1.4), runOf(2, 1.4), runOf(2, 1.4)], 3), 15, false, 0.25), 'red', 'every sample 40% slower is red')
   eq(rateSpread(spreadOf(same, [runOf(2, 1.4), runOf(2, 1.4), runOf(2, 1.4)], 3), 15, true, 0.25), 'accepted', 'and perf-accepted lets it pass')
   eq(rateSpread(spreadOf(same, [runOf(2, 1.3), runOf(2), runOf(2)], 4), 15, false, 0.25), 'green', 'one run 30% slower is a slow runner, not a slowdown')
-  eq(rateSpread(spreadOf(same, [runOf(2, 6), runOf(2, 6), runOf(2, 6)], 5), 15, false, 0.25), 'red', 'over the limit is red')
+  eq(rateSpread(spreadOf(same, [runOf(2, 6), runOf(2, 6), runOf(2, 6)], 5), 15, false, 0.25), 'red', 'over the limit and slower is red')
+  // A slow runner: both sides twice as slow as usual, over the limit alike. The pull request did not do that.
+  const slow = [runOf(2, 2), runOf(2, 2), runOf(2, 2)]
+
+  eq(rateSpread(spreadOf(slow, [runOf(2, 2), runOf(2, 2), runOf(2, 2)], 9), 5, false, 0.25), 'yellow', 'over the limit as main is, unchanged: yellow')
+  eq(rateSpread(spreadOf(slow, [runOf(2, 2.4), runOf(2, 2.4), runOf(2, 2.4)], 9), 5, false, 0.25), 'red', 'over the limit and 20% slower: red')
   eq(
     rateSpread(spreadOf(same, [runOf(20), runOf(20), runOf(20)], 6), 15, false, 0.25),
     'red',
