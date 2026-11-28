@@ -18,7 +18,7 @@ import { registerToolUse } from './transcript/sites/tools/use'
 export const register: Register = (on, options) => {
   registerCockpit(on, options)
   registerLedger(on)
-  registerPrompt(on)
+  registerPrompt(on, options)
   registerReply(on)
   registerToolUse(on)
   registerToolGroup(on)

@@ -28,6 +28,12 @@
       "description": "The Cockpit pane beside the transcript (timeline, files, sources, to-do, agents). On by default. GHOSTFRAME_COCKPIT=0 turns it off for one session, GHOSTFRAME_COCKPIT=1 on.",
       "default": true
     },
+    "pastePreview": {
+      "type": "boolean",
+      "title": "Paste previews",
+      "description": "A long paste in your message shows its first lines and a count of the rest, instead of only [Pasted text #1 +N lines]. A paste that looks like it holds a key, token or password keeps the plain label. On by default.",
+      "default": true
+    },
     "statuslineIcons": {
       "type": "boolean",
       "title": "Status line icons",
