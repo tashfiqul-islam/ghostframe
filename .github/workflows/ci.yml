@@ -43,6 +43,7 @@ jobs:
     outputs:
       gate: ${{ steps.changes.outputs.gate }}
       docs: ${{ steps.changes.outputs.docs }}
+      settings: ${{ steps.changes.outputs.settings }}
       tests: ${{ steps.changes.outputs.tests }}
       plugin_tests: ${{ steps.changes.outputs.plugin_tests }}
       perf: ${{ steps.changes.outputs.perf }}
@@ -181,6 +182,28 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' && needs.changes.outputs.readme == 'true' }}
         run: bun tools/ci/ci.ts step docs readme
 
+  # Repo settings GitHub applies (rulesets, code owners, issue forms, Dependabot) and no code: nothing in CI reads
+  # them, so their JSON and YAML only have to parse and be formatted.
+  settings:
+    name: Repo settings
+    needs: changes
+    if: needs.changes.outputs.settings == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise) and dev tools (tools/)
+        uses: $/.github/actions/setup
+
+      - name: Check the repo settings' JSON and YAML parse and are formatted
+        run: bun tools/ci/ci.ts step settings settings
+
   # ghostframe runs wherever Claude Code does, so its tests run on all three systems whenever source or tests change:
   # paths, shells, git and the temp folder differ between them, and Windows paths and shell quoting are where it
   # breaks. The plugin's tests (claude plugin test, the pinned CLI) and the status line's specs (bun test); the status
@@ -253,7 +276,7 @@ jobs:
   # performance-comment.yml, to the pull request's one comment.
   ci:
     name: CI
-    needs: [changes, check, docs, tests, dependencies]
+    needs: [changes, check, docs, settings, tests, dependencies]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

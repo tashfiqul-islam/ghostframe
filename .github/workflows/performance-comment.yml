@@ -1,5 +1,5 @@
 name: Pull request comment
-run-name: 'Pull request comment · ${{ github.event.workflow_run.name }} · ${{ github.event.workflow_run.display_title }}'
+run-name: 'Pull request comment · ${{ github.event.workflow.name }} · ${{ github.event.workflow_run.display_title }}'
 
 # Writes the pull request's one comment, edited in place: CI's section (what ran, what skipped and why, how to
 # reproduce a failure: tools/ci/ci.ts report) and the Performance check's (tools/bench/compare.ts), each replaced when
@@ -56,7 +56,7 @@ jobs:
       - name: Download the run's section
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: ${{ github.event.workflow_run.name == 'CI' && 'ci-comment' || 'performance-comment' }}
+          name: ${{ github.event.workflow.name == 'CI' && 'ci-comment' || 'performance-comment' }}
           path: ${{ runner.temp }}/section
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
@@ -68,7 +68,7 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          KIND: ${{ github.event.workflow_run.name == 'CI' && 'ci' || 'performance' }}
+          KIND: ${{ github.event.workflow.name == 'CI' && 'ci' || 'performance' }}
         run: |
           set -euo pipefail
           dir="$RUNNER_TEMP/section"
