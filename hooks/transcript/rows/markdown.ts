@@ -6,6 +6,7 @@ import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
 import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
 import { graphemesOf, widthOf } from '../../shared/look/width'
+import { remember } from '../../shared/held'
 import { clipMiddle } from '../../shared/text'
 import { codeCard, diffCard, isUnifiedDiff } from '../../shared/look/code'
 import { inline } from './inline'
@@ -104,6 +105,23 @@ const NOTE = /^(?:\*\*)?Note(?::(?:\*\*)?|\*\*:)\s+(.*)$/i
  * @returns the rows
  */
 export function answerRows(text: string, ctx: AnswerContext): Part[][] {
+  const key = `${ctx.width}|${ctx.blockWidth ?? ''}|${ctx.hasLead}|${text}`
+  const had = laidOut.get(key)
+
+  if (had !== undefined) return had
+  const rows = layOut(text, ctx)
+
+  remember(laidOut, key, rows, LAID_OUT_MAX)
+
+  return rows
+}
+
+// Each answer's rows by width, laid out once: drawn again as the person scrolls, a row only looks them up. Pure, so
+// the key is all it reads; as many as a long session's messages (transcript/citations.ts).
+const LAID_OUT_MAX = 2_000
+const laidOut = new Map<string, Part[][]>()
+
+function layOut(text: string, ctx: AnswerContext): Part[][] {
   const lines = text.replace(/\r\n?/g, '\n').replace(/\s+$/, '').split('\n')
   const out: Part[][] = []
   let hasLead = ctx.hasLead
@@ -266,6 +284,19 @@ const FOOTNOTE_LINE = /^\s*\[\^?(\d+)\]:?\s+(?:\S.*?\s+[—–-]\s+)?[*_`<]*(htt
  * @returns the prose without the reference lines, and the footnotes in number order
  */
 export function claudeFootnotes(text: string): { body: string; notes: Footnote[] } {
+  const had = footnoted.get(text)
+
+  if (had !== undefined) return had
+  const split = splitFootnotes(text)
+
+  remember(footnoted, text, split, LAID_OUT_MAX)
+
+  return split
+}
+
+const footnoted = new Map<string, { body: string; notes: Footnote[] }>()
+
+function splitFootnotes(text: string): { body: string; notes: Footnote[] } {
   const notes: Footnote[] = []
   const kept = text.split('\n').filter(line => {
     const m = FOOTNOTE_LINE.exec(line)
