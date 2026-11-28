@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'astro/zod'
 import { builtPages } from '../build/page-text/pages'
+import { chromeFlags } from './chrome-flags'
 
 const site = join(import.meta.dir, '..')
 const port = 4410
@@ -58,7 +59,7 @@ function lighthouse(path: string, preset: 'mobile' | 'desktop'): Report {
     `--chrome-path=${chrome}`,
     // WebMCP is behind an origin trial (Chrome 149 to 162); the feature flag turns it on without a token, so the WebMCP
     // audits run instead of reading "not applicable". Agentic Browsing runs beside Performance: alone, CLS errors.
-    '--chrome-flags=--headless=new --enable-features=WebMCP'
+    `--chrome-flags=${chromeFlags()}`
   ]
   if (preset === 'desktop') args.push('--preset=desktop')
   const run = Bun.spawnSync(['bun', ...args], { cwd: site })
