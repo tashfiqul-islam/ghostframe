@@ -8,6 +8,7 @@ import type { EngineInterface } from 'claude-code'
 import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
+import { changeHeld, loadHeld, type Held } from '../../shared/held'
 
 const PREFIX = 'history:'
 // The prompts' stamps each session keeps (hooks/transcript/ledger/state.ts): weighed and evicted with its history.
@@ -42,8 +43,25 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
  * @param turns the turns, oldest first
  */
 async function keepHistory($: EngineInterface, turns: readonly TurnRecord[]): Promise<void> {
-  await update($, history, () => [...turns])
-  await update($, keptNarration, () => turns.flatMap(r => r.narration ?? []))
+  // Written whole, never read back (shared/held.ts): every kept turn's steps, outputs and diffs, the largest value.
+  heldHistory.value = { v: [...turns] }
+  await $.state.set({ plugin: 'ghostframe', key: 'history' }, { shape: 'history-1', value: heldHistory.value.v })
+  await $.state.set({ plugin: 'ghostframe', key: 'keptNarration' }, { shape: 'keptNarration-1', value: turns.flatMap(r => r.narration ?? []) })
+}
+
+// The session's kept turns as this file last wrote them; read from $.state once per load of the module.
+const heldHistory: Held<TurnRecord[]> = {}
+
+/**
+ * The session's kept turns, for a hook that is not drawing: as last written, with no copy through $.state after a
+ * reload's first read.
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
+  if (heldHistory.value === undefined) await loadHeld(heldHistory, read($, history))
+
+  return changeHeld(heldHistory, list => list)
 }
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
@@ -182,7 +200,7 @@ const newestAt = (list: readonly unknown[]): number =>
  */
 export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
   const kept = await readStore($)
-  const held = await read($, history)
+  const held = await historyNow($)
 
   if (held.length > 0) return held
 
@@ -220,7 +238,7 @@ async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<Tu
  */
 export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<void> {
   const record = recordOf(parts)
-  const all = withRecord(await read($, history), record)
+  const all = withRecord(await historyNow($), record)
 
   // The session keeps the turn whether or not the store takes it: the pane's pins and fallback's redraw of a past
   // turn (13.1) read it. A refused write costs the turn its place after a resume, never the session's copy.
@@ -235,7 +253,8 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
     kept = await write($, all)
   }
 
-  await keepHistory($, kept)
+  // Written again only when the store's budget trimmed it.
+  if (kept.length !== all.length || kept.some((r, i) => r !== all[i])) await keepHistory($, kept)
 }
 
 /**
@@ -244,9 +263,10 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
  * @param $ the engine interface
  */
 export async function markCompacted($: EngineInterface): Promise<void> {
-  const all = (await read($, history)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
+  const all = (await historyNow($)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
 
-  await update($, history, () => all)
+  heldHistory.value = { v: all }
+  await $.state.set({ plugin: 'ghostframe', key: 'history' }, { shape: 'history-1', value: all })
   try {
     await write($, all)
   } catch (error: unknown) {
@@ -270,8 +290,10 @@ export const compacted = (r: Receipt): Receipt => ({ ...r, isCompacted: true })
  * @param turnNos the turns' numbers
  */
 export async function dropTurns($: EngineInterface, turnNos: readonly number[]): Promise<void> {
-  const left = await update($, history, list => list.filter(r => !turnNos.includes(r.turnNo)))
-  await update($, keptNarration, () => left.flatMap(r => r.narration ?? []))
+  await keepHistory(
+    $,
+    (await historyNow($)).filter(r => !turnNos.includes(r.turnNo))
+  )
 }
 
 /**

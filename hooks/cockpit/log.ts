@@ -27,8 +27,9 @@ import { fileDiff, resetSnapshots, snapshotBefore } from './history/snapshots'
 import { restoredLog } from './history/record'
 import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
-import { isNarrationAt, readFlow } from '../shared/flow'
-import { noteEnd, noteStart, readDetails, restoreDetails } from './keys/details'
+import { flowNow, isNarrationAt } from '../shared/flow'
+import { changeHeld, loadHeld, type Held } from '../shared/held'
+import { detailsNow, noteEnd, noteStart, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { commitIn, hookWords, ruledStatement } from './steps/failures'
 import { showPath } from '../shared/look/paths'
@@ -38,6 +39,7 @@ import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork, 
 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
+const heldLog: Held<StepLog> = {}
 // The main-loop turn running now (null when none runs), written beside the step log whenever that changes: a
 // transcript row asks only this, never the step log, whose every step it would otherwise read on each draw.
 const running = atom({ plugin: 'ghostframe', key: 'running' } as const, null as string | null, { shape: 'running-1' })
@@ -71,8 +73,24 @@ let lastCwd: string | undefined
  * @param change the log's change
  * @returns the log as written
  */
+/**
+ * The step log for a hook that is not drawing: as last written, with no copy through $.state after a reload's first
+ * read. A draw reads it with `readLog`, which redraws it when the log changes.
+ * @param $ the engine interface
+ * @returns the log
+ */
+async function logNow($: EngineInterface): Promise<StepLog> {
+  if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
+
+  return changeHeld(heldLog, log => log)
+}
+
 async function updateLog($: EngineInterface, change: (log: StepLog) => StepLog): Promise<StepLog> {
-  const log = await update($, stepLog, change)
+  // Written twice per tool call: changed without being read back (shared/held.ts). This is its only writer.
+  if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
+  const log = changeHeld(heldLog, change)
+
+  await $.state.set({ plugin: 'ghostframe', key: 'stepLog' }, { shape: 'stepLog-4', value: log })
   const now = log.isTurnRunning ? log.turn : null
 
   if (now !== mirrored) {
@@ -206,7 +224,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
   noteFetchStart(e.tool, e)
 
   await updateLog($, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
-  await noteStart($, e.tool_use_id, e.tool, e, at)
+  noteStart(e.tool_use_id, e.tool, e, at)
 }
 
 /**
@@ -356,7 +374,7 @@ export async function logAsk($: EngineInterface, id: string): Promise<void> {
 export async function logUnask($: EngineInterface, id: string): Promise<void> {
   if (!isOn()) return
 
-  await update($, stepLog, log => unaskStep(log, id))
+  await updateLog($, log => unaskStep(log, id))
 }
 
 /**
@@ -391,7 +409,7 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   await updateLog($, log => endTurn(log, durationMs, isAborted, now))
   await update($, roster, list => endTurnAgents(list, isAborted, now))
   const waiting = waitingOn(await read($, roster))
-  const ended = await read($, stepLog)
+  const ended = await logNow($)
 
   // One receipt per typed turn (7.12): an engine turn that ends with its agents still running writes none; the first
   // that ends with none running writes the whole turn's. A report turn after it (an agent that had finished before
@@ -426,18 +444,18 @@ const DIFFS_MAX = 50 // files whose diff a turn keeps
  */
 async function keepTurn($: EngineInterface): Promise<void> {
   try {
-    const log = await read($, stepLog)
+    const log = await logNow($)
     const work = await readWork($)
-    const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
-
     const mine = (await read($, receipts)).filter(r => r.turnNo === log.turnNo)
     // The turn's narration, by row id, so a resumed transcript (no flow) leaves it hidden as the live one did.
     const turns = new Set([...mine.flatMap(r => (r.turn === null ? [] : [r.turn])), ...(log.turn === null ? [] : [log.turn])])
-    const flow = await readFlow($)
+    const flow = await flowNow($)
     const narration = flow.flatMap((f, i) =>
       f.kind === 'text' && f.row !== undefined && f.turn !== null && turns.has(f.turn) && isNarrationAt(flow, i) ? [f.row] : []
     )
-    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await readDetails($), diffs, narration })
+    const diffs = await Promise.all(work.files.slice(0, DIFFS_MAX).map(async f => fileDiff($, f.path, lastCwd)))
+
+    await saveTurn($, { log, work, roster: await read($, roster), receipts: mine, details: await detailsNow($), diffs, narration })
   } catch (error: unknown) {
     $.ui.log(`cockpit: turn ${String((await read($, stepLog)).turnNo)} not kept in history: ${String(error)}`, noticeSink())
   }
@@ -526,7 +544,7 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   await snapshotBefore($, e.tool, e, cwd)
   noteFetchStart(e.tool, e)
   await update($, roster, list => agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id))
-  await noteStart($, e.tool_use_id, e.tool, e, at, id)
+  noteStart(e.tool_use_id, e.tool, e, at, id)
 }
 
 /**

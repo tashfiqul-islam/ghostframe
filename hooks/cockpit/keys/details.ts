@@ -1,10 +1,11 @@
 // Each main-loop step's detail (spec E.44: Enter on a step), kept in $.state apart from the step log so the log stays
 // small: the full command or subject, its timing, an excerpt of its output, and an edit's patch.
 import { exitOf as exitCodeIn } from '../../shared/look/words'
-import { atom, read, update } from 'claude-code'
+import { atom, read } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { StepDetail } from '../../../types'
+import { changeHeld, loadHeld, type Held } from '../../shared/held'
 import { num, obj, s } from '../../shared/calls/fields'
 import { shellText } from '../../shared/calls/ships'
 import { clean } from '../../shared/calls/tests'
@@ -85,16 +86,15 @@ export function patchOf(tool: string, input: unknown, result: unknown): string[]
 }
 
 /**
- * A main-loop call started: its detail begins, with its command and start.
- * @param $ the engine interface
+ * A main-loop call started: its detail begins, with its command and start, held here until the call ends.
  * @param id the call's id
  * @param tool the call's tool
  * @param input the call's input
  * @param at the wall clock in ms
  * @param agent the agent whose own call it is; absent for the main loop's
  */
-export async function noteStart($: EngineInterface, id: string, tool: string, input: unknown, at: number, agent?: string): Promise<void> {
-  const entry: StepDetail = {
+export function noteStart(id: string, tool: string, input: unknown, at: number, agent?: string): void {
+  running.set(id, {
     id,
     tool,
     command: commandOf(tool, input),
@@ -105,9 +105,27 @@ export async function noteStart($: EngineInterface, id: string, tool: string, in
     excerpt: [],
     patch: [],
     ...(agent === undefined ? {} : { agent })
-  }
+  })
+}
 
-  await update($, details, list => capped([...list.filter(d => d.id !== id), entry]))
+// A tool call costs ghostframe what it moves through $.state, and the list is the largest value a call writes: every
+// recent call's output excerpt and every edit's patch. So the list is written once per call, at its end, and never
+// read back (`changeHeld`), and a call still running keeps its detail here until it ends. Readers get both
+// (`readDetails`).
+// shortcut: a reload while a call runs loses that call's start; its end then writes the detail from what it knows.
+const running = new Map<string, StepDetail>()
+const held: Held<StepDetail[]> = {}
+
+/**
+ * Writes the details, changed and capped, with no read of the list.
+ * @param $ the engine interface
+ * @param change the list's change
+ */
+async function writeDetails($: EngineInterface, change: (list: readonly StepDetail[]) => StepDetail[]): Promise<void> {
+  if (held.value === undefined) await loadHeld(held, read($, details))
+  const value = changeHeld(held, list => capped(change(list)))
+
+  await $.state.set({ plugin: 'ghostframe', key: 'details' }, { shape: 'details-1', value })
 }
 
 /** Whether a detail is an agent's own call's. */
@@ -131,30 +149,27 @@ export function capped(list: readonly StepDetail[]): StepDetail[] {
  * @param at the wall clock in ms
  */
 export async function noteEnd($: EngineInterface, id: string, input: unknown, outcome: Outcome, at: number): Promise<void> {
-  await update($, details, list =>
-    list.map(d => {
-      if (d.id !== id) return d
+  const tool = s(obj(input)?.['tool']) ?? ''
+  const d = running.get(id) ?? { id, tool, command: commandOf(tool, input), startAt: at, ms: null, isFailed: false, lines: 0, excerpt: [], patch: [] }
+  const isFailed = outcome.isError === true || outcome.deny !== undefined
+  const rows = outputOf(d.tool, outcome)
+    .replace(/\n+$/, '')
+    .split('\n')
+    .filter((r, _, all) => all.length > 1 || r.length > 0)
+  const excerpt = (isFailed ? rows.slice(-EXCERPT) : rows.slice(0, EXCERPT)).map(r => r.slice(0, ROW_MAX))
+  const exit = isFailed ? exitOf(outcome) : undefined
+  const ended: StepDetail = {
+    ...d,
+    ms: Math.max(0, at - d.startAt),
+    isFailed,
+    lines: rows.length,
+    excerpt,
+    patch: isFailed ? [] : patchOf(d.tool, input, outcome.result),
+    ...(exit === undefined ? {} : { exit })
+  }
 
-      const isFailed = outcome.isError === true || outcome.deny !== undefined
-      const rows = outputOf(d.tool, outcome)
-        .replace(/\n+$/, '')
-        .split('\n')
-        .filter((r, _, all) => all.length > 1 || r.length > 0)
-      const excerpt = (isFailed ? rows.slice(-EXCERPT) : rows.slice(0, EXCERPT)).map(r => r.slice(0, ROW_MAX))
-
-      const exit = isFailed ? exitOf(outcome) : undefined
-
-      return {
-        ...d,
-        ms: Math.max(0, at - d.startAt),
-        isFailed,
-        lines: rows.length,
-        excerpt,
-        patch: isFailed ? [] : patchOf(d.tool, input, outcome.result),
-        ...(exit === undefined ? {} : { exit })
-      }
-    })
-  )
+  running.delete(id)
+  await writeDetails($, list => [...list.filter(x => x.id !== id), ended])
 }
 
 /**
@@ -173,15 +188,27 @@ export function exitOf(outcome: Outcome): number | undefined {
  * @param $ the engine interface
  * @param kept the details
  */
-export async function restoreDetails($: EngineInterface, kept: readonly StepDetail[]): Promise<void> {
-  await update($, details, list => (list.length > 0 ? list : [...kept]))
+export async function restoreDetails($: EngineInterface, saved: readonly StepDetail[]): Promise<void> {
+  await writeDetails($, list => (list.length > 0 ? [...list] : [...saved]))
 }
 
 /**
- * The steps' details; read while drawing a detail or a diff.
+ * The steps' details for a hook that is not drawing: as last written (no copy through $.state after a reload's first
+ * read), the calls still running last.
+ * @param $ the engine interface
+ * @returns the details, oldest first
+ */
+export async function detailsNow($: EngineInterface): Promise<StepDetail[]> {
+  if (held.value === undefined) await loadHeld(held, read($, details))
+
+  return [...changeHeld(held, list => list), ...running.values()]
+}
+
+/**
+ * The steps' details, the calls still running last; read while drawing a detail or a diff.
  * @param $ the engine interface
  * @returns the details, oldest first
  */
 export async function readDetails($: EngineInterface): Promise<StepDetail[]> {
-  return read($, details)
+  return [...(await read($, details)), ...running.values()]
 }

@@ -8,11 +8,10 @@ import { logAgentStep, logAgentStepEnd, logAsk, logBlocked, logStepEnd, logStepS
 import { runnerOf } from '../../shared/calls/describe'
 import { isShipCommand, parseShip, shellText } from '../../shared/calls/ships'
 import { parseTests } from '../../shared/calls/tests'
-import { capTurns } from '../../shared/held'
 import { browserTool } from '../browser'
 import { skillName } from '../live'
 import { sessionCwd } from './session'
-import { readAsked, readTurn, updateAsked, updateShips, updateSteps, updateTally, updateTestRuns } from './state'
+import { readAsked, readTurn, stampEnd, stampStart, updateAsked, updateShips, updateTally, updateTestRuns } from './state'
 
 const STEPS_MAX = 400
 
@@ -115,8 +114,7 @@ export function registerCalls(on: On): void {
       const at = await now()
 
       try {
-        const turn = await readTurn($)
-        await updateSteps($, list => capTurns([...list, { id, turn, at: at ?? 0, ms: null, tool: e.tool }], STEPS_MAX, turn))
+        stampStart({ id, turn: await readTurn($), at: at ?? 0, ms: null, tool: e.tool })
       } catch {
         // A stamp that fails costs the row its time, nothing more.
       }
@@ -148,7 +146,7 @@ export function registerCalls(on: On): void {
         const ok = ran !== undefined && ran.isError !== true && ran.deny === undefined
 
         try {
-          await updateSteps($, list => (when === undefined ? list.filter(s => s.id !== id) : list.map(s => (s.id === id ? { ...s, at: when, ms, ok } : s))))
+          await stampEnd($, id, when === undefined ? null : { at: when, ms, ok }, STEPS_MAX)
 
           if ((await readAsked($)).includes(id)) {
             await updateAsked($, list => list.filter(x => x !== id))
