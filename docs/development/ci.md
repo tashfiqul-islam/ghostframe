@@ -31,7 +31,8 @@ nightly run always measures.
 Jobs skip with `if:`, never with a workflow's `on: paths`: a required check that never starts counts as missing and
 blocks the merge. The ruleset requires **CI**, the job at the end of `ci.yml`, which passes only when every job in
 the workflow passed or was skipped and fails on any failure or cancellation; it also requires **Conventional title**,
-**Dependency review**, and **Performance**, which runs on every pull request and passes at once when nothing measured
+which never skips (it lints the title on every open, edit, reopen and push, since a skipped required check
+counts as passing and the title becomes the squash commit release-please reads), **Dependency review**, and **Performance**, which runs on every pull request and passes at once when nothing measured
 changed.
 
 ## The map checks itself
