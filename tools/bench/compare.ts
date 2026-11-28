@@ -36,7 +36,7 @@ export const floorOf = (budget: BudgetName): number => BUDGETS[budget].limit * N
  * One measure as a harness report holds it (tools/bench/run.ts writes `checks`). A measure taken from samples keeps
  * them, and the quantile its value is (0.95 when not given).
  */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; samples?: readonly number[]; quantile?: number }
+export type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; samples?: readonly number[]; quantile?: number }
 
 /**
  * One measure compared: main's and the pull request's value (the pooled p95 where both kept samples, else the median

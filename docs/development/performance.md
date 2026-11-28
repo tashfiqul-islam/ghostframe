@@ -186,7 +186,8 @@ ghostframe-off run, so they are not scaled.
 
 - **Benchmarks** ([`benchmarks.yml`](../../.github/workflows/benchmarks.yml)): the whole suite, live session included,
   `bun tools/bench/run.ts --live` on `windows-2025`, on every push to `main` and nightly. It reports only (the job
-  summary) and never blocks; the Performance comment links its latest run.
+  summary) and never blocks; the Performance comment links its latest run. Its drift job, on `ubuntu-24.04`, keeps the
+  budget drift issue (below).
 - **Performance** ([`performance.yml`](../../.github/workflows/performance.yml)): on every pull request, below.
 
 ## The Performance check
@@ -246,6 +247,15 @@ A budget is a limit on the pull request's own cost, so being over it blocks only
 A shared runner can be twice as slow as the last: on one, the pull request that only copied the ruleset read 1.87 ms
 for an unchanged ToolGroup redraw against a 1.5 ms limit, and `main` read 1.83 ms on the same runner. That rates
 yellow, never red.
+
+### How budgets are guarded
+
+A pull request over a budget blocks only when it is also slower than `main`, so `main` itself is held to the budgets:
+the Benchmarks workflow's drift job ([`tools/bench/drift.ts`](../../tools/bench/drift.ts)) measures `main` on every push
+and nightly as the Performance check does (three runs, pooled), and keeps one issue open, titled "Performance: main is
+over a budget", naming each measure over in two drift runs in a row with `main`'s numbers (one slow runner puts all
+three runs over at once). It updates that issue, never opens a second, closes it once `main` is back within every
+budget, and blocks no pull request.
 
 A change smaller than 5% of the measure's budget (as set in `budgets.ts`, never CI's 3× limit) is never called slower,
 whatever its percentage: a shared runner
