@@ -58,7 +58,7 @@ const heldHistory: Held<TurnRecord[]> = {}
  * @param $ the engine interface
  * @returns the turns, oldest first
  */
-async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
+export async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
   if (heldHistory.value === undefined) await loadHeld(heldHistory, read($, history))
 
   return changeHeld(heldHistory, list => list)
