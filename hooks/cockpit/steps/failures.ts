@@ -38,6 +38,31 @@ const BASH_STATEMENT = /^(?:[({]|(?:for|while|until|if|case|function)\b)/
 const DIR_OPTION = /^-[Cc]$|^--(?:context|namespace|git-dir|work-tree|cwd|prefix)$/
 
 /**
+ * The command a wrapper runs (13.1): `timeout 600 bun test a` is a `bun test a`. A wrapper's own flags, `timeout`'s
+ * duration, `nice`'s level and `env`'s assignments are not the command's; wrappers may nest (`nohup timeout 900 …`).
+ * A wrapper word with nothing after it is the command itself.
+ * @param words the command's words
+ * @returns the words from the command the wrappers run
+ */
+function unwrapped(words: readonly string[]): readonly string[] {
+  const head = (words[0] ?? '').replace(/^.*[/\\]/, '')
+  let at = 1
+
+  if (head === 'time' || head === 'nohup' || head === 'env' || head === 'nice') {
+    // `env`'s assignments; `nice -n 10`, whose level follows its flag.
+    const isOwn = (w: string) => isFlag(w) || (head === 'env' && isAssignment(w))
+
+    while (at < words.length && isOwn(words[at] ?? '')) at += words[at] === '-n' ? 2 : 1
+  } else if (head === 'timeout') {
+    // `-k 5` and `-s KILL` take a value; then the duration.
+    while (at < words.length && isFlag(words[at] ?? '')) at += /^-[ks]$/.test(words[at] ?? '') ? 2 : 1
+    at++
+  } else return words
+
+  return at < words.length ? unwrapped(words.slice(at)) : words
+}
+
+/**
  * A command's statements, split at `;`, `&&`, `||` and `|` outside quotes, brackets, parentheses and braces, so a
  * `;` inside `$t.Replace("a; b", …)` or a script block is not a statement of its own.
  * @param cmd the command
@@ -116,7 +141,7 @@ export function failureKey(kind: string, command: string, file: string, project?
 
   if (stated === undefined || (shell === 'bash' && BASH_STATEMENT.test(stated.trimStart()))) return { program: shell, sub: '', target: '' }
 
-  const words = withoutRedirects(wordsOf(stated)).filter((w, i, all) => !(isAssignment(w) && all.slice(0, i).every(isAssignment)))
+  const words = unwrapped(withoutRedirects(wordsOf(stated)).filter((w, i, all) => !(isAssignment(w) && all.slice(0, i).every(isAssignment))))
   const programWord = words[0] ?? ''
   const program = programWord.replace(/^.*[/\\]/, '').replace(/\.(?:exe|cmd)$/i, '')
   // `git -C dir`, `git -c k=v`, `docker --context x`: a global option's value is not the subcommand.
@@ -124,8 +149,8 @@ export function failureKey(kind: string, command: string, file: string, project?
   const subAt = WITH_SUBCOMMANDS.has(program) ? rest.findIndex(w => !isFlag(w)) : -1
   const sub = subAt < 0 ? '' : (rest[subAt] ?? '')
   const args = rest.slice(subAt + 1).filter(w => !isFlag(w))
-  // A test's first argument is its filter, path or not; elsewhere only a path is a target.
-  const found = args.find(w => kind === 'test' || isPathLike(w))
+  // A path is the target; a test with no path names its filter, its first argument (a flag's value is never a path).
+  const found = args.find(isPathLike) ?? (kind === 'test' ? args[0] : undefined)
 
   return { program, sub, target: found === undefined ? '' : showPath(found, { project }) }
 }
