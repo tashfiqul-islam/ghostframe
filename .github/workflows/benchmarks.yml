@@ -33,8 +33,33 @@ env:
   DISABLE_AUTOUPDATER: '1'
 
 jobs:
+  # A push that changes nothing on a measured path (docs, tests alone) measures nothing; nightly and dispatched runs
+  # always measure (.github/actions/changes, diff-pushes).
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out this repo
+    outputs:
+      perf: ${{ steps.changes.outputs.perf }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Sort the pushed files into areas
+        id: changes
+        uses: $/.github/actions/changes
+        with:
+          diff-pushes: 'true'
+
   bench:
     name: Benchmarks (report only)
+    needs: changes
+    if: needs.changes.outputs.perf == 'true'
     runs-on: windows-2025
     continue-on-error: true
     # No budget of its own (it never gates); an hour stops a hang.
@@ -80,8 +105,9 @@ jobs:
   # budget blocks only when it is slower than main, so this is what catches many small slowdowns adding up.
   drift:
     name: Budget drift (main, three runs)
+    needs: changes
     # Main's alone: a run dispatched on another branch neither files the issue nor leaves the list the next run reads.
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.changes.outputs.perf == 'true'
     runs-on: ubuntu-24.04
     continue-on-error: true
     # Three runs of main take about 4 minutes; twice that and more, so a hang fails fast.

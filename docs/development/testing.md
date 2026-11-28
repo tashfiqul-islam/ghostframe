@@ -43,7 +43,8 @@ feed the renderers each screen's data and compare their rows with it. `boundarie
 
 `.github/workflows/ci.yml` runs the gate on Ubuntu with a pinned, checksum-verified Claude Code, and **Tests** on
 Ubuntu, Windows and macOS: the plugin's tests with the same pinned CLI, and the status line's specs. `pr.yml` checks the
-PR title against the commit rules.
+PR title against the commit rules. A pull request runs only the jobs its files need, decided by `tools/ci/map.ts`, and
+the required **CI** job reports for all of them: [ci.md](ci.md). Run `mise run ci:plan` before pushing.
 
 `.github/workflows/canary.yml` runs every Monday, and by hand, against the **latest** Claude Code on all three systems:
 plugin validation, the plugin's tests, the status line's specs, and the live checks' own unit tests. ghostframe draws
