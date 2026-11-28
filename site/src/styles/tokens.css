@@ -70,6 +70,10 @@
   --space-6: 48px;
   --space-7: 64px;
   --space-8: 96px;
+  --corner-frame: 16px;
+  --corner-weight: 2px;
+  --corner-nav: 6px;
+  --corner-dock: 12px;
   --radius-frame: 0;
   --radius-chip: 4px;
   --radius-button: 6px;

@@ -115,7 +115,7 @@ the mascot. Density is editorial: large display type, generous negative space, a
 
 **Key Characteristics:**
 
-- Every position sits on the terminal cell grid, 8 px wide and 16 px tall.
+- Every position sits on the terminal cell grid, `--cell-w` (8 px) wide and `--cell-h` (16 px) tall.
 - Gold is rare and means something; the status colours mean a state.
 - Real product output is the imagery: the terminal is live text, never a screenshot.
 - Flat: depth is surface steps and hairlines, with one shadow, under the frame.
@@ -178,7 +178,7 @@ pair to `src/styles/tokens.css`.
 - **Body**: weight `--weight-body` (400), size `--type-body` (18 px), line height `--leading-body` (1.55). Prose, 60
   to 72 characters a line.
 - **Mono**: weight `--weight-mono` (400) and `--weight-mono-medium` (500), size `--type-mono` (14 px), line height
-  `--leading-mono` (1.6). Commands, terminal text, code. The terminal itself is 13.333 px, an 8 px advance.
+  `--leading-mono` (1.6). Commands, terminal text, code. The terminal itself is 13.333 px, a `--cell-w` (8 px) advance.
 - **Label**: mono, weight `--weight-label` (400), size `--type-label` (11 px), uppercase, tracking `--track-label`
   (0.13em). Section labels, chips, readouts.
 
@@ -190,8 +190,8 @@ pair to `src/styles/tokens.css`.
 
 ## Layout
 
-The cell grid is `--cell-w` (8 px) by `--cell-h` (16 px). At 1440 the content is 160 columns, 1280 px inside 80 px margins, on 12 columns with 24
-px gutters; the page edge lines run at x = 56 and x = 1383. Each section opens with a 36 px title block: its file
+The cell grid is `--cell-w` (8 px) by `--cell-h` (16 px). At 1440 the content is 160 columns, 1280 px inside 80 px margins, on 12 columns with `--space-4` (24 px)
+gutters; the page edge lines run at x = 56 and x = 1383. Each section opens with a 36 px title block: its file
 number, name and count on the left, its row range on the right. A column ruler runs under the nav and a row ruler down
 the left edge.
 
@@ -217,7 +217,7 @@ Flat. Surfaces step from Obsidian to Graphite to Slate, separated by hairlines. 
 **The Square Frame Rule.** Frames, tiles and title blocks are square, `--radius-frame` (0). Controls (buttons, wells) are
 `--radius-button` (6 px), chips and keys `--radius-chip` (4 px). Nothing is a pill.
 
-The frame: a 1 px inner outline at 18% white and four 16 px gold corner brackets, 2 px thick, 2 px outside the
+The frame: a 1 px inner outline at 18% white and four `--corner-frame` (16 px) gold corner brackets, `--corner-weight` (2 px) thick, 2 px outside the
 rectangle. The brackets never scale with the frame.
 
 ## Components
@@ -243,8 +243,8 @@ copied (COPIED with a tick for 1.2 s), and blocked (the command selected, "SELEC
 ### Navigation
 
 An 80 px band: the lockup, four numbered links in one outlined 40 px track, the version chip, icon links and a quiet
-outlined Install. The nav frame (40 px, Graphite, four 6 px gold corners) slides to the link under the pointer in
-`--move` (240 ms) and jumps from the keyboard. After 96 px of scroll the docked bar appears: 1088 by 56 px, fixed 12 px from the top,
+outlined Install. The nav frame (40 px, Graphite, four `--corner-nav` (6 px) gold corners) slides to the link under the pointer in
+`--move` (240 ms) and jumps from the keyboard. After 96 px of scroll the docked bar appears: 1088 by 56 px, fixed 12 px from the top, with four `--corner-dock` (12 px) gold corners,
 with a progress line in gold. At 390 a menu button opens the menu sheet.
 
 ### Status tile
@@ -257,7 +257,7 @@ coloured by the eye state, with a pace marker.
 ### Do:
 
 - **Do** take every colour, space, radius, motion value and breakpoint from `src/styles/tokens.css`.
-- **Do** snap every position the script sets to a multiple of 8 horizontally and 16 vertically.
+- **Do** snap every position the script sets to a multiple of `--cell-w` (8 px) horizontally and `--cell-h` (16 px) vertically.
 - **Do** animate only `transform` and `opacity`, ease out with `--ease-out` (cubic-bezier(0.2, 0.8, 0.2, 1)), and keep anything the
   pointer drives a transition.
 - **Do** keep a pause, a text version and a reduced-motion state that tells the whole story.

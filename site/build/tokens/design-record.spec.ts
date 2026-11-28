@@ -91,7 +91,7 @@ describe('DESIGN.md prose', () => {
       ...typeOf,
       ...boundPairs(prose).map(([, token]) => token)
     ])
-    const statable = /^--(space|radius|type|weight|leading|track)-|^--(cell-[wh]|press|move|ease-out)$/
+    const statable = /^--(space|radius|corner|type|weight|leading|track)-|^--(cell-[wh]|press|move|ease-out)$/
     const owed = [...tokens].filter(([name, value]) => value.startsWith('#') || statable.test(name)).map(([name]) => name)
     expect(owed.filter(name => !stated.has(name))).toEqual([])
   })
