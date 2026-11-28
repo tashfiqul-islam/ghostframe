@@ -9,6 +9,7 @@ zizmor = "1.32.0" # workflow security audit
 shellcheck = "0.11.0" # shell scripts
 lychee = "0.24.2" # Markdown link and anchor check
 rumdl = "0.3.4" # Markdown lint (markdownlint's rules)
+"pipx:fonttools" = { version = "4.69.1", extras = "woff" } # woff = brotli, for --flavor=woff2; site/build/fonts/subset.ts only, the build needs no Python
 
 [tasks.setup]
 description = "Install dev tools and git hooks"

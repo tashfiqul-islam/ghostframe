@@ -28,6 +28,7 @@ const { command } = Astro.props
     color: var(--gold);
   }
   code {
+    font: inherit; /* the browser's own monospace would set the command off the cell grid */
     flex: 1;
   }
   button {

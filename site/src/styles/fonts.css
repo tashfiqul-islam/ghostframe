@@ -1,0 +1,49 @@
+/* Written by build/fonts/subset.ts; run it to change this file. @font-face only: the families live in tokens.css.
+   The fallback faces are Capsize-style (size-adjust and the three overrides), computed by subset.ts from the fonts' own
+   head, hhea, cmap and hmtx tables: ascent, descent and line gap over size-adjust, size-adjust = the web font's
+   frequency-weighted average advance over Arial's (Hanken) or Courier New's (JetBrains Mono). Courier New advances 0.6 em like
+   JetBrains Mono, so the cell grid holds while the font loads. */
+@font-face {
+  font-family: 'Hanken Grotesk';
+  src: url('/fonts/hanken-grotesk.woff2') format('woff2');
+  font-weight: 400 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrains-mono.woff2') format('woff2');
+  font-weight: 400 500;
+  font-display: swap;
+}
+
+/* ✓ ↻ ∴ ▮ are in neither font: JuliaMono's four glyphs, joined to the mono family by unicode-range and fetched only
+   by a page that draws one. Its metrics are JetBrains Mono's own, so a glyph from it never changes a line's height. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/julia-mono-glyphs.woff2') format('woff2');
+  font-weight: 400 500;
+  font-display: swap;
+  unicode-range: U+2713, U+21BB, U+2234, U+25AE;
+  ascent-override: 102%;
+  descent-override: 30%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Hanken Fallback';
+  src: local('Arial'), local('ArialMT');
+  size-adjust: 101.6854%;
+  ascent-override: 98.3426%;
+  descent-override: 29.7978%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Mono Fallback';
+  src: local('Courier New'), local('CourierNewPSMT');
+  size-adjust: 99.9837%;
+  ascent-override: 102.0166%;
+  descent-override: 30.0049%;
+  line-gap-override: 0%;
+}
