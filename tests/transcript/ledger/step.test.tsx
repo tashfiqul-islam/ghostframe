@@ -1,3 +1,4 @@
+import type { Register } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
 import { ON, PANE, T0, posixPath } from '../../support/cockpit'
@@ -8,6 +9,42 @@ import { use } from '../../support/docked'
 // ghostframe's turn.step hook: one model response's stream (thinking, then text) drained through it. Its own work is
 // a mode change written to the step log; nothing in it grows with the work tree or the session.
 const LONG = { ...ON, timeoutMs: 120_000 }
+// A meter above ghostframe, as `HookBudget` counts a hook's own time: the engine's trace gives ghostframe's link its
+// wall time with its `next()` taken out, and the meter takes out ghostframe's `$` calls (a `$.clock` wait aside,
+// which the budget counts). `/meter` answers each response's own time, in ms. Everything lives inside `register`:
+// the harness runs an inline plugin on its own, closed over nothing of its file.
+const meter: Register = on => {
+  const own: number[] = []
+  let dollar = 0
+  let isStepping = false
+
+  on('*', async (_, e, next) => {
+    if (next.is('command.run', e) && e.command === 'meter') return { text: JSON.stringify(own) }
+    if (!isStepping || next.origin.plugin !== 'ghostframe' || next.event === 'clock.sleep') return next(e)
+    const t = performance.now()
+
+    try {
+      return await next(e)
+    } finally {
+      dollar += performance.now() - t
+    }
+  })
+  on('turn.step', async function* (_, e, next) {
+    dollar = 0
+    isStepping = true
+    const stream = next(e)
+
+    try {
+      for await (const chunk of stream) yield chunk
+
+      return await stream.result
+    } finally {
+      isStepping = false
+      own.push((next.trace.find(t => t.plugin === 'ghostframe')?.ms ?? Number.NaN) - dollar)
+    }
+  })
+}
+const METERED = { ...LONG, plugins: [{ name: 'meter', tier: 'prepend' as const, register: meter }] }
 const files = (n: number) => Array.from({ length: n }, (_, i) => `cache/d${Math.floor(i / 200)}/f${i % 200}.txt`)
 
 function engine(on: On, clock: { now: number }, untracked: readonly string[]): void {
@@ -76,13 +113,18 @@ async function started($: Engine, on: On, untracked: readonly string[]): Promise
   await $.turn.start({ text: 'go', turnId: 't1' })
 }
 
-test('40,000 untracked files, a shell call`s diff in flight: a response`s stream passes the hook in under 100 ms', LONG, async ($, on) => {
+// Own time, not wall time: a busy runner's wall clock read 123 ms once for a hook whose own work is under 10 ms.
+test('40,000 untracked files, a shell call`s diff in flight: a response`s own time in the hook is under 100 ms', METERED, async ($, on) => {
   await started($, on, files(40_000))
   const call = $.tool.call({ tool: 'Bash', command: 'bun run build', tool_use_id: 'b1' } as never)
-  const ms = await step($, 't1')
+  await step($, 't1')
   await call
+  const said = (await $.command.run({ command: 'meter', args: '', origin: { kind: 'composer' } } as never)) as { text?: string }
+  const own = JSON.parse(said.text ?? '[]') as number[]
 
-  expect(ms).toBeLessThan(100)
+  expect(own).toHaveLength(1)
+  expect(own[0]).toBeGreaterThan(0)
+  expect(own[0]).toBeLessThan(100)
 })
 
 test('a long session, 200 calls and their rows: a response costs the hook about the same at call 200 as at call 1', LONG, async ($, on) => {
