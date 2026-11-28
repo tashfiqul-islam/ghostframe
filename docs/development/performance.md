@@ -276,25 +276,23 @@ is compared with the slower `main`. Say in the pull request why it is accepted.
 upload and stops. [`performance-comment.yml`](../../.github/workflows/performance-comment.yml) runs when it finishes
 (`workflow_run`), from `main`'s code, never checking out the pull request: it takes the pull request's number from
 GitHub (the open pull request whose head is the commit measured), checks the upload is a Performance comment, adds the
-link to the latest live benchmark, and posts or edits the one comment with `GITHUB_TOKEN`. A `workflow_run` workflow
+link to the latest live benchmark, and edits its section of the pull request's one comment (CI's section is above it:
+[ci.md](ci.md#what-a-pull-request-says)) with `GITHUB_TOKEN`. A `workflow_run` workflow
 runs from the default branch only, so the comment job starts working once it is on `main`.
 
 ### Changes that skip the work
 
-A pull request that changes only these files changes nothing the tests or benchmarks run, so the Tests jobs and the
-Performance check see that ([`.github/actions/changes`](../../.github/actions/changes/action.yml)) and pass in seconds:
-
-- any `*.md` file, anything under `docs/`, `LICENSE`, `.rumdl.toml`, `.diagram-design/`
-- `.github/ISSUE_TEMPLATE/`, `.github/CODEOWNERS`
-- pictures: `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.svg`, `*.ico`
-
-They still run: a required check that does not run counts as missing and blocks the merge. A renamed file counts by
-both its names. The Quality gate always does its whole work, since it lints the docs.
+The check measures only when a pull request changes code on a measured path: the plugin runtime, the status line, the
+benchmarks and the probe, or the runtime itself (the toolchain, dependencies, `tsconfig`). Docs, tests alone and the
+website do not, so the check passes in seconds. [`tools/ci/map.ts`](../../tools/ci/map.ts) decides (its `perf`
+decision), as for every job: [ci.md](ci.md). It still runs: a required check that does not run counts as missing and
+blocks the merge. A renamed file counts by both its names.
 
 ### Required
 
 The check blocks merging: `Performance` is one of the `main` ruleset's required status checks
-([`.github/rulesets/main.json`](../../.github/rulesets/main.json), the live ruleset's copy), beside the others:
+([`.github/rulesets/main.json`](../../.github/rulesets/main.json), the live ruleset's copy), beside `CI`,
+`Conventional title` and `Dependency review` ([ci.md](ci.md)):
 
 ```json
 { "context": "Performance", "integration_id": 15368 }

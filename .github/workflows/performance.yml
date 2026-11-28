@@ -36,19 +36,20 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read # check out this pull request and main
-      pull-requests: read # list the pull request's files
     steps:
+      # Its merge commit and the base as it is now (the first parent): enough to list the pull request's files.
       - name: Check out the pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
 
-      - name: See whether the pull request changes code
+      - name: See whether the pull request changes code on a measured path
         id: changes
         uses: $/.github/actions/changes
 
       - name: Check out main beside it
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.perf == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.base.sha }}
@@ -57,25 +58,25 @@ jobs:
 
       # Out of the pull request's tree, so its git status (which the status line benchmark times) sees no extra folder.
       - name: Move main's checkout out of the pull request's tree
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.perf == 'true'
         run: mv .perf-main "$RUNNER_TEMP/main"
 
       - name: Set up toolchain (mise)
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.perf == 'true'
         uses: $/.github/actions/setup
         with:
           tools: bun
           install: 'false'
 
       - name: Install Claude Code CLI (pinned, checksum-verified)
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.perf == 'true'
         uses: $/.github/actions/claude
         with:
           version: ${{ env.CLAUDE_CODE_VERSION }}
           sha256: ${{ env.CLAUDE_CODE_SHA256_LINUX_X64 }}
 
       - name: Measure main and the pull request, three runs each, and rate every measure
-        if: steps.changes.outputs.code == 'true'
+        if: steps.changes.outputs.perf == 'true'
         env:
           BENCH_REPO: ${{ runner.temp }}/ghostframe-perf-repo
           ACCEPTED: ${{ contains(github.event.pull_request.labels.*.name, 'perf-accepted') }}
@@ -86,11 +87,11 @@ jobs:
           bun tools/bench/check.ts --main "$RUNNER_TEMP/main" --runs 3 --out "$RUNNER_TEMP/perf" "${accepted[@]}"
 
       - name: Say that nothing was measured
-        if: steps.changes.outputs.code == 'false'
+        if: steps.changes.outputs.perf != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/perf"
           printf '%s\n' '<!-- ghostframe-performance -->' '## Performance' '' \
-            'This pull request changes no code (docs/development/performance.md, "Changes that skip the work"): nothing to measure, so the check passes.' \
+            'This pull request changes no code on a measured path (docs/development/ci.md): nothing to measure, so the check passes.' \
             > "$RUNNER_TEMP/perf/comment.md"
           cat "$RUNNER_TEMP/perf/comment.md"
 

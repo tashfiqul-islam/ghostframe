@@ -18,6 +18,14 @@ run = ["bun install --cwd tools --frozen-lockfile", "hk install --mise"]
 description = "The whole gate: types, lint, format, plugin validation, tests, workflows, docs"
 run = ["mise run lint-js", "bun run --cwd tools check", "mise run lint-actions", "mise run lint-docs"]
 
+[tasks."ci:plan"]
+description = "Print what CI will run for this branch against origin/main, and why (tools/ci/map.ts). Run it before pushing"
+run = "bun tools/ci/ci.ts plan"
+
+[tasks."ci:run"]
+description = "Run here exactly what CI will run for this branch (or the jobs named: mise run ci:run -- check tests)"
+run = "bun tools/ci/ci.ts run"
+
 [tasks.lint-actions]
 description = "Lint and audit GitHub Actions workflows and composite actions"
 run = ["actionlint", "zizmor --offline .github"]
