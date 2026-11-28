@@ -1,6 +1,7 @@
 # Decisions
 
-Short records of decisions already made: the context, the decision, and what follows from it.
+Short records of decisions: the context, the decision, and what follows from it. A record marked proposed is under
+review and not yet in force.
 
 | Record                                                 | Decision                                                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -26,7 +27,7 @@ Short records of decisions already made: the context, the decision, and what fol
 | [0020](0020-website-on-workers-static-assets.md)       | The website is an assets-only Worker, with headers written at build (proposed)             |
 | [0021](0021-website-ci-job-always-runs.md)             | One website CI job that always runs, and skips its work when site/ is untouched (proposed) |
 | [0022](0022-website-own-package.md)                    | site/ is its own package, beside the plugin, with no workspace (proposed)                  |
-| [0023](0023-website-typescript-only.md)                | The website is TypeScript everywhere, checked by tsc 7.0.2 and tsrs (proposed)             |
+| [0023](0023-website-typescript-only.md)                | The website is TypeScript everywhere, checked by tsc and tsrs (proposed)                   |
 | [0024](0024-website-analytics-without-a-script.md)     | The website counts visits without a script (proposed)                                      |
 | [0025](0025-website-boot-curtain-on-the-stage.md)      | The boot curtain covers the hero stage only (proposed)                                     |
 | [0026](0026-website-welcomes-ai-crawlers.md)           | The website welcomes every crawler, AI training included (proposed)                        |

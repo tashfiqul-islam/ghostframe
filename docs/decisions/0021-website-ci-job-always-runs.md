@@ -11,8 +11,8 @@ pending and blocks the merge. A job that starts and skips its steps reports succ
 ## Decision
 
 The site has one job in the existing CI workflow. It always runs, compares the pull request against its base, and runs
-the site's checks only when `site/`, the content it reads (`CHANGELOG.md`, `.claude-plugin/plugin.json`, the brand
-files, the design tokens) or the job itself changed. Otherwise it succeeds at once.
+the site's checks only when `site/`, a site input (the repository files the site reads, listed once as `SITE_INPUTS`
+in the site-data module) or the job itself changed. Otherwise it succeeds at once.
 
 ## Consequences
 

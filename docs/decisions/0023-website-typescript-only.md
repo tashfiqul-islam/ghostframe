@@ -1,4 +1,4 @@
-# 0023. The website is TypeScript everywhere, checked by tsc 7.0.2 and tsrs
+# 0023. The website is TypeScript everywhere, checked by tsc and tsrs
 
 Status: proposed.
 
@@ -9,12 +9,13 @@ The repo is TypeScript-only, and the site keeps that: every file a person or an 
 exists only as build output, which is never committed. Config files are TypeScript where the tool reads it
 (`astro.config.ts`, `playwright.config.ts`, `oxlint.config.ts`), and JSON otherwise (`wrangler.jsonc`).
 
-Run on 2026-11-28 ([TypeScript research](../design/website/research/16-typescript-7.md)): `typescript@7.0.2` checks every
-`.ts` and `.tsx` file under `strict`, but it ignores `contentMappers` (a 7.1 option) and passes a type error planted in
+Run on 2026-11-28 ([TypeScript research](../design/website/research/16-typescript-7.md)): `typescript@7.0.2` checks
+every `.ts` and `.tsx` file under `strict`, but it ignores `contentMappers` (a 7.1 option) and passes a type error planted in
 an `.astro` file. tsrs, the Oxc project's Rust port of the TypeScript 7.1 checker, with `@astrojs/ts-content-mapper`
 and `--runExternalCode`, catches errors in `.astro` frontmatter and scripts. `astro check` and the Astro language server
 refuse TypeScript 7 and need TypeScript 6 installed alongside. The repo already type-checks with tsrs:
-`tools/package.json:7` and `:34` (pinned `7.1.0-beta.tsrs2`), `hk.pkl:18`, `tsconfig.base.json:4`, `.github/workflows/ci.yml:60`.
+`tools/package.json:7` and `:34` (pinned `7.1.0-beta.tsrs2`), `hk.pkl:18`, `tsconfig.base.json:4`,
+`.github/workflows/ci.yml:60`.
 
 tsrs is experimental and about a month old, so it does not decide the build alone.
 

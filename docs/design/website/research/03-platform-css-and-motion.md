@@ -176,7 +176,7 @@ measured).
   pushing LCP towards about 1.8 s. Measure it. Mitigations: keep curtain pieces smaller than the hero text block, or
   build the noise from many small tiles.
 
-## 4. Lead's call (against 00-frame.md)
+## 4. Lead's call (against the criteria in stack.md)
 
 | Option                                          | C1 fidelity 20 | C2 perf 20 | C3 maint 15 | C4 stable 10           | C5 agent 10 | C6 - | C7 - | C8 fit 5 | C9 exit 5 | Note                                                        |
 | ----------------------------------------------- | -------------- | ---------- | ----------- | ---------------------- | ----------- | ---- | ---- | -------- | --------- | ----------------------------------------------------------- |

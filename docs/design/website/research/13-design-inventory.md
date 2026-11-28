@@ -245,7 +245,7 @@ custom properties plus one `data-state` attribute on a common ancestor carry it 
    The 0.65 KB JS fallback is optional; I'd skip it (`shortcut:` static frames, until analytics show a need).
 7. Tooltip appears only on the component sheet; if no page uses it, don't build it.
 
-## Lead's call (my suggested ranking, against 00-frame.md criteria)
+## Lead's call (my suggested ranking, against the criteria in stack.md)
 
 | Option for interactivity                  | C1 fidelity | C2 perf | C3 maint | C5 agent | C9 exit | Note                                                                                                                        |
 | ----------------------------------------- | ----------- | ------- | -------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------- |

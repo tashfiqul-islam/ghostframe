@@ -247,7 +247,7 @@ Cloudflare Web Analytics, official docs:
 Delivery: assets-only Worker with `404-page` + `auto-trailing-slash`; default HTML caching, immutable for hashed
 files; zstd/Brotli/HTTP/3 are free zone features; Early Hints and Speculation Rules optional extras, not load-bearing.
 Security: one `_headers` CSP with hashes (generated postbuild), HSTS at the zone, COOP, nosniff, XFO, Trusted Types if
-the island choice keeps DOM sinks out. Analytics ranking against 00-frame criteria (C2, C3, constraint fit):
+the island choice keeps DOM sinks out. Analytics ranking against the stack.md criteria (C2, C3, constraint fit):
 
 1. **C (zone analytics, no JS)** now, zero code, zero CSP surface. Pair with Lighthouse CI for vitals.
 2. **D (first-party beacon)** if per-page counts or field CWV are wanted; small, but adds a Worker and a dep on AE.

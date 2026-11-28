@@ -17,8 +17,8 @@ set `frame-ancestors`.
 
 The site deploys as an assets-only Worker with Wrangler, no adapter. A post-build step writes `_headers`: a hash-based
 CSP with no `'unsafe-inline'`, long immutable caching for hashed files, revalidation for HTML, and the other security
-headers. HSTS is set on the zone, so it also covers the HTTP-to-HTTPS redirect: `max-age=31536000`, with no `preload` and no
-`includeSubDomains` until the domain's subdomains are settled.
+headers. HSTS is set on the zone, so it also covers the HTTP-to-HTTPS redirect: `max-age=31536000`, with no `preload`
+and no `includeSubDomains` until the domain's subdomains are settled.
 
 ## Consequences
 

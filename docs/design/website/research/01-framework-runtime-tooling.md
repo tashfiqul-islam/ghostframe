@@ -206,7 +206,7 @@ search the issue tracker exhaustively.
 - **SvelteKit:** `.svelte` components and runes are Svelte-only. Medium.
 - **Eleventy / Vite MPA:** you own every line, and exit is nearly free; the cost is paid up front in glue code.
 
-## Lead's call: suggested ranking (criteria and weights from 00-frame.md)
+## Lead's call: suggested ranking (criteria and weights in stack.md)
 
 | Option                                                     | C1 20 | C2 20 | C3 15 | C4 10 | C5 10 | C6 8 | C7 7 | C8 5 | C9 5 |   /100 |
 | ---------------------------------------------------------- | ----: | ----: | ----: | ----: | ----: | ---: | ---: | ---: | ---: | -----: |

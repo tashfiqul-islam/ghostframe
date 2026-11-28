@@ -16,8 +16,8 @@ lockfile, and the two font subsets are 27 KB; the full site is estimated at unde
 ## Decision
 
 `site/` has its own `package.json`, `bun.lock` and `bunfig.toml`, installed with `bun install --cwd site`. It shares
-the repo's oxlint and oxfmt configs and the commit rules. Its build output, `node_modules`, generated brand copies and test artefacts
-are gitignored. Whether screenshot baselines are committed waits on the owner's decision about installing the plugin
+the repo's oxlint and oxfmt configs and the commit rules. Its build output, `node_modules`, generated brand copies and
+test artefacts are gitignored. Whether screenshot baselines are committed waits on the owner's decision about installing the plugin
 from a subfolder: today every committed byte reaches each user.
 
 ## Consequences

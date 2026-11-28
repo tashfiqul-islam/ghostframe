@@ -63,13 +63,16 @@ the React island is 23 times the JavaScript of the plain version for the same be
 
 The same page (the nav with its frame, label decode and docked bar; the hero with the lens, pupils and crosshair; the
 demo with five pane tabs, Pause, Replay and Read as text) was built three ways on shared markup and CSS, so the numbers
-compare runtimes. Kept outside the repo (see leftovers). The measurements were written first: a budget spec of the hard
+compare runtimes. Kept outside the repository, in a local throwaway repo, so a reviewer here cannot rerun them; the
+numbers are as measured on 2026-11-28 on Windows 11. The measurements were written first: a budget spec of the hard
 constraints, then each spike until it passed or failed for a reason.
 
 How measured: Lighthouse 13.6.0 CLI with Chrome 158, default mobile (simulated slow 4G, 4× CPU) and `--preset=desktop`,
 against a local Bun server with gzip, cache headers and a real 404. JS is Lighthouse's transfer size of scripts.
 INP is the slowest interaction in a Playwright run at 4× CPU throttling (21 interactions: every tab, the controls,
-nav hovers, 20 pointer moves). Build is the median of three warm builds. Packages from `bun pm ls --all`.
+nav hovers, 20 pointer moves); every spike read 40 ms, which is the floor of that measurement, so INP tells the spikes
+apart by nothing except that all three are far under 200 ms. Build is the median of three warm builds. Packages from
+`bun pm ls --all`.
 
 | Spike                                      |                        JS, first load (gz) | Lighthouse mobile and desktop |                Mobile LCP | CLS |   INP |                Build | Packages | Matching the design                                  |
 | ------------------------------------------ | -----------------------------------------: | ----------------------------- | ------------------------: | --: | ----: | -------------------: | -------: | ---------------------------------------------------- |
@@ -93,23 +96,23 @@ filmstrips are not in the repository; the owner's main checkout keeps them, untr
 All 51 moving, interactive and responsive pieces are in the [design inventory](research/13-design-inventory.md), each
 with its artboard evidence, implementation, JS cost, reduced-motion and no-JS behaviour. The ones the prompt named:
 
-| Piece                                         | Implementation                                                                        |                      JS (gz, est.) | Reduced motion            | No JS                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------: | ------------------------- | -------------------------------------------- |
-| Boot curtain                                  | CSS keyframes over the stage; a head script gates it once per session; any key skips  |                             0.7 KB | none                      | none (shown only when a script set the gate) |
-| Eye pupils                                    | pointer handler writing `transform`, CSS transition with a `linear()` spring          | 0.7 KB with the lens and crosshair | centred, still            | centred                                      |
-| Ruler and col/row readouts                    | same handler, no easing                                                               |                       in the above | hidden                    | "ptr · off grid"                             |
-| Frame that docks on scroll                    | scroll-driven animation on one fixed frame; static frames per section underneath      |                  0 (0.65 fallback) | static frames, crossfade  | static frames                                |
-| Demo: play, pause, replay, Read as text, tabs | build-time HTML of the finished turn; the script only reveals steps; shared `tabs.ts` |                            1.25 KB | finished turn at once     | finished turn, readable                      |
-| Cropped swipeable terminal at 390             | CSS scroll-snap box, a tap or swipe syncs the two-tab switch                          |                            0.45 KB | instant scroll            | still swipes                                 |
-| Nav sliding frame                             | small TS, `transform` 240 ms, instant from the keyboard                               |               1.1 KB with the dock | jumps                     | rests on the current page                    |
-| Label decode                                  | stepped glyph resolve, 4 frames, real text kept for screen readers                    |                             shared | none                      | plain labels                                 |
-| Docked bar and progress line                  | IntersectionObserver plus CSS transition; progress by `scaleX`                        |                         in the nav | appears                   | never docks                                  |
-| Menu sheet at 390                             | native `<dialog>`, `@starting-style` entry, 30 ms stagger                             |                             0.2 KB | appears                   | a link to the menu list in the footer        |
-| Copy button, three states                     | one delegated listener; idle, copied, blocked (selects the command, announces it)     |                             0.4 KB | same                      | command selectable                           |
-| Footer light                                  | pointer handler, two radial lights by `transform`                                     |                            0.24 KB | parked at centre          | parked                                       |
-| 404 find-the-ghost                            | the search frame follows the pointer; the hidden link activates when found            |                        1.9 KB page | frame starts on the ghost | three plain exits                            |
-| Release notes filters, `f`, rail marker       | toggle buttons, `?show=`, `f` with an off switch, IntersectionObserver                |                            0.74 KB | jumps                     | all groups shown                             |
-| Per-day chart                                 | build-time HTML and CSS from git                                                      |                                  0 | static                    | static                                       |
+| Piece                                         | Implementation                                                                                                                                                                                                |                      JS (gz, est.) | Reduced motion            | No JS                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------: | ------------------------- | -------------------------------------------- |
+| Boot curtain                                  | CSS keyframes over the stage; a head script gates it once per session (`sessionStorage` in `try`/`catch`: blocked storage means no curtain); any key skips                                                    |                             0.7 KB | none                      | none (shown only when a script set the gate) |
+| Eye pupils                                    | pointer handler writing `transform`, CSS transition with a `linear()` spring                                                                                                                                  | 0.7 KB with the lens and crosshair | centred, still            | centred                                      |
+| Ruler and col/row readouts                    | same handler, no easing                                                                                                                                                                                       |                       in the above | hidden                    | "ptr · off grid"                             |
+| Frame that docks on scroll                    | scroll-driven animation on one fixed frame; static frames per section underneath                                                                                                                              |                  0 (0.65 fallback) | static frames, crossfade  | static frames                                |
+| Demo: play, pause, replay, Read as text, tabs | build-time HTML of the finished turn; the script only reveals steps; shared `tabs.ts`                                                                                                                         |                            1.25 KB | finished turn at once     | finished turn, readable                      |
+| Cropped swipeable terminal at 390             | CSS scroll-snap box, a tap or swipe syncs the two-tab switch                                                                                                                                                  |                            0.45 KB | instant scroll            | still swipes                                 |
+| Nav sliding frame                             | small TS, `transform` 240 ms, instant from the keyboard                                                                                                                                                       |               1.1 KB with the dock | jumps                     | rests on the current page                    |
+| Label decode                                  | stepped glyph resolve, 4 frames, real text kept for screen readers                                                                                                                                            |                             shared | none                      | plain labels                                 |
+| Docked bar and progress line                  | IntersectionObserver plus CSS transition; progress by `scaleX`                                                                                                                                                |                         in the nav | appears                   | never docks                                  |
+| Menu sheet at 390                             | native `<dialog>`, `@starting-style` entry, 30 ms stagger                                                                                                                                                     |                             0.2 KB | appears                   | a link to the menu list in the footer        |
+| Copy button, three states                     | one delegated listener; idle, copied, blocked (selects the command, announces it)                                                                                                                             |                             0.4 KB | same                      | command selectable                           |
+| Footer light                                  | pointer handler, two radial lights by `transform`                                                                                                                                                             |                            0.24 KB | parked at centre          | parked                                       |
+| 404 find-the-ghost                            | the search frame follows the pointer; the hidden link activates when found                                                                                                                                    |                        1.9 KB page | frame starts on the ghost | three plain exits                            |
+| Release notes filters, `f`, rail marker       | toggle buttons, `?show=`, `f` with an off control beside the hint, remembered per browser (`localStorage` in `try`/`catch`; with storage blocked the control still works for the visit), IntersectionObserver |                            0.74 KB | jumps                     | all groups shown                             |
+| Per-day chart                                 | build-time HTML and CSS from git                                                                                                                                                                              |                                  0 | static                    | static                                       |
 
 Landing page total, one bundle: about 12.1 KB gzipped, 6.7 KB of which is the glyph field's data.
 
@@ -244,17 +247,19 @@ yet. COEP and CORP: not needed, nothing needs cross-origin isolation.
 In codebase-design terms. Each module is named with the glossary's words, holds a lot behind a small interface, and is
 tested through that interface.
 
-| Module                                         | Interface                                                                                                            | What it hides                                                                                        | Tested by                                                                 |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| **site data** (`build/site-data`)              | `siteData()` for the build, `readSiteData(repo)` for checks and specs; `SITE_INPUTS`, `BRAND_FILES`                  | which files hold which fact, the one rule for a missing input, finding the repo                      | specs over a fixture repo; a spec ties `SITE_INPUTS` to the CI job's list |
-| **facts** (`build/facts`)                      | `readFacts(repo)` → version, Claude Code range, install commands, eye thresholds; `checkFacts(html, facts)`          | parsing plugin.json, the README and the status line's tone rule; naming the fact and file on failure | specs with literal expectations                                           |
-| **release notes** (`build/releases`)           | `readReleases(changelog)`, `releaseNotesPage(releases)` → chips with counts, feed path; `atomFeed(releases, origin)` | both heading forms, change-row parsing, counting, escaping                                           | specs on the real pending 1.0.0 changelog                                 |
-| **page text** (`build/page`)                   | `pageText(html, { demo })`, `pageCode(html)`, `builtPages(dist)`                                                     | what counts as visible text, the demo exclusion, where each page is served                           | specs                                                                     |
-| **tokens** (`build/tokens`)                    | `readTokens(css)`, `undeclaredTokens`, `undeclaredBreakpoints`                                                       | CSS parsing; `tokens.css` is the only token source                                                   | specs hold `tokens.css` to the Components artboard                        |
-| **headers** (`build/headers`)                  | `siteHeaders(dist)` → the `_headers` text                                                                            | hashing inline scripts and styles, the line limit, rule joining                                      | specs; browser tests run under the result                                 |
-| **site checks** (`build/checks`)               | `checkSite({ site, repo })` → findings, each naming its file                                                         | facts, internal names, hand-written JS, brand bytes, tokens, breakpoints; checker and lint proofs    | specs per rule over throwaway sites                                       |
-| **words** (`src/content/words.ts` + `<Words>`) | one `Wording` per string: text, or text and `short`                                                                  | showing one variant by CSS                                                                           | browser test at 1440 and 390                                              |
-| each **piece** (`src/<area>/`)                 | `wire<Piece>(root)` over the finished HTML                                                                           | its pointer, scroll and keyboard handling                                                            | its own `*.e2e.ts` beside it                                              |
+| Module                                                         | Interface                                                                                                                                  | What it hides                                                                                                                 | Tested by                                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **site data** (`build/site-data`)                              | `siteData()` for the build, `readSiteData(repo)` for checks and specs → facts, releases, brand bytes; `SITE_INPUTS`, `BRAND_FILES`         | which files hold which fact, the one rule for a missing input, finding the repo; the only module that opens a repository file | specs over a fixture repo; a spec ties `SITE_INPUTS` to the CI job's list |
+| **facts** (`build/facts`), inside site data                    | `readFacts(repo)` → version, Claude Code range, install commands, eye thresholds; `checkFacts(html, facts)`                                | parsing plugin.json, the README and the status line's tone rule; naming the fact and file on failure                          | specs with literal expectations                                           |
+| **release notes** (`build/release-notes`)                      | `readReleases(changelog)` (called by site data), `releaseNotesPage(releases)` → chips with counts, feed path; `atomFeed(releases, origin)` | both heading forms, change-row parsing, counting, escaping                                                                    | specs on the real pending 1.0.0 changelog                                 |
+| **page text** (`build/page-text`)                              | `pageText(html, { demo })`, `pageCode(html)`, `builtPages(dist)`                                                                           | what counts as visible text, the demo exclusion, where each page is served                                                    | specs                                                                     |
+| **brand copy** (`build/brand`)                                 | `bun build/brand/copy.ts`: writes site data's brand bytes into `public/brand`                                                              | nothing beyond the copy; the site check proves the bytes                                                                      | the site check                                                            |
+| **font subsets** (`build/fonts`)                               | `bun build/fonts/subset.ts`: runs fontTools on the upstream fonts with the glyph list                                                      | the glyph list and the fontTools arguments                                                                                    | the font coverage check over `dist/`                                      |
+| **tokens** (`build/tokens`)                                    | `readTokens(css)`, `undeclaredTokens`, `undeclaredBreakpoints`                                                                             | CSS parsing; `tokens.css` is the only token source                                                                            | specs hold `tokens.css` to the Components artboard                        |
+| **headers** (`build/headers`)                                  | `siteHeaders(dist)` → the `_headers` text                                                                                                  | hashing inline scripts and styles, the line limit, rule joining                                                               | specs; browser tests run under the result                                 |
+| **site checks** (`build/checks`)                               | `checkSite({ site, repo })` → findings, each naming its file                                                                               | facts, internal names, hand-written JS, brand bytes, tokens, breakpoints; checker and lint proofs                             | specs per rule over throwaway sites                                       |
+| **words** (`src/content/words.ts` + `src/content/Words.astro`) | one `Wording` per string: text, or text and `short`                                                                                        | showing one variant by CSS                                                                                                    | browser test at 1440 and 390                                              |
+| each **piece** (`src/<area>/`)                                 | `wire<Piece>(root)` over the finished HTML                                                                                                 | its pointer, scroll and keyboard handling                                                                                     | its own `*.e2e.ts` beside it                                              |
 
 Seams: the repository is the one real seam (a fixture repo in specs, the real one in the build: two adapters). Pages
 are thin: they ask site data and words, and render. Nothing else opens a repository file.
@@ -263,6 +268,7 @@ are thin: they ask site data and words, and render. Nothing else opens a reposit
 
 ```text
 site/
+  README.md                    local dev, build and deploy, for a person
   AGENTS.md                    what an agent needs that the tree and configs cannot say (below)
   package.json  bun.lock  bunfig.toml
   tsconfig.json                strict, Bun types, the .astro content mapper; fixtures excluded
@@ -277,32 +283,40 @@ site/
       llms.txt.ts  robots.txt.ts  sitemap.xml.ts  index.md.ts  releases/index.md.ts
     layouts/Page.astro         head, canonical, skip link, the head script (motion switch, boot gate)
     styles/                    tokens.css (the only token source), base.css, motion.css
-    content/                   the site's words and the scripted session: words.ts, session.ts, faq.ts, status-line.ts
-    page/                      pieces of the page itself: title block, ruler, section label, cell grid, <Words>
+    content/                   the site's words (words.ts, Words.astro) and data: session.ts, faq.ts, status-line.ts
+    page/                      pieces of the page itself: sections' title blocks, ruler, section label, heading echo, the
+                               stage scaling, and the shared controls every area uses (tabs, tooltip, press)
     nav/                       the nav, nav frame, label decode, docked bar, progress line, menu sheet
     frame/                     the frame: the lens, the crosshair, the journey, the slot
-    mascot/                    the mascot, the eyes, the eye slip, the glyph field, the ghost
+    mascot/                    the mascot, the eyes and eye state, the eye slip, the glyph field, the scan band, the ghost
     demo/                      the demo: session player, pane tabs, text version, the 390 crop
+    features/                  Cockpit features
     status-line/               the status line: tiles, meters, the usage slider, the status rail
-    install/                   command blocks and the copy button, meters boot, terminal tabs
+    install/                   command blocks and the copy button, terminal tabs, meters boot
+    compatibility/             the compatibility matrix
+    how-it-works/              the how-it-works diagram
+    privacy/                   the privacy statement
+    faq/                       the FAQ (native <details>)
     motion/                    the boot curtain and the ambient motion switch
     release-notes/             releases, filter chips, the release rail, the road to 1.0.0
     not-found/                 the search frame
-    footer/                    the footer and its light
+    footer/                    the footer and the footer light
   build/                       build-time modules, never shipped; each folder holds its module, its spec and fixtures
-    site-data/  facts/  releases/  page/  tokens/  headers/  brand/  fonts/  checks/
+    site-data/  facts/  release-notes/  page-text/  tokens/  headers/  brand/  fonts/  checks/
   tests/                       whole-site tests: landing, headers, Lighthouse; serve.ts, the local stand-in for Workers
   public/                      served as they are: fonts/ (the committed subsets); brand/ (copied at build, gitignored)
 ```
 
 Rules behind it:
 
-- **A folder per glossary area.** A piece lives in the area the glossary files it under, named with the glossary's
-  word. `Piece.astro` holds its markup and scoped style, `piece.ts` its behaviour, `piece.e2e.ts` its browser test,
+- **A folder per glossary section.** Each section of GLOSSARY.md is a folder in `src/`, and a piece lives in the folder
+  of the section that defines it, named with the glossary's word; a piece two areas use (tabs, tooltip) lives in
+  `page/`. `Piece.astro` holds its markup and scoped style, `piece.ts` its behaviour, `piece.e2e.ts` its browser test,
   side by side. An `.astro` script only imports its module and calls it; type-aware lint sees `.ts` files only.
 - **Pages are routes.** A file in `pages/` has no logic beyond picking data and an area module.
-- **Build-time code lives in `build/`**, one folder per module, its spec (`*.spec.ts`) and fixtures beside it. Browser
-  code never imports `build/` at runtime; pages import it at build time.
+- **Build-time code lives in `build/`**, one folder per module. Every spec (`*.spec.ts`) and fixture sits beside the
+  module it tests, wherever that module is (`src/site.spec.ts` tests `src/site.ts`). Browser code never imports `build/`
+  at runtime; pages import it at build time.
 - **Names:** PascalCase for `.astro` files, kebab-case for `.ts`, the glossary's words for both.
 - **Beside the plugin:** `site/` is its own package (ADR 0022), shares the repo's oxlint and oxfmt configs and commit
   rules, and is invisible to `claude plugin test` by its spec suffixes.
@@ -311,15 +325,16 @@ Rules behind it:
 
 Every piece of logic is built test-first, and tested at the cheapest level that sees the behaviour.
 
-| Level      | Tool                                                                    | What it holds                                                                                                                                      | Why this level                                                                                            |
-| ---------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Spec       | `bun test`, `*.spec.ts` beside the module                               | site data, facts, release notes and the page model, page text, tokens and breakpoints, headers, every site-check rule, the site origin             | pure build-time logic; fast; literal expectations from the design or the real changelog, never recomputed |
-| Proof      | `bun test`                                                              | both type checkers fail on four planted errors (`.ts`, `.astro` frontmatter, `.astro` script, `.tsx`); oxlint reports the planted floating promise | a checker that silently stops checking fails the build                                                    |
-| Site check | `bun build/checks/run.ts` over `dist/`                                  | facts on every page, internal names, hand-written JS, brand bytes, undeclared tokens and breakpoints, font coverage                                | properties of the built output as a whole                                                                 |
-| Browser    | Playwright with Chrome, `*.e2e.ts` beside each piece; axe on every page | each piece's behaviour, keyboard use, reduced motion, no-JS, the real 404 status, the shipped CSP, words at 1440 and 390                           | behaviour needs a real browser; tests import words and facts instead of pasting them                      |
-| Budget     | `lighthouse` 13.6.0 as a spec, every built page, mobile and desktop     | 100 in all four categories, no scored audit below 1                                                                                                | the hard constraint, as an assertion                                                                      |
-| Visual     | Playwright screenshots, generated on Linux CI                           | a report against the artboards; gating waits on the owner's install-size decision                                                                  | artboards are not pixel baselines; committed PNGs reach every user today                                  |
-| Links      | lychee, already in the repo                                             | the docs and the built pages' internal links                                                                                                       |                                                                                                           |
+| Level      | Tool                                                                                                       | What it holds                                                                                                                                                                                       | Why this level                                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Spec       | `bun test`, `*.spec.ts` beside the module                                                                  | site data, facts, release notes and the page model, page text, tokens and breakpoints, headers, every site-check rule, the site origin                                                              | pure build-time logic; fast; literal expectations from the design or the real changelog, never recomputed |
+| Proof      | `bun test`                                                                                                 | both type checkers fail on four planted errors (`.ts`, `.astro` frontmatter, `.astro` script, `.tsx`); oxlint reports the planted floating promise                                                  | a checker that silently stops checking fails the build                                                    |
+| Site check | `bun build/checks/run.ts` over `dist/`                                                                     | facts on every page, internal names, hand-written JS, brand bytes, undeclared tokens and breakpoints, font coverage                                                                                 | properties of the built output as a whole                                                                 |
+| Browser    | Playwright with Chrome, `*.e2e.ts` beside each piece; `@axe-core/playwright` on every built page           | each piece's behaviour, keyboard use, no-JS, the real 404 status, the shipped CSP, words at 1440 and 390; on every page: no axe violation at WCAG 2.2 AA, no running animation under reduced motion | behaviour needs a real browser; tests import words and facts instead of pasting them                      |
+| Budget     | `lighthouse` 13.6.0 as a spec, every built page, mobile and desktop                                        | no scored audit below 1 in the four categories; scripts under 120 KB gzipped; CLS 0; LCP under 1.8 s on the mobile run (simulated slow 4G, 4× CPU: the mid-range phone)                             | the hard constraints, as assertions; INP is held by the browser tests' interactions, not Lighthouse       |
+| Design     | `bunx impeccable detect` and the Web Interface Guidelines audit (web-design-guidelines) on the built pages | the brief makes both a gate on the built site; Impeccable's CLI exists on this machine but was not run here, so its fit as a CI step is unverified                                                  | the brief's quality bar, checked by the tools it names                                                    |
+| Visual     | Playwright screenshots, generated on Linux CI                                                              | a report against the artboards; gating waits on the owner's install-size decision                                                                                                                   | artboards are not pixel baselines; committed PNGs reach every user today                                  |
+| Links      | lychee, already in the repo                                                                                | the docs and the built pages' internal links                                                                                                                                                        |                                                                                                           |
 
 ## The CI job
 
@@ -332,17 +347,25 @@ One job, `Site`, in `ci.yml` (ADR 0021), checked in the skeleton with actionlint
 5. `bun run --cwd site check`: both type checks, lint, format, specs, build (brand copy, Astro, `_headers`), site checks,
    browser tests, Lighthouse. Chrome is the runner's own; no browser download.
 
-Measured locally on the skeleton: 72 s for the whole chain. The runner budget is 4 minutes.
+Measured locally on the skeleton, on Windows: 72 s for the whole chain. Not measured on a Linux runner; the budget
+there is 4 minutes, and the first CI run of the build measures it.
 
 ## The walking skeleton
 
-Built test-first in a scratch git repo outside this one (25 commits, leftovers below), to prove the structure before
-any build. Every slice went red for the right reason before its code existed.
+Built test-first in a scratch git repo outside this one (27 commits), to prove the structure before any build. Every
+slice went red for the right reason before its code existed; tests that passed at once were proved by breaking the code
+they guard (the canonical link, the axe and reduced-motion checks, the LCP budget).
 
 What it holds: the build; `tokens.css` held to the artboard; the copy button in its three states; the release notes,
 page model and feed from the real pending 1.0.0 changelog; facts read from plugin.json, the README and the status line;
 the site checks; both checker proofs and the lint proof; the site origin; `_headers` with CSP hashes; words with phone
-variants; the CI job. Result: 70 specs, 12 browser tests and 6 Lighthouse runs at 100, in 72 s.
+variants; axe and reduced motion on every page; the CI job. Result: 72 specs, 18 browser tests and 15 Lighthouse tests
+(6 runs: 100 in all four categories, scripts under the ceiling, CLS 0, LCP under 1.8 s), in 72 s.
+
+The documents' review (a standards reviewer and a spec reviewer, fresh) then found and fixed: site data was not yet the
+only module opening repository files (the brand check and one spec read them directly); `src/page` and `build/page`,
+and `release-notes` and `build/releases`, shared names; the budget spec did not assert the JS ceiling or LCP; axe and
+reduced motion were claimed but not tested; several sections and shared pieces had no folder.
 
 What it found that research had missed: Lighthouse refuses to score a 404 response; oxfmt rewrites Markdown fixtures;
 the plugin's test runner would run site tests named `*.test.ts`; Cloudflare joins a header two rules set; tsc and tsrs
@@ -369,6 +392,9 @@ What the architecture review changed (improve-codebase-architecture; the owner a
 
 - Every page: title and description from `words.ts`; canonical from `site.ts`; OG and X tags; one `h1`; landmarks; skip
   link. The landing page: `WebSite` and `SoftwareApplication` JSON-LD; a JSON-LD block is data, which CSP does not check.
+- Social cards: the brand kit's `og-image.png` for Open Graph and `twitter-card.png` for X, both static, from
+  `docs/design/brand/social/`; the favicons, app icons and `site.webmanifest` from `docs/design/brand/icons/`, all
+  listed in `BRAND_FILES` and shipped as exported.
 - Files: `sitemap.xml`, `robots.txt` (all crawlers, the sitemap), `/llms.txt`, `index.md` and `releases/index.md`
   copies, `releases/feed.xml`; `_headers` sets their content types.
 - Headers: the table in areas 10 and 11. HSTS on the zone.
@@ -454,7 +480,7 @@ Words for its parts: docs/design/website/GLOSSARY.md. Run everything with `bun r
 
 - Every file you write is TypeScript (.ts, .tsx) or .astro with TypeScript scripts. Generated JavaScript stays in
   dist/; a site check fails on any other .js, .mjs, .cjs or .jsx.
-- Put a piece in the folder of its glossary area, named with the glossary's word: Piece.astro, piece.ts and
+- Put a piece in the folder of its glossary section, named with the glossary's word: Piece.astro, piece.ts and
   piece.e2e.ts side by side. An .astro script only imports its module and calls it.
 - Read repository facts and release notes through build/site-data only. A new repository file the site reads joins
   SITE_INPUTS, and the CI job's list with it.

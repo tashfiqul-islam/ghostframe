@@ -25,7 +25,7 @@ The site uses Astro 7, `output: 'static'`, with no adapter, no server islands an
 are `.astro` files whose scripts are TypeScript modules. Build-time data goes through one site-data module
 (`site/build/site-data`) that reads the repository once and validates it with zod (bundled with Astro), not through
 Astro content collections: the post-build checks run outside Astro and read the same module, which `astro:content`
-would not let them do (architecture review, candidate 1).
+would not let them do ([architecture review](../design/website/stack.md#the-walking-skeleton), candidate 1).
 
 ## Consequences
 

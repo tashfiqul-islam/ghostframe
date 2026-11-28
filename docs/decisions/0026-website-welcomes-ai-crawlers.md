@@ -17,6 +17,6 @@ out of the models its users work with every day. Cloudflare can block AI bots fo
 
 ## Consequences
 
-- The evidence that `llms.txt` is read is weak (Google says the files are not needed for Search; most such files get no requests). It is
-  kept because it is cheap and the audience is coding agents; drop it if it ever costs maintenance.
+- The evidence that `llms.txt` is read is weak (Google says the files are not needed for Search; most such files get no
+  requests). It is kept because it is cheap and the audience is coding agents; drop it if it ever costs maintenance.
 - Turning Cloudflare's AI bot setting off is a dashboard step for the owner when the domain is set up.

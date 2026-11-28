@@ -294,7 +294,7 @@ suffices. Build-time generation options: satori 0.63.2 (2026-10-20, still 0.x) +
 a font-loading and rendering pipeline for one image. Recommend the static PNG. Keep PNG (not AVIF) for `og:image`:
 crawler support for AVIF in OG is uneven (no primary source checked today; area 7 should confirm per platform).
 
-## Lead's call (suggested ranking, criteria from 00-frame.md)
+## Lead's call (suggested ranking, criteria in stack.md)
 
 Styling, scored 1-5:
 
