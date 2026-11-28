@@ -146,7 +146,8 @@ function readLog(file: string): { dispatches: Dispatch[]; started?: number; pane
 
     if (Number.isNaN(at)) continue
     if (started === undefined && line.includes('session.start: raised')) started = at
-    const m = /hooks module ([^ ]*ghostframe@inline[^ ]*(?:, [^ ]+)*) ([a-z.]+(?: stream)?) settled in ([\d.]+)ms[^\n]*?(?:key=(\S+))?\s*$/.exec(line)
+    // ghostframe as loaded: `ghostframe@inline` from a folder (the probe's run), `ghostframe@gf-bench` installed.
+    const m = /hooks module ([^ ]*\bghostframe@[^ ,]+(?:, [^ ]+)*) ([a-z.]+(?: stream)?) settled in ([\d.]+)ms[^\n]*?(?:key=(\S+))?\s*$/.exec(line)
 
     if (m === null) continue
     const event = m[2] ?? ''
