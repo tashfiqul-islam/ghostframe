@@ -40,8 +40,9 @@ twice that on a runner, so a hook pays for the calls it makes one after another.
   value it read. A later draw of the same row reads those values again, all at once, and returns the tree it kept
   when every version stands. `tests/plugin/perf.test.tsx` holds it to that.
 - Work an event's answer does not need runs after the hook returns. A turn's end keeps its history in the session
-  at once, for the pane, and writes it to the store afterwards, one write at a time in order
-  (`hooks/cockpit/history/store.ts`).
+  at once, for the pane. It writes the history to the store once the session has been quiet for 2 s, and at once
+  at the session's end, a rewind or a compaction (`hooks/cockpit/history/store.ts`). That write copies every kept
+  turn out of the worker, so a quiet moment is where it costs no hook anything.
 - Reads and writes that do not depend on each other go together, in one `Promise.all`.
 
 The profiler counts no timer's wait (`$.clock.after`, `$.clock.every`) as a hook's time. A timer's dispatch stays
