@@ -36,9 +36,9 @@ test('7.1, 7.2: an agent`s header in its colour, its brief from main (screen 27)
   expect(shown([stepNodeRow(6_000, true, 'shell', 'bun test hooks/width', '14 pass', W)])).toEqual([screen('27')[8]])
 })
 
-test('7.2: an added message carries its clock and `added`; a queued one `QUEUED` and when it sends (screens 02, 14)', () => {
+test('7.2: an added message carries its clock and `added`; a queued one `QUEUED`, with no hint row under it (screens 02, 14)', () => {
   expect(shown(messageCard('also check whether the lockfile pins bun anywhere', 'added', W, at(10, 26, 31)))).toEqual(screen('02').slice(12, 15))
-  expect(shown(messageCard('when you’re done, also update the README', 'queued', W, at(16, 45, 12)))).toEqual(screen('14').slice(10, 14))
+  expect(shown(messageCard('when you’re done, also update the README', 'queued', W, at(16, 45, 12)))).toEqual(screen('14').slice(10, 13))
 
   const queued = messageCard('x', 'queued', W, at(16, 45, 12))
 

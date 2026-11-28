@@ -107,7 +107,9 @@ async function promptOpening($: EngineInterface, row: string, text: string): Pro
       ? stamp?.turnNo
       : (stamp.turnNo ?? (log.startedAt === stamp.at ? log.turnNo : isPendingStart(stamp) ? log.turnNo + 1 : undefined))
   const prev = stamp === undefined ? undefined : list.slice(0, Math.max(0, list.indexOf(stamp))).findLast(p => p.over === undefined || p.turnNo !== undefined)
-  const isLive = liveAtFirstDraw(turnNo, stamp?.at, log !== undefined && log.isTurnRunning && turnNo === log.turnNo)
+  // The engine draws a typed prompt's row when it is submitted, before its turn starts: a turn about to start is live.
+  const isLiveNow = log !== undefined && ((log.isTurnRunning && turnNo === log.turnNo) || (stamp !== undefined && isPendingStart(stamp)))
+  const isLive = liveAtFirstDraw(turnNo, stamp?.at, isLiveNow)
 
   return { kind: 'typed', header: { at: stamp?.at, turnNo, after: stamp?.after, day: stamp === undefined ? '' : dayWord(stamp.at, prev?.at), isLive } }
 }
