@@ -353,3 +353,4 @@ mise run check                    # types, lint, format, tests, workflows, docs
   <br>
   <sub><a href="LICENSE">MIT</a> · Made for Claude Code. Not affiliated with or endorsed by Anthropic.</sub>
 </p>
+<!-- ci probe: README only -->
