@@ -5,7 +5,7 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { StepDetail } from '../../../types'
-import { changeHeld, loadHeld, type Held } from '../../shared/held'
+import { changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
 import { num, obj, s } from '../../shared/calls/fields'
 import { shellText } from '../../shared/calls/ships'
 import { clean } from '../../shared/calls/tests'
@@ -87,13 +87,14 @@ export function patchOf(tool: string, input: unknown, result: unknown): string[]
 
 /**
  * A main-loop call started: its detail begins, with its command and start, held here until the call ends.
+ * @param $ the engine interface
  * @param id the call's id
  * @param tool the call's tool
  * @param input the call's input
  * @param at the wall clock in ms
  * @param agent the agent whose own call it is; absent for the main loop's
  */
-export function noteStart(id: string, tool: string, input: unknown, at: number, agent?: string): void {
+export async function noteStart($: EngineInterface, id: string, tool: string, input: unknown, at: number, agent?: string): Promise<void> {
   running.set(id, {
     id,
     tool,
@@ -106,8 +107,8 @@ export function noteStart(id: string, tool: string, input: unknown, at: number, 
     patch: [],
     ...(agent === undefined ? {} : { agent })
   })
+  await $.state.set({ plugin: 'ghostframe', key: 'detailsTick' }, { shape: 'detailsTick-1', value: nextTick(held) })
 }
-
 // A tool call costs ghostframe what it moves through $.state, and the list is the largest value a call writes: every
 // recent call's output excerpt and every edit's patch. So the list is written once per call, at its end, and never
 // read back (`changeHeld`), and a call still running keeps its detail here until it ends. Readers get both
@@ -115,6 +116,7 @@ export function noteStart(id: string, tool: string, input: unknown, at: number, 
 // shortcut: a reload while a call runs loses that call's start; its end then writes the detail from what it knows.
 const running = new Map<string, StepDetail>()
 const held: Held<StepDetail[]> = {}
+const detailsTick = atom({ plugin: 'ghostframe', key: 'detailsTick' } as const, 0, { shape: 'detailsTick-1' })
 
 /**
  * Writes the details, changed and capped, with no read of the list.
@@ -126,6 +128,7 @@ async function writeDetails($: EngineInterface, change: (list: readonly StepDeta
   const value = changeHeld(held, list => capped(change(list)))
 
   await $.state.set({ plugin: 'ghostframe', key: 'details' }, { shape: 'details-1', value })
+  await $.state.set({ plugin: 'ghostframe', key: 'detailsTick' }, { shape: 'detailsTick-1', value: nextTick(held) })
 }
 
 /** Whether a detail is an agent's own call's. */
@@ -210,5 +213,8 @@ export async function detailsNow($: EngineInterface): Promise<StepDetail[]> {
  * @returns the details, oldest first
  */
 export async function readDetails($: EngineInterface): Promise<StepDetail[]> {
-  return [...(await read($, details)), ...running.values()]
+  // The tick moves at each change, the running calls' included: the draw is drawn again, with no copy of the list.
+  await read($, detailsTick)
+
+  return detailsNow($)
 }

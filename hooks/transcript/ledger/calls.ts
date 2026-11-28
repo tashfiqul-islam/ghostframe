@@ -114,7 +114,7 @@ export function registerCalls(on: On): void {
       const at = await now()
 
       try {
-        stampStart({ id, turn: await readTurn($), at: at ?? 0, ms: null, tool: e.tool })
+        await stampStart($, { id, turn: await readTurn($), at: at ?? 0, ms: null, tool: e.tool })
       } catch {
         // A stamp that fails costs the row its time, nothing more.
       }

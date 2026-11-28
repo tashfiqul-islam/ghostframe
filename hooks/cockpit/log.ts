@@ -28,7 +28,7 @@ import { restoredLog } from './history/record'
 import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
 import { flowNow, isNarrationAt } from '../shared/flow'
-import { changeHeld, loadHeld, type Held } from '../shared/held'
+import { changeHeld, loadHeld, nextTick, type Held } from '../shared/held'
 import { detailsNow, noteEnd, noteStart, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { commitIn, hookWords, ruledStatement } from './steps/failures'
@@ -40,6 +40,7 @@ import { noteCited, noteFetchStart, noteWork, readWork, restoreWork, startWork, 
 // The current (or last) main-loop turn's log. Change the tag when its fields change.
 const stepLog = atom({ plugin: 'ghostframe', key: 'stepLog' } as const, newLog(null, null), { shape: 'stepLog-4' })
 const heldLog: Held<StepLog> = {}
+const stepLogTick = atom({ plugin: 'ghostframe', key: 'stepLogTick' } as const, 0, { shape: 'stepLogTick-1' })
 // The main-loop turn running now (null when none runs), written beside the step log whenever that changes: a
 // transcript row asks only this, never the step log, whose every step it would otherwise read on each draw.
 const running = atom({ plugin: 'ghostframe', key: 'running' } as const, null as string | null, { shape: 'running-1' })
@@ -91,6 +92,7 @@ async function updateLog($: EngineInterface, change: (log: StepLog) => StepLog):
   const log = changeHeld(heldLog, change)
 
   await $.state.set({ plugin: 'ghostframe', key: 'stepLog' }, { shape: 'stepLog-4', value: log })
+  await $.state.set({ plugin: 'ghostframe', key: 'stepLogTick' }, { shape: 'stepLogTick-1', value: nextTick(heldLog) })
   const now = log.isTurnRunning ? log.turn : null
 
   if (now !== mirrored) {
@@ -224,7 +226,7 @@ export async function logStepStart($: EngineInterface, e: ToolCallInput, at: num
   noteFetchStart(e.tool, e)
 
   await updateLog($, log => startStep(log, { id: e.tool_use_id, tool: e.tool, input: e, at }, cwd))
-  noteStart(e.tool_use_id, e.tool, e, at)
+  await noteStart($, e.tool_use_id, e.tool, e, at)
 }
 
 /**
@@ -544,7 +546,7 @@ export async function logAgentStep($: EngineInterface, id: string, e: ToolCallIn
   await snapshotBefore($, e.tool, e, cwd)
   noteFetchStart(e.tool, e)
   await update($, roster, list => agentStep(list, id, e.tool, e, cwd, at, e.tool_use_id))
-  noteStart(e.tool_use_id, e.tool, e, at, id)
+  await noteStart($, e.tool_use_id, e.tool, e, at, id)
 }
 
 /**
@@ -621,7 +623,10 @@ export async function runningTurn($: EngineInterface): Promise<string | undefine
  * @returns the log
  */
 export async function readLog($: EngineInterface): Promise<StepLog> {
-  return read($, stepLog)
+  // The tick moves at each write of the log: the draw follows it, with no copy of the log.
+  await read($, stepLogTick)
+
+  return logNow($)
 }
 
 /**
