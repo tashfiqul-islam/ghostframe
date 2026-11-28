@@ -40,7 +40,7 @@ export const BUDGETS: Readonly<Record<BudgetName, Budget>> = {
   eventHook: {
     limit: 5,
     unit: 'ms',
-    why: 'Each turn.step and tool.call hook does at most 5 ms of its own work per call. They run on every streamed piece and every tool call; 5 ms keeps a burst of 100 calls under half a second, far inside the engine’s 10 s hook budget, and never lets an event queue behind a slow hook.'
+    why: 'Each turn.step, tool.call and turn.complete hook does at most 5 ms of its own work per call. They run on every streamed piece, every tool call and every turn’s end; 5 ms keeps a burst of 100 calls under half a second, far inside the engine’s 10 s hook budget, and never lets an event queue behind a slow hook.'
   },
   firstDraw: {
     limit: 300,

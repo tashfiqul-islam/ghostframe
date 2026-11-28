@@ -8,25 +8,42 @@ holds the budgets it is held to, how to run the benchmarks that check them, and 
 - [Profile with GHOSTFRAME_PERF=1](#profile-with-ghostframe_perf1)
 - [The fixtures](#the-fixtures)
 - [In CI](#in-ci)
+- [The Performance check](#the-performance-check)
 
 ## The budgets
 
 Every number lives in [`tools/bench/budgets.ts`](../../tools/bench/budgets.ts), each with the reason for it; change it
 there and nowhere else.
 
-| Budget         | Limit                                                | Measured by                                                             |
-| -------------- | ---------------------------------------------------- | ----------------------------------------------------------------------- |
-| `keystroke`    | one key costs ghostframe under 2 ms of its own work  | harness: `AbovePrompt` + `PromptHint` own time per key                  |
-| `unchangedRow` | a row drawn again unchanged in under 0.5 ms (cached) | harness: every row drawn a second time, same id, width and text         |
-| `pane`         | the whole pane under 8 ms                            | harness: `Pane` own time per draw                                       |
-| `eventHook`    | each `turn.step` and `tool.call` hook under 5 ms     | harness: own time per call while the session streams                    |
-| `firstDraw`    | session start to the pane's first draw under 300 ms  | live: `session.start: raised` to the first `Pane` draw in the debug log |
-| `statusline`   | one status line run under 50 ms on Windows           | `tools/bench/statusline.ts`: process start to its last byte             |
-| `idleCpu`      | idle CPU under 0.5% of a core over ghostframe off    | live: 30 s with nothing typed or streaming                              |
-| `memoryGrowth` | under 20 MB more growth than off, minute 1 to 10     | live, `--memory`: working set every 30 s                                |
-| `session`      | the whole session within 1.2× of ghostframe off      | live: CPU of the scripted session, and a streamed turn's wall time      |
+| Budget         | Limit                                                        | Measured by                                                             |
+| -------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| `keystroke`    | one key costs ghostframe under 2 ms of its own work          | harness: `AbovePrompt` + `PromptHint` own time per key                  |
+| `unchangedRow` | a row drawn again unchanged in under 0.5 ms (cached)         | harness: every row drawn a second time, same id, width and text         |
+| `pane`         | the whole pane under 8 ms                                    | harness: `Pane` own time per draw                                       |
+| `eventHook`    | each `turn.step`, `tool.call` and `turn.complete` under 5 ms | harness: own time per call while the session streams                    |
+| `firstDraw`    | session start to the pane's first draw under 300 ms          | live: `session.start: raised` to the first `Pane` draw in the debug log |
+| `statusline`   | one status line run under 50 ms on Windows                   | `tools/bench/statusline.ts`: process start to its last byte             |
+| `idleCpu`      | idle CPU under 0.5% of a core over ghostframe off            | live: 30 s with nothing typed or streaming                              |
+| `memoryGrowth` | under 20 MB more growth than off, minute 1 to 10             | live, `--memory`: working set every 30 s                                |
+| `session`      | the whole session within 1.2× of ghostframe off              | live: CPU of the scripted session, and a streamed turn's wall time      |
 
-Own time is a hook's code alone: the time it waits on `next(e)` or on any `$` call is not its own.
+Own time is a hook's code alone: the time it waits on `next(e)` or on any `$` call is not its own. It does include
+copying: every value a hook reads through `$.state` is copied into ghostframe's worker, and every value it writes is
+copied out, whole. So a list ghostframe alone writes is held in the module as last written and never read back
+(`hooks/shared/held.ts`), and a hook that is not drawing reads it from there; a draw reads `$.state`, which is what
+draws it again when the value changes. `tests/plugin/hook-cost.test.tsx` holds a tool call to the bytes it moves.
+
+CI has budgets of its own, in the same file:
+
+| Budget          | Limit                                                     | Why                                                           |
+| --------------- | --------------------------------------------------------- | ------------------------------------------------------------- |
+| `ciRequired`    | a pull request's required checks, push to green, 10 min   | short enough to wait for; the jobs run side by side           |
+| `ciTests`       | each Tests job (Ubuntu, Windows, macOS) in 4 min          | the suite itself is 2 to 4 min on a shared runner             |
+| `ciQualityGate` | the Quality gate in 3 min                                 | it no longer runs the plugin's tests, which the Tests jobs do |
+| `ciPerformance` | the Performance check in 10 min, main's and the PR's runs | inside the required checks' 10, side by side with them        |
+
+Every job's `timeout-minutes` is about twice its budget, so a hang fails in minutes. The live benchmark has no limit:
+it runs on `main` only, nightly and on each push, never on a pull request.
 
 ## Run the benchmarks
 
@@ -86,6 +103,11 @@ ghostframe. A local stand-in for the Messages API ([`tools/bench/mockapi.ts`](..
 `ANTHROPIC_BASE_URL`) streams each turn's reply, so a turn costs nothing and streams the same every run. It needs no
 account and sends nothing anywhere.
 
+With ghostframe on, the run installs this checkout's plugin (manifest, hooks, types) from a throwaway local marketplace,
+as a person's install is. It never loads it with `--plugin-dir`: the session watches a plugin folder to reload it, the
+whole folder, `tools/node_modules` and `.git` included, and that alone cost 2.5 points of a core while idle (3.07%
+against 1.15 to 1.25% installed and 0.52 to 0.57% off).
+
 Per run it times: start to the first prompt and to the pane; 30 s idle (CPU); 60 keys, each from the write to the
 screen's answer; 20 page-ups and page-downs; one streamed turn. From the engine's debug log (`--debug-file`), which
 records every dispatch, it counts each ghostframe hook's calls per second in each of those windows.
@@ -142,8 +164,76 @@ slow and how often it runs, and measure the session's total cost without it (the
 
 ## In CI
 
-The **Benchmarks (report only)** job in [`ci.yml`](../../.github/workflows/ci.yml) runs `bun tools/bench/run.ts --live`
-on `windows-2025` and writes the table to the job summary. It does not fail the build yet (`continue-on-error`, no
-`--strict`). Time budgets get 3× on a shared runner (`CI_HEADROOM`): the plugin's own suite takes 51 s on the desktop
-the budgets were set on and 104 to 144 s on GitHub's runners. Ratios, CPU share and memory are measured against the
-same runner's ghostframe-off run, so they are not scaled.
+Time budgets get 3× on a shared runner (`CI_HEADROOM`): the plugin's own suite takes 51 s on the desktop the budgets
+were set on and 104 to 144 s on GitHub's runners. Ratios, CPU share and memory are measured against the same runner's
+ghostframe-off run, so they are not scaled.
+
+- **Benchmarks** ([`benchmarks.yml`](../../.github/workflows/benchmarks.yml)): the whole suite, live session included,
+  `bun tools/bench/run.ts --live` on `windows-2025`, on every push to `main` and nightly. It reports only (the job
+  summary) and never blocks; the Performance comment links its latest run.
+- **Performance** ([`performance.yml`](../../.github/workflows/performance.yml)): on every pull request, below.
+
+## The Performance check
+
+Every pull request gets a check named **Performance** and one comment, edited in place on each push, never a new one.
+
+### How it compares
+
+One job on one `ubuntu-24.04` runner checks out the pull request and, beside it, `main` at the pull request's base.
+[`tools/bench/check.ts`](../../tools/bench/check.ts) runs the harness benchmark (Cockpit on, 280 × 70 and 120 × 40) and
+the status line's installed form, three times for each side, in turns: main, PR; PR, main; main, PR, so a runner that
+slows down part way slows both. Both sides are measured with the pull request's benchmark, fixtures and test support;
+only the plugin's own code (`.claude-plugin`, `hooks`, `types`, `statusline`) comes from each side. Every budgeted
+measure is then compared by its median over the three runs ([`tools/bench/compare.ts`](../../tools/bench/compare.ts)).
+The live benchmark is not run on pull requests: its numbers come from `main` and never block.
+
+### What each colour means
+
+| Rating      | When                                                                                        | The check |
+| ----------- | ------------------------------------------------------------------------------------------- | --------- |
+| 🟢 green    | within its budget, and no more than 5% slower than `main`                                   | passes    |
+| 🟡 yellow   | 5 to 15% slower than `main`, or within 10% of its budget, or measured on neither side       | passes    |
+| 🔴 red      | over its budget, more than 15% slower than `main`, or measured on `main` but no longer here | fails     |
+| 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                               | passes    |
+
+A change smaller than 5% of the measure's budget is never called slower, whatever its percentage: a shared runner
+jitters by tenths of a millisecond, and a 0.10 ms row that reads 0.12 ms is 20% slower and no regression at all. The
+comment's table puts reds first and ends with a summary line, such as `2 red, 1 yellow, 14 green`.
+
+### perf-accepted
+
+A maintainer adds the `perf-accepted` label when a pull request is slower on purpose and the reason is worth it: a
+feature that must do more work, or a measure that moved because the benchmark itself changed. Its reds then show as
+accepted and the check passes. Only people with write access can label a pull request, so a contributor cannot pass
+their own red. Keep it rare: every accepted red is a slowdown every user pays from then on, and the next pull request
+is compared with the slower `main`. Say in the pull request why it is accepted.
+
+### Fork safety
+
+`performance.yml` runs the pull request's code with a read-only token and no secrets. It writes the comment to an
+upload and stops. [`performance-comment.yml`](../../.github/workflows/performance-comment.yml) runs when it finishes
+(`workflow_run`), from `main`'s code, never checking out the pull request: it takes the pull request's number from
+GitHub (the open pull request whose head is the commit measured), checks the upload is a Performance comment, adds the
+link to the latest live benchmark, and posts or edits the one comment with `GITHUB_TOKEN`. A `workflow_run` workflow
+runs from the default branch only, so the comment job starts working once it is on `main`.
+
+### Changes that skip the work
+
+A pull request that changes only these files changes nothing the tests or benchmarks run, so the Tests jobs and the
+Performance check see that ([`.github/actions/changes`](../../.github/actions/changes/action.yml)) and pass in seconds:
+
+- any `*.md` file, anything under `docs/`, `LICENSE`, `.rumdl.toml`, `.diagram-design/`
+- `.github/ISSUE_TEMPLATE/`, `.github/CODEOWNERS`
+- pictures: `*.png`, `*.jpg`, `*.jpeg`, `*.gif`, `*.webp`, `*.svg`, `*.ico`
+
+They still run: a required check that does not run counts as missing and blocks the merge. A renamed file counts by
+both its names. The Quality gate always does its whole work, since it lints the docs.
+
+### Make it required
+
+The ruleset is applied by a maintainer, not by CI. To make the check block merging, add it to the `main` ruleset's
+required status checks ([`.github/rulesets/main.json`](../../.github/rulesets/main.json)) next to the others:
+
+```json
+{ "context": "Performance", "integration_id": 15368 }
+```

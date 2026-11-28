@@ -84,7 +84,7 @@ for (const config of ['on-280x70', 'on-120x40']) {
   }
   check('pane', `${config}: ui.render Pane p95`, hookOf(phaseOf(config, 'pane'), 'ui.render Pane')?.p95 ?? null)
   for (const name of ['stream', 'turn-step']) {
-    for (const h of phaseOf(config, name)?.hooks.filter(x => x.hook === 'turn.step' || x.hook.startsWith('tool.call')) ?? []) {
+    for (const h of phaseOf(config, name)?.hooks.filter(x => x.hook === 'turn.step' || x.hook === 'turn.complete' || x.hook.startsWith('tool.call')) ?? []) {
       check('eventHook', `${config} ${name}: ${h.hook} p95`, h.calls > h.overlapped ? h.p95 : null)
     }
   }
