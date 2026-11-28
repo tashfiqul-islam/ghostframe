@@ -3,7 +3,7 @@
 // histories; and the pinned turn the pane shows instead of the live one.
 import { noticeSink } from '../switch'
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface } from 'claude-code'
+import type { EngineInterface, Timer } from 'claude-code'
 
 import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
@@ -240,7 +240,7 @@ const newestAt = (list: readonly unknown[]): number =>
  */
 export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
   // The last turn's store write lands first, under the session that ended it.
-  await storing
+  await flushStore($)
   const kept = await readStore($)
   const held = heldHistory.value?.v ?? []
 
@@ -255,12 +255,13 @@ export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
  * Writes the plan: this session's turns, the other sessions it trimmed, the ones it dropped.
  * @param $ the engine interface
  * @param own this session's turns
+ * @param at the store key they are for, as it stood when the write was asked (undefined: the store not read yet)
  * @returns the turns kept
  */
-async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<TurnRecord[]> {
+async function write($: EngineInterface, own: readonly TurnRecord[], at: string | undefined): Promise<TurnRecord[]> {
   if (key === undefined) await readStore($)
 
-  const plan = planBudget({ key: key ?? `${PREFIX}?`, savedAt: Date.now(), turns: [...own], extra: ownExtra }, others, STORE_MAX - 65_536 - fixedSize)
+  const plan = planBudget({ key: at ?? key ?? `${PREFIX}?`, savedAt: Date.now(), turns: [...own], extra: ownExtra }, others, STORE_MAX - 65_536 - fixedSize)
 
   // Room first: the dropped and trimmed other sessions, then this session's.
   await Promise.all(plan.deleted.map(async gone => $.store.delete(gone)))
@@ -279,69 +280,83 @@ async function write($: EngineInterface, own: readonly TurnRecord[]): Promise<Tu
  * @param parts what the record is built from
  */
 export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<void> {
-  const record = recordOf(parts)
-  const all = withRecord(await historyNow($), record)
+  const all = withRecord(await historyNow($), recordOf(parts))
 
-  // The session's copy now, for the pane's pins and fallback's past turns; the store's once the turn's end has been
-  // answered: planning the budget and writing every kept turn is no part of answering it.
-  await keepHistory($, all)
-  void noteRefusal($, queueStore($, all))
+  // The session's copy now, for the pane's pins and fallback's past turns; the store's once the session goes quiet
+  // (`askStore`): planning the budget and copying every kept turn out is no part of answering the turn's end.
+  const keeping = keepHistory($, all)
+
+  askStore($, all)
+  await keeping
 }
 
-// The store writes, one after another in the order they were asked: a turn's end leaves its own running, and a
-// rewind's or a compaction's waits behind it, so an earlier write never lands over a later one. Never rejects.
+// The store's copy of the session's turns is written once the session has been quiet this long after a turn's end:
+// the write copies every kept turn out of the worker (about 3 ms at 50 turns), and turns that end one after another
+// (an agent's report turns) need only the last of them written.
+const STORE_QUIET_MS = 2_000
+
+/** The newest write asked and not yet started: the turns, the session's copy then, and the store key it is for. */
+type Asked = { all: TurnRecord[]; held: readonly TurnRecord[]; at: string | undefined }
+let asked: Asked | undefined
+let quiet: Timer | undefined
+// The writes started, one after another; never rejects.
 let storing: Promise<void> = Promise.resolve()
 
 /**
- * Asks for a write of the session's turns to the store, after the writes asked before it.
+ * Asks for a write of the session's turns to the store once the session is quiet; a newer ask replaces an older one.
+ * Asked right after the session's copy is held for them, with nothing awaited between.
  * @param $ the engine interface
- * @param all the session's turns, oldest first, as the session's copy holds them now
- * @returns the write: settled once it landed, rejected if the store refused it twice
+ * @param all the session's turns, oldest first
  */
-async function queueStore($: EngineInterface, all: TurnRecord[]): Promise<void> {
-  const written = storeAfter($, storing, all, heldHistory.value?.v)
+function askStore($: EngineInterface, all: TurnRecord[]): void {
+  asked = { all, held: heldHistory.value?.v ?? [], at: key }
+  quiet?.cancel()
+  quiet = $.clock.after(STORE_QUIET_MS, () => void flushStore($))
+}
 
-  storing = written.catch(() => undefined)
+/**
+ * Writes the turns asked for, after the writes before them: at a quiet moment, and whenever the store's copy must be
+ * current (the session's end, a rewind, a compaction, a history load).
+ * @param $ the engine interface
+ */
+export async function flushStore($: EngineInterface): Promise<void> {
+  quiet?.cancel()
+  quiet = undefined
+  const now = asked
 
-  return written
+  asked = undefined
+  if (now !== undefined) storing = storeAfter($, storing, now)
+  await storing
 }
 
 /**
  * Writes the turns to the store once the writes before have landed, and keeps the store's trim as the session's copy,
  * unless that copy has moved on meanwhile (its own write trims it again). A store that refuses is read again, all of
- * it, and written afresh, once.
+ * it, and written afresh, once; one that refuses again costs the turns their place after a resume, never the
+ * session's copy, and says so.
  * @param $ the engine interface
- * @param before the writes asked before this one
- * @param all the session's turns, oldest first
- * @param held the session's copy as it stood when the write was asked
+ * @param before the writes started before this one
+ * @param ask the write asked for
  */
-async function storeAfter($: EngineInterface, before: Promise<void>, all: TurnRecord[], held: readonly TurnRecord[] | undefined): Promise<void> {
+async function storeAfter($: EngineInterface, before: Promise<void>, ask: Asked): Promise<void> {
   await before
-  let kept: TurnRecord[]
+  const { all, held, at } = ask
 
   try {
-    kept = await write($, all)
-  } catch (error: unknown) {
-    $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, noticeSink())
-    await readStore($)
-    kept = await write($, all)
-  }
+    let kept: TurnRecord[]
 
-  // Written again only when the store's budget trimmed it.
-  if (heldHistory.value?.v === held && (kept.length !== all.length || kept.some((r, i) => r !== all[i]))) await keepHistory($, kept)
-}
+    try {
+      kept = await write($, all, at)
+    } catch (error: unknown) {
+      $.ui.log(`cockpit: history write refused, reading the store again: ${String(error)}`, noticeSink())
+      await readStore($)
+      kept = await write($, all, at)
+    }
 
-/**
- * A turn's store write, left running after its end: a store that refuses it twice costs the turn its place after a
- * resume, never the session's copy, and says so.
- * @param $ the engine interface
- * @param written the write
- */
-async function noteRefusal($: EngineInterface, written: Promise<void>): Promise<void> {
-  try {
-    await written
+    // Written again only when the store's budget trimmed it.
+    if (heldHistory.value?.v === held && (kept.length !== all.length || kept.some((r, i) => r !== all[i]))) await keepHistory($, kept)
   } catch (error: unknown) {
-    $.ui.log(`cockpit: turn not kept in the store: ${String(error)}`, noticeSink())
+    $.ui.log(`cockpit: history not kept in the store: ${String(error)}`, noticeSink())
   }
 }
 
@@ -352,10 +367,10 @@ async function noteRefusal($: EngineInterface, written: Promise<void>): Promise<
  */
 export async function markCompacted($: EngineInterface): Promise<void> {
   const all = (await historyNow($)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
-
   setHeld(heldHistory, all)
+  askStore($, all)
   await $.state.set({ plugin: 'ghostframe', key: 'historyTick' }, { shape: 'historyTick-1', value: nextTick(heldHistory) })
-  await queueStore($, all)
+  await flushStore($)
 }
 
 /**
@@ -376,8 +391,11 @@ export async function dropTurns($: EngineInterface, turnNos: readonly number[]):
   try {
     const all = (await historyNow($)).filter(r => !turnNos.includes(r.turnNo))
 
-    await keepHistory($, all)
-    await queueStore($, all)
+    const keeping = keepHistory($, all)
+
+    askStore($, all)
+    await keeping
+    await flushStore($)
   } catch (error: unknown) {
     $.ui.log(`cockpit: rewound turns not dropped from the store: ${String(error)}`, { to: 'debug' })
   }

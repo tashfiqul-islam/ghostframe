@@ -5,7 +5,7 @@ import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { fallbackEngine, rowsOf, site } from '../support/fallback'
 import type { Clock } from '../support/fallback'
-import { aTurn } from '../support/history'
+import { aTurn, answerSessionEnd, endSession } from '../support/history'
 import { respond, rowOf } from '../support/respond'
 
 // One number everywhere (amendment 12): the turn rule's `[ TURN n ]` is the number the pane's head, `/steps n` and
@@ -13,6 +13,7 @@ import { respond, rowOf } from '../support/respond'
 type Store = Map<string, unknown>
 
 function engine(on: On, clock: Clock, store: Store, isPlaced = true) {
+  answerSessionEnd(on)
   fallbackEngine(on, clock, isPlaced)
   on('session.id', () => ({ value: 's1' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
@@ -283,9 +284,11 @@ test('a store so full this session`s oldest summaries go: the rules, the pane`s 
   await (await $.ui.mount(PANE)).unmount()
 
   await typed($, clock, 1)
-  expect([store.has('history:old'), store.has('prompts:old')]).toEqual([false, false])
   await typed($, clock, 2)
   await typed($, clock, 3)
+  // The store's copy is written once the session is quiet, at its end here: the other session goes first.
+  await endSession($)
+  expect([store.has('history:old'), store.has('prompts:old')]).toEqual([false, false])
 
   const turns = (store.get('history:s1') as { turns: { turnNo: number }[] }).turns.map(t => t.turnNo)
   expect(turns).toEqual([2, 3])

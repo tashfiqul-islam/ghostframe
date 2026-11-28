@@ -409,7 +409,8 @@ export async function logTurnEnd($: EngineInterface, durationMs: number, isAbort
   if (!isOn()) return
 
   // The turn's calls' files are noted after each call returns: the receipt and history count them all.
-  const [, now] = await Promise.all([workSettled(), $.clock.now()])
+  await workSettled()
+  const now = await $.clock.now()
   const [, agents] = await Promise.all([
     updateLog($, log => endTurn(log, durationMs, isAborted, now)),
     update($, roster, list => endTurnAgents(list, isAborted, now))
