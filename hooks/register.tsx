@@ -27,3 +27,4 @@ export const register: Register = (on, options) => {
   registerAgentRows(on)
   registerStatusline(on)
 }
+// ci probe: plugin code
