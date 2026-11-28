@@ -27,3 +27,4 @@ body:
         - Something else
     validations:
       required: true
+# ci probe: an issue template alone
