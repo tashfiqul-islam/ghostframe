@@ -47,6 +47,18 @@ export function sessionCwd(): string | undefined {
   return cwd
 }
 
+// Whether a compaction of the main conversation runs now: a prompt typed meanwhile waits in the engine's queue, drawn
+// before its submit (live in 2.1.332).
+let isCompactingNow = false
+
+/**
+ * Whether a compaction of the main conversation runs now.
+ * @returns whether one does
+ */
+export function isCompacting(): boolean {
+  return isCompactingNow
+}
+
 // The rows the session held when it started (a resume, a reload): the engine draws them before `session.start`
 // (amendment 8), and no turn of this process wrote them. Live, `$.session.messages()` gives no uuids to read them by.
 const startRows = new Set<string>()
@@ -349,10 +361,13 @@ export function registerSession(on: On): void {
   // A compaction of the main conversation (not a `precompute`, which installs nothing, nor a skipped one): the next
   // typed turn's rule says `AFTER COMPACT` (E.22, amendment 12).
   on('session.compact', async ($, e, next) => {
+    const isMain = e.agentId === undefined && e.trigger !== 'precompute'
+
     try {
+      if (isMain) isCompactingNow = true
       const done = await next(e)
 
-      if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in done && typeof done.skip === 'string')) {
+      if (isMain && !('skip' in done && typeof done.skip === 'string')) {
         try {
           await notePending($, 'compact')
         } catch (error: unknown) {
@@ -372,6 +387,7 @@ export function registerSession(on: On): void {
 
       return done
     } finally {
+      if (isMain) isCompactingNow = false
       noteOwnTime($, 'session.compact', next.budget)
     }
   })

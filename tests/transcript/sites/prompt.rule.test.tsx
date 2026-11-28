@@ -158,6 +158,30 @@ for (const [mode, columns] of [
     // `added` sits 2 cells from the card's end, the text column's last cell (7.2).
     expect(line.length).toBe(16 + (mode === 'docked' ? 86 : 78) - 2)
   })
+
+  // Seen live (2.1.332): a prompt typed while `/compact` runs waits in the engine's queue with no submit yet, and the
+  // engine draws it all the same: it drew `◆  TURN` with no time and no number. It waits: a queued card, no header.
+  test(`${mode}: a prompt typed while a compaction runs is a \`⋯ QUEUED\` card; once it starts, \`TURN 2 · AFTER COMPACT\``, ON, async ($, on) => {
+    const clock = { now: T0 }
+    let waiting: string[] = []
+    engine(on, clock, mode === 'docked')
+    on('session.compact', async () => {
+      waiting = trimmed(await rowsOf($, prompt('q1', columns, 'say ok')))
+
+      return { messages: [{ role: 'user', text: 'Summary of the conversation so far.', toolUses: [] }] } as never
+    })
+    await start($, mode === 'docked')
+    await typed($, clock, 'one', 'e1', 'u1')
+    await $.session.compact({ trigger: 'manual', messages: [{ role: 'user', text: 'one', toolUses: [] }] } as never)
+
+    expect(waiting.some(r => r.includes('TURN'))).toBe(false)
+    expect(waiting.find(r => r.includes('⋯ say ok'))).toMatch(/^ {13}│ {4}⋯ say ok +QUEUED$/)
+
+    clock.now += 2_000
+    await typed($, clock, 'say ok', 'e2', 'u2')
+    const rows = trimmed(await rowsOf($, prompt('u2', columns, 'say ok')))
+    expect(rows.find(r => r.includes('TURN'))).toMatch(/^ {4}10:26:52 ◆ {2}TURN 2 · AFTER COMPACT {2}─+$/)
+  })
 }
 
 test('narrow fallback: at 40 columns the text column narrows and the label stays whole', ON, async ($, on) => {
