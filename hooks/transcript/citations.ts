@@ -181,7 +181,8 @@ export function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite
 
 // A reply redraws on every state change; its blocks and citations change only with its
 // text and what the turn cited above it. Held per text and per request, bounded.
-const MEMO_MAX = 200
+// A long session's messages, every one: a row is parsed once when it arrives, never again as the person scrolls back.
+const MEMO_MAX = 2_000
 const blockMemo = new Map<string, Block[]>()
 const citeMemo = new Map<string, { blocks: readonly Block[]; out: ReturnType<typeof citationsOf> }>()
 

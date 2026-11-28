@@ -4,7 +4,15 @@ import { isNarrationAt } from '../../shared/flow'
 import { browserTool, openRunBefore } from '../browser'
 
 /** A block's identity for first-of-turn matching: whitespace folded, first 100 chars. */
-export const firstKey = (t: string): string => t.replace(/\s+/g, ' ').trim().slice(0, 100)
+export const firstKey = (t: string): string => {
+  // A prefix long enough to give more than 100 characters once its spaces are folded keys the block as the whole
+  // text would, without folding every space of a long reply on each draw.
+  for (let n = 256; ; n *= 4) {
+    const k = t.slice(0, n).replace(/\s+/g, ' ').trim()
+
+    if (k.length > 100 || n >= t.length) return k.slice(0, 100)
+  }
+}
 /** Two block keys name the same block: equal, or one (≥ 20 chars) a prefix of the other while it streams. */
 export const sameKey = (x: string, k: string): boolean =>
   k.length > 0 && (x === k || (k.length >= 20 && x.startsWith(k)) || (x.length >= 20 && k.startsWith(x)))

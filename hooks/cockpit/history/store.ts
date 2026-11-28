@@ -8,14 +8,17 @@ import type { EngineInterface } from 'claude-code'
 import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
-import { changeHeld, loadHeld, type Held } from '../../shared/held'
+import { changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
 
 const PREFIX = 'history:'
 // The prompts' stamps each session keeps (hooks/transcript/ledger/state.ts): weighed and evicted with its history.
 const STAMPS = 'prompts:'
 
 // The session's turns, oldest first. Change the tag when a record's fields change.
-const history = atom({ plugin: 'ghostframe', key: 'history' } as const, [] as TurnRecord[], { shape: 'history-1' })
+// The session's turns, oldest first, are held in this module (`heldHistory`) and kept in the store, never copied into
+// $.state: every kept turn's steps, outputs and diffs, megabytes in a long session. A draw follows `historyTick`. A copy
+// of the module loaded after a `/tui` switch reads them from the store, which is current where the state is not (probe 19).
+const historyTick = atom({ plugin: 'ghostframe', key: 'historyTick' } as const, 0, { shape: 'historyTick-1' })
 // Every kept turn's narration row ids, kept beside history whenever history is written: a transcript row asks only
 // this, never `history` itself, whose every turn's steps, outputs and diffs a long session makes megabytes of.
 const keptNarration = atom({ plugin: 'ghostframe', key: 'keptNarration' } as const, [] as string[], { shape: 'keptNarration-1' })
@@ -43,23 +46,33 @@ const keptOf = (k: string, v: unknown): Kept | undefined => {
  * @param turns the turns, oldest first
  */
 async function keepHistory($: EngineInterface, turns: readonly TurnRecord[]): Promise<void> {
-  // Written whole, never read back (shared/held.ts): every kept turn's steps, outputs and diffs, the largest value.
+  // Held here (shared/held.ts), never copied into $.state; the store's copy is written by `write`.
+  const rows = turns.flatMap(r => r.narration ?? [])
+
   heldHistory.value = { v: [...turns] }
-  await $.state.set({ plugin: 'ghostframe', key: 'history' }, { shape: 'history-1', value: heldHistory.value.v })
-  await $.state.set({ plugin: 'ghostframe', key: 'keptNarration' }, { shape: 'keptNarration-1', value: turns.flatMap(r => r.narration ?? []) })
+  heldNarration.value = { v: new Set(rows) }
+  await $.state.set({ plugin: 'ghostframe', key: 'historyTick' }, { shape: 'historyTick-1', value: nextTick(heldHistory) })
+  await $.state.set({ plugin: 'ghostframe', key: 'keptNarration' }, { shape: 'keptNarration-1', value: rows })
+  await $.state.set({ plugin: 'ghostframe', key: 'keptNarrationTick' }, { shape: 'keptNarrationTick-1', value: nextTick(heldNarration) })
 }
+
+const setOf = async (rows: Promise<readonly string[]>): Promise<ReadonlySet<string>> => new Set(await rows)
 
 // The session's kept turns as this file last wrote them; read from $.state once per load of the module.
 const heldHistory: Held<TurnRecord[]> = {}
+// Their narration rows, asked by every transcript row's draw while docked: a draw reads the tick and asks the set.
+const heldNarration: Held<ReadonlySet<string>> = {}
+const keptNarrationTick = atom({ plugin: 'ghostframe', key: 'keptNarrationTick' } as const, 0, { shape: 'keptNarrationTick-1' })
 
 /**
- * The session's kept turns, for a hook that is not drawing: as last written, with no copy through $.state after a
- * reload's first read.
+ * The session's kept turns, as this module holds them; a copy of the module that holds none yet reads the store.
  * @param $ the engine interface
  * @returns the turns, oldest first
  */
 export async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
-  if (heldHistory.value === undefined) await loadHeld(heldHistory, read($, history))
+  // A store that cannot be read holds no turns for this copy of the module, as `storedRecordList` does: the session
+  // keeps its turns from then on, whether or not the store takes them (`saveTurn`).
+  if (heldHistory.value === undefined) await loadHeld(heldHistory, readStoreOrNone($))
 
   return changeHeld(heldHistory, list => list)
 }
@@ -105,7 +118,8 @@ export async function storedReceiptList($: EngineInterface): Promise<Receipt[]> 
  * @returns the turns, oldest first
  */
 export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
-  const held = await read($, history)
+  await read($, historyTick)
+  const held = heldHistory.value?.v ?? []
 
   return held.length > 0 ? held : storedRecordList($)
 }
@@ -118,7 +132,9 @@ export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
  * @returns whether it is
  */
 export async function isKeptNarration($: EngineInterface, row: string): Promise<boolean> {
-  if ((await read($, keptNarration)).includes(row)) return true
+  await read($, keptNarrationTick)
+  if (heldNarration.value === undefined) await loadHeld(heldNarration, setOf(read($, keptNarration)))
+  if (heldNarration.value?.v.has(row) === true) return true
 
   if (storedNarration === undefined) {
     const k = `${PREFIX}${await $.session.id()}`
@@ -188,6 +204,21 @@ async function readStore($: EngineInterface): Promise<TurnRecord[]> {
   return own
 }
 
+/**
+ * This session's kept turns from the store, or none when it cannot be read (said in the debug log).
+ * @param $ the engine interface
+ * @returns the turns, oldest first
+ */
+async function readStoreOrNone($: EngineInterface): Promise<TurnRecord[]> {
+  try {
+    return await readStore($)
+  } catch (error: unknown) {
+    $.ui.log(`cockpit: kept turns not read from the store: ${String(error)}`, { to: 'debug' })
+
+    return []
+  }
+}
+
 /** The newest stamp's time in a list of stamps, 0 for none. */
 const newestAt = (list: readonly unknown[]): number =>
   Math.max(0, ...list.map(s => (typeof s === 'object' && s !== null && 'at' in s && typeof s.at === 'number' ? s.at : 0)))
@@ -200,7 +231,7 @@ const newestAt = (list: readonly unknown[]): number =>
  */
 export async function loadHistory($: EngineInterface): Promise<TurnRecord[]> {
   const kept = await readStore($)
-  const held = await historyNow($)
+  const held = heldHistory.value?.v ?? []
 
   if (held.length > 0) return held
 
@@ -266,7 +297,7 @@ export async function markCompacted($: EngineInterface): Promise<void> {
   const all = (await historyNow($)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
 
   heldHistory.value = { v: all }
-  await $.state.set({ plugin: 'ghostframe', key: 'history' }, { shape: 'history-1', value: all })
+  await $.state.set({ plugin: 'ghostframe', key: 'historyTick' }, { shape: 'historyTick-1', value: nextTick(heldHistory) })
   try {
     await write($, all)
   } catch (error: unknown) {
@@ -302,7 +333,9 @@ export async function dropTurns($: EngineInterface, turnNos: readonly number[]):
  * @returns the turns, oldest first
  */
 export async function readHistory($: EngineInterface): Promise<TurnRecord[]> {
-  return read($, history)
+  await read($, historyTick)
+
+  return historyNow($)
 }
 
 /**
