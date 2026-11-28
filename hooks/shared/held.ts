@@ -13,7 +13,23 @@
 // only its owner writes the key and a module has one copy loaded at a time.
 
 /** A value this plugin alone writes, as it last wrote it. */
-export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined; tick?: number }
+export type Held<T> = { value?: { v: T } | undefined; loading?: Promise<void> | undefined; tick?: number }
+
+// Every value held, so a new session can drop them all; and which session's they are.
+const known = new Set<Held<unknown>>()
+let generation = 0
+
+/**
+ * Drops every held value: a session that starts in a module already loaded (a `/clear`, a resume in place) reads
+ * each again, from `$.state` or the store, rather than carry the last session's into its own. Ticks keep moving on.
+ */
+export function forgetHeld(): void {
+  generation++
+  for (const held of known) {
+    held.value = undefined
+    held.loading = undefined
+  }
+}
 
 /**
  * Holds the value read from `$.state`, once: changes waiting on the same first read share it.
@@ -21,12 +37,16 @@ export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined; t
  * @param reading the read of its atom
  */
 export async function loadHeld<T>(held: Held<T>, reading: Promise<T>): Promise<void> {
+  known.add(held)
   if (held.value !== undefined) return
+  const at = generation
+
   held.loading ??= (async () => {
     try {
       const v = await reading
 
-      held.value ??= { v }
+      // A read that started before `forgetHeld` brings the old session's value: it is not held.
+      if (at === generation) held.value ??= { v }
     } catch (error: unknown) {
       held.loading = undefined
       throw error
@@ -70,6 +90,7 @@ export function heldValue<T>(held: Held<T>): T {
  * @returns the value, to write
  */
 export function setHeld<T>(held: Held<T>, v: T): T {
+  known.add(held)
   held.value = { v: Object.freeze(v) as T }
 
   return held.value.v
@@ -98,6 +119,33 @@ export const remember = <K, V>(m: Map<K, V>, k: K, v: V, max: number): void => {
     if (oldest === undefined) break
     m.delete(oldest)
   }
+}
+
+const textTotals = new WeakMap<Map<string, unknown>, number>()
+
+/**
+ * `remember` for a memo keyed by text, bounded by the characters its keys hold rather than by their count: a reply
+ * that streams in adds one key per piece, each as long as the reply so far, and a count alone would let one long
+ * reply hold many times its size. The value is laid out from the key, so it grows with it.
+ * @param m the memo
+ * @param k the key (the text, with anything else that decides the value)
+ * @param v the value
+ * @param maxChars the characters all keys may hold together
+ */
+export const rememberText = <V>(m: Map<string, V>, k: string, v: V, maxChars: number): void => {
+  let total = (textTotals.get(m) ?? 0) - (m.has(k) ? k.length : 0)
+
+  m.delete(k)
+  m.set(k, v)
+  total += k.length
+  while (total > maxChars) {
+    const oldest = m.keys().next().value
+
+    if (oldest === undefined) break
+    m.delete(oldest)
+    total -= oldest.length
+  }
+  textTotals.set(m, total)
 }
 
 /**

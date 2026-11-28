@@ -77,6 +77,16 @@ describe('git', () => {
     expect(gitOf(r, Date.now(), cache, () => undefined)).toEqual({ branch: 'main', dirty: true })
   })
 
+  test('a .git file naming a git folder that is gone is no branch, never the parent repository’s', () => {
+    const parent = repo()
+    const inner = join(parent, 'vendored')
+
+    mkdirSync(inner)
+    writeFileSync(join(inner, '.git'), 'gitdir: ../.git/modules/gone\n')
+    expect(headOf(inner)).toBeNull()
+    expect(headOf(parent)).toBe('main')
+  })
+
   describe('what a repository is in', () => {
     test('clean: the branch, nothing uncommitted', () => {
       expect(stateOf(repo())).toEqual({ branch: 'main', dirty: false })

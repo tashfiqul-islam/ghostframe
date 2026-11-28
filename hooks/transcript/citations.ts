@@ -1,6 +1,6 @@
 // A reply's citations: each block's runs and the sources it cites, numbered through the turn, and memos of both.
 import type { FlowStamp } from '../../types'
-import { remember } from '../shared/held'
+import { remember, rememberText } from '../shared/held'
 import { splitBlocks } from './blocks/split'
 import type { Block } from './blocks/split'
 import { parseInline } from './prose'
@@ -183,13 +183,15 @@ export function citationsOf(blocks: readonly Block[], earlier: readonly TurnCite
 // text and what the turn cited above it. Held per text and per request, bounded.
 // A long session's messages, every one: a row is parsed once when it arrives, never again as the person scrolls back.
 const MEMO_MAX = 2_000
+// The block memo by the characters it holds (shared/held.ts, rememberText): a streaming reply adds a key per piece.
+const MEMO_CHARS = 1_000_000
 const blockMemo = new Map<string, Block[]>()
 const citeMemo = new Map<string, { blocks: readonly Block[]; out: ReturnType<typeof citationsOf> }>()
 
 export function blocksOf(text: string): Block[] {
   const blocks = blockMemo.get(text) ?? splitBlocks(text)
 
-  remember(blockMemo, text, blocks, MEMO_MAX)
+  rememberText(blockMemo, text, blocks, MEMO_CHARS)
 
   return blocks
 }

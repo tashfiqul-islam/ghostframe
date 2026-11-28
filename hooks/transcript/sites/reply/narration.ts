@@ -29,6 +29,12 @@ export async function isHiddenNarration(
   quietFlow: readonly FlowStamp[],
   running: string | undefined
 ): Promise<boolean> {
+  // The flow a draw reads is the one held until the next write (shared/flow.ts): what it says of a row it holds is
+  // worked out once per flow, not on every draw as the person scrolls.
+  const key = `${row}␟${running ?? ''}␟${text}`
+  const known = scanned.get(quietFlow)?.get(key)
+
+  if (known !== undefined) return known
   const at = textAt(quietFlow, firstKey(text.replace(/…$/, '')))
   const block = quietFlow[at]
   const nextTool = block === undefined ? undefined : quietFlow.slice(at + 1).find(f => f.turn === block.turn && f.kind === 'tool')
@@ -37,7 +43,18 @@ export async function isHiddenNarration(
   const isStart = isStartRow(row, running !== undefined)
   const isUndecided = running !== undefined && !isStart && (block === undefined || block.turn === running) && !ASKS_THE_PERSON.has(nextTool?.tool ?? '')
 
-  if (at >= 0) return isNarrationAt(quietFlow, at) || isUndecided
+  if (at >= 0) {
+    const is = isNarrationAt(quietFlow, at) || isUndecided
+    const answers = scanned.get(quietFlow) ?? new Map<string, boolean>()
+
+    answers.set(key, is)
+    scanned.set(quietFlow, answers)
+
+    return is
+  }
 
   return isUndecided || (await isNarrationRow($, row))
 }
+
+// What each flow says of each row it holds, while that flow is the one held: dropped with it.
+const scanned = new WeakMap<readonly FlowStamp[], Map<string, boolean>>()

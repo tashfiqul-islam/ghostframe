@@ -151,17 +151,26 @@ export function headOf(dir: string): string | null {
   for (let at = dir; ;) {
     const dotGit = join(at, '.git')
 
+    let isDir: boolean | undefined
+
     try {
-      const st = lstatSync(dotGit)
-      const gitDir = st.isDirectory() ? dotGit : /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]
-
-      if (gitDir === undefined) return null
-      const head = readFileSync(join(isAbsolute(gitDir) ? '' : at, gitDir, 'HEAD'), 'utf8').trim()
-      const ref = /^ref:\s*refs\/heads\/(.+)$/.exec(head)?.[1]
-
-      return ref ?? 'detached'
+      isDir = lstatSync(dotGit).isDirectory()
     } catch {
-      // no .git here (or one that cannot be read): look in the folder above
+      // no .git here: look in the folder above
+    }
+    if (isDir !== undefined) {
+      // The repository is this one: a .git that cannot be read, or names a git folder that is gone, is no branch,
+      // never a parent repository's.
+      try {
+        const gitDir = isDir ? dotGit : /^gitdir:\s*(.+?)\s*$/m.exec(readFileSync(dotGit, 'utf8'))?.[1]
+
+        if (gitDir === undefined) return null
+        const head = readFileSync(join(isAbsolute(gitDir) ? '' : at, gitDir, 'HEAD'), 'utf8').trim()
+
+        return /^ref:\s*refs\/heads\/(.+)$/.exec(head)?.[1] ?? 'detached'
+      } catch {
+        return null
+      }
     }
     const up = dirname(at)
 
@@ -285,10 +294,11 @@ export function gitOf(dir: string, now: number, cache: string | undefined, refre
   if (!(age('at') >= 0 && age('at') < GIT_TTL_MS) && !(age('asked') >= 0 && age('asked') < REFRESH_WAIT_MS)) {
     try {
       writeAtomic(file, JSON.stringify({ ...c, dir, asked: now }))
+      refresh(dir, folder)
     } catch (e) {
-      debug(`git refresh not noted: ${String(e)}`)
+      // A cache that cannot be written takes no answer either: a refresh would only start again at every render.
+      debug(`git refresh not asked, the cache is not written: ${String(e)}`)
     }
-    refresh(dir, folder)
   }
 
   return { branch, dirty }

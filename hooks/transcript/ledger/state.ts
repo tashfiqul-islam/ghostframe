@@ -225,7 +225,8 @@ export async function readSteps($: EngineInterface): Promise<StepStamp[]> {
 // Up to 400 stamps, so each tool call writes the list once, at its end, and never reads it back (shared/held.ts): a
 // running call's stamp is held here until then, and `readSteps` gives it with the rest. A draw reads `stepsTick`, which
 // moves at a call's start and at its end, so its rows draw again at both, as they did, with no copy of the list.
-// shortcut: a reload while a call runs loses that call's stamp; its end then stamps it from its end alone.
+// shortcut: a reload while a call runs loses that call's stamp: its end then writes none, and its row shows no time.
+// Upgrade by stamping from the end with the call's tool and turn if a reload mid-call proves common.
 const stamping = new Map<string, StepStamp>()
 const heldSteps: Held<StepStamp[]> = {}
 const stepsTick = atom({ plugin: 'ghostframe', key: 'stepsTick' } as const, 0, { shape: 'stepsTick-1' })

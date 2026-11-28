@@ -19,7 +19,7 @@ import { cell } from '../draw/cell'
 import { drawRows } from '../draw/parts'
 import { isCompacting, sessionCwd } from '../ledger/session'
 import { isSameText, readPrompts, readTaskNotice, storedPrompts } from '../ledger/state'
-import { remember } from '../../shared/held'
+import { remember, rememberText } from '../../shared/held'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
 import { messageCard, pasteShown, turnHeader } from '../rows/turn'
@@ -123,10 +123,24 @@ async function promptOpening($: EngineInterface, row: string, text: string): Pro
  * @returns the rows
  */
 function openingRows(o: Opening, text: string, width: number): Part[][] {
-  return o.kind === 'typed'
-    ? [turnHeader(o.header, width), ...messageCard(text, 'typed', width), spineOnly()]
-    : [...messageCard(text, o.kind, width, o.at), spineOnly()]
+  // Laid out once per opening, width and text: the row is drawn again as the person scrolls, and only looks it up.
+  const key = `${JSON.stringify(o)}|${width}|${text}`
+  const had = laidOut.get(key)
+
+  if (had !== undefined) return had
+  const rows =
+    o.kind === 'typed'
+      ? [turnHeader(o.header, width), ...messageCard(text, 'typed', width), spineOnly()]
+      : [...messageCard(text, o.kind, width, o.at), spineOnly()]
+
+  rememberText(laidOut, key, rows, LAID_OUT_CHARS)
+
+  return rows
 }
+
+// A long session's prompts at a few widths, by the characters their keys hold (shared/held.ts, rememberText).
+const LAID_OUT_CHARS = 1_000_000
+const laidOut = new Map<string, Part[][]>()
 
 // The row each task's notices share, by task id: the first drawn (rows draw again in transcript order after a
 // reload, so the first claims it again). Written while drawing.
