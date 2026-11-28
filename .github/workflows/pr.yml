@@ -5,7 +5,8 @@ on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
 
-# Concurrency is per job: a body-only edit must never cancel a title check that a push started.
+# Concurrency is per job: a newer event replaces an older run's title check, and the newer one checks the title as it
+# is now, on the same head commit.
 
 permissions: {}
 
@@ -14,12 +15,11 @@ defaults:
     shell: bash
 
 jobs:
-  # The squash commit takes the PR title. Required checks are recorded per commit and never
-  # carried forward, so every push needs a fresh result; on edits it runs only when the title
-  # changed. Only the files commitlint needs are checked out.
+  # The squash commit takes the PR title. It runs on every event and never skips: a required check that skipped counts
+  # as passed, so a body-only edit that skipped it would hide a failing title. Required checks are recorded per commit
+  # and never carried forward, so every push needs a fresh result. Only the files commitlint needs are checked out.
   title:
     name: Conventional title
-    if: github.event.action != 'edited' || github.event.changes.title != null
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     concurrency:

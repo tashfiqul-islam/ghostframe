@@ -72,9 +72,11 @@ export function reasonOf(job: Job, plan: Plan): string {
   if (d === undefined) return job.why
   if (plan.decisions[d]) return `${DECISIONS[d].guards}; touched: ${plan.areas.filter(a => a === 'all' || DECISIONS[d].areas.includes(a)).join(', ')}`
 
-  return d === 'docs' && plan.decisions.gate
-    ? 'the Quality gate checks the Markdown here'
-    : `guards ${DECISIONS[d].guards}; this change touches none of ${DECISIONS[d].areas.join(', ')}`
+  // Docs and Repo settings stand in for the Quality gate on a change with no code; where it runs, it does their work.
+  if (d === 'docs' && plan.decisions.gate) return 'the Quality gate checks the Markdown here'
+  if (d === 'settings' && plan.decisions.gate) return 'the Quality gate formats the repo settings here'
+
+  return `guards ${DECISIONS[d].guards}; this change touches none of ${DECISIONS[d].areas.join(', ')}`
 }
 
 /** The command that runs a job here: its steps under the plan, or its local command; none for GitHub-only jobs. */
@@ -424,6 +426,13 @@ function selfTest(): void {
 
   eq(runsIn(gate, docsOnly), false, 'docs only: the gate skips')
   eq(reasonOf(gate, docsOnly).includes('this change touches none of'), true, 'docs only: the skip says why')
+  eq(
+    reasonOf(jobOf('settings'), planOf([], 'a push run')),
+    'the Quality gate formats the repo settings here',
+    'everything: Repo settings says the gate does its work'
+  )
+  eq(reasonOf(jobOf('settings'), planOf(['hooks/register.tsx'])), 'the Quality gate formats the repo settings here', 'code: the same')
+  eq(reasonOf(jobOf('settings'), docsOnly).includes('this change touches none of settings'), true, 'docs only: Repo settings skips for want of settings')
   eq(localOf(jobOf('docs'), docsOnly), 'mise run ci:run -- docs', 'docs only: the Docs job runs here as ci:run')
   eq(localOf(jobOf('tests'), planOf(['statusline/io.ts'])), 'mise run ci:run -- tests', 'the status line alone: its specs run')
 
