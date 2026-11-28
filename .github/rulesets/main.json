@@ -28,12 +28,9 @@
         "do_not_enforce_on_create": false,
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
-          { "context": "Quality gate", "integration_id": 15368 },
+          { "context": "CI", "integration_id": 15368 },
           { "context": "Conventional title", "integration_id": 15368 },
           { "context": "Dependency review", "integration_id": 15368 },
-          { "context": "Tests (ubuntu-24.04)", "integration_id": 15368 },
-          { "context": "Tests (windows-2025)", "integration_id": 15368 },
-          { "context": "Tests (macos-15)", "integration_id": 15368 },
           { "context": "Performance", "integration_id": 15368 }
         ]
       }
