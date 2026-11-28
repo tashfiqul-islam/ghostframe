@@ -4,9 +4,9 @@
 import type { EngineInterface } from 'claude-code'
 
 import type { FlowStamp, LogStep, Receipt, StepDetail } from '../../../types'
-import { readFlow } from '../../shared/flow'
-import { readHistory } from '../history/store'
-import { readDetails } from '../keys/details'
+import { flowNow } from '../../shared/flow'
+import { historyNow } from '../history/store'
+import { detailsNow } from '../keys/details'
 import { readLog, readReceipts } from '../log'
 import { planTurn } from './plan'
 import type { Plan } from './plan'
@@ -34,10 +34,12 @@ export type TurnView = {
 export async function turnView($: EngineInterface, turn: string): Promise<TurnView | undefined> {
   const log = await readLog($)
   const receipts = await readReceipts($)
-  const flow = await readFlow($)
+  // The log and the receipts are read through $.state, so the row draws again at each step and receipt; the flow,
+  // the details and history (megabytes in a long session) as this worker last wrote them, with no copy each draw.
+  const flow = await flowNow($)
   const own = receipts.find(r => r.turn === turn)
   const isLive = log.turn === turn || own?.turnNo === log.turnNo
-  const record = isLive ? undefined : (await readHistory($)).find(r => r.turns.includes(turn) || r.turnNo === own?.turnNo)
+  const record = isLive ? undefined : (await historyNow($)).find(r => r.turns.includes(turn) || r.turnNo === own?.turnNo)
 
   if (!isLive && record === undefined) return undefined
 
@@ -48,7 +50,7 @@ export async function turnView($: EngineInterface, turn: string): Promise<TurnVi
   ]
   const steps = isLive ? log.steps : (record?.steps ?? [])
   const startedAt = isLive ? log.startedAt : (record?.startedAt ?? null)
-  const kept = await readDetails($)
+  const kept = await detailsNow($)
   const details = [...kept, ...(record?.details ?? []).filter(d => !kept.some(k => k.id === d.id))]
   const startOf = (id: string) => {
     const d = details.find(x => x.id === id)
