@@ -30,7 +30,8 @@
         "required_status_checks": [
           { "context": "CI", "integration_id": 15368 },
           { "context": "Conventional title", "integration_id": 15368 },
-          { "context": "Dependency review", "integration_id": 15368 }
+          { "context": "Dependency review", "integration_id": 15368 },
+          { "context": "Performance", "integration_id": 15368 }
         ]
       }
     }
