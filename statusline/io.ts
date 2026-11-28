@@ -5,7 +5,6 @@
 // user on the machine can neither plant a file there nor read one, and a file the current user does not own is
 // ignored all the same.
 import { appendFileSync, closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, posix, win32 } from 'node:path'
 
@@ -226,6 +225,9 @@ export type Refresh = (dir: string, cacheDir: string) => void
 export function spawnRefresh(entry: string): Refresh {
   return (dir, cache) => {
     try {
+      // Loaded here, not at the top: node:child_process costs a render 1.5 ms to load, and few renders start a refresh.
+      const { spawn } = process.getBuiltinModule('node:child_process')
+
       spawn(process.execPath, [entry, '--git-refresh', dir, cache], { detached: true, stdio: 'ignore', windowsHide: true }).unref()
     } catch (e) {
       debug(`git refresh not started: ${String(e)}`)

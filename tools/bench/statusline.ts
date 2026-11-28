@@ -4,7 +4,7 @@
 // and warm (git's answer cached), in this repo and in the 40,000-file fixture repo. Process start alone (an empty
 // program of the same form) and git alone are timed beside them, so the remainder is the render.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -14,12 +14,54 @@ const REPO = resolve(import.meta.dirname, '..', '..')
 const RUNS = 15
 
 /** One form's timings, ms. */
-export type FormTimes = { form: string; repo: string; startP50: number; coldP50: number; coldP95: number; warmP50: number; warmP95: number; gitP50: number }
+export type FormTimes = {
+  form: string
+  repo: string
+  startP50: number
+  coldP50: number
+  coldP95: number
+  warmP50: number
+  warmP95: number
+  gitP50: number
+  /** Every cold and warm run's time, for tools/bench/compare.ts to pool over the benchmark's runs. */
+  cold: number[]
+  warm: number[]
+}
 
 const p = (ms: readonly number[], q: number): number => {
   const s = ms.toSorted((a, b) => a - b)
 
   return s[Math.min(s.length - 1, Math.max(0, Math.ceil(q * s.length) - 1))] ?? 0
+}
+
+/** How long a refresh a run started may take to write git's answer before the benchmark gives up. */
+const SETTLE_MS = 30_000
+
+/**
+ * Waits, untimed, until every git answer in a cache folder is written: a status line that asks git in a process of
+ * its own (statusline/io.ts, spawnRefresh) leaves that process running after its render, and the next run timed beside
+ * it would pay for its git. A cache whose answers were written by the render itself is settled at once.
+ * @param cache the cache folder the runs were given (LOCALAPPDATA, XDG_CACHE_HOME)
+ */
+function settle(cache: string): void {
+  const answered = (): boolean =>
+    readdirSync(cache, { recursive: true, encoding: 'utf8' })
+      .filter(f => /(^|[\\/])git-[^\\/]*\.json$/.test(f))
+      .every(f => {
+        try {
+          const c = JSON.parse(readFileSync(join(cache, f), 'utf8')) as { at?: unknown; asked?: unknown }
+
+          return typeof c.at === 'number' && !(typeof c.asked === 'number' && c.asked > c.at)
+        } catch {
+          return false // being written
+        }
+      })
+  const until = performance.now() + SETTLE_MS
+
+  while (!answered()) {
+    if (performance.now() > until) throw new Error(`the status line's git refresh wrote no answer in ${cache} within ${SETTLE_MS} ms`)
+    Bun.sleepSync(20)
+  }
 }
 
 /** One run's wall time; `anyExit` for git's `--quiet` checks, whose exit 1 is an answer, not a failure. */
@@ -97,13 +139,18 @@ export function measureStatusline(repos: readonly string[], plugin: string = REP
         const cache = join(dir, 'cold', `${f.form.length}-${i}-${out.length}`)
 
         mkdirSync(cache, { recursive: true })
+        const ms = time(f.run, stdin, { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache, COLUMNS: '200' })
 
-        return time(f.run, stdin, { LOCALAPPDATA: cache, XDG_CACHE_HOME: cache, COLUMNS: '200' })
+        settle(cache)
+
+        return ms
       })
       const warmCache = join(dir, 'warm', String(out.length))
 
       mkdirSync(warmCache, { recursive: true })
       time(f.run, stdin, { LOCALAPPDATA: warmCache, XDG_CACHE_HOME: warmCache, COLUMNS: '200' })
+      // Warm means git's answer is cached: wait for the first run's refresh to write it.
+      settle(warmCache)
       const warm = Array.from({ length: RUNS }, () => time(f.run, stdin, { LOCALAPPDATA: warmCache, XDG_CACHE_HOME: warmCache, COLUMNS: '200' }))
 
       out.push({
@@ -114,7 +161,9 @@ export function measureStatusline(repos: readonly string[], plugin: string = REP
         coldP95: p(cold, 0.95),
         warmP50: p(warm, 0.5),
         warmP95: p(warm, 0.95),
-        gitP50: p(git, 0.5)
+        gitP50: p(git, 0.5),
+        cold,
+        warm
       })
     }
   }

@@ -39,16 +39,25 @@ const benchLines = (output: string): Record<string, unknown>[] =>
     .map(l => JSON.parse(l.slice(6)) as Record<string, unknown>)
 
 /**
- * One budget checked: the measure, its value, the limit, and whether it held. A p95 measure also keeps the samples it
- * was taken from, so tools/bench/compare.ts can pool them over the runs instead of trusting one run's tail.
+ * One budget checked: the measure, its value, the limit, and whether it held. A measure taken from samples also keeps
+ * them, and the quantile its value is when not the p95, so tools/bench/compare.ts can pool them over the runs instead
+ * of trusting one run's.
  */
-type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean; samples?: number[] }
+type Check = { budget: BudgetName; measure: string; value: number | null; limit: number; ok: boolean; samples?: number[]; quantile?: number }
 
 const checks: Check[] = []
-const check = (budget: BudgetName, measure: string, value: number | null, samples?: number[]): void => {
+const check = (budget: BudgetName, measure: string, value: number | null, samples?: number[], quantile?: number): void => {
   const limit = limitOf(budget, isCi)
 
-  checks.push({ budget, measure, value, limit, ok: value !== null && Number.isFinite(value) && value <= limit, ...(samples === undefined ? {} : { samples }) })
+  checks.push({
+    budget,
+    measure,
+    value,
+    limit,
+    ok: value !== null && Number.isFinite(value) && value <= limit,
+    ...(samples === undefined ? {} : { samples }),
+    ...(quantile === undefined ? {} : { quantile })
+  })
 }
 
 // The harness: the long session, Cockpit on and off.
@@ -111,8 +120,8 @@ const statusline = args.includes('--no-statusline')
 const repoName = (repo: string): string => (repo === bigRepo ? 'the 40,000-file repo' : 'this repo')
 
 for (const s of statusline.filter(x => x.form.startsWith('bun statusline.js'))) {
-  check('statusline', `${s.form}, cold p50 (${repoName(s.repo)})`, s.coldP50)
-  check('statusline', `${s.form}, warm p50 (${repoName(s.repo)})`, s.warmP50)
+  check('statusline', `${s.form}, cold p50 (${repoName(s.repo)})`, s.coldP50, s.cold, 0.5)
+  check('statusline', `${s.form}, warm p50 (${repoName(s.repo)})`, s.warmP50, s.warm, 0.5)
 }
 
 // The real session.

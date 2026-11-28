@@ -3,7 +3,7 @@ run-name: 'Performance · #${{ github.event.pull_request.number }} ${{ github.ev
 
 # The Performance check (docs/development/performance.md): main's plugin and the pull request's, measured by the pull
 # request's harness benchmarks, in turns, in this one job on one runner, three runs each, compared by
-# tools/bench/compare.ts (a p95 by its pooled samples' 99% interval). It fails
+# tools/bench/compare.ts (a sampled measure by its pooled mean's 99% interval). It fails
 # on a red measure unless a maintainer added the perf-accepted label. It runs the pull request's code with a read-only
 # token and no secrets, so it is safe for a fork's pull request; the comment is written by performance-comment.yml,
 # which runs from main's code once this finishes and never checks out the pull request.

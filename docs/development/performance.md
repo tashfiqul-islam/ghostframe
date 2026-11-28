@@ -200,44 +200,47 @@ One job on one `ubuntu-24.04` runner checks out the pull request and, beside it,
 the status line's installed form, three times for each side, in turns: main, PR; PR, main; main, PR, so a runner that
 slows down part way slows both. Both sides are measured with the pull request's benchmark, fixtures and test support;
 only the plugin's own code (`.claude-plugin`, `hooks`, `types`, `statusline`) comes from each side. Then
-[`tools/bench/compare.ts`](../../tools/bench/compare.ts) compares every budgeted measure; see "How a p95 is compared".
+[`tools/bench/compare.ts`](../../tools/bench/compare.ts) compares every budgeted measure; see "How a measure taken from samples is compared".
 The rating rules and the limits are `main`'s: `check.ts` runs `main`'s `compare.ts`, which takes each limit from its
 own `budgets.ts`, never from the report, so a pull request cannot loosen its own. A budget `main` does not know yet keeps
 the pull request's limit. The benchmark itself is the pull request's, which is visible in its diff.
 The live benchmark is not run on pull requests: its numbers come from `main` and never block.
 
-### How a p95 is compared
+### How a measure taken from samples is compared
 
 A hook's p95 over one run's 40 samples is its 38th: with 2 or 3 of them slow (a garbage collection landing in it),
 that sample is fast in one run and slow in the next. Identical code read +62% against `main` on one runner and +6%
-on the next, while its p50 and mean held still on both. So each run's report keeps every sample of each p95
-measure, and `compare.ts`:
+on the next, while its mean held still on both. So each run's report keeps every sample of each hook's p95 and of the
+status line's p50s, and `compare.ts`:
 
-1. Pools each side's samples over its runs and shows each side's pooled p95, by linear interpolation between order
-   statistics (it moves smoothly, where the nearest rank jumps from one sample to the next). The pooled p95 is held
+1. Pools each side's samples over its runs and shows each side's pooled p95 (or p50), by linear interpolation between
+   order statistics: it moves smoothly, where the nearest rank jumps from one sample to the next. That value is held
    to the measure's limit.
-2. Rates a slowdown by the pooled p50, the hook's usual cost, and the mean, which moves smoothly as a tail grows: a
-   call in 20 that takes 30 ms more moves it by half. The p95 itself is never compared with `main`.
-3. Draws 4,000 two-level bootstrap resamples a side (Kalibera and Jones): the runs, picked with replacement, then each
-   picked run's samples. Resampling the runs first means a whole run that went slow widens the interval, instead of
-   passing for a regression.
-4. Rates by the near end of each ratio's 99% interval. Red needs the pull request slower than `main` by more than 15%
-   even there, and by more than the noise floor. Yellow needs it slower at all there, and 5% slower by the pooled
-   value. A change the interval cannot tell from noise rates green.
+2. Rates a slowdown by the pooled mean: the cost a person pays over many calls, and one that moves smoothly as a tail
+   grows (a call in 20 that takes 30 ms more moves it by half). Neither the p95 nor the median is compared with
+   `main`. The median misleads too: the row cache made every unchanged redraw one round trip, which moved the median
+   up from 0.3 to 0.45 ms while it took the 5 ms misses, and the mean, down by two thirds.
+3. Draws 4,000 two-level bootstrap resamples (Kalibera and Jones): the runs, picked with replacement, then each picked
+   run's samples. Resampling the runs first means a whole run that went slow widens the interval, instead of passing
+   for a regression. `check.ts` runs main's run i and the pull request's back to back, so the same i is drawn for both
+   sides: what slowed the runner then slowed both.
+4. Rates by the near end of the mean ratio's 99% interval. Red needs the pull request slower than `main` by more than
+   15% even there, and by more than the noise floor; yellow, by more than 5% there. A change the interval cannot tell
+   from noise rates green.
 
 Each measure's generator is seeded by its name, so the same reports always rate the same, and rerunning the
-comparison cannot turn a red green. The Change column shows the p95's change, then the mean's with its 99% interval.
-A measure without samples (the status line's, or a report from an older harness) is compared by its median over the
-runs, as before.
+comparison cannot turn a red green. The Change column shows the shown value's change, then the mean's with its 99%
+interval. A measure without samples (a report from an older harness) is compared by its median over the runs, as
+before.
 
 ### What each colour means
 
-| Rating      | When                                                                                                                                     | The check |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------- |
-| 🟢 green    | within its budget, and no more than 5% slower than `main` (for a p95, none it can tell from noise)                                       | passes    |
-| 🟡 yellow   | 5 to 15% slower than `main`, or within 10% of its budget, or measured on neither side                                                    | passes    |
-| 🔴 red      | over its budget, more than 15% slower than `main` (for a p95, at the near end of its interval), or measured on `main` but no longer here | fails     |
-| 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                                                                            | passes    |
+| Rating      | When                                                                                                                                                          | The check |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| 🟢 green    | within its budget, and no more than 5% slower than `main` (for a sampled measure, none it can tell from noise)                                                | passes    |
+| 🟡 yellow   | 5 to 15% slower than `main`, or within 10% of its budget, or measured on neither side                                                                         | passes    |
+| 🔴 red      | over its budget, more than 15% slower than `main` (for a sampled measure, its mean at the near end of its interval), or measured on `main` but no longer here | fails     |
+| 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                                                                                                 | passes    |
 
 A change smaller than 5% of the measure's budget (as set in `budgets.ts`, never CI's 3× limit) is never called slower,
 whatever its percentage: a shared runner
