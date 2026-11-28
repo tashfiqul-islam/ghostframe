@@ -269,7 +269,13 @@ export const JOBS: readonly Job[] = [
     why: "a new dependency's known vulnerabilities, on every pull request"
   },
   { workflow: 'ci.yml', job: 'ci', name: 'CI', runs: 'always', why: 'the required check: passes only when every job above passed or skipped' },
-  { workflow: 'pr.yml', job: 'title', name: 'Conventional title', runs: 'always', why: 'the squash commit takes the title, so it must pass commitlint' },
+  {
+    workflow: 'pr.yml',
+    job: 'title',
+    name: 'Conventional title',
+    runs: 'always',
+    why: 'the squash commit takes the title, so it must pass commitlint; it runs on every event and never skips'
+  },
   {
     workflow: 'performance.yml',
     job: 'performance',
