@@ -1,0 +1,1235 @@
+/* ghostframe website: every keyframe and transition, exactly as used in reference/.
+   Port these as written. Durations and percentages are the design.
+   --ease-out  cubic-bezier(.2,.8,.2,1)    direct responses: press, tabs, accordion, copy
+   --ease-expo cubic-bezier(.16,1,.3,1)    things with weight: the frame, the pupils, the eyes opening
+   Everything here is switched off under prefers-reduced-motion (see the last rule of each block). */
+
+/* ── 1. Ambient accents: heading echo (24 s, staggered with animation-delay) and the hero scan band (9 s) ── */
+@keyframes gl {
+  0%,
+  95% {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  95.1% {
+    opacity: 0.9;
+    transform: translateX(-12px);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  96.7% {
+    opacity: 0.9;
+    transform: translateX(0);
+    animation-timing-function: ease;
+  }
+  97.3%,
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+@keyframes gl2 {
+  0%,
+  95.3% {
+    opacity: 0;
+    transform: translateX(9px);
+  }
+  95.4% {
+    opacity: 0.7;
+    transform: translateX(9px);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  96.9% {
+    opacity: 0.7;
+    transform: translateX(0);
+    animation-timing-function: ease;
+  }
+  97.5%,
+  100% {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+.gl {
+  animation: gl 24s infinite;
+}
+.gl2 {
+  animation: gl2 24s infinite;
+}
+@keyframes scanb {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(704px);
+    opacity: 0;
+  }
+}
+.scanb {
+  animation: scanb 9s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gl,
+  .gl2,
+  .scanb {
+    animation: none;
+  }
+}
+
+/* ── 2. Hero: press states, prompt caret, the eye slip (13 s cycle, active 88% to 91.4% = 0.44 s) ──
+   .hot   the red-eyed mascot image, stacked over the gold one, opacity only
+   .jit   the wrapper of both images and the pupils; scales 1.2% about the eyes (transform-origin 560px 652px)
+   .dimr  a dark veil inside the frame; one 40 ms dip before the red arrives
+   .tearl one hairline; sweeps the frame height (448px) in 180 ms, linear
+   .pc    each pupil; tightens to scale(.8,.7) */
+.press {
+  transition: transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.press:active {
+  transform: scale(0.97);
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+.caret {
+  animation: blink 1.1s steps(1) infinite;
+}
+@keyframes hot {
+  0%,
+  88% {
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  88.5%,
+  89.5% {
+    opacity: 1;
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  91.4%,
+  100% {
+    opacity: 0;
+  }
+}
+.hot {
+  animation: hot 13s infinite;
+}
+@keyframes jit {
+  0%,
+  88% {
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  88.5%,
+  89.5% {
+    transform: scale(1.012);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  91.4%,
+  100% {
+    transform: scale(1);
+  }
+}
+.jit {
+  animation: jit 13s infinite;
+}
+@keyframes dimr {
+  0%,
+  87.7% {
+    opacity: 0;
+  }
+  88% {
+    opacity: 0.38;
+  }
+  88.5%,
+  100% {
+    opacity: 0;
+  }
+}
+.dimr {
+  animation: dimr 13s linear infinite;
+}
+@keyframes tearl {
+  0%,
+  88.3% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  88.35% {
+    opacity: 0.85;
+    transform: translateY(0);
+  }
+  89.75% {
+    opacity: 0.85;
+    transform: translateY(448px);
+  }
+  89.8%,
+  100% {
+    opacity: 0;
+    transform: translateY(448px);
+  }
+}
+.tearl {
+  animation: tearl 13s linear infinite;
+}
+@keyframes pc {
+  0%,
+  88% {
+    transform: scale(1);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  88.6%,
+  89.5% {
+    transform: scale(0.8, 0.7);
+    animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  91.4%,
+  100% {
+    transform: scale(1);
+  }
+}
+.pc {
+  animation: pc 13s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lens],
+  [data-hd],
+  [data-pupil],
+  .press {
+    transition: none !important;
+  }
+  .caret,
+  .hot,
+  .jit,
+  .tearl,
+  .dimr,
+  .pc {
+    animation: none;
+  }
+}
+
+/* ── 3. Footer: lattice masks, the two lights (moved by transform from script), caret ── */
+.hex {
+  -webkit-mask: url(assets/hex.svg) 0 0/16px 27.713px repeat;
+  mask: url(assets/hex.svg) 0 0/16px 27.713px repeat;
+}
+.wm {
+  -webkit-mask: url(assets/ghostframe-wordmark-white.svg) center/100% 100% no-repeat;
+  mask: url(assets/ghostframe-wordmark-white.svg) center/100% 100% no-repeat;
+}
+.lite {
+  transition: transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+.caret {
+  animation: blink 1.1s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lite {
+    transition: none;
+  }
+  .caret {
+    animation: none;
+  }
+}
+
+/* ── 3b. Nav and release notes. Everything here is a transition on transform or opacity, written by script.
+   [data-nav-ind]   the nav's frame indicator: transform 240ms var(--ease-out), opacity 140ms linear; duration 0 from the keyboard
+   [data-nav-dock]  the docked bar: transform 240ms var(--ease-out), opacity 180ms linear; from translateY(-12px)
+   [data-nav-prog]  the 1px progress line: scaleX set once a frame, no transition
+   [data-rail-mk]   the release rail's marker: transform 380ms var(--ease-expo), translateY(index * 36px)
+   label decode     4 frames at 30 ms (nav links), 5 frames at 32 ms (section labels), glyph set / \ | - _ = + x #  ── */
+@media (hover: hover) and (pointer: fine) {
+  .ib:hover {
+    color: #eceaf2;
+    background: #111117;
+  }
+}
+[data-nav-dock][data-on] {
+  opacity: 1 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-nav-ind],
+  [data-nav-dock] {
+    transition: none !important;
+  }
+}
+[data-f][aria-pressed='true'] {
+  color: #eceaf2 !important;
+  background: #17171f !important;
+}
+[data-f][aria-pressed='false'] {
+  color: #8c8899 !important;
+  background: none !important;
+}
+[data-rk][aria-current] {
+  color: #eceaf2 !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-rail-mk] {
+    transition: none !important;
+  }
+}
+
+/* ── 4. Boot curtain. One 8 s clock in the reference so it can loop; the sequence itself is the first 1.8 s.
+   In production each animation runs once (iterations: 1, fill: forwards) and the curtain node is removed.
+   Percentages = milliseconds / 80.  Stepped parts are the machine; eased parts are the ghost. ── */
+.nza {
+  background: url(assets/noise-tile-a.png) 0 0/560px 384px;
+}
+.nzb {
+  background: url(assets/noise-tile-b.png) 0 0/560px 384px;
+}
+@keyframes b0 {
+  0%,
+  0% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  0.013% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  1.475% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  1.487%,
+  100% {
+    opacity: 0;
+  }
+}
+.b0 {
+  animation: b0 8s infinite;
+}
+@keyframes b1 {
+  0%,
+  1.5% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(22, end);
+  }
+  5.25%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.b1 {
+  animation: b1 8s infinite;
+}
+@keyframes l0 {
+  0%,
+  5.237% {
+    opacity: 0;
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  5.25% {
+    opacity: 1;
+    transform: translateX(4px);
+    animation-timing-function: steps(1, end);
+  }
+  5.675% {
+    opacity: 1;
+    transform: translateX(-1px);
+    animation-timing-function: steps(1, end);
+  }
+  6.1%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.l0 {
+  animation: l0 8s infinite;
+}
+@keyframes d0 {
+  0%,
+  5.25% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(8, end);
+  }
+  7.375%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.d0 {
+  animation: d0 8s infinite;
+}
+@keyframes k0 {
+  0%,
+  7.425% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  7.438% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.k0 {
+  animation: k0 8s infinite;
+}
+@keyframes q0 {
+  0%,
+  7.425% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  7.438% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  10.05% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  10.062%,
+  100% {
+    opacity: 0;
+  }
+}
+.q0 {
+  animation: q0 8s infinite;
+}
+@keyframes l1 {
+  0%,
+  7.862% {
+    opacity: 0;
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  7.875% {
+    opacity: 1;
+    transform: translateX(4px);
+    animation-timing-function: steps(1, end);
+  }
+  8.3% {
+    opacity: 1;
+    transform: translateX(-1px);
+    animation-timing-function: steps(1, end);
+  }
+  8.725%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.l1 {
+  animation: l1 8s infinite;
+}
+@keyframes d1 {
+  0%,
+  7.875% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(8, end);
+  }
+  10%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.d1 {
+  animation: d1 8s infinite;
+}
+@keyframes k1 {
+  0%,
+  10.05% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  10.062% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.k1 {
+  animation: k1 8s infinite;
+}
+@keyframes q1 {
+  0%,
+  10.05% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  10.062% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  12.675% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  12.687%,
+  100% {
+    opacity: 0;
+  }
+}
+.q1 {
+  animation: q1 8s infinite;
+}
+@keyframes l2 {
+  0%,
+  10.487% {
+    opacity: 0;
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  10.5% {
+    opacity: 1;
+    transform: translateX(4px);
+    animation-timing-function: steps(1, end);
+  }
+  10.925% {
+    opacity: 1;
+    transform: translateX(-1px);
+    animation-timing-function: steps(1, end);
+  }
+  11.35%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.l2 {
+  animation: l2 8s infinite;
+}
+@keyframes d2 {
+  0%,
+  10.5% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(8, end);
+  }
+  12.625%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.d2 {
+  animation: d2 8s infinite;
+}
+@keyframes k2 {
+  0%,
+  12.675% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  12.687% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.k2 {
+  animation: k2 8s infinite;
+}
+@keyframes q2 {
+  0%,
+  12.675% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  12.687% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  15.3% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  15.313%,
+  100% {
+    opacity: 0;
+  }
+}
+.q2 {
+  animation: q2 8s infinite;
+}
+@keyframes l3 {
+  0%,
+  13.112% {
+    opacity: 0;
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  13.125% {
+    opacity: 1;
+    transform: translateX(4px);
+    animation-timing-function: steps(1, end);
+  }
+  13.55% {
+    opacity: 1;
+    transform: translateX(-1px);
+    animation-timing-function: steps(1, end);
+  }
+  13.975%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.l3 {
+  animation: l3 8s infinite;
+}
+@keyframes d3 {
+  0%,
+  13.125% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(8, end);
+  }
+  15.25%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.d3 {
+  animation: d3 8s infinite;
+}
+@keyframes k3 {
+  0%,
+  15.3% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  15.313% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.k3 {
+  animation: k3 8s infinite;
+}
+@keyframes q3 {
+  0%,
+  15.3% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  15.313% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.q3 {
+  animation: q3 8s infinite;
+}
+@keyframes bt {
+  0%,
+  0% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  0.013% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  20.625% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  20.637%,
+  100% {
+    opacity: 0;
+  }
+}
+.bt {
+  animation: bt 8s infinite;
+}
+@keyframes na {
+  0%,
+  3.238% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  3.25% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  4.125% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  5% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  5.875% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  6.75% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  7.625% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  8.5% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  9.375% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  10.25% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  11.125% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  12% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  12.875% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  13.75% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  14.625% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  15.5% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  16.375% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  17.25%,
+  100% {
+    opacity: 0;
+  }
+}
+.na {
+  animation: na 8s infinite;
+}
+@keyframes nb {
+  0%,
+  3.238% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  3.25% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  4.125% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  5% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  5.875% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  6.75% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  7.625% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  8.5% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  9.375% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  10.25% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  11.125% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  12% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  12.875% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  13.75% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  14.625% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  15.5% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  16.375% {
+    opacity: 0.9;
+    animation-timing-function: steps(1, end);
+  }
+  17.25%,
+  100% {
+    opacity: 0;
+  }
+}
+.nb {
+  animation: nb 8s infinite;
+}
+@keyframes rs {
+  0%,
+  6.25% {
+    clip-path: inset(0 0 100% 0);
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  7.025% {
+    clip-path: inset(0 0 92.9% 0);
+    transform: translateX(3px);
+    animation-timing-function: steps(1, end);
+  }
+  7.8% {
+    clip-path: inset(0 0 85.7% 0);
+    transform: translateX(-2px);
+    animation-timing-function: steps(1, end);
+  }
+  8.575% {
+    clip-path: inset(0 0 78.6% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  9.35% {
+    clip-path: inset(0 0 71.4% 0);
+    transform: translateX(4px);
+    animation-timing-function: steps(1, end);
+  }
+  10.125% {
+    clip-path: inset(0 0 64.3% 0);
+    transform: translateX(-3px);
+    animation-timing-function: steps(1, end);
+  }
+  10.9% {
+    clip-path: inset(0 0 57.1% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  11.675% {
+    clip-path: inset(0 0 50% 0);
+    transform: translateX(2px);
+    animation-timing-function: steps(1, end);
+  }
+  12.45% {
+    clip-path: inset(0 0 42.9% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  13.225% {
+    clip-path: inset(0 0 35.7% 0);
+    transform: translateX(-4px);
+    animation-timing-function: steps(1, end);
+  }
+  14% {
+    clip-path: inset(0 0 28.6% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  14.775% {
+    clip-path: inset(0 0 21.4% 0);
+    transform: translateX(3px);
+    animation-timing-function: steps(1, end);
+  }
+  15.55% {
+    clip-path: inset(0 0 14.3% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  16.325% {
+    clip-path: inset(0 0 7.1% 0);
+    transform: translateX(-1px);
+    animation-timing-function: steps(1, end);
+  }
+  17.1% {
+    clip-path: inset(0 0 0% 0);
+    transform: translateX(0px);
+    animation-timing-function: steps(1, end);
+  }
+  17.5%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translateX(0);
+  }
+}
+.rs {
+  animation: rs 8s infinite;
+}
+@keyframes sw {
+  0%,
+  6.25% {
+    opacity: 0;
+    transform: translateY(0);
+    animation-timing-function: steps(14, end);
+  }
+  6.263% {
+    opacity: 0.9;
+    transform: translateY(0);
+    animation-timing-function: steps(14, end);
+  }
+  17.1% {
+    opacity: 0.9;
+    transform: translateY(704px);
+    animation-timing-function: steps(1, end);
+  }
+  17.113%,
+  100% {
+    opacity: 0;
+    transform: translateY(704px);
+  }
+}
+.sw {
+  animation: sw 8s infinite;
+}
+@keyframes hx {
+  0%,
+  3.25% {
+    transform: translateY(0);
+    animation-timing-function: steps(16, end);
+  }
+  17.5%,
+  100% {
+    transform: translateY(-256px);
+  }
+}
+.hx {
+  animation: hx 8s infinite;
+}
+@keyframes ph {
+  0% {
+    transform: translateX(0);
+  }
+  22.5%,
+  100% {
+    transform: translateX(1280px);
+  }
+}
+.ph {
+  animation: ph 8s infinite linear;
+}
+@keyframes tx {
+  0%,
+  13.75% {
+    transform: scaleX(0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  16.25%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+.tx {
+  animation: tx 8s infinite;
+}
+@keyframes ty {
+  0%,
+  13.75% {
+    transform: scaleY(0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  16.25%,
+  100% {
+    transform: scaleY(1);
+  }
+}
+.ty {
+  animation: ty 8s infinite;
+}
+@keyframes fr {
+  0%,
+  16.238% {
+    opacity: 0;
+    transform: scale(1.05);
+    animation-timing-function: steps(1, end);
+  }
+  16.25% {
+    opacity: 1;
+    transform: scale(1.05);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  18.5%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.fr {
+  animation: fr 8s infinite;
+}
+@keyframes lk {
+  0%,
+  16.238% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  16.25% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  16.75% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  17.25% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  20.625% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  20.637%,
+  100% {
+    opacity: 0;
+  }
+}
+.lk {
+  animation: lk 8s infinite;
+}
+@keyframes sl {
+  0%,
+  17.75% {
+    opacity: 0;
+    transform: scaleX(0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  17.762% {
+    opacity: 1;
+    transform: scaleX(0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  18.875% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+  20%,
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+.sl {
+  animation: sl 8s infinite;
+}
+@keyframes op {
+  0%,
+  18.75% {
+    clip-path: inset(50% 0 50% 0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  21.75%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.op {
+  animation: op 8s infinite;
+}
+@keyframes fl {
+  0%,
+  18.75% {
+    opacity: 0;
+  }
+  19.5% {
+    opacity: 0.14;
+  }
+  22.5%,
+  100% {
+    opacity: 0;
+  }
+}
+.fl {
+  animation: fl 8s infinite linear;
+}
+@keyframes cur {
+  0%,
+  20.613% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  20.625% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  21.125% {
+    opacity: 0.75;
+    animation-timing-function: steps(1, end);
+  }
+  21.625% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  22% {
+    opacity: 0.4;
+    animation-timing-function: steps(1, end);
+  }
+  22.375%,
+  100% {
+    opacity: 0;
+  }
+}
+.cur {
+  animation: cur 8s infinite;
+}
+@keyframes hs {
+  0%,
+  20.613% {
+    opacity: 0;
+    animation-timing-function: steps(1, end);
+  }
+  20.625% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  21.613% {
+    opacity: 1;
+    animation-timing-function: steps(1, end);
+  }
+  21.625%,
+  100% {
+    opacity: 0;
+  }
+}
+.hs {
+  animation: hs 8s infinite;
+}
+@keyframes pg {
+  0%,
+  5.25% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(24, end);
+  }
+  15.313%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.pg {
+  animation: pg 8s infinite;
+}
+@keyframes jl {
+  0%,
+  5.212% {
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  5.225% {
+    transform: translateX(3px);
+    animation-timing-function: steps(1, end);
+  }
+  5.65% {
+    transform: translateX(0);
+    animation-timing-function: steps(1, end);
+  }
+  16.2% {
+    transform: translateX(-2px);
+    animation-timing-function: steps(1, end);
+  }
+  16.625%,
+  100% {
+    transform: translateX(0);
+  }
+}
+.jl {
+  animation: jl 8s infinite;
+}
+@keyframes mt {
+  0%,
+  22.5% {
+    clip-path: inset(0 100% 0 0);
+    animation-timing-function: steps(14, end);
+  }
+  28.75%,
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.pg0 [role='meter'] > div:last-child > i:first-child {
+  animation: mt 8s infinite;
+}
+@keyframes vrs {
+  0%,
+  5.5% {
+    visibility: hidden;
+  }
+  5.51%,
+  100% {
+    visibility: visible;
+  }
+}
+@keyframes vfr {
+  0%,
+  15% {
+    visibility: hidden;
+  }
+  15.01%,
+  100% {
+    visibility: visible;
+  }
+}
+.rs {
+  animation:
+    rs 8s infinite,
+    vrs 8s infinite;
+}
+.fr {
+  animation:
+    fr 8s infinite,
+    vfr 8s infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [class],
+  .pg0 [role='meter'] > div:last-child > i:first-child {
+    animation: none !important;
+  }
+}

@@ -11,6 +11,7 @@
     "docs/design/brand/**",
     "docs/design/website/*.dc.html",
     "docs/design/website/canvas.json",
+    "docs/design/website/handoff/**",
     "docs/assets/captures/**",
     "tools/node_modules/**",
     "tools/bun.lock",
