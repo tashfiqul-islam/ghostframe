@@ -82,6 +82,7 @@ const artboardValues = {
   '--stagger': '30ms',
   '--slide': '380ms',
   '--pupil': '520ms',
+  '--weight-mono-medium': '500',
   '--type-display': '64px',
   '--type-display-phone': '40px',
   '--type-hero': '60px',

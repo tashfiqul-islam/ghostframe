@@ -18,8 +18,18 @@ const typographyToken: Record<string, ((key: string) => string) | undefined> = {
   fontFamily: (key: string) => (sans.has(key) ? '--sans' : '--mono')
 }
 
-// DESIGN.md writes a bare zero as 0px and a font stack without quotes; tokens.css may not.
-const normal = (value: unknown) => String(value).replaceAll(/['"]/g, '').replace(/^0$/, '0px').toLowerCase()
+// DESIGN.md writes a bare zero as 0px, "40 px" with a space and a font stack without quotes; tokens.css may not.
+const normal = (value: unknown) =>
+  String(value)
+    .replaceAll(/['"\s]/g, '')
+    .replace(/^0$/, '0px')
+    .toLowerCase()
+
+// The prose binds a value to its token as `--token` (value). A value may hold one level of parentheses: cubic-bezier(...).
+const boundPair = /`(--[\w-]+)`\s+\(((?:[^()]|\([^()]*\))+)\)/g
+const boundPairs = (markdown: string): [path: string, token: string, value: string][] =>
+  [...markdown.matchAll(boundPair)].map(([, token, value]) => [`prose ${token!}`, token!, value!])
+const prose = designMd.replace(/^---[\s\S]*?\r?\n---/, '')
 
 // Each failing line names the DESIGN.md path, the token and both values.
 function drift(pairs: [path: string, token: string, value: unknown][]): string[] {
@@ -58,14 +68,37 @@ describe('DESIGN.md frontmatter', () => {
   })
 })
 
-test('DESIGN.md names every --bp-* token in its Layout section', () => {
-  const layout = designMd.split(/^## /m).find(section => section.startsWith('Layout')) ?? ''
-  const breakpoints = [...tokens].filter(([name]) => name.startsWith('--bp-'))
-  expect(breakpoints.length).toBeGreaterThan(0)
-  for (const [name, value] of breakpoints) {
-    expect([name, layout.includes(`\`${name}\``)]).toEqual([name, true])
-    expect([name, layout.includes(value.replace('px', ''))]).toEqual([name, true])
-  }
+describe('DESIGN.md prose', () => {
+  test('every value it binds to a token equals that token', () => {
+    expect(boundPairs(prose).length).toBeGreaterThan(20)
+    expect(drift(boundPairs(prose))).toEqual([])
+  })
+
+  test('binds every --bp-* token to its value in the Layout section', () => {
+    const layout = prose.split(/^## /m).find(section => section.startsWith('Layout')) ?? ''
+    const named = new Set(boundPairs(layout).map(([, token]) => token))
+    const breakpoints = [...tokens.keys()].filter(name => name.startsWith('--bp-'))
+    expect(breakpoints.length).toBeGreaterThan(0)
+    expect(breakpoints.filter(name => !named.has(name))).toEqual([])
+  })
+
+  test('states every colour, space, radius and type token, in the frontmatter or as a bound pair', () => {
+    const typeOf = Object.entries(record.typography).flatMap(([key, props]) => Object.keys(props).flatMap(prop => typographyToken[prop]?.(key) ?? []))
+    const stated = new Set([
+      ...Object.keys(record.colors).map(k => `--${k}`),
+      ...Object.keys(record.spacing).map(k => `--space-${k}`),
+      ...Object.keys(record.rounded).map(k => `--radius-${k}`),
+      ...typeOf,
+      ...boundPairs(prose).map(([, token]) => token)
+    ])
+    const statable = /^--(space|radius|type|weight|leading|track)-|^--(cell-[wh]|press|move|ease-out)$/
+    const owed = [...tokens].filter(([name, value]) => value.startsWith('#') || statable.test(name)).map(([name]) => name)
+    expect(owed.filter(name => !stated.has(name))).toEqual([])
+  })
+
+  test('catches a bound value that differs from its token', () => {
+    expect(drift(boundPairs('`--type-hero` (61 px)'))).toEqual(['prose --type-hero: --type-hero is 60px, DESIGN.md says 61 px'])
+  })
 })
 
 describe('readDesignRecord', () => {

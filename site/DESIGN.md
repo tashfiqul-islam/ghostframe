@@ -165,13 +165,22 @@ a release state.
 
 ### Hierarchy
 
-- **Display** (800, 64 px at 1440 and 40 px at 390, 0.98, -0.04em): section headlines. The hero headline is 60 px and
-  44 px.
-- **Title** (700, 24 px, 1.15, -0.015em): parts inside a section.
-- **Lead** (400, 22 px, 1.55): the sentence under a headline.
-- **Body** (400, 18 px, 1.55): prose, 60 to 72 characters a line.
-- **Mono** (400 and 500, 14 px, 1.6): commands, terminal text, code. The terminal itself is 13.333 px, an 8 px advance.
-- **Label** (mono 400, 11 px, uppercase, 0.13em): section labels, chips, readouts.
+Each value below is written as its token name followed by the value in parentheses, and build/tokens holds every such
+pair to `src/styles/tokens.css`.
+
+- **Display**: weight `--weight-display` (800), size `--type-display` (64 px) at 1440 and `--type-display-phone` (40
+  px) at 390, line height `--leading-display` (0.98), tracking `--track-display` (-0.04em). Section headlines. The
+  hero headline is `--type-hero` (60 px) and `--type-hero-phone` (44 px).
+- **Title**: weight `--weight-title` (700), size `--type-title` (24 px), line height `--leading-title` (1.15),
+  tracking `--track-title` (-0.015em). Parts inside a section.
+- **Lead**: weight `--weight-lead` (400), size `--type-lead` (22 px), line height `--leading-lead` (1.55). The
+  sentence under a headline.
+- **Body**: weight `--weight-body` (400), size `--type-body` (18 px), line height `--leading-body` (1.55). Prose, 60
+  to 72 characters a line.
+- **Mono**: weight `--weight-mono` (400) and `--weight-mono-medium` (500), size `--type-mono` (14 px), line height
+  `--leading-mono` (1.6). Commands, terminal text, code. The terminal itself is 13.333 px, an 8 px advance.
+- **Label**: mono, weight `--weight-label` (400), size `--type-label` (11 px), uppercase, tracking `--track-label`
+  (0.13em). Section labels, chips, readouts.
 
 ### Named Rules
 
@@ -181,19 +190,21 @@ a release state.
 
 ## Layout
 
-The cell grid is 8 by 16 px. At 1440 the content is 160 columns, 1280 px inside 80 px margins, on 12 columns with 24
+The cell grid is `--cell-w` (8 px) by `--cell-h` (16 px). At 1440 the content is 160 columns, 1280 px inside 80 px margins, on 12 columns with 24
 px gutters; the page edge lines run at x = 56 and x = 1383. Each section opens with a 36 px title block: its file
 number, name and count on the left, its row range on the right. A column ruler runs under the nav and a row ruler down
 the left edge.
 
 Responsive rules (HANDOFF.md section 9): 1440 and up keeps the 1440 design centred; 1024 to 1439 scales the hero stage
 and the demo by `width / 1440` and keeps the layout; 600 to 1023 is the 390 layout capped at 560 px; under 600 is the
-390 design, fluid, with 20 px margins. No sideways page scroll from 320 up. Spacing steps are 4, 8, 16, 24, 32, 48, 64
-and 96 px.
+390 design, fluid, with 20 px margins. No sideways page scroll from 320 up.
 
 Three breakpoint tokens record these in `src/styles/tokens.css`, since a media query cannot read a custom property:
-`--bp-narrow` (1023 px, the 390 layout below it), `--bp-fluid` (599 px, 20 px margins below it) and `--bp-pair` (768
-px, two-column groups from it).
+`--bp-narrow` (1023 px) is where the 390 layout starts below, `--bp-fluid` (599 px) is where 20 px margins start below,
+and `--bp-pair` (768 px) is where two-column groups start from.
+
+Spacing steps: `--space-1` (4 px), `--space-2` (8 px), `--space-3` (16 px), `--space-4` (24 px), `--space-5` (32 px),
+`--space-6` (48 px), `--space-7` (64 px) and `--space-8` (96 px).
 
 ## Elevation & Depth
 
@@ -203,8 +214,8 @@ Flat. Surfaces step from Obsidian to Graphite to Slate, separated by hairlines. 
 
 ## Shapes
 
-**The Square Frame Rule.** Frames, tiles and title blocks are square. Controls (buttons, wells) are 6 px, chips and
-keys 4 px. Nothing is a pill.
+**The Square Frame Rule.** Frames, tiles and title blocks are square, `--radius-frame` (0). Controls (buttons, wells) are
+`--radius-button` (6 px), chips and keys `--radius-chip` (4 px). Nothing is a pill.
 
 The frame: a 1 px inner outline at 18% white and four 16 px gold corner brackets, 2 px thick, 2 px outside the
 rectangle. The brackets never scale with the frame.
@@ -213,27 +224,27 @@ rectangle. The brackets never scale with the frame.
 
 ### Buttons
 
-- **Shape:** gently rounded (6 px).
+- **Shape:** gently rounded, `--radius-button` (6 px).
 - **Primary:** Eye Gold with Obsidian text. One per view: Install.
 - **Secondary:** Graphite with a hairline outline and Bone text; ghost buttons drop the fill.
 - **Hover / Focus:** hover styles only on fine pointers; a 2 px gold outline 3 px out on `:focus-visible`; presses
-  scale to 0.97 in 140 ms.
+  scale to 0.97 in `--press` (140 ms).
 
 ### Chips
 
-- **Style:** 4 px radius, Graphite, mono label. The version chip carries a calm dot.
+- **Style:** `--radius-chip` (4 px) radius, Graphite, mono label. The version chip carries a calm dot.
 - **State:** filter chips are toggle buttons; one is always on.
 
 ### Command block
 
-A well on Abyss (6 px), the gold prompt mark, the command in mono, and a COPY button in one of three copy states: idle,
+A well on Abyss with `--radius-button` (6 px), the gold prompt mark, the command in mono, and a COPY button in one of three copy states: idle,
 copied (COPIED with a tick for 1.2 s), and blocked (the command selected, "SELECTED", announced).
 
 ### Navigation
 
 An 80 px band: the lockup, four numbered links in one outlined 40 px track, the version chip, icon links and a quiet
-outlined Install. The nav frame (40 px, Graphite, four 6 px gold corners) slides to the link under the pointer in 240
-ms and jumps from the keyboard. After 96 px of scroll the docked bar appears: 1088 by 56 px, fixed 12 px from the top,
+outlined Install. The nav frame (40 px, Graphite, four 6 px gold corners) slides to the link under the pointer in
+`--move` (240 ms) and jumps from the keyboard. After 96 px of scroll the docked bar appears: 1088 by 56 px, fixed 12 px from the top,
 with a progress line in gold. At 390 a menu button opens the menu sheet.
 
 ### Status tile
@@ -247,7 +258,7 @@ coloured by the eye state, with a pace marker.
 
 - **Do** take every colour, space, radius, motion value and breakpoint from `src/styles/tokens.css`.
 - **Do** snap every position the script sets to a multiple of 8 horizontally and 16 vertically.
-- **Do** animate only `transform` and `opacity`, ease out with `cubic-bezier(.2,.8,.2,1)`, and keep anything the
+- **Do** animate only `transform` and `opacity`, ease out with `--ease-out` (cubic-bezier(0.2, 0.8, 0.2, 1)), and keep anything the
   pointer drives a transition.
 - **Do** keep a pause, a text version and a reduced-motion state that tells the whole story.
 
