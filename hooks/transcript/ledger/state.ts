@@ -16,7 +16,7 @@ import type {
   TurnAfter,
   TurnClose
 } from '../../../types'
-import { capTurns, changeHeld, loadHeld, type Held } from '../../shared/held'
+import { capTurns, changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -216,22 +216,28 @@ export async function updateShips($: EngineInterface, change: (list: ShipStamp[]
  * @returns the stamps
  */
 export async function readSteps($: EngineInterface): Promise<StepStamp[]> {
-  return [...(await read($, steps)), ...stamping.values()]
+  await read($, stepsTick)
+  if (heldSteps.value === undefined) await loadHeld(heldSteps, read($, steps))
+
+  return [...changeHeld(heldSteps, list => list), ...stamping.values()]
 }
 
 // Up to 400 stamps, so each tool call writes the list once, at its end, and never reads it back (shared/held.ts): a
-// running call's stamp is held here until then, and `readSteps` gives it with the rest. Its rows draw again when the
-// call ends, as they did.
+// running call's stamp is held here until then, and `readSteps` gives it with the rest. A draw reads `stepsTick`, which
+// moves at a call's start and at its end, so its rows draw again at both, as they did, with no copy of the list.
 // shortcut: a reload while a call runs loses that call's stamp; its end then stamps it from its end alone.
 const stamping = new Map<string, StepStamp>()
 const heldSteps: Held<StepStamp[]> = {}
+const stepsTick = atom({ plugin: 'ghostframe', key: 'stepsTick' } as const, 0, { shape: 'stepsTick-1' })
 
 /**
- * A main-loop call started: its stamp, held until it ends.
+ * A main-loop call started: its stamp, held until it ends, and its rows told.
+ * @param $ the engine interface
  * @param stamp the call's id, turn, start and tool
  */
-export function stampStart(stamp: StepStamp): void {
+export async function stampStart($: EngineInterface, stamp: StepStamp): Promise<void> {
   stamping.set(stamp.id, stamp)
+  await $.state.set({ plugin: 'ghostframe', key: 'stepsTick' }, { shape: 'stepsTick-1', value: nextTick(heldSteps) })
 }
 
 /**
@@ -256,6 +262,7 @@ export async function stampEnd($: EngineInterface, id: string, end: Pick<StepSta
   })
 
   await $.state.set({ plugin: 'ghostframe', key: 'steps' }, { shape: 'steps-1', value })
+  await $.state.set({ plugin: 'ghostframe', key: 'stepsTick' }, { shape: 'stepsTick-1', value: nextTick(heldSteps) })
 }
 
 export async function readTurn($: EngineInterface): Promise<string | null> {

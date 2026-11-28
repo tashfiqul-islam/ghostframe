@@ -4,7 +4,7 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { FlowStamp } from '../../types'
-import { changeHeld, loadHeld, type Held } from './held'
+import { changeHeld, loadHeld, nextTick, type Held } from './held'
 
 // Session state (survives a reload). Change the shape tag when its fields change.
 const flow = atom({ plugin: 'ghostframe', key: 'flow' } as const, [] as FlowStamp[], { shape: 'flow-1' })
@@ -12,13 +12,19 @@ const flow = atom({ plugin: 'ghostframe', key: 'flow' } as const, [] as FlowStam
 // and a hook outside a draw reads it with no copy through $.state.
 const held: Held<FlowStamp[]> = {}
 
+// Moved at each write of the flow: a draw reads this number, which draws it again when the flow changes, and takes the
+// flow itself as held, so no draw copies 600 stamps (held.ts).
+const flowTick = atom({ plugin: 'ghostframe', key: 'flowTick' } as const, 0, { shape: 'flowTick-1' })
+
 /**
- * The flow, for a draw: read through $.state, so the drawing is drawn again when it changes.
+ * The flow, for a draw: it is drawn again when the flow changes.
  * @param $ the engine interface
  * @returns the flow
  */
-export async function readFlow($: EngineInterface): Promise<FlowStamp[]> {
-  return read($, flow)
+export async function readFlow($: EngineInterface): Promise<readonly FlowStamp[]> {
+  await read($, flowTick)
+
+  return flowNow($)
 }
 
 /**
@@ -38,6 +44,7 @@ export async function updateFlow($: EngineInterface, change: (list: FlowStamp[])
   const value = changeHeld(held, change)
 
   await $.state.set({ plugin: 'ghostframe', key: 'flow' }, { shape: 'flow-1', value })
+  await $.state.set({ plugin: 'ghostframe', key: 'flowTick' }, { shape: 'flowTick-1', value: nextTick(held) })
 
   return value
 }

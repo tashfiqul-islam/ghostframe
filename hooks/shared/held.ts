@@ -10,7 +10,7 @@
 //   await $.state.set({ plugin: 'ghostframe', key: 'list' }, { shape: 'list-1', value })
 
 /** A value this plugin alone writes, as it last wrote it. */
-export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined }
+export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined; tick?: number }
 
 /**
  * Holds the value read from `$.state`, once: changes waiting on the same first read share it.
@@ -41,11 +41,24 @@ export async function loadHeld<T>(held: Held<T>, reading: Promise<T>): Promise<v
  */
 export function changeHeld<T>(held: Held<T>, fn: (value: T) => T): T {
   if (held.value === undefined) throw new Error('changeHeld before loadHeld')
-  const v = fn(held.value.v)
+  // Frozen (its top level): draws and hooks share the held value, so a change in place would throw, not leak.
+  const v = Object.freeze(fn(held.value.v)) as T
 
   held.value = { v }
 
   return v
+}
+
+/**
+ * The next tick of a held value: what its writer writes beside it, so a draw reads a number (and is drawn again when
+ * it moves) instead of a copy of the whole value. Starts from the clock, so a reload of the module still moves it on.
+ * @param held the held value
+ * @returns the tick to write
+ */
+export function nextTick<T>(held: Held<T>): number {
+  held.tick = Math.max(Date.now(), (held.tick ?? 0) + 1)
+
+  return held.tick
 }
 
 // Least recently remembered goes first: a key written again moves to the newest end.
