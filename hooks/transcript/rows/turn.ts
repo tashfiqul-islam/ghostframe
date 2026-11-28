@@ -6,10 +6,12 @@ import { bottomEdge, cardRow, topEdge } from '../../shared/look/card'
 import { clockTime, duration } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
+import { cutTitle } from '../../shared/look/paths'
 import { NO_LABEL, spineOnly, spineRow } from '../../shared/look/spine'
 import { THOUGHT_LEVELS, trace } from '../../shared/look/trace'
 import { wrapWords } from '../../shared/look/wrap'
 import { widthOf } from '../../shared/look/width'
+import { looksSecret } from './secret'
 
 /** The label state words of amendment 12, in capitals (7.1). */
 const AFTER: Record<TurnAfter, string> = { resume: 'RESUMED', compact: 'AFTER COMPACT', rewind: 'AFTER REWIND' }
@@ -93,11 +95,75 @@ export function pasteShown(text: string, isExpanded: boolean): string {
   return text
     .replace(PASTE, (_, _id: string | undefined, body: string) => {
       n++
-      const breaks = body.split('\n').length - 1
 
-      return isExpanded ? body : `[Pasted text #${n}${breaks === 0 ? '' : ` +${breaks} lines`}]`
+      return isExpanded ? body : pasteLabel(n, body)
     })
     .trim()
+}
+
+/** Claude Code's composer name for the nth paste: `[Pasted text #1 +59 lines]`, its line breaks counted. */
+function pasteLabel(n: number, body: string): string {
+  const breaks = body.split('\n').length - 1
+
+  return `[Pasted text #${n}${breaks === 0 ? '' : ` +${breaks} lines`}]`
+}
+
+// The row kinds a message's text carries after `pasteText`: a paste's preview row, and the count of its hidden lines.
+// Control characters a typed prompt never holds (they are stripped from it first).
+export const PASTE_ROW = '\u0001'
+export const MORE_ROW = '\u0002'
+
+/**
+ * A prompt as its row shows it, with paste previews (7.2): each paste in its place as its first one or two non-blank
+ * lines (`PASTE_ROW` rows), then `+N lines` for the rest (a `MORE_ROW` row); a paste of blank lines only, or one that
+ * looks like it holds a secret, keeps the plain label. Expanded (ctrl+o), or with previews off, as `pasteShown`.
+ * @param text the prompt as the row carries it
+ * @param isExpanded whether the view draws the row in full
+ * @param isPreviewOn the `pastePreview` option
+ * @returns the text to draw, its preview rows marked
+ */
+export function pasteText(text: string, isExpanded: boolean, isPreviewOn: boolean): string {
+  if (isExpanded || !isPreviewOn) return pasteShown(text, isExpanded)
+
+  let n = 0
+
+  return text
+    .replaceAll(PASTE_ROW, '')
+    .replaceAll(MORE_ROW, '')
+    .replace(PASTE, (whole: string, _id: string | undefined, body: string, at: number, all: string) => {
+      n++
+      const lines = body.replaceAll('\t', '  ').split('\n')
+      const shown = lines.flatMap((l, i) => (l.trim() === '' ? [] : [i])).slice(0, 2)
+
+      if (shown.length === 0 || looksSecret(body)) return pasteLabel(n, body)
+
+      const hidden = lines.findLastIndex(l => l.trim() !== '') - (shown.at(-1) ?? 0)
+      const rows = [...shown.map(i => `${PASTE_ROW}${lines[i] ?? ''}`), ...(hidden > 0 ? [`${MORE_ROW}+${hidden} line${hidden === 1 ? '' : 's'}`] : [])]
+      // The preview is rows of its own: typed words on the same line stay on theirs.
+      const before = at === 0 || all[at - 1] === '\n' ? '' : '\n'
+      const after = at + whole.length >= all.length || all[at + whole.length] === '\n' ? '' : '\n'
+
+      return `${before}${rows.join('\n')}${after}`
+    })
+    .trim()
+}
+
+/**
+ * A preview row's parts after the message glyph (7.2): the dim `▏` and the line in `textBright`, cut with `…` at the
+ * row's room; the count row `+N lines` in muted, at the line's indent. Undefined for a typed row.
+ * @param row one row of `pasteText`'s text
+ * @param room the cells the row's text may take
+ * @returns the parts, or undefined
+ */
+export function pasteRowParts(row: string, room: number): Part[] | undefined {
+  if (row.startsWith(PASTE_ROW)) {
+    return [
+      { t: ` ${GLYPH.quote}`, color: TOKEN.dim },
+      { t: ` ${cutTitle(row.slice(1), room - 2)}`, color: TOKEN.textBright }
+    ]
+  }
+
+  return row.startsWith(MORE_ROW) ? [{ t: `   ${row.slice(1)}`, color: TOKEN.muted }] : undefined
 }
 
 /**
@@ -111,13 +177,17 @@ export function pasteShown(text: string, isExpanded: boolean): string {
  * @returns the rows
  */
 export function messageCard(text: string, kind: MessageKind, width: number, at?: number): Part[][] {
-  const rows = wrapWords(text.trim(), width - 4 - 2 - (kind === 'added' || kind === 'queued' ? 8 : 0))
+  const room = width - 4 - 2 - (kind === 'added' || kind === 'queued' ? 8 : 0)
+  const rows = text
+    .trim()
+    .split('\n')
+    .flatMap(line => (line.startsWith(PASTE_ROW) || line.startsWith(MORE_ROW) ? [line] : wrapWords(line, room)))
   const label =
     kind === 'toAgent' ? { t: 'from main', color: TOKEN.dim } : at !== undefined && kind !== 'typed' ? { t: clockTime(at), color: TOKEN.machine } : NO_LABEL
   const right: Part[] = kind === 'added' ? [{ t: 'added', color: TOKEN.muted }] : kind === 'queued' ? [{ t: 'QUEUED', color: TOKEN.muted, bold: true }] : []
   const body = rows.map((r, i) =>
     cardRow(
-      [i === 0 ? MESSAGE_GLYPH[kind] : { t: ' ', color: TOKEN.dim }, { t: ` ${r}`, color: TOKEN.textBright }],
+      [i === 0 ? MESSAGE_GLYPH[kind] : { t: ' ', color: TOKEN.dim }, ...(pasteRowParts(r, room) ?? [{ t: ` ${r}`, color: TOKEN.textBright }])],
       TOKEN.surface,
       width,
       i === 0 ? label : NO_LABEL,

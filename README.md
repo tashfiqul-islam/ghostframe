@@ -274,6 +274,15 @@ Turn **Cockpit pane** off in `/config`, or set `GHOSTFRAME_COCKPIT=0` for one se
 </details>
 
 <details>
+<summary><b>Will a pasted key show on screen?</b></summary>
+
+A long paste shows its first lines and `+N lines` for the rest. A paste that looks like it holds a key, token or
+password keeps the plain `[Pasted text #1 +N lines]` label instead. Turn **Paste previews** off in `/config` to keep
+every paste the plain label.
+
+</details>
+
+<details>
 <summary><b>The status line shows empty boxes.</b></summary>
 
 Its icons need a [Nerd Font](https://www.nerdfonts.com/). Set one in your terminal, or turn **Status line icons**

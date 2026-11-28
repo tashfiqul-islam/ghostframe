@@ -7,9 +7,12 @@ Set them in `/config`, or from your shell with `claude plugin configure ghostfra
 | Option            | In `/config`          | Default | Does                                                                              |
 | ----------------- | --------------------- | ------- | --------------------------------------------------------------------------------- |
 | `cockpit`         | **Cockpit pane**      | on      | Cockpit: the left's new look and the pane. Off, every row draws as Claude Code's. |
+| `pastePreview`    | **Paste previews**    | on      | A long paste shows its first lines and `+N lines`. Off, only `[Pasted text #1]`.  |
 | `statuslineIcons` | **Status line icons** | on      | The status line's Nerd Font icons. Off, it draws the same layout without them.    |
 
 The status line reads `statuslineIcons` on every update, so a change shows at once.
+
+A paste that looks like it holds a key, token or password keeps the plain label even with `pastePreview` on.
 
 ## `GHOSTFRAME_COCKPIT`
 

@@ -1,6 +1,6 @@
 // The user prompt's row: the turn rule with its submit time, then `you` and the message behind a rail. While Cockpit
 // is on, the rule is E.1's `─ [ TURN n ] ─── 09:23` (amendment 12), also above the engine's own row in ctrl+o.
-import type { EngineInterface, On, RenderPropsOf } from 'claude-code'
+import type { EngineInterface, On, PluginOptions, RenderPropsOf } from 'claude-code'
 import { noteOwnTime } from '../../shared/budget'
 
 import { isOn, noticeSink, readEnvOnce } from '../../cockpit/switch'
@@ -9,6 +9,8 @@ import { drawAgentNotice, drawTaskNotice, isFallbackRow, isQuietRow, keptAgents,
 import { readLog } from '../../cockpit/log'
 import { G, layout, ruleWidth } from '../../shared/layout'
 import { dayWord } from '../../shared/look/format'
+import { GLYPH } from '../../shared/look/glyphs'
+import { cutTitle } from '../../shared/look/paths'
 import { spineOnly, textCells } from '../../shared/look/spine'
 import type { Part } from '../../shared/parts'
 import { Rule } from '../../shared/rule'
@@ -22,7 +24,7 @@ import { isSameText, readPrompts, readTaskNotice, storedPrompts } from '../ledge
 import { remember } from '../../shared/held'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
 import { wrapPlain } from '../prose'
-import { messageCard, pasteShown, turnHeader } from '../rows/turn'
+import { MORE_ROW, PASTE_ROW, messageCard, pasteText, turnHeader } from '../rows/turn'
 import type { Header } from '../rows/turn'
 import { dormantFor } from '../../shared/engine'
 
@@ -193,8 +195,11 @@ async function isAgentRow($: EngineInterface, p: RenderPropsOf['UserMessage']): 
 /**
  * Adds the user prompt's drawing (`UserMessage`).
  * @param on the `on` that `register` receives
+ * @param options the plugin's options; `pastePreview: false` keeps every paste the plain label (7.2)
  */
-export function registerPrompt(on: On): void {
+export function registerPrompt(on: On, options: PluginOptions): void {
+  const isPreviewOn = options['pastePreview'] !== false
+
   // User prompt: peach rail over the full height, text verbatim. Task notifications get the tree look.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     try {
@@ -211,7 +216,7 @@ export function registerPrompt(on: On): void {
       if (e.props.origin.kind === 'composer' && isQuietRow(e)) {
         const ui = $.ui.resolve(e)
         const o = await promptOpening($, e.requestId, e.props.text)
-        const rows = openingRows(o, pasteShown(e.props.text, e.props.isExpanded), textCells(e.viewport?.columns, !isFallbackRow(e)))
+        const rows = openingRows(o, pasteText(e.props.text, e.props.isExpanded, isPreviewOn), textCells(e.viewport?.columns, !isFallbackRow(e)))
 
         return (
           <ui.Box flexDirection="column" marginTop={o.kind === 'typed' ? 1 : 0}>
@@ -282,7 +287,21 @@ export function registerPrompt(on: On): void {
       // Cockpit off: the classic rule with the submit time, as on main.
       const claimed = claimPrompt(e.requestId, e.props.text, await readPrompts($))
       const rule = Rule(ui, claimed ? { text: fmtClock(claimed.at), color: C.muted } : undefined, undefined, ruleWidth(lay))
-      const rows = wrapPlain(pasteShown(e.props.text, false), width - 2)
+      const rows = pasteText(e.props.text, false, isPreviewOn)
+        .split('\n')
+        .flatMap(line => (line.startsWith(PASTE_ROW) || line.startsWith(MORE_ROW) ? [line] : wrapPlain(line, width - 2)))
+      // A paste's preview row and its count, in this row's palette (7.2).
+      const shown = (row: string, i: number) =>
+        row.startsWith(PASTE_ROW) ? (
+          [
+            <Text key={`${i}.mark`} color={C.dim}>{` ${GLYPH.quote}`}</Text>,
+            <Text key={`${i}.text`} color={C.textBright}>{` ${cutTitle(row.slice(1), width - 4)}`}</Text>
+          ]
+        ) : row.startsWith(MORE_ROW) ? (
+          <Text key={`${i}.text`} color={C.muted}>{`   ${row.slice(1)}`}</Text>
+        ) : (
+          <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
+        )
 
       return (
         <Box flexDirection="column">
@@ -299,7 +318,7 @@ export function registerPrompt(on: On): void {
                 <Text key={`${i}.rail`} color={C.accent}>
                   {G.rail}
                 </Text>,
-                <Text key={`${i}.text`} color={C.textBright}>{` ${row}`}</Text>
+                shown(row, i)
               ])}
             </Text>,
             1
