@@ -17,7 +17,7 @@ import { C } from '../../shared/tokens'
 import { claim } from '../claim'
 import { cell } from '../draw/cell'
 import { drawRows } from '../draw/parts'
-import { sessionCwd } from '../ledger/session'
+import { isCompacting, sessionCwd } from '../ledger/session'
 import { isSameText, readPrompts, readTaskNotice, storedPrompts } from '../ledger/state'
 import { remember } from '../../shared/held'
 import { isPendingStart, lastSubmittedAt } from '../ledger/turns'
@@ -50,7 +50,7 @@ const claimPrompt = (row: string, text: string, list: readonly PromptStamp[]) =>
  * How a typed prompt opens its row while Cockpit is on (7.1, 7.2, amendment 12): a turn of its own (its header's
  * facts), a message added to the running turn (`↳`, its clock), or one queued for the next (`⋯`, its clock).
  */
-type Opening = { kind: 'typed'; header: Header } | { kind: 'added' | 'queued'; at: number }
+type Opening = { kind: 'typed'; header: Header } | { kind: 'added' | 'queued'; at: number | undefined }
 
 // Whether each turn's header first drew while its turn ran, by its number and submit time (a new session numbers
 // from 1 again, never at the same time): a header drawn again keeps the `◆` colour it first drew with, so the row never
@@ -92,6 +92,10 @@ async function promptOpening($: EngineInterface, row: string, text: string): Pro
   if (stamp?.over !== undefined && stamp.turnNo === undefined && !isPendingStart(stamp)) {
     return { kind: stamp.steerMs === undefined ? 'queued' : 'added', at: stamp.at }
   }
+
+  // A prompt typed while a compaction runs waits in the engine's queue, drawn before its submit: no stamp, no clock.
+  // shortcut: a stampless older row first drawn during a compaction (scrolled into view) draws queued until it ends.
+  if (stamp === undefined && isCompacting()) return { kind: 'queued', at: undefined }
 
   // A numbered turn whose header has drawn needs nothing of the step log (its number is the stamp's, its colour the
   // one it first drew with): it is not read, so a row the person scrolls past costs no read of every step, and the
