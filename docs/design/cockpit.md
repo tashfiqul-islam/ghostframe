@@ -466,6 +466,8 @@ The new name for the first spec's capsule. `◇` and `worked` in dim, a trace, t
 
 `⎿ Interrupted · What should Claude do instead?`, `※ Conversation compacted · …`, `↺ Resumed · claude --continue · Tue 24 Nov`, the welcome header and Bash mode keep the engine's look. Cockpit places them on the spine (`│`) and draws nothing over them.
 
+- **`/compact` stays at the left edge.** Once a compaction ends, Claude Code 2.1.332 draws `❯ /compact`, `⎿ Compacted (ctrl+o to see full summary)` and the settings hooks' rows under it as one engine row that raises no render site, so Cockpit cannot place them. The echo raises `UserMessage` (origin `unclassified`) only while the compaction runs, and that row is replaced when it ends. Cockpit leaves it as the engine draws it: moving it onto the spine for those seconds would make the row jump back to the left edge.
+
 ### 7.15 Slash commands
 
 ```text
