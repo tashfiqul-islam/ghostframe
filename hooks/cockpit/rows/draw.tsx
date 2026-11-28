@@ -6,7 +6,7 @@ import type { EngineInterface, RenderElement, RenderInput } from 'claude-code'
 
 import { drawRow } from '../draw'
 import type { Line } from '../line'
-import { noteRing, openRow, pressKey, ringNow } from '../keys/view'
+import { noteRing, openRow, pressKey, redraw, ringNow } from '../keys/view'
 import { GLYPH } from '../../shared/look/glyphs'
 import { selected, underRing } from './pane'
 
@@ -58,7 +58,8 @@ async function moveRing($: EngineInterface, requestId: string, key: string): Pro
     return
   }
   noteRing(key)
-  $.ui.invalidate('ui.render')
+  // Only the pane draws the ring: it alone draws again.
+  await redraw($)
 }
 
 /** Whether an element is one of the hidden key Buttons. */

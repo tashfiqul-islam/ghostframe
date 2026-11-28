@@ -28,7 +28,7 @@ import { restoredLog } from './history/record'
 import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } from './history/store'
 import { clearSwitch } from './tui'
 import { flowNow, isNarrationAt } from '../shared/flow'
-import { changeHeld, loadHeld, nextTick, type Held } from '../shared/held'
+import { changeHeld, type Held, heldValue, loadHeld, nextTick } from '../shared/held'
 import { detailsNow, noteEnd, noteStart, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { commitIn, hookWords, ruledStatement } from './steps/failures'
@@ -72,12 +72,6 @@ let timers: Timer[] = []
 let lastCwd: string | undefined
 
 /**
- * Changes the step log, and the running turn beside it when that changed.
- * @param $ the engine interface
- * @param change the log's change
- * @returns the log as written
- */
-/**
  * The step log for a hook that is not drawing: as last written, with no copy through $.state after a reload's first
  * read. A draw reads it with `readLog`, which redraws it when the log changes.
  * @param $ the engine interface
@@ -86,9 +80,15 @@ let lastCwd: string | undefined
 async function logNow($: EngineInterface): Promise<StepLog> {
   if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
 
-  return changeHeld(heldLog, log => log)
+  return heldValue(heldLog)
 }
 
+/**
+ * Changes the step log, and the running turn beside it when that changed.
+ * @param $ the engine interface
+ * @param change the log's change
+ * @returns the log as written
+ */
 async function updateLog($: EngineInterface, change: (log: StepLog) => StepLog): Promise<StepLog> {
   // Written twice per tool call: changed without being read back (shared/held.ts). This is its only writer.
   if (heldLog.value === undefined) await loadHeld(heldLog, read($, stepLog))
@@ -651,7 +651,7 @@ export async function readReceipts($: EngineInterface): Promise<Receipt[]> {
 async function receiptsHeld($: EngineInterface): Promise<Receipt[]> {
   if (heldReceipts.value === undefined) await loadHeld(heldReceipts, read($, receipts))
 
-  return changeHeld(heldReceipts, list => list)
+  return heldValue(heldReceipts)
 }
 
 /**

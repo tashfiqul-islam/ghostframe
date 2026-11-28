@@ -57,6 +57,12 @@ jobs:
           version: ${{ env.CLAUDE_CODE_VERSION }}
           sha256: ${{ env.CLAUDE_CODE_SHA256_WIN32_X64 }}
 
+      - name: Restore Bun's install cache (the live harness's lockfile)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-install-${{ runner.os }}-live-${{ hashFiles('tools/live/bun.lock') }}
+
       # node-pty's install script places its prebuilt binary; the live checks' lockfile pins it and trusts it alone.
       - name: Install the live harness (node-pty, xterm headless)
         run: bun install --cwd tools/live --frozen-lockfile

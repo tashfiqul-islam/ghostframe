@@ -8,7 +8,7 @@ import type { EngineInterface } from 'claude-code'
 import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
-import { changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
+import { type Held, heldValue, loadHeld, nextTick, setHeld } from '../../shared/held'
 
 const PREFIX = 'history:'
 // The prompts' stamps each session keeps (hooks/transcript/ledger/state.ts): weighed and evicted with its history.
@@ -49,7 +49,7 @@ async function keepHistory($: EngineInterface, turns: readonly TurnRecord[]): Pr
   // Held here (shared/held.ts), never copied into $.state; the store's copy is written by `write`.
   const rows = turns.flatMap(r => r.narration ?? [])
 
-  heldHistory.value = { v: [...turns] }
+  setHeld(heldHistory, [...turns])
   heldNarration.value = { v: new Set(rows) }
   await $.state.set({ plugin: 'ghostframe', key: 'historyTick' }, { shape: 'historyTick-1', value: nextTick(heldHistory) })
   await $.state.set({ plugin: 'ghostframe', key: 'keptNarration' }, { shape: 'keptNarration-1', value: rows })
@@ -74,7 +74,7 @@ export async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
   // keeps its turns from then on, whether or not the store takes them (`saveTurn`).
   if (heldHistory.value === undefined) await loadHeld(heldHistory, readStoreOrNone($))
 
-  return changeHeld(heldHistory, list => list)
+  return heldValue(heldHistory)
 }
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
@@ -296,7 +296,7 @@ export async function saveTurn($: EngineInterface, parts: RecordParts): Promise<
 export async function markCompacted($: EngineInterface): Promise<void> {
   const all = (await historyNow($)).map(r => ({ ...r, receipts: r.receipts.map(compacted) }))
 
-  heldHistory.value = { v: all }
+  setHeld(heldHistory, all)
   await $.state.set({ plugin: 'ghostframe', key: 'historyTick' }, { shape: 'historyTick-1', value: nextTick(heldHistory) })
   try {
     await write($, all)

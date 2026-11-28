@@ -23,6 +23,13 @@ export const NEAR_LIMIT = 0.9
  * and no regression at all.
  */
 export const NOISE_SHARE = 0.05
+/**
+ * A measure's noise floor: its share of the budget as set (BUDGETS), never of a CI runner's 3× limit, which would let a
+ * real slowdown of 15% and more through on CI.
+ * @param budget the measure's budget
+ * @returns the floor, in the budget's unit
+ */
+export const floorOf = (budget: BudgetName): number => BUDGETS[budget].limit * NOISE_SHARE
 
 /** One measure as a harness report holds it (tools/bench/run.ts writes `checks`). */
 type Check = { budget: BudgetName; measure: string; value: number | null; limit: number }
@@ -52,15 +59,16 @@ export function median(values: readonly (number | null)[]): number | null {
  * @param pr the pull request's median, null when it did not measure it
  * @param limit the measure's limit on this runner
  * @param isAccepted whether the pull request has the perf-accepted label
+ * @param floor the noise floor: a slowdown no larger is none
  * @returns the rating
  */
-export function rate(main: number | null, pr: number | null, limit: number, isAccepted: boolean): Rating {
+export function rate(main: number | null, pr: number | null, limit: number, isAccepted: boolean, floor: number): Rating {
   const red = (): Rating => (isAccepted ? 'accepted' : 'red')
 
   if (pr === null) return main === null ? 'yellow' : red()
   if (pr > limit) return red()
 
-  const slower = main !== null && pr - main > limit * NOISE_SHARE ? (pr - main) / Math.max(main, Number.EPSILON) : 0
+  const slower = main !== null && pr - main > floor ? (pr - main) / Math.max(main, Number.EPSILON) : 0
 
   if (slower > BLOCK_SLOWER) return red()
   if (slower > WARN_SLOWER || pr > limit * NEAR_LIMIT) return 'yellow'
@@ -89,7 +97,7 @@ export function compare(mainRuns: readonly (readonly Check[])[], prRuns: readonl
       const main = median(valuesOf(mainRuns, c.measure))
       const pr = median(valuesOf(prRuns, c.measure))
 
-      return { budget: c.budget, measure: c.measure, main, pr, limit: c.limit, rating: rate(main, pr, c.limit, isAccepted) }
+      return { budget: c.budget, measure: c.measure, main, pr, limit: c.limit, rating: rate(main, pr, c.limit, isAccepted, floorOf(c.budget)) }
     })
     .toSorted((a, b) => ORDER[a.rating] - ORDER[b.rating] || a.measure.localeCompare(b.measure))
 }
@@ -140,8 +148,9 @@ export function commentOf(rows: readonly Row[], meta: { runs: number; seconds?: 
     ...rows.map(r => `| ${MARK[r.rating]} | ${r.measure} | ${fmt(r.main)} | ${fmt(r.pr)} | ${change(r)} | ${fmt(r.limit)} ${units(r)} |`),
     '',
     `Harness benchmarks, main and this pull request in one job on one runner, ${meta.runs} runs each, compared by median.` +
-      ' Red blocks: over the limit, or more than 15% slower than main. Yellow warns: 5 to 15% slower, or within 10% of the limit.' +
-      ` A change under ${NOISE_SHARE * 100}% of a measure's limit is noise.` +
+      ` Red blocks: over the limit, or more than ${BLOCK_SLOWER * 100}% slower than main.` +
+      ` Yellow warns: ${WARN_SLOWER * 100} to ${BLOCK_SLOWER * 100}% slower, or within ${Math.round((1 - NEAR_LIMIT) * 100)}% of the limit.` +
+      ` A change under ${NOISE_SHARE * 100}% of a measure's budget is noise.` +
       (meta.seconds === undefined ? '' : ` The check took ${Math.round(meta.seconds)} s.`),
     meta.liveUrl === undefined ? '' : `The live benchmark runs on main only, nightly and on each push, and never blocks: [its latest run](${meta.liveUrl}).`,
     'A maintainer can add the `perf-accepted` label to let a red pass (docs/development/performance.md).'
@@ -156,19 +165,21 @@ function selfTest(): void {
   eq(median([3, 1, 2]), 2, 'median of three')
   eq(median([4, null, 2]), 3, 'median with a run missing')
   eq(median([null, null, 2]), null, 'median of too few runs')
-  eq(rate(10, 10.4, 15, false), 'green', 'within 5%')
-  eq(rate(10, 11, 15, false), 'yellow', '10% slower')
-  eq(rate(10, 12, 15, false), 'red', '20% slower')
-  eq(rate(10, 12, 15, true), 'accepted', 'a red with perf-accepted')
-  eq(rate(10, 14, 15, false), 'red', 'within the limit but 40% slower')
-  eq(rate(14, 14, 15, false), 'yellow', 'within 10% of the limit')
-  eq(rate(10, 16, 15, false), 'red', 'over the limit')
-  eq(rate(16, 16, 15, false), 'red', 'over the limit, unchanged from main')
-  eq(rate(0.1, 0.13, 1.5, false), 'green', '30% slower, but under the noise floor')
-  eq(rate(1, null, 1.5, false), 'red', 'no longer measured')
-  eq(rate(null, 1, 1.5, false), 'green', 'a new measure, within its limit')
-  eq(rate(null, null, 1.5, false), 'yellow', 'measured on neither side')
-  eq(rate(10, 8, 15, false), 'green', 'faster')
+  eq(rate(10, 10.4, 15, false, 0.25), 'green', 'within 5%')
+  eq(rate(10, 11, 15, false, 0.25), 'yellow', '10% slower')
+  eq(rate(10, 12, 15, false, 0.25), 'red', '20% slower')
+  eq(rate(10, 12, 15, true, 0.25), 'accepted', 'a red with perf-accepted')
+  eq(rate(10, 14, 15, false, 0.25), 'red', 'within the limit but 40% slower')
+  eq(rate(14, 14, 15, false, 0.25), 'yellow', 'within 10% of the limit')
+  eq(rate(10, 16, 15, false, 0.25), 'red', 'over the limit')
+  eq(rate(16, 16, 15, false, 0.25), 'red', 'over the limit, unchanged from main')
+  eq(rate(0.1, 0.12, 1.5, false, 0.025), 'green', '20% slower, but under the noise floor')
+  eq(rate(0.1, 0.13, 1.5, false, 0.025), 'red', '30% slower, over the noise floor')
+  eq(floorOf('pane'), 0.4, "the floor is the budget's, never CI's 3x limit")
+  eq(rate(1, null, 1.5, false, 0.25), 'red', 'no longer measured')
+  eq(rate(null, 1, 1.5, false, 0.25), 'green', 'a new measure, within its limit')
+  eq(rate(null, null, 1.5, false, 0.25), 'yellow', 'measured on neither side')
+  eq(rate(10, 8, 15, false, 0.25), 'green', 'faster')
 
   const run = (v: number, w: number): Check[] => [
     { budget: 'pane', measure: 'pane', value: v, limit: 24 },

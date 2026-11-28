@@ -16,7 +16,7 @@ import type {
   TurnAfter,
   TurnClose
 } from '../../../types'
-import { capTurns, changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
+import { capTurns, changeHeld, type Held, heldValue, loadHeld, nextTick } from '../../shared/held'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -219,7 +219,7 @@ export async function readSteps($: EngineInterface): Promise<StepStamp[]> {
   await read($, stepsTick)
   if (heldSteps.value === undefined) await loadHeld(heldSteps, read($, steps))
 
-  return [...changeHeld(heldSteps, list => list), ...stamping.values()]
+  return [...heldValue(heldSteps), ...stamping.values()]
 }
 
 // Up to 400 stamps, so each tool call writes the list once, at its end, and never reads it back (shared/held.ts): a

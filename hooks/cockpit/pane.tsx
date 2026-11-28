@@ -4,7 +4,7 @@ import type { EngineInterface, Register, UiOpenResult } from 'claude-code'
 import { noteOwnTime } from '../shared/budget'
 
 import { readDetails } from './keys/details'
-import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
+import { copiedNote, fileView, hasCopied, noteRing, noteViewed, readViewTick, redraw, ringNow, tabNow, urlsShown, viewNow } from './keys/view'
 import { assemblePane, firstHunk } from './rows/assemble'
 import { drawPane, isKeyElement, ringPastKeys } from './rows/draw'
 import { countsOf, INSPECTOR_KEYS, inspectorRows } from './rows/views'
@@ -378,7 +378,7 @@ export function registerPane(on: On): void {
   // The focus ring moved in the pane: `c` copies what it is on, and the row under it is the selected row (6.2), so a
   // move redraws; on the Files tab that row also opens its file's first hunk in place (8.5). A hidden key Button is
   // never a stop: the ring goes on to a row instead.
-  on('ui.focus', ($, e, next) => {
+  on('ui.focus', async ($, e, next) => {
     try {
       if (e.component === 'Pane' && e.requestId === PANE) {
         const was = ringNow()
@@ -388,7 +388,8 @@ export function registerPane(on: On): void {
         const element = past ?? e.element
 
         noteRing(element)
-        if (was !== element) $.ui.invalidate('ui.render')
+        // Only the pane draws the ring: it alone draws again.
+        if (was !== element) await redraw($)
 
         return past === undefined ? next(e) : next({ ...e, element: past })
       }
