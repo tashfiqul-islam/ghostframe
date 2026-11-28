@@ -33,6 +33,20 @@ copied out, whole. So a list ghostframe alone writes is held in the module as la
 (`hooks/shared/held.ts`), and a hook that is not drawing reads it from there; a draw reads `$.state`, which is what
 draws it again when the value changes. `tests/plugin/hook-cost.test.tsx` holds a tool call to the bytes it moves.
 
+Own time also counts what each `$` call costs ghostframe's side of the round trip, about 0.07 ms on a desktop and
+twice that on a runner, so a hook pays for the calls it makes one after another. Three rules follow:
+
+- A reply row drawn again unchanged is one round trip (`hooks/shared/trace.ts`). Its draw notes a version of each
+  value it read. A later draw of the same row reads those values again, all at once, and returns the tree it kept
+  when every version stands. `tests/plugin/perf.test.tsx` holds it to that.
+- Work an event's answer does not need runs after the hook returns. A turn's end keeps its history in the session
+  at once, for the pane, and writes it to the store afterwards, one write at a time in order
+  (`hooks/cockpit/history/store.ts`).
+- Reads and writes that do not depend on each other go together, in one `Promise.all`.
+
+The profiler counts no timer's wait (`$.clock.after`, `$.clock.every`) as a hook's time. A timer's dispatch stays
+open until it is due, long after the hook that set it.
+
 CI has budgets of its own, in the same file:
 
 | Budget          | Limit                                                     | Why                                                           |

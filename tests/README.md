@@ -27,6 +27,8 @@ tests may have several files, each named for what it covers (`reply/tables`, `re
 Put it in the file for the module it exercises, creating the file if needed. Reuse a helper from `support/`; add one
 there only when a second test file needs it. A test drives the engine as it does at run time: mount a site with
 `$.ui.mount`, raise events (`$.turn.start`, `$.tool.call`, …), and answer the engine's calls with `on(...)`.
+Every answer must be plain data the engine can copy (never a function). A test whose timers must not fire answers
+`$.clock.after` and `$.clock.every` with `holdTimers(on)` (`support/clock`); one that moves time uses `mock.clock`.
 Cockpit is on by default (the manifest's `cockpit` option), so a test of the transcript without Cockpit passes `{ options: { cockpit: false } }` (`OFF` in `support/cockpit`); a Cockpit test may pass `ON` to say so.
 
 A test that touches `$` loads the whole plugin first, about a quarter of a second, and much more on a busy CI runner.
