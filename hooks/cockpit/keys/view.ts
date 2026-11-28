@@ -96,10 +96,11 @@ export async function readViewTick($: EngineInterface): Promise<number> {
 }
 
 /**
- * Draws the pane again.
+ * Draws the pane again, and nothing else: only the pane reads `viewTick` (a `ui.render` invalidate would draw every
+ * transcript row on screen again too).
  * @param $ the engine interface
  */
-async function redraw($: EngineInterface): Promise<void> {
+export async function redraw($: EngineInterface): Promise<void> {
   await update($, tick, n => n + 1)
 }
 

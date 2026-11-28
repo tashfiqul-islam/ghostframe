@@ -48,7 +48,8 @@ PR title against the commit rules.
 `.github/workflows/canary.yml` runs every Monday, and by hand, against the **latest** Claude Code on all three systems:
 plugin validation, the plugin's tests, the status line's specs, and the live checks' own unit tests. ghostframe draws
 through the engine's plugin API, so an engine change should fail there first. When it fails, fix what changed, then
-raise `CLAUDE_CODE_VERSION` and its three checksums in `ci.yml` (each from that version's `manifest.json`).
+raise `CLAUDE_CODE_VERSION` and its three checksums in `ci.yml` (each from that version's `manifest.json`), and the
+same lines in `performance.yml` and `benchmarks.yml`: `tools/scripts/engines.ts --check` fails while they differ.
 
 `.github/actions/claude` installs the CLI for every job: the binary for the runner's platform, checked against the
 checksum pinned in `ci.yml`, or for `latest` against the release's own manifest.

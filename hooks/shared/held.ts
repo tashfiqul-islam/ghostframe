@@ -8,6 +8,9 @@
 //   if (held.value === undefined) await loadHeld(held, read($, list))
 //   const value = changeHeld(held, fn)
 //   await $.state.set({ plugin: 'ghostframe', key: 'list' }, { shape: 'list-1', value })
+//
+// The write has no `ifVersion` (`update`'s retry on a version that moved): the held value is the one source, since
+// only its owner writes the key and a module has one copy loaded at a time.
 
 /** A value this plugin alone writes, as it last wrote it. */
 export type Held<T> = { value?: { v: T }; loading?: Promise<void> | undefined; tick?: number }
@@ -47,6 +50,29 @@ export function changeHeld<T>(held: Held<T>, fn: (value: T) => T): T {
   held.value = { v }
 
   return v
+}
+
+/**
+ * The held value as it stands.
+ * @param held where the value is held, loaded
+ * @returns the value
+ */
+export function heldValue<T>(held: Held<T>): T {
+  if (held.value === undefined) throw new Error('heldValue before loadHeld')
+
+  return held.value.v
+}
+
+/**
+ * Holds a value written whole, frozen as `changeHeld` holds one, with no read first.
+ * @param held where the value is held
+ * @param v the value
+ * @returns the value, to write
+ */
+export function setHeld<T>(held: Held<T>, v: T): T {
+  held.value = { v: Object.freeze(v) as T }
+
+  return held.value.v
 }
 
 /**

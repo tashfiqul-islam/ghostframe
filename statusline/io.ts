@@ -199,6 +199,8 @@ export function dirtyOf(dir: string): boolean | null {
 }
 
 const hash = (s: string): string => Bun.hash(s).toString(16)
+/** A folder's git answer's cache file name. */
+const gitName = (dir: string): string => `git-${hash(dir)}.json`
 
 /** How long a refresh asked for may take before another is asked for. */
 const REFRESH_WAIT_MS = 10_000
@@ -232,7 +234,7 @@ export function refreshGit(dir: string, now: number, cache?: string): void {
   const dirty = dirtyOf(dir)
 
   try {
-    writeAtomic(cacheFile(`git-${hash(dir)}.json`, cache), JSON.stringify({ at: now, dir, dirty }))
+    writeAtomic(cacheFile(gitName(dir), cache), JSON.stringify({ at: now, dir, dirty }))
   } catch (e) {
     debug(`git cache not written: ${String(e)}`)
   }
@@ -258,7 +260,7 @@ export function gitOf(dir: string, now: number, cache: string | undefined, refre
 
   try {
     folder = cache ?? cacheDir(process.env)
-    file = cacheFile(`git-${hash(dir)}.json`, folder)
+    file = cacheFile(gitName(dir), folder)
   } catch (e) {
     debug(`git cache folder unknown: ${String(e)}`)
     return { branch, dirty: false }

@@ -196,7 +196,8 @@ The live benchmark is not run on pull requests: its numbers come from `main` and
 | 🔴 red      | over its budget, more than 15% slower than `main`, or measured on `main` but no longer here | fails     |
 | 🟠 accepted | a red on a pull request a maintainer labelled `perf-accepted`                               | passes    |
 
-A change smaller than 5% of the measure's budget is never called slower, whatever its percentage: a shared runner
+A change smaller than 5% of the measure's budget (as set in `budgets.ts`, never CI's 3× limit) is never called slower,
+whatever its percentage: a shared runner
 jitters by tenths of a millisecond, and a 0.10 ms row that reads 0.12 ms is 20% slower and no regression at all. The
 comment's table puts reds first and ends with a summary line, such as `2 red, 1 yellow, 14 green`.
 

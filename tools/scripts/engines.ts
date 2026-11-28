@@ -5,7 +5,7 @@
 //   bun tools/scripts/engines.ts --check          the pin is inside the range and the README agrees (the gate runs this)
 //   bun tools/scripts/engines.ts --report <ver>   says whether <ver> is inside, for the weekly canary's summary
 //   bun tools/scripts/engines.ts --self-test      the checks catch what they should
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { inRange, parseRange, type Range } from '../../hooks/shared/range'
@@ -131,13 +131,38 @@ function selfTest(): void {
   console.log('engines self-test: ok')
 }
 
+/**
+ * A workflow's pinned Claude Code checksums, by variable.
+ * @param workflow the workflow's text
+ * @returns each CLAUDE_CODE_SHA256_* and its value
+ */
+const sumsOf = (workflow: string): Map<string, string> =>
+  new Map([...workflow.matchAll(/^\s*(CLAUDE_CODE_SHA256_\w+):\s*([0-9a-f]{64})\s*$/gm)].map(m => [m[1] ?? '', m[2] ?? '']))
+
 const [mode, version] = process.argv.slice(2)
 const manifest = (): string => readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')
 
 if (mode === '--self-test') {
   selfTest()
 } else if (mode === '--check') {
-  const pinned = pinnedOf(readFileSync(join(root, '.github', 'workflows', 'ci.yml'), 'utf8'))
+  const workflows = join(root, '.github', 'workflows')
+  const ci = readFileSync(join(workflows, 'ci.yml'), 'utf8')
+  const pinned = pinnedOf(ci)
+  const ciSums = sumsOf(ci)
+
+  // ci.yml's pin is the one to bump; any other workflow that pins Claude Code (Performance, Benchmarks) must match it.
+  for (const file of readdirSync(workflows).filter(f => f.endsWith('.yml') && f !== 'ci.yml')) {
+    const text = readFileSync(join(workflows, file), 'utf8')
+
+    if (!/^\s*CLAUDE_CODE_VERSION:/m.test(text)) continue
+    const other = pinnedOf(text)
+    const odd = [...sumsOf(text)].filter(([k, v]) => ciSums.get(k) !== v).map(([k]) => k)
+
+    if (other !== pinned || odd.length > 0) {
+      console.error(`engines: ${file} pins Claude Code ${other}${odd.length > 0 ? ` with ${odd.join(', ')}` : ''}, not ci.yml's ${pinned} and its checksums`)
+      process.exit(1)
+    }
+  }
   const { isInside, line } = report(pinned, manifest())
 
   if (!isInside) {

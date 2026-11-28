@@ -5,7 +5,7 @@ import { atom, read } from 'claude-code'
 import type { EngineInterface } from 'claude-code'
 
 import type { StepDetail } from '../../../types'
-import { changeHeld, loadHeld, nextTick, type Held } from '../../shared/held'
+import { changeHeld, type Held, heldValue, loadHeld, nextTick } from '../../shared/held'
 import { num, obj, s } from '../../shared/calls/fields'
 import { shellText } from '../../shared/calls/ships'
 import { clean } from '../../shared/calls/tests'
@@ -189,7 +189,7 @@ export function exitOf(outcome: Outcome): number | undefined {
 /**
  * A resumed session: the last kept turn's details come back, where the session holds none.
  * @param $ the engine interface
- * @param kept the details
+ * @param saved the details the last kept turn saved
  */
 export async function restoreDetails($: EngineInterface, saved: readonly StepDetail[]): Promise<void> {
   await writeDetails($, list => (list.length > 0 ? [...list] : [...saved]))
@@ -204,7 +204,7 @@ export async function restoreDetails($: EngineInterface, saved: readonly StepDet
 export async function detailsNow($: EngineInterface): Promise<StepDetail[]> {
   if (held.value === undefined) await loadHeld(held, read($, details))
 
-  return [...changeHeld(held, list => list), ...running.values()]
+  return [...heldValue(held), ...running.values()]
 }
 
 /**
