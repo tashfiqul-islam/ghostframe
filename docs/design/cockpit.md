@@ -285,7 +285,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
     10:14:02 ◆  TURN 7  ──────────────────────────────────────────────────────────────────────────────
 ```
 
-- Label: the prompt's submit time (`machine`). Spine: `◆`, accent when the header first draws while its turn runs, `spine` when it first draws once the turn has ended; a header drawn again keeps the colour it first drew with. Two spaces, `TURN` (muted) and the number (textBright, bold), two spaces, a `hairline` rule to column 101, the text column’s end.
+- Label: the prompt's submit time (`machine`). Spine: `◆`, accent when the header first draws while its turn runs or is about to start (the engine draws a typed prompt's row as soon as it is submitted, before its turn starts), `spine` when it first draws once the turn has ended; a header drawn again keeps the colour it first drew with. Two spaces, `TURN` (muted) and the number (textBright, bold), two spaces, a `hairline` rule to column 101, the text column’s end.
 - **Label states**, from amendment 12: `TURN 30 · AFTER COMPACT`, `TURN 31 · RESUMED`, `TURN 7 · AFTER REWIND` (the state word in `machine`, bold). The day follows the state: `TURN 31 · RESUMED · Tue`. `AFTER REWIND` is detected, not told: when a typed turn starts, the previous typed prompt's row has left the conversation (`$.session.messages({ after: row })` no longer finds it), which is what rewinding does. A compaction or a resume noted since that prompt wins over it. A rewind that takes turns out of the conversation takes them out of Cockpit too: while idle the pane looks (every 1.5 s) for the newest turns whose last answer row has gone, shows the last turn that remains, drops the rest from history and the receipts, and the next typed turn takes the number after the last that remains (`TURN 10 · AFTER REWIND` again after rewinding turn 10). A compaction takes rows out too, for its summary, and is no rewind: every turn kept when the main conversation compacts is marked so (in the session's state and in the store, so a reload or a resume keeps the mark), and the check never takes a marked turn for rewound. The pane keeps showing the last turn, its counts and its number, and the next typed turn takes the next number.
 - An agent's conversation opens with `◇  AGENT Audit tests` (agent colour) in place of the turn header (screen 27).
 - One blank row (`│`) follows.
@@ -303,7 +303,7 @@ Examples are exact rows from the canvas, left region only, the 2-cell margin inc
 - `❯` in accent, the text in `textBright`, wrapped inside the card.
 - **A paste** reaches the row inside the engine's wrapper (`<pasted_content id="…">`). The tags never draw: each paste shows as Claude Code's composer names it, `[Pasted text #1 +59 lines]` (its line breaks counted), in its place among the typed words, and ctrl+o shows the pasted text itself. With Cockpit off the classic row does the same.
 - **Added mid-turn** (folded into the running turn, amendment 12): the label column has the clock it arrived at, the glyph is `↳` (muted), and `added` (muted) sits at the card's right end, 2 cells from its edge.
-- **Queued** (waiting for the turn to end): the label has its clock, the glyph is `⋯`, `QUEUED` (muted, bold) sits at the right end. The row under the card reads `Sends when this turn ends · ctrl+enter send now` in dim. A queued message gets its turn number only when its turn starts. A message typed while a compaction runs is queued too: the engine holds it with no submit yet, so its label has no clock.
+- **Queued** (waiting for the turn to end): the label has its clock, the glyph is `⋯`, `QUEUED` (muted, bold) sits at the right end. No hint row of ours follows the card: Claude Code always draws its own row under it (`Queued · ctrl+x ctrl+s to send now`), and that row owns the key binding, so a hint of ours would repeat it and could name the wrong key. A queued message gets its turn number only when its turn starts. A message typed while a compaction runs is queued too: the engine holds it with no submit yet, so its label has no clock.
 - **To an agent:** `›` and the label `from main` (screen 27).
 
 ### 7.3 Thinking
@@ -1836,9 +1836,9 @@ The pane (72 columns):
 
 #### 12.14 · A message queued while Claude works
 
-Board `S14Queued` · a queued message is a grey ⋯ card with when it will send · the pane notes it
+Board `S14Queued` · a queued message is a grey ⋯ card · the pane notes it
 
-- **SHOWS** A message typed mid-turn that waits for the turn to end: grey ⋯ card, clock, then QUEUED at the card’s end, ‘Sends when this turn ends · ctrl+enter send now’. Pane notes ‘1 message queued’.
+- **SHOWS** A message typed mid-turn that waits for the turn to end: grey ⋯ card, clock, then QUEUED at the card’s end; Claude Code’s own row under it says how to send it now. Pane notes ‘1 message queued’.
 - **DATA** prompt.submit stored as queued (door queue, amendment 12). If the engine folds it into the turn, it becomes ↳ added (screen 02).
 - **RULES** A queued message gets its turn number only when its turn starts.
 
@@ -1858,7 +1858,7 @@ The left (127 columns):
              │  ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
     16:45:12 │    ⋯ when you’re done, also update the README                                  QUEUED
              │  ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
-             │  Sends when this turn ends · ctrl+enter send now
+             │
              │
              │
              │

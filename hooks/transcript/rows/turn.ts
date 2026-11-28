@@ -6,7 +6,7 @@ import { bottomEdge, cardRow, topEdge } from '../../shared/look/card'
 import { clockTime, duration } from '../../shared/look/format'
 import { GLYPH } from '../../shared/look/glyphs'
 import { TOKEN } from '../../shared/look/palette'
-import { NO_LABEL, SPINE, spineOnly, spineRow } from '../../shared/look/spine'
+import { NO_LABEL, spineOnly, spineRow } from '../../shared/look/spine'
 import { THOUGHT_LEVELS, trace } from '../../shared/look/trace'
 import { wrapWords } from '../../shared/look/wrap'
 import { widthOf } from '../../shared/look/width'
@@ -124,9 +124,7 @@ export function messageCard(text: string, kind: MessageKind, width: number, at?:
       i === 0 ? right : []
     )
   )
-  const queued = kind === 'queued' ? [spineRow(NO_LABEL, SPINE, [{ t: 'Sends when this turn ends · ctrl+enter send now', color: TOKEN.dim }])] : []
-
-  return [topEdge(TOKEN.surface, width), ...body, bottomEdge(TOKEN.surface, width), ...queued]
+  return [topEdge(TOKEN.surface, width), ...body, bottomEdge(TOKEN.surface, width)]
 }
 
 /**

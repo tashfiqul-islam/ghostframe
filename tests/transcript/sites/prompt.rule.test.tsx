@@ -143,7 +143,8 @@ for (const [mode, columns] of [
     const waiting = trimmed(await rowsOf($, prompt('q2', columns, 'also this')))
     expect(waiting.some(r => r.includes('TURN'))).toBe(false)
     expect(waiting.find(r => r.includes('⋯ also this'))).toMatch(/^ {4}10:26:48 │ {4}⋯ also this +QUEUED$/)
-    expect(waiting).toContain('             │  Sends when this turn ends · ctrl+enter send now')
+    // No hint row of ours under the card: the engine's own `Queued · … to send now` row sits under it and owns the key (7.2).
+    expect(waiting.slice(waiting.findIndex(r => r.includes('⋯ also this')) + 2).filter(r => !/^ *│?$/.test(r))).toEqual([])
 
     clock.now += 4_000
     const said = '<system-reminder>\nThe user sent a new message while you were working:\nalso this\n</system-reminder>'
@@ -176,6 +177,7 @@ for (const [mode, columns] of [
 
     expect(waiting.some(r => r.includes('TURN'))).toBe(false)
     expect(waiting.find(r => r.includes('⋯ say ok'))).toMatch(/^ {13}│ {4}⋯ say ok +QUEUED$/)
+    expect(waiting.slice(waiting.findIndex(r => r.includes('⋯ say ok')) + 2).filter(r => !/^ *│?$/.test(r))).toEqual([])
 
     clock.now += 2_000
     await typed($, clock, 'say ok', 'e2', 'u2')
@@ -205,6 +207,37 @@ test('Cockpit off: the classic rule, as before', OFF, async ($, on) => {
   expect(rows[0]).toBe('+')
   expect(rows).toContain(' 10:26 ')
   expect(rows.some(r => r.includes('TURN'))).toBe(false)
+})
+
+// Seen live (2.1.332): the engine draws a typed prompt's row as soon as it is submitted, before its turn starts; the
+// header then drew `spine` and kept it for the whole turn. A turn about to start is the live one: accent (7.1).
+test('7.1: a header first drawn as its turn is about to start is accent, and stays accent', ON, async ($, on) => {
+  const clock = { now: T0 }
+  engine(on, clock, true)
+  await start($, true)
+  const glyph = async (row: string) => {
+    const ui = await $.ui.mount(prompt(row, 127, 'go'))
+    const found = (await ui.findAll({ type: 'Text' })).find(t => t.text === '◆')
+    await ui.unmount()
+
+    return found?.props['color']
+  }
+
+  await $.prompt.submit({ text: 'go', wait: false, origin: { kind: 'composer' } })
+  const placeholder = await glyph('placeholder')
+  await $.session.append({
+    message: { type: 'user', role: 'user', content: [{ type: 'text', text: 'go' }] },
+    door: 'prompt',
+    origin: { kind: 'composer' },
+    uuid: 'u1'
+  } as never)
+  const beforeStart = await glyph('u1')
+  await $.turn.start({ text: 'go', turnId: 'e1' })
+  const running = await glyph('u1')
+  clock.now += 5_000
+  await $.turn.complete({ answer: 'ok', durationMs: 5_000, isAborted: false, turnId: 'e1', reason: 'answer' })
+
+  expect([placeholder, beforeStart, running, await glyph('u1')]).toEqual([TOKEN.accent, TOKEN.accent, TOKEN.accent, TOKEN.accent])
 })
 
 test('7.1: a header drawn while its turn runs keeps its accent `◆` when drawn again after the turn ends', ON, async ($, on) => {
