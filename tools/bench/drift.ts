@@ -43,6 +43,16 @@ export function overOf(runs: readonly (readonly Check[])[], isCi: boolean): Over
     .toSorted((a, b) => b.main / b.limit - a.main / a.limit)
 }
 
+/**
+ * The measures no run of main measured (an error, or every call overlapped): neither over nor within, so the issue
+ * stays open over them.
+ * @param runs main's reports' checks, one per run
+ * @param isCi whether the runs were on a CI runner
+ * @returns their names
+ */
+export const unmeasuredOf = (runs: readonly (readonly Check[])[], isCi: boolean): string[] =>
+  compare(runs, runs, false, isCi).flatMap(r => (r.main === null ? [r.measure] : []))
+
 const fmt = (n: number): string => (n >= 100 ? n.toFixed(0) : n.toFixed(2))
 
 /**
@@ -76,6 +86,7 @@ export function bodyOf(over: readonly Over[], meta: { runUrl: string; runs: numb
  * counts (the bot's, with the marker); the oldest one if somehow there are several, so there is never a second.
  * @param now the measures over budget in this run
  * @param before the measures the run before found over, none when there was no run before
+ * @param unmeasured the measures this run could not measure: one the run before found over keeps the issue open
  * @param open the open issues, as listed (pages flattened or not)
  * @param meta the run that measured them, and how many runs it pooled
  * @param meta.runUrl the workflow run's link
@@ -85,6 +96,7 @@ export function bodyOf(over: readonly Over[], meta: { runUrl: string; runs: numb
 export function actionOf(
   now: readonly Over[],
   before: readonly string[],
+  unmeasured: readonly string[],
   open: readonly (OpenIssue | readonly OpenIssue[])[],
   meta: { runUrl: string; runs: number }
 ): Action {
@@ -100,7 +112,7 @@ export function actionOf(
     return mine === undefined ? { kind: 'create', title: TITLE, body } : { kind: 'update', number: mine.number, body }
   }
 
-  return mine === undefined || now.length > 0
+  return mine === undefined || now.length > 0 || before.some(m => unmeasured.includes(m))
     ? { kind: 'none' }
     : { kind: 'close', number: mine.number, body: `Main is back within every budget ([the run](${meta.runUrl})).` }
 }
@@ -136,18 +148,28 @@ function selfTest(): void {
   const both = over.map(o => o.measure)
   const pane = over.slice(0, 1)
 
-  eq(actionOf(over, both, [[other, someone, pr]], meta).kind, 'create', 'action: create when only others, a pull request or a quote carry the marker')
-  eq(actionOf(over, [], [[other]], meta), { kind: 'none' }, 'action: over in this run alone (a slow runner) waits for the next')
-  eq(actionOf(over, ['on-120x40 pane'], [], meta), { kind: 'create', title: TITLE, body: bodyOf(pane, meta) }, 'action: names only what both runs found over')
-  eq(actionOf(over, both, [[other], [mine]], meta), { kind: 'update', number: 7, body: bodyOf(over, meta) }, 'action: update the open one, over pages')
+  eq(actionOf(over, both, [], [[other, someone, pr]], meta).kind, 'create', 'action: create when only others, a pull request or a quote carry the marker')
+  eq(actionOf(over, [], [], [[other]], meta), { kind: 'none' }, 'action: over in this run alone (a slow runner) waits for the next')
   eq(
-    actionOf(over, both, [[{ ...mine, number: 9 }, mine]], meta),
+    actionOf(over, ['on-120x40 pane'], [], [], meta),
+    { kind: 'create', title: TITLE, body: bodyOf(pane, meta) },
+    'action: names only what both runs found over'
+  )
+  eq(actionOf(over, both, [], [[other], [mine]], meta), { kind: 'update', number: 7, body: bodyOf(over, meta) }, 'action: update the open one, over pages')
+  eq(
+    actionOf(over, both, [], [[{ ...mine, number: 9 }, mine]], meta),
     { kind: 'update', number: 7, body: bodyOf(over, meta) },
     'action: the oldest, never a second'
   )
-  eq(actionOf(over, [], [[mine]], meta), { kind: 'none' }, 'action: still over, not yet twice: the open issue stays as it is')
-  eq(actionOf([], both, [[mine]], meta).kind, 'close', 'action: close once back within every budget')
-  eq(actionOf([], [], [[other]], meta), { kind: 'none' }, 'action: nothing to do')
+  eq(actionOf(over, [], [], [[mine]], meta), { kind: 'none' }, 'action: still over, not yet twice: the open issue stays as it is')
+  eq(actionOf([], both, [], [[mine]], meta).kind, 'close', 'action: close once back within every budget')
+  eq(actionOf([], [], [], [[other]], meta), { kind: 'none' }, 'action: nothing to do')
+  eq(actionOf([], both, ['on-120x40 pane'], [[mine]], meta), { kind: 'none' }, 'action: no close while a measure over before went unmeasured')
+  eq(
+    unmeasuredOf([[{ budget: 'eventHook', measure: 'every call overlapped', value: null, limit: 15 }]], true),
+    ['every call overlapped'],
+    'unmeasured: a measure no run measured'
+  )
 
   const body = bodyOf(over, meta)
 
@@ -176,7 +198,10 @@ if (import.meta.main) {
   const runs = reports.map(f => (JSON.parse(readFileSync(f, 'utf8')) as { checks: Check[] }).checks)
   const over = overOf(runs, process.env['CI'] === 'true')
   const before = previous === undefined ? [] : (JSON.parse(readFileSync(previous, 'utf8')) as string[])
-  const action = actionOf(over, before, JSON.parse(readFileSync(issues, 'utf8')) as OpenIssue[][], { runUrl, runs: runs.length })
+  const action = actionOf(over, before, unmeasuredOf(runs, process.env['CI'] === 'true'), JSON.parse(readFileSync(issues, 'utf8')) as OpenIssue[][], {
+    runUrl,
+    runs: runs.length
+  })
 
   mkdirSync(out, { recursive: true })
   writeFileSync(join(out, 'over.json'), JSON.stringify(over.map(o => o.measure)))

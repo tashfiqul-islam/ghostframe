@@ -127,7 +127,7 @@ jobs:
           gh api --paginate --slurp "repos/$REPO/issues?state=open&per_page=100" > "$d/open.json"
           # The run before's list (runs on main take turns: see concurrency). None on the first run, or after 90 days.
           previous=()
-          id=$(gh api "repos/$REPO/actions/artifacts?name=budget-drift&per_page=20" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")][0].id // empty')
+          id=$(gh api "repos/$REPO/actions/artifacts?name=budget-drift&per_page=20" --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | last | .id // empty')
           if [ -n "$id" ]; then
             gh api "repos/$REPO/actions/artifacts/$id/zip" > "$d/before.zip"
             unzip -p "$d/before.zip" over.json > "$d/before.json"
@@ -144,7 +144,9 @@ jobs:
             *) echo "::error::unknown action $kind"; exit 1 ;;
           esac
 
+      # Even when the issue step failed, so the next run compares with this one, never the one before it.
       - name: Keep this run's list for the next
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: budget-drift
