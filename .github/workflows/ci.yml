@@ -26,9 +26,44 @@ env:
   CLAUDE_CODE_SHA256_WIN32_X64: 527162bb4578e3dc36319fa913a530d5dc1f752115a6a4fd139981702bf282d0
   DISABLE_AUTOUPDATER: '1'
 
+# Each job runs only where the change touches what it guards, and skips itself otherwise: tools/ci/map.ts is the one
+# map (docs/development/ci.md), and `mise run ci:plan` prints the same plan locally. A push to main and a dispatched
+# run run everything. Steps run through `bun tools/ci/ci.ts step <job> <id>`, the command map.ts holds, so CI and
+# `mise run ci:run` run the same thing, and a failure ends with its summary. The CI job at the end is the one check
+# the ruleset needs from this workflow: it passes only when every job passed or was skipped, and writes the pull
+# request's CI comment.
 jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out this repo
+    # One output per decision in tools/ci/map.ts (ci.ts --check holds them together).
+    outputs:
+      gate: ${{ steps.changes.outputs.gate }}
+      docs: ${{ steps.changes.outputs.docs }}
+      tests: ${{ steps.changes.outputs.tests }}
+      plugin_tests: ${{ steps.changes.outputs.plugin_tests }}
+      perf: ${{ steps.changes.outputs.perf }}
+      readme: ${{ steps.changes.outputs.readme }}
+      site: ${{ steps.changes.outputs.site }}
+    steps:
+      # The merge commit and its first parent, the base as it is now: enough to list the pull request's files.
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Plan the jobs from the changed files (tools/ci/map.ts)
+        id: changes
+        uses: $/.github/actions/changes
+
   check:
     name: Quality gate
+    needs: changes
+    if: needs.changes.outputs.gate == 'true'
     runs-on: ubuntu-24.04
     # Budget 3 minutes (tools/bench/budgets.ts, ciQualityGate); twice that, so a hang fails fast.
     timeout-minutes: 6
@@ -53,78 +88,107 @@ jobs:
           version: ${{ env.CLAUDE_CODE_VERSION }}
           sha256: ${{ env.CLAUDE_CODE_SHA256_LINUX_X64 }}
 
-      # The gate (`mise run check` locally), one step per tool so a failure names itself. Where a
-      # tool speaks GitHub's annotation format, errors land inline on the PR diff. The plugin's own
-      # type-check (tsconfig.json) and the type-aware lint rules need the engine's generated
-      # declarations, which only a local session writes (Claude Code's early-access API file, never
-      # committed), so they run in the local gate only. The dev tools (tools/tsconfig.json) need
-      # only Bun's types, so they are type-checked here, by tsrs (the repo's only type checker).
+      # The gate (`mise run check` locally), one step per tool so a failure names itself. The plugin's own type-check
+      # (tsconfig.json) and the type-aware lint rules need the engine's generated declarations, which only a local
+      # session writes (Claude Code's early-access API file, never committed), so they run in the local gate only. The
+      # dev tools (tools/tsconfig.json) need only Bun's types, so they are type-checked here, by tsrs.
       - name: Check the repo is TypeScript-only (no tracked JavaScript)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: mise run lint-js
+        run: bun tools/ci/ci.ts step check lint-js
 
-      - name: Check the hooks' module boundaries (shared, cockpit, transcript)
+      - name: Check the hooks' module boundaries (shared, cockpit, transcript) and the screens list
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun run --cwd tools boundaries
+        run: bun tools/ci/ci.ts step check boundaries
+
+      - name: Check README.md, its art and the engine range it repeats (readme.ts, readme-art.ts, engines.ts)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && needs.changes.outputs.readme == 'true' }}
+        run: bun tools/ci/ci.ts step check readme
 
       - name: Type-check the dev tools (tsrs, tools/tsconfig.json)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun run --cwd tools typecheck:tools
+        run: bun tools/ci/ci.ts step check typecheck-tools
 
       - name: Check the first Cockpit spec regenerates byte for byte (mockgen)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          bun tools/mockgen/gen/build.ts "$RUNNER_TEMP/cockpit-v7.md"
-          cmp docs/design/history/cockpit-v7.md "$RUNNER_TEMP/cockpit-v7.md"
-          sha256sum docs/design/history/cockpit-v7.md
+        run: bun tools/ci/ci.ts step check mockgen
 
       # The plugin's tests run in the Tests jobs, on all three systems; running them here too doubled this job's time.
       - name: Validate plugin (claude plugin validate)
         if: ${{ !cancelled() && steps.cli.outcome == 'success' }}
-        run: claude plugin validate .
+        run: bun tools/ci/ci.ts step check validate
 
       - name: Check the Performance check's rating rules (tools/bench/compare.ts)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun tools/bench/compare.ts --self-test
+        run: bun tools/ci/ci.ts step check rating-rules
 
       - name: Check the budget drift guard's issue logic (tools/bench/drift.ts)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun tools/bench/drift.ts --self-test
+        run: bun tools/ci/ci.ts step check drift-guard
+
+      - name: Check the CI map against the workflows and the tracked files (tools/ci/map.ts)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun tools/ci/ci.ts step check ci-map
 
       - name: Lint TypeScript (oxlint, syntax rules)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun run --cwd tools lint:ci
+        run: bun tools/ci/ci.ts step check lint
 
       - name: Check formatting (oxfmt)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bun run --cwd tools fmt:check
+        run: bun tools/ci/ci.ts step check format
 
       - name: Lint workflows (actionlint)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          # shellcheck disable=SC2016 # `$err` is a Go template variable, not a shell one
-          actionlint -format '{{range $err := .}}::error file={{$err.Filepath}},line={{$err.Line}},col={{$err.Column}},title=actionlint {{$err.Kind}}::{{$err.Message}}
-          {{end}}'
+        run: bun tools/ci/ci.ts step check actionlint
 
       - name: Audit workflows (zizmor)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: zizmor --offline --persona auditor --format github .github
+        run: bun tools/ci/ci.ts step check zizmor
 
       - name: Lint shell scripts (shellcheck)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          mapfile -t scripts < <(git ls-files '*.sh')
-          if (( ${#scripts[@]} )); then shellcheck "${scripts[@]}"; else echo "No shell scripts."; fi
+        run: bun tools/ci/ci.ts step check shellcheck
 
       - name: Lint the Markdown and check its links and anchors (rumdl, lychee offline)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: mise run lint-docs
+        run: bun tools/ci/ci.ts step check docs
 
-  # ghostframe runs wherever Claude Code does, so its tests run on all three systems: paths, shells, git and the temp
-  # folder differ between them. The plugin's tests (claude plugin test, the pinned CLI) and the status line's specs
-  # (bun test). The live checks need a signed-in session, so they run by hand: docs/development/live-checks.md.
+  # A change with no code: the Quality gate's Markdown checks alone, and README's when it changes.
+  docs:
+    name: Docs
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up toolchain (mise) and dev tools (tools/)
+        id: setup
+        uses: $/.github/actions/setup
+        with:
+          tools: bun lychee rumdl
+
+      - name: Lint the Markdown and check its links and anchors (rumdl, lychee offline)
+        run: bun tools/ci/ci.ts step docs docs
+
+      - name: Check README.md, its art and the engine range it repeats (readme.ts, readme-art.ts, engines.ts)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && needs.changes.outputs.readme == 'true' }}
+        run: bun tools/ci/ci.ts step docs readme
+
+  # ghostframe runs wherever Claude Code does, so its tests run on all three systems whenever source or tests change:
+  # paths, shells, git and the temp folder differ between them, and Windows paths and shell quoting are where it
+  # breaks. The plugin's tests (claude plugin test, the pinned CLI) and the status line's specs (bun test); the status
+  # line alone runs its specs alone. The live checks need a signed-in session: docs/development/live-checks.md.
   tests:
     name: Tests (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.tests == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -140,39 +204,32 @@ jobs:
     timeout-minutes: 8
     permissions:
       contents: read # check out this repo
-      pull-requests: read # list a pull request's files, to pass at once when it changes no code
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # A required check that does not run blocks the merge, so this job always runs: with no code changed it passes here.
-      - name: See whether the pull request changes code
-        id: changes
-        uses: $/.github/actions/changes
-
       - name: Set up toolchain (mise)
-        if: steps.changes.outputs.code == 'true'
         uses: $/.github/actions/setup
         with:
           tools: bun
           install: 'false'
 
       - name: Install Claude Code CLI (pinned, checksum-verified)
-        if: steps.changes.outputs.code == 'true'
+        if: needs.changes.outputs.plugin_tests == 'true'
         uses: $/.github/actions/claude
         with:
           version: ${{ env.CLAUDE_CODE_VERSION }}
           sha256: ${{ matrix.sha256 == 'WIN32_X64' && env.CLAUDE_CODE_SHA256_WIN32_X64 || matrix.sha256 == 'DARWIN_ARM64' && env.CLAUDE_CODE_SHA256_DARWIN_ARM64 || env.CLAUDE_CODE_SHA256_LINUX_X64 }}
 
       - name: Run the plugin's tests (claude plugin test)
-        if: steps.changes.outputs.code == 'true'
-        run: claude plugin test .
+        if: needs.changes.outputs.plugin_tests == 'true'
+        run: bun tools/ci/ci.ts step tests plugin
 
       - name: Run the status line's unit tests (bun test)
-        if: ${{ !cancelled() && steps.changes.outputs.code == 'true' }}
-        run: bun test ./statusline
+        if: ${{ !cancelled() }}
+        run: bun tools/ci/ci.ts step tests statusline
 
   # The benchmarks run in their own workflows: benchmarks.yml (the live run, on main) and performance.yml (the
   # Performance check, on pull requests).
@@ -189,3 +246,51 @@ jobs:
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: moderate
+
+  # The one check the ruleset needs from this workflow, so a job that skips itself never leaves a required check
+  # unreported: it passes when every job passed or was skipped, and fails on any failure or cancellation. It writes
+  # the result, each job's reason and each failure's local command to its summary and, through
+  # performance-comment.yml, to the pull request's one comment.
+  ci:
+    name: CI
+    needs: [changes, check, docs, tests, dependencies]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out tools/ci
+    steps:
+      # tools/ci, and the two commits the change-detection job planned from: the report plans again from them.
+      - name: Check out tools/ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+          sparse-checkout: |
+            /tools/ci/
+            /mise.toml
+            /.github/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Bun (mise)
+        uses: $/.github/actions/setup
+        with:
+          install: 'false'
+
+      - name: Pass only if every job passed or was skipped, and say what ran and why
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci-comment"
+          printf '%s\n' "$PR" > "$RUNNER_TEMP/ci-comment/pr.txt"
+          bun tools/ci/ci.ts report --out "$RUNNER_TEMP/ci-comment/comment.md"
+
+      - name: Keep the CI comment for the comment job
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-comment
+          path: ${{ runner.temp }}/ci-comment/
+          retention-days: 14
+          if-no-files-found: error

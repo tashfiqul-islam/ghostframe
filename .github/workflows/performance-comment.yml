@@ -1,21 +1,23 @@
-name: Performance comment
-run-name: 'Performance comment · ${{ github.event.workflow_run.display_title }}'
+name: Pull request comment
+run-name: 'Pull request comment · ${{ github.event.workflow_run.name }} · ${{ github.event.workflow_run.display_title }}'
 
-# Writes the Performance check's result as one comment on its pull request, edited in place on every push. It runs from
-# main's code (workflow_run), never checks out or runs the pull request's, and treats what the check uploaded as
-# untrusted text: the pull request's number is taken from GitHub, not the upload, and the comment is only posted on
-# the pull request whose head the check ran on. So a fork's pull request gets its comment without ever holding a token
-# that can write.
+# Writes the pull request's one comment, edited in place: CI's section (what ran, what skipped and why, how to
+# reproduce a failure: tools/ci/ci.ts report) and the Performance check's (tools/bench/compare.ts), each replaced when
+# its workflow finishes. It runs from main's code (workflow_run), never checks out or runs the pull request's, and
+# treats what the run uploaded as untrusted text: the pull request's number is taken from GitHub, not the upload, the
+# section must start with its own marker, and the comment is only posted on the pull request whose head the run ran
+# on. So a fork's pull request gets its comment without ever holding a token that can write.
 
 on:
   # The one safe use of this trigger: nothing here checks out or runs the pull request's code, the upload is read as
   # text and checked (above), and the token can write comments only.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [Performance]
+    workflows: [CI, Performance]
     types: [completed]
 
+# One at a time per commit, never cancelled: CI's and Performance's runs edit the same comment.
 concurrency:
-  group: performance-comment-${{ github.event.workflow_run.head_sha }}
+  group: pr-comment-${{ github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 permissions: {}
@@ -26,49 +28,76 @@ defaults:
 
 jobs:
   comment:
-    name: Post the Performance comment
+    name: Post the pull request comment
     if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # download the check's upload, and find the latest live benchmark on main
+      contents: read # check out main's tools/ci, which merges the sections
+      actions: read # download the run's upload, and find the latest live benchmark on main
       pull-requests: write # write the comment
     steps:
-      - name: Download the check's comment
+      # Main's code (the default branch: a workflow_run job runs there), never the pull request's.
+      - name: Check out main's tools/ci
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /tools/ci/
+            /mise.toml
+            /.github/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Bun (mise)
+        uses: $/.github/actions/setup
+        with:
+          install: 'false'
+
+      - name: Download the run's section
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: performance-comment
-          path: ${{ runner.temp }}/perf
+          name: ${{ github.event.workflow_run.name == 'CI' && 'ci-comment' || 'performance-comment' }}
+          path: ${{ runner.temp }}/section
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
-      - name: Post it, or edit the one already there
+      - name: Post the comment, or edit the one already there
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_OWNER: ${{ github.event.workflow_run.head_repository.owner.login }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          MARKER: '<!-- ghostframe-performance -->'
+          KIND: ${{ github.event.workflow_run.name == 'CI' && 'ci' || 'performance' }}
         run: |
           set -euo pipefail
-          dir="$RUNNER_TEMP/perf"
-          # The pull request from GitHub: the open one whose head is the commit the check ran on.
+          dir="$RUNNER_TEMP/section"
+          # The pull request from GitHub: the open one whose head is the commit the run ran on.
           claimed=$(head -c 20 "$dir/pr.txt" | tr -cd '0-9')
           # As fields, never pasted into the URL: a branch name may hold & or =.
           pr=$(gh api --method GET "repos/$REPO/pulls" -f state=open -f head="$HEAD_OWNER:$HEAD_BRANCH" --jq ".[] | select(.head.sha == \"$HEAD_SHA\") | .number" | head -n 1)
           if [ -z "$pr" ] || [ "$pr" != "$claimed" ]; then echo "::error::No open pull request has head $HEAD_SHA (the upload names #$claimed)"; exit 1; fi
 
-          body=$(head -c 60000 "$dir/comment.md")
-          if [[ "$body" != "$MARKER"* ]]; then echo "::error::The upload is not a Performance comment"; exit 1; fi
-          live=$(gh api "repos/$REPO/actions/workflows/benchmarks.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].html_url // empty')
-          if [ -n "$live" ]; then body="$body"$'\n\n'"The live benchmark (never blocks) runs on main nightly and on each push: [its latest run]($live)."; fi
+          head -c 60000 "$dir/comment.md" > "$RUNNER_TEMP/new.md"
+          if [ "$KIND" = performance ]; then
+            live=$(gh api "repos/$REPO/actions/workflows/benchmarks.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].html_url // empty')
+            if [ -n "$live" ]; then printf '\n\nThe live benchmark (never blocks) runs on main nightly and on each push: [its latest run](%s).\n' "$live" >> "$RUNNER_TEMP/new.md"; fi
+          fi
 
-          id=$(gh api --paginate "repos/$REPO/issues/$pr/comments" --jq ".[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$MARKER\"))) | .id" | head -n 1)
+          # The one comment: this bot's, starting with the comment's marker or (from before CI's section) the Performance one.
+          id=$(gh api --paginate "repos/$REPO/issues/$pr/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and ((.body | startswith("<!-- ghostframe-pr -->")) or (.body | startswith("<!-- ghostframe-performance -->")))) | .id' | head -n 1)
+          old=()
           if [ -n "$id" ]; then
-            gh api --method PATCH "repos/$REPO/issues/comments/$id" -f body="$body" > /dev/null
+            gh api "repos/$REPO/issues/comments/$id" --jq .body > "$RUNNER_TEMP/old.md"
+            old=(--old "$RUNNER_TEMP/old.md")
+          fi
+          # Refuses a section that does not start with its own marker.
+          bun tools/ci/ci.ts comment --kind "$KIND" --section "$RUNNER_TEMP/new.md" "${old[@]}" > "$RUNNER_TEMP/body.md"
+
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$RUNNER_TEMP/body.md" > /dev/null
             echo "Edited comment $id on #$pr."
           else
-            gh api --method POST "repos/$REPO/issues/$pr/comments" -f body="$body" > /dev/null
+            gh api --method POST "repos/$REPO/issues/$pr/comments" -F body=@"$RUNNER_TEMP/body.md" > /dev/null
             echo "Posted a comment on #$pr."
           fi

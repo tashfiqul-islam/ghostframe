@@ -1,41 +1,53 @@
 name: Changes
 description: >-
-  Whether a pull request changes anything the tests or the benchmarks run, so a required job can pass in seconds when
-  it changes only words and pictures. It never skips a job: a required check that does not run counts as missing and
-  blocks the merge. Anything but a pull request counts as code. The list of what is not code is in
-  docs/development/performance.md ("Changes that skip the work"); change it here and there together.
+  Which jobs a change needs: tools/ci/map.ts sorts the changed files (each rule says what it guards), and this outputs
+  each decision. Jobs skip with `if:`, never by a workflow's `on: paths`, so every required check still reports. A
+  scheduled or dispatched run, a push (unless diff-pushes), and the release-please pull request run everything.
+  Expects the repository checked out with `fetch-depth: 2`: a pull request's checkout is its merge commit, whose first
+  parent is the base branch as it is now; a push's first parent is the commit before it. Docs:
+  docs/development/ci.md.
 
+inputs:
+  diff-pushes:
+    description: "'true' to sort a push's own files too (the report-only benchmarks), instead of running everything."
+    required: false
+    default: 'false'
+
+# One output per decision in tools/ci/map.ts (DECISIONS); `bun tools/ci/ci.ts --check` fails when they differ.
 outputs:
-  code:
-    description: "'true' when the pull request changes code (or this is no pull request), 'false' when it changes only non-code files."
-    value: ${{ steps.files.outputs.code }}
+  gate:
+    description: The Quality gate runs.
+    value: ${{ steps.plan.outputs.gate }}
+  docs:
+    description: The Docs job runs (a change with no code).
+    value: ${{ steps.plan.outputs.docs }}
+  tests:
+    description: The Tests jobs run.
+    value: ${{ steps.plan.outputs.tests }}
+  plugin_tests:
+    description: The Tests jobs run the plugin's tests, not only the status line's specs.
+    value: ${{ steps.plan.outputs.plugin_tests }}
+  perf:
+    description: The Performance check and the benchmarks measure.
+    value: ${{ steps.plan.outputs.perf }}
+  readme:
+    description: README's checks run.
+    value: ${{ steps.plan.outputs.readme }}
+  site:
+    description: The website's job runs.
+    value: ${{ steps.plan.outputs.site }}
 
 runs:
   using: composite
   steps:
-    - name: List the pull request's files and look for code among them
-      id: files
+    - name: Set up Bun (mise)
+      uses: $/.github/actions/setup
+      with:
+        install: 'false'
+
+    - name: Plan the jobs from the changed files (tools/ci/map.ts)
+      id: plan
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
-        REPO: ${{ github.repository }}
-        PR: ${{ github.event.pull_request.number }}
-        CHANGED: ${{ github.event.pull_request.changed_files }}
-      run: |
-        set -euo pipefail
-        if [ -z "$PR" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; echo "Not a pull request: code."; exit 0; fi
-        # The files API lists at most 3,000 files: a larger change counts as code.
-        if [ "$CHANGED" -gt 3000 ]; then echo "code=true" >> "$GITHUB_OUTPUT"; echo "$CHANGED files: code."; exit 0; fi
-        code=false
-        while IFS= read -r path; do
-          case "$path" in
-            # The tools read their own Markdown (tools/mockgen/tpl), and tests read it: code.
-            tools/*) code=true; echo "Code: $path"; break ;;
-            *.md | docs/* | LICENSE | .rumdl.toml | .diagram-design/* | .github/ISSUE_TEMPLATE/* | .github/CODEOWNERS) ;;
-            *.png | *.jpg | *.jpeg | *.gif | *.webp | *.svg | *.ico) ;;
-            *) code=true; echo "Code: $path"; break ;;
-          esac
-        # A rename lists both paths: code moved into docs/ is still code leaving.
-        done < <(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')
-        echo "code=$code" >> "$GITHUB_OUTPUT"
-        if [ "$code" = false ]; then echo "Only non-code files change: the work is skipped and the job passes."; fi
+        DIFF_PUSHES: ${{ inputs.diff-pushes }}
+      run: bun tools/ci/ci.ts github
