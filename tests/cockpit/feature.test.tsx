@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 
 import { OFF, ON, PANE, T0 } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
+import { holdTimers } from '../support/clock'
 
 // Phase 5, agents, in the pane (8.3, 8.9): agent.spawn, a subagent's tool.call and agent.report drive the roster; on the
 // timeline a launch is one group with its agents as `├ ◇ name` bars under it, each with its running or last sub-step.
@@ -9,6 +10,7 @@ const ASYNC = { result: { status: 'async_launched', agentId: 'x', description: '
 
 function engine(on: On, clock: { now: number }, listed: { id: string; taskStatus: string }[] = []) {
   on('clock.now', () => ({ value: clock.now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

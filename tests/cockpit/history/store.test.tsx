@@ -6,6 +6,7 @@ import type { Engine, On } from '../../support/engine'
 import { text } from '../../support/docked'
 import { aTurn } from '../../support/history'
 import { respond, rowOf } from '../../support/respond'
+import { holdTimers } from '../../support/clock'
 
 // Phase 8, history (spec E.45): every typed turn kept in $.state and $.store; a past turn pinned into the pane by
 // `/steps n`, `p` / `n` / `l`, or a click on its receipt; resume and compaction.
@@ -13,7 +14,7 @@ type Store = Map<string, unknown>
 
 function engine(on: On, clock: { now: number }, store: Store, session = 's1', sent: string[] = [], isPlaced = true, messages: unknown[] = []) {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.focus', { plugin: '*' }, () => ({}))
   on('session.id', () => ({ value: session }))

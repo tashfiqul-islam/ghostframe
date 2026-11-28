@@ -6,6 +6,7 @@ import type { Engine, On } from '../support/engine'
 import { fallbackEngine, MIXED, site } from '../support/fallback'
 import { aTurn } from '../support/history'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // What a transcript row costs to draw again in a long session, Cockpit on and the pane docked at 280 columns (a left
 // region of 207). The engine draws a row again when the person scrolls (the rows at the viewport's edges) and when the
@@ -50,7 +51,7 @@ async function longSession($: Engine, on: On): Promise<{ reads: { n: number; key
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.log', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }) as never)
   on('state.get', (_, e, next) => {
     reads.n++

@@ -52,6 +52,7 @@ const SEARCH_GROUP = {
 test('a folded engine group that opens the turn keeps the activity rule and `claude`', OFF, async ($, on) => {
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))
+  on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('session.messages', () => ({
     value: [
       { role: 'user', text: 'search then read', toolUses: [] },

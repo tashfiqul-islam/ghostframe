@@ -9,6 +9,7 @@ import { T0 } from './cockpit'
 import { text, use } from './docked'
 import type { Engine, On } from './engine'
 import { respond } from './respond'
+import { holdTimers } from './clock'
 
 export type Clock = { now: number }
 type Call = { id: string; tool: string; input: Record<string, unknown>; at: number; ms?: number; text?: string; isError?: true; result?: unknown }
@@ -56,7 +57,7 @@ export function liveEngine(on: On, clock: Clock, placed: boolean, rec: Recorded 
   const calls = callsOf(rec)
   let isPlaced = false
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => {
     isPlaced = placed
 

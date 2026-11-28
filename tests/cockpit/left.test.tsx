@@ -2,6 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { OFF, ON, PANE, SLOW, T0, VIEW } from '../support/cockpit'
 import type { Engine } from '../support/engine'
+import { holdTimers } from '../support/clock'
 
 const SPINNER = {
   plugin: 'ghostframe',
@@ -14,6 +15,7 @@ const SPINNER = {
 test('docked, the left live area is the live line: its time, the spinner, the sentence (7.11)', ON, async ($, on) => {
   let now = T0
   on('clock.now', () => ({ value: now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
@@ -57,7 +59,7 @@ test('7.15: `/steps all` run in turn 5 still prints turn 5`s steps when drawn ag
   let now = T0
   mock.store(on)
   on('clock.now', () => ({ value: now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('session.id', () => ({ value: 's1' }))
   on('session.start', (_, e) => ({ cwd: e.cwd }))

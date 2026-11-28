@@ -3,6 +3,7 @@ import { expect, test } from 'claude-code/testing'
 import { OFF, ON } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 import { VIEW } from '../support/view'
+import { holdTimers } from '../support/clock'
 
 // The engine drift guard (docs/decisions/0012-engine-range.md): outside the manifest's tested range, ghostframe draws
 // nothing of its own, says why once, and /cockpit explains; GHOSTFRAME_ENGINE_CHECK=0 turns the check off.
@@ -169,6 +170,7 @@ test('outside the range, Cockpit on, the first draw after a reload: AgentRow han
   on('session.version', () => ({ value: { version: '2.2.0', base: '2.2.0' } }))
   on('ui.log', () => ({ value: undefined }))
   on('clock.now', () => ({ value: 0 }))
+  holdTimers(on)
   on('ui.panes', () => ({ value: [] }))
   on('agent.list', () => ({ value: [] as never }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))

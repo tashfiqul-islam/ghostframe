@@ -4,6 +4,7 @@ import { ON, PANE, T0 } from '../support/cockpit'
 import type { Engine, On } from '../support/engine'
 import { aTurn } from '../support/history'
 import { liveEngine, liveTurn, MANUAL } from '../support/live'
+import { holdTimers } from '../support/clock'
 
 // A compaction takes the rows before its summary out of the conversation: `$.session.messages({ after })` finds none
 // of them, as it finds none after a rewind. The pane must tell the two apart, and keep the session it has drawn.
@@ -60,7 +61,7 @@ async function compactedSession($: Engine, on: On, store = new Map<string, unkno
   const summary = { role: 'user', text: 'This session is being continued from a previous conversation.', toolUses: [] }
   on('session.compact', () => ({ messages: [summary] as never }))
   on('ui.log', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   await $.session.start({ cwd: String.raw`D:\Projects\cockpit-live`, surface: 'terminal', isInteractive: true } as never)
   await (await $.ui.mount(PANE)).unmount()
   for (let n = 1; n <= 6; n++) await liveTurn($, clock, n, 200, MANUAL)
@@ -125,8 +126,7 @@ test('/resume after a compaction: the kept turns stay, though none of their rows
   })
   store.set('history:resumed', { savedAt: T0, turns: [1, 2, 3].map(n => ({ ...aTurn(n, T0 + n * 100_000), receipts: [receipt(n)] })) })
   on('clock.now', () => ({ value: T0 + 999_000 }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [] }))
   on('ui.log', () => ({ value: undefined }))

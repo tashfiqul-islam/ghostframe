@@ -6,6 +6,7 @@ import type { On } from '../support/engine'
 import { rowsOf, site } from '../support/fallback'
 import { aTurn } from '../support/history'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // Narration after a resume (amendment 10): live, a text block that a tool call follows leaves the left, decided from
 // the flow in the session's state. A resumed session starts with no flow, so each kept turn records its narration's
@@ -14,7 +15,7 @@ type Store = Map<string, unknown>
 
 function engine(on: On, clock: { now: number }, store: Store, session: string, isPlaced: boolean) {
   on('clock.now', () => ({ value: clock.now }))
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('ui.open', () => ({ value: isPlaced ? { isPlaced: true } : { isPlaced: false, reason: 'unasked below 144 columns' } }))
   on('ui.close', () => ({ value: undefined }))
   on('ui.panes', () => ({ value: [] }))

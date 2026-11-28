@@ -4,6 +4,7 @@
 import type { Engine, On } from './engine'
 import { text, use } from './docked'
 import { respond } from './respond'
+import { holdTimers } from './clock'
 
 export type Clock = { now: number }
 
@@ -56,7 +57,7 @@ export function fallbackEngine(on: On, clock: Clock, placed = false): { opened: 
   on('ui.panes', () => ({ value: isPlaced ? [{ id: 'cockpit', title: 'cockpit', isShown: true, isFocused: false, isPlaced: true }] : [] }))
   on('agent.list', () => ({ value: [] as never }))
   // A re-open waits for the width to hold (pane.tsx); these tests never let it come due.
-  on('clock.after', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('turn.complete', (_, e) => ({ text: e.answer }))

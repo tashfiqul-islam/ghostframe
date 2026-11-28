@@ -4,6 +4,7 @@ import { ON, PANE, T0, VIEW } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import type { Engine, On } from '../support/engine'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // Another pane in the dock (the engine's Diff view) hides Cockpit's tab: the turns that start then draw the full
 // view on the left; showing Cockpit's tab again makes the next turns quiet. A row once drawn never changes.
@@ -45,6 +46,7 @@ const group = (id: string) =>
 
 function engine(on: On, clock: { now: number }, shown: { cockpit: boolean }) {
   on('clock.now', () => ({ value: clock.now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.panes', () => ({ value: [{ id: 'cockpit', title: 'cockpit', isShown: shown.cockpit, isFocused: false, isPlaced: true }] }))
   on('prompt.submit', (_, e) => ({ text: e.text }))

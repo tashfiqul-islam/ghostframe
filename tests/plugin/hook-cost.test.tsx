@@ -4,6 +4,7 @@ import { ON, PANE } from '../support/cockpit'
 import { text, use } from '../support/docked'
 import { fallbackEngine, MIXED } from '../support/fallback'
 import { respond } from '../support/respond'
+import { holdTimers } from '../support/clock'
 
 // What a main-loop tool call costs ghostframe inside its hook, in a long session. A hook's own time is mostly what
 // it moves through `$.state`: every value read is copied into ghostframe's worker and every value written is copied
@@ -24,7 +25,7 @@ test('a long session: one tool call moves at most its budget of bytes through $.
   on('session.messages', () => ({ value: [] }))
   on('command.register', (_, e) => ({ value: { command: e.name } }))
   on('ui.log', () => ({ value: undefined }))
-  on('clock.every', () => ({ value: { cancel: () => undefined } as never }))
+  holdTimers(on)
   on('process.run', () => ({ value: { exitCode: 128, stdout: '', stderr: 'not a git repository' } }) as never)
   on('state.get', async (_, e, next) => {
     const got = await next(e)

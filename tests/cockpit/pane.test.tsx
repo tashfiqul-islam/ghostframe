@@ -1,6 +1,7 @@
 import { expect, mock, test } from 'claude-code/testing'
 
 import { ON } from '../support/cockpit'
+import { holdTimers } from '../support/clock'
 
 const PANE = {
   plugin: 'ghostframe',
@@ -118,6 +119,7 @@ test('/cockpit opens the pane at the width rule for the terminal it ran in, and 
 test('a dialog opening mid-turn moves nothing: the rows stay put while bodyRows grows, and when it shrinks back', ON, async ($, on) => {
   let now = 1_000_000
   on('clock.now', () => ({ value: now }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('prompt.submit', (_, e) => ({ text: e.text }))
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
@@ -161,6 +163,7 @@ test('a dialog opening mid-turn moves nothing: the rows stay put while bodyRows 
 
 test('8.3: before the first turn the pane draws no head card, only what will appear (live check: no `DONE TURN 0` at 06:00:00)', ON, async ($, on) => {
   on('clock.now', () => ({ value: Date.UTC(2026, 10, 24, 9) }))
+  holdTimers(on)
   on('ui.open', () => ({ value: { isPlaced: true } }))
   on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'engine' }))
   const ui = await $.ui.mount({ ...PANE, viewport: { columns: 200, rows: 50, isFullscreen: true } })
