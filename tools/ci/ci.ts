@@ -376,11 +376,11 @@ function selfTest(): void {
       ['.github/rulesets/main.json', 'hooks/register.tsx'],
       [...GATE_TESTS, 'perf']
     ],
-    [['README.md'], ['gate', 'readme', 'site']],
-    [['CHANGELOG.md'], ['gate', 'site']],
+    [['README.md'], ['docs', 'readme', 'site']],
+    [['CHANGELOG.md'], ['docs', 'site']],
     [['statusline/render.ts'], ['gate', 'tests', 'perf', 'site']],
     [['docs/assets/readme/hero.svg'], ['docs', 'readme']],
-    [['docs/design/brand/ghostframe-wordmark-white.svg'], ['gate', 'readme', 'site']],
+    [['docs/design/brand/ghostframe-wordmark-white.svg'], ['docs', 'readme', 'site']],
     [['.github/workflows/ci.yml'], ALL],
     [['mise.toml'], ALL],
     [['tools/bun.lock'], ALL],
@@ -421,7 +421,7 @@ function selfTest(): void {
   eq(planOf([], 'a push run').decisions.perf, true, 'a push runs everything')
   eq(planOf([], 'a push run').decisions.docs, false, 'everything: the gate checks the docs, the Docs job skips')
 
-  const docsOnly = planOf(['docs/development/ci.md'])
+  const docsOnly = planOf(['README.md'])
   const gate = jobOf('check')
 
   eq(runsIn(gate, docsOnly), false, 'docs only: the gate skips')

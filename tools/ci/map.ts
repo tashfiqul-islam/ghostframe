@@ -5,7 +5,7 @@
 // job or step no workflow has, or when a tracked file matches no rule but the catch-all.
 
 /** What a changed file belongs to. `all` runs everything. */
-export type Area = 'docs' | 'settings' | 'readme' | 'site' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
+export type Area = 'docs' | 'settings' | 'readme' | 'site' | 'site-input' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
 
 /** One rule: the paths it claims (Bun.Glob patterns), the areas they touch, and why. The first rule a path matches decides. */
 export type Rule = { id: string; paths: readonly string[]; areas: readonly Area[]; why: string }
@@ -131,13 +131,13 @@ export const RULES: readonly Rule[] = [
   {
     id: 'site-changelog',
     paths: ['CHANGELOG.md'],
-    areas: ['docs', 'site'],
+    areas: ['docs', 'site-input'],
     why: "the release notes: the Markdown checks, and the site's release pages read them (site/build/site-data)"
   },
   {
     id: 'readme',
     paths: ['README.md', 'docs/design/brand/**'],
-    areas: ['docs', 'readme', 'site'],
+    areas: ['docs', 'readme', 'site-input'],
     why: "README and the brand art it shows: the docs checks and README's own, and the site reads both (site/build/site-data)"
   },
   {
@@ -174,7 +174,7 @@ export const DECISIONS: Readonly<Record<Decision, { areas: readonly Area[]; guar
   plugin_tests: { areas: ['plugin', 'tests'], guards: "the plugin's tests (claude plugin test); the status line alone runs its specs alone" },
   perf: { areas: ['perf'], guards: 'the speed of code on a measured path: the plugin runtime, the status line, the benchmarks, the runtime' },
   readme: { areas: ['readme'], guards: "README.md's boxes, badge and art, and the engine range it repeats" },
-  site: { areas: ['site'], guards: 'the website' }
+  site: { areas: ['site', 'site-input'], guards: 'the website' }
 }
 
 /** One step CI runs through `bun tools/ci/ci.ts step <job> <id>`, and `mise run ci:run` runs locally: the same command. */

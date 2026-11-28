@@ -15,7 +15,8 @@ For an agent, in one line: **run `mise run ci:plan` before pushing; the PR's CI 
   `.github/actionlint.yaml`, `mise.toml`, `hk.pkl`, `package.json`, lockfiles, `tsconfig`, lint and format configs,
   git attributes) and this map itself touch `all`, which runs everything. Repo settings GitHub applies and nothing in
   CI reads (rulesets, `CODEOWNERS`, issue forms, the pull request template, `dependabot.yml`) touch `settings`: their
-  JSON and YAML only have to parse and be formatted. Before a path leaves shared setup, grep the workflows and tools
+  JSON and YAML only have to parse and be formatted. A file only the site reads on top of its own checks (README, the
+  release notes, the brand art) touches `site-input`, which turns on the Site job alone. Before a path leaves shared setup, grep the workflows and tools
   for a reader; the rule's comment says what was checked. A file no rule claims falls to the last rule, `unclassified`, which runs everything too.
 - **Decisions:** the yes or no each guard needs (`gate`, `docs`, `settings`, `tests`, `plugin_tests`, `perf`,
   `readme`, `site`), each turned on by its areas and saying what it guards. `all` turns on every one but `docs` and
