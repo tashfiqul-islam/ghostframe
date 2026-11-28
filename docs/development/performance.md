@@ -241,3 +241,5 @@ required status checks ([`.github/rulesets/main.json`](../../.github/rulesets/ma
 ```json
 { "context": "Performance", "integration_id": 15368 }
 ```
+
+<!-- proof: a docs-only change, to time the skipped jobs; this pull request is closed unmerged. -->
