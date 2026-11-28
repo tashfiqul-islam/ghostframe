@@ -5,14 +5,18 @@ flavor = "gfm"
 # A code span may hold a glyph and the space after it (`├ `), as the Cockpit spec writes them.
 disable = ["MD013", "MD038"]
 # Kept as written: earlier design rounds and briefs, past plans, the generator's templates and the brand kit.
+# The site's fixtures are copies of real repository files (a changelog, a brand README), kept byte for byte.
 # CHANGELOG.md is release-please's output, written whole on every release (two blank lines before each section).
-exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen/tpl/**", "docs/design/brand/**", "CHANGELOG.md"]
+exclude = ["docs/design/history/**", "docs/development/plans/**", "tools/mockgen/tpl/**", "docs/design/brand/**", "CHANGELOG.md", "site/build/**/fixtures/**"]
 
 [per-file-ignores]
 # The README opens with the brand header: a <picture> for the dark and light variants, before any heading.
 "README.md" = ["MD033", "MD041"]
 # A PR body opens with its first section; the PR title is its heading.
 ".github/pull_request_template.md" = ["MD041"]
+# Impeccable's DESIGN.md format: a name in the frontmatter and a title, a bold North Star line, and the "Do:" and
+# "Don't:" headings its tools parse.
+"site/DESIGN.md" = ["MD025", "MD036", "MD026"]
 
 [MD033]
 # A <picture> switches a diagram between its dark and light versions; nothing else needs HTML.

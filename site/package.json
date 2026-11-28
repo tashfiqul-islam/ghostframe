@@ -1,0 +1,33 @@
+{
+  "name": "ghostframe-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build/brand/copy.ts && astro build && bun build/headers/write.ts",
+    "dev": "bun build/brand/copy.ts && astro dev",
+    "typecheck": "astro sync && tsc -p . && tsrs -p . --runExternalCode",
+    "lint": "TSRS_LINT_RUN_EXTERNAL_CODE=1 oxlint --type-aware --deny-warnings --ignore-pattern 'build/checks/fixtures/lint/**'",
+    "fmt": "cd .. && oxfmt site",
+    "fmt:check": "cd .. && oxfmt --check site",
+    "test": "bun test ./build ./src ./tests/chrome-flags.spec.ts",
+    "checks": "bun build/checks/run.ts",
+    "e2e": "playwright test",
+    "lighthouse": "bun test ./tests/lighthouse.spec.ts",
+    "check": "bun run typecheck && bun run lint && bun run fmt:check && bun run test && bun run build && bun run checks && bun run e2e && bun run lighthouse"
+  },
+  "dependencies": {
+    "astro": "7.4.13"
+  },
+  "devDependencies": {
+    "@astrojs/ts-content-mapper": "0.2.0",
+    "@axe-core/playwright": "4.14.1",
+    "@playwright/test": "1.65.1",
+    "@types/bun": "1.4.5",
+    "chrome-launcher": "1.2.3",
+    "lighthouse": "13.6.0",
+    "oxfmt": "0.78.0",
+    "oxlint": "1.93.0",
+    "tsrs": "7.1.0-beta.tsrs2",
+    "typescript": "7.0.2"
+  }
+}

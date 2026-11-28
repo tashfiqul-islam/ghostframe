@@ -1,0 +1,10 @@
+{
+  "extends": "astro/tsconfigs/strictest",
+  // index.html: Vite loads Astro's config from a virtual site/index.html. When include misses the importer,
+  // Rolldown's resolver walks up to the repo's tsconfig, which extends engine types a fresh checkout lacks.
+  "include": [".astro/types.d.ts", "**/*", "index.html"],
+  "exclude": ["dist", "build/**/fixtures/**"],
+  "compilerOptions": { "noEmit": true, "types": ["bun"] },
+  // tsc 7.0 ignores this option; tsrs (TypeScript 7.1 behaviour) uses it to check .astro files.
+  "contentMappers": [{ "package": "@astrojs/ts-content-mapper", "extensions": [".astro"] }]
+}

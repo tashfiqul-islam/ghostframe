@@ -5,7 +5,7 @@
 // job or step no workflow has, or when a tracked file matches no rule but the catch-all.
 
 /** What a changed file belongs to. `all` runs everything. */
-export type Area = 'docs' | 'settings' | 'readme' | 'site' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
+export type Area = 'docs' | 'settings' | 'readme' | 'site' | 'site-input' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
 
 /** One rule: the paths it claims (Bun.Glob patterns), the areas they touch, and why. The first rule a path matches decides. */
 export type Rule = { id: string; paths: readonly string[]; areas: readonly Area[]; why: string }
@@ -58,8 +58,8 @@ export const RULES: readonly Rule[] = [
   {
     id: 'manifest',
     paths: ['.claude-plugin/plugin.json'],
-    areas: ['plugin', 'perf', 'readme'],
-    why: "the plugin's manifest: what loads (its runtime), and the engine range README's badge repeats"
+    areas: ['plugin', 'perf', 'readme', 'site'],
+    why: "the plugin's manifest: what loads (its runtime), the engine range README's badge repeats, and the facts the site reads"
   },
   {
     id: 'readme-imports',
@@ -78,6 +78,12 @@ export const RULES: readonly Rule[] = [
     paths: ['types/**'],
     areas: ['plugin'],
     why: "the engine's types: the tests and the gate check against them; nothing measures them"
+  },
+  {
+    id: 'site-render',
+    paths: ['statusline/render.ts'],
+    areas: ['statusline', 'perf', 'site'],
+    why: "the status line's renderer: its specs and benchmark rows, and the eye thresholds the site's facts read from it"
   },
   {
     id: 'statusline',
@@ -121,12 +127,24 @@ export const RULES: readonly Rule[] = [
     areas: ['tools'],
     why: 'the other dev tools (scripts, mockgen, commitlint): the gate lints, type-checks and runs them'
   },
-  { id: 'site', paths: ['site/**'], areas: ['site'], why: 'the website: its job, once it exists' },
+  { id: 'site', paths: ['site/**'], areas: ['site'], why: 'the website: its job' },
+  {
+    id: 'site-changelog',
+    paths: ['CHANGELOG.md'],
+    areas: ['docs', 'site-input'],
+    why: "the release notes: the Markdown checks, and the site's release pages read them (site/build/site-data)"
+  },
   {
     id: 'readme',
-    paths: ['README.md', 'docs/assets/**', 'docs/design/brand/**'],
+    paths: ['README.md', 'docs/design/brand/**'],
+    areas: ['docs', 'readme', 'site-input'],
+    why: "README and the brand art it shows: the docs checks and README's own, and the site reads both (site/build/site-data)"
+  },
+  {
+    id: 'readme-assets',
+    paths: ['docs/assets/**'],
     areas: ['docs', 'readme'],
-    why: "README and the art it shows: the docs checks and README's own"
+    why: "the art README shows: the docs checks and README's own"
   },
   {
     id: 'words',
@@ -156,7 +174,7 @@ export const DECISIONS: Readonly<Record<Decision, { areas: readonly Area[]; guar
   plugin_tests: { areas: ['plugin', 'tests'], guards: "the plugin's tests (claude plugin test); the status line alone runs its specs alone" },
   perf: { areas: ['perf'], guards: 'the speed of code on a measured path: the plugin runtime, the status line, the benchmarks, the runtime' },
   readme: { areas: ['readme'], guards: "README.md's boxes, badge and art, and the engine range it repeats" },
-  site: { areas: ['site'], guards: 'the website' }
+  site: { areas: ['site', 'site-input'], guards: 'the website' }
 }
 
 /** One step CI runs through `bun tools/ci/ci.ts step <job> <id>`, and `mise run ci:run` runs locally: the same command. */
@@ -251,6 +269,17 @@ export const JOBS: readonly Job[] = [
     steps: [
       { id: 'plugin', when: 'plugin_tests', run: 'claude plugin test .' },
       { id: 'statusline', run: 'bun test ./statusline' }
+    ]
+  },
+  {
+    workflow: 'ci.yml',
+    job: 'site',
+    name: 'Site',
+    runs: 'site',
+    why: DECISIONS.site.guards,
+    steps: [
+      { id: 'install', run: 'bun install --cwd site --frozen-lockfile --ignore-scripts' },
+      { id: 'check', run: 'bun run --cwd site check' }
     ]
   },
   {

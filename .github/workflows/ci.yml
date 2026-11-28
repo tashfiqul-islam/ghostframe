@@ -254,6 +254,51 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun tools/ci/ci.ts step tests statusline
 
+  # The website (site/, ADR 0021). Its inputs are SITE_INPUTS (site/build/site-data/site-data.ts); the map sends each
+  # of them to the site decision, and site-data.spec.ts holds the two together.
+  site:
+    name: Site
+    needs: changes
+    if: needs.changes.outputs.site == 'true'
+    runs-on: ubuntu-24.04
+    # Budget 4 minutes (docs/design/website/stack.md, the CI job); twice that, so a hang fails fast.
+    timeout-minutes: 8
+    permissions:
+      contents: read # check out this repo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the road to 1.0.0 counts commits per day, and the base must be reachable
+          persist-credentials: false
+
+      # Release notes come from release-please only (ADR 0019). Until 1.0.0 is tagged, main has no CHANGELOG.md: the
+      # open release pull request's branch holds the pending one.
+      - name: Write the pending release's CHANGELOG.md (before 1.0.0 is tagged)
+        if: hashFiles('CHANGELOG.md') == ''
+        run: |
+          git fetch --no-tags origin release-please--branches--main--components--ghostframe
+          git show FETCH_HEAD:CHANGELOG.md > CHANGELOG.md
+
+      # tools/ too: the site's lint extends the repo's rules (site/oxlint.config.ts imports tools/oxlint.config.ts).
+      - name: Set up toolchain (mise) and dev tools (tools/)
+        id: setup
+        uses: $/.github/actions/setup
+        with:
+          tools: bun
+
+      - name: Install the site's packages
+        id: install
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bun tools/ci/ci.ts step site install
+
+      # Playwright and Lighthouse use the runner's own Chrome (channel: chrome), so no browser download.
+      - name: Check the site (types, lint, format, specs, build, site checks, browser tests, Lighthouse)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: bun tools/ci/ci.ts step site check
+
   # The benchmarks run in their own workflows: benchmarks.yml (the live run, on main) and performance.yml (the
   # Performance check, on pull requests).
 
@@ -276,7 +321,7 @@ jobs:
   # performance-comment.yml, to the pull request's one comment.
   ci:
     name: CI
-    needs: [changes, check, docs, settings, tests, dependencies]
+    needs: [changes, check, docs, settings, tests, site, dependencies]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5

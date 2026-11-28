@@ -1,0 +1,4 @@
+[install]
+# Same rule as the repo: install nothing published in the last three days, and pin exactly.
+minimumReleaseAge = 259200
+exact = true

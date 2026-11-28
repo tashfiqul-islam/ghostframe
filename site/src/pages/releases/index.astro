@@ -1,0 +1,14 @@
+---
+import Page from '../../layouts/Page.astro'
+import ReleaseNotes from '../../release-notes/ReleaseNotes.astro'
+import { releaseNotesPage } from '../../../build/release-notes/releases'
+import { siteData } from '../../../build/site-data/site-data'
+import { words } from '../../content/words'
+
+const { feed } = releaseNotesPage(siteData().releases)
+---
+
+<Page title={words.releaseNotes.title} description={words.releaseNotes.description}>
+  <link slot="head" rel="alternate" type="application/atom+xml" title="ghostframe release notes" href={feed} />
+  <ReleaseNotes />
+</Page>

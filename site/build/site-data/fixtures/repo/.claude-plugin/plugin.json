@@ -1,0 +1,5 @@
+{
+  "name": "ghostframe",
+  "version": "1.0.0",
+  "engines": { "claude-code": ">=2.1.329 <2.2.0" }
+}
