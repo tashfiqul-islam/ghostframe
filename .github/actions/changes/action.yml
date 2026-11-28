@@ -21,6 +21,9 @@ outputs:
   docs:
     description: The Docs job runs (a change with no code).
     value: ${{ steps.plan.outputs.docs }}
+  settings:
+    description: The Repo settings job runs (a change to repo settings and no code).
+    value: ${{ steps.plan.outputs.settings }}
   tests:
     description: The Tests jobs run.
     value: ${{ steps.plan.outputs.tests }}

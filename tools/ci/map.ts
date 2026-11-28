@@ -5,22 +5,33 @@
 // job or step no workflow has, or when a tracked file matches no rule but the catch-all.
 
 /** What a changed file belongs to. `all` runs everything. */
-export type Area = 'docs' | 'readme' | 'site' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
+export type Area = 'docs' | 'settings' | 'readme' | 'site' | 'plugin' | 'statusline' | 'tests' | 'perf' | 'tools' | 'all'
 
 /** One rule: the paths it claims (Bun.Glob patterns), the areas they touch, and why. The first rule a path matches decides. */
 export type Rule = { id: string; paths: readonly string[]; areas: readonly Area[]; why: string }
 
 export const RULES: readonly Rule[] = [
+  // Moved out of shared setup: no workflow, action or tool reads these (a grep of .github/workflows, .github/actions,
+  // tools/, hooks/, tests/, statusline/, mise.toml and hk.pkl for each name finds no reader). A path something reads
+  // stays shared: .github/actionlint.yaml is actionlint's config.
   {
-    id: 'github-text',
-    paths: ['.github/ISSUE_TEMPLATE/**', '.github/CODEOWNERS', '.github/*.md'],
-    areas: ['docs'],
-    why: 'text GitHub shows (templates, owners): nothing CI builds or measures'
+    id: 'repo-settings',
+    paths: ['.github/rulesets/**', '.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/**', '.github/dependabot.yml'],
+    areas: ['settings'],
+    why: "repo settings GitHub applies (rulesets, code owners, issue forms, Dependabot's schedule): nothing in CI reads them, so only their JSON and YAML validity and format are checked; actionlint lints none of them"
+  },
+  {
+    id: 'pr-template',
+    paths: ['.github/pull_request_template.md'],
+    areas: ['settings', 'docs'],
+    why: 'the pull request template: GitHub shows it and nothing in CI reads it; Markdown, so the docs checks too'
   },
   {
     id: 'shared-setup',
     paths: [
-      '.github/**',
+      '.github/workflows/**',
+      '.github/actions/**',
+      '.github/actionlint.yaml',
       'mise.toml',
       'hk.pkl',
       '**/package.json',
@@ -36,7 +47,7 @@ export const RULES: readonly Rule[] = [
       '.gitignore'
     ],
     areas: ['all'],
-    why: 'shared setup (workflows, actions, the toolchain mise.toml pins, dependencies, type-check, lint and format configs, git attributes): every job depends on it'
+    why: 'shared setup (workflows, actions, the config actionlint reads, the toolchain mise.toml pins, dependencies, type-check, lint and format configs, git attributes): every job depends on it'
   },
   {
     id: 'release-config',
@@ -127,7 +138,7 @@ export const RULES: readonly Rule[] = [
 ]
 
 /** A yes or no CI computes from the areas; the change-detection job outputs each under its id. */
-export const DECISION_IDS = ['gate', 'docs', 'tests', 'plugin_tests', 'perf', 'readme', 'site'] as const
+export const DECISION_IDS = ['gate', 'docs', 'settings', 'tests', 'plugin_tests', 'perf', 'readme', 'site'] as const
 export type Decision = (typeof DECISION_IDS)[number]
 
 /** Each decision: the areas that turn it on (`all` turns on every one but `docs`), and what it guards. */
@@ -137,6 +148,10 @@ export const DECISIONS: Readonly<Record<Decision, { areas: readonly Area[]; guar
     guards: 'lint, type-check and format of the TypeScript (tools/ and tests/ included), workflow lint, module boundaries, the Markdown'
   },
   docs: { areas: ['docs'], guards: 'the Markdown and its links, for a change with no code (the Quality gate checks them otherwise)' },
+  settings: {
+    areas: ['settings'],
+    guards: "the repo settings' JSON and YAML: that they parse and are formatted, for a change with no code (the Quality gate formats them otherwise)"
+  },
   tests: { areas: ['plugin', 'statusline', 'tests'], guards: "the plugin's tests and the status line's specs on Ubuntu, Windows and macOS" },
   plugin_tests: { areas: ['plugin', 'tests'], guards: "the plugin's tests (claude plugin test); the status line alone runs its specs alone" },
   perf: { areas: ['perf'], guards: 'the speed of code on a measured path: the plugin runtime, the status line, the benchmarks, the runtime' },
@@ -225,6 +240,14 @@ export const JOBS: readonly Job[] = [
   },
   {
     workflow: 'ci.yml',
+    job: 'settings',
+    name: 'Repo settings',
+    runs: 'settings',
+    why: DECISIONS.settings.guards,
+    steps: [{ id: 'settings', run: 'bun tools/ci/ci.ts settings' }]
+  },
+  {
+    workflow: 'ci.yml',
     job: 'dependencies',
     name: 'Dependency review',
     runs: 'always',
@@ -292,6 +315,7 @@ export function planOf(files: readonly string[], everything?: string): Plan {
   const decisions: Record<Decision, boolean> = {
     gate,
     docs: !gate && touched.has('docs'),
+    settings: !gate && touched.has('settings'),
     tests: on('tests'),
     plugin_tests: on('plugin_tests'),
     perf: on('perf'),

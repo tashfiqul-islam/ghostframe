@@ -3,6 +3,7 @@
 //   bun tools/ci/ci.ts plan [--base <ref>]   what CI will run for this branch against main (mise run ci:plan)
 //   bun tools/ci/ci.ts run [job…]            run that set here, or the jobs named (mise run ci:run [-- job…])
 //   bun tools/ci/ci.ts step <job> <id>       one step, as CI runs it; a failure ends with a short summary
+//   bun tools/ci/ci.ts settings              the repo settings' JSON and YAML parse and are formatted
 //   bun tools/ci/ci.ts github                the change-detection job: decisions to GITHUB_OUTPUT, the plan to the summary
 //   bun tools/ci/ci.ts report                the CI job: every job's result, the summary and the pull request comment
 //   bun tools/ci/ci.ts comment --kind <ci|performance> --section <file> [--old <file>]
@@ -271,6 +272,34 @@ function githubPlan(): Plan {
   return planOf([], `a ${event} run`)
 }
 
+/**
+ * The repo settings' own check: each JSON or YAML file under the repo-settings rules parses, and oxfmt finds it
+ * formatted. Nothing else in CI reads these files, so this is all a change to them needs.
+ * @returns the problems, none when every file passes
+ */
+function settingsProblems(): string[] {
+  const claimed = new Set(['repo-settings', 'pr-template'])
+  const data = lines(git('ls-files')).filter(f => claimed.has(ruleOf(f).id) && /\.(json|ya?ml)$/.test(f))
+  const problems: string[] = []
+
+  for (const f of data) {
+    const source = readFileSync(join(ROOT, f), 'utf8')
+
+    try {
+      if (f.endsWith('.json')) JSON.parse(source)
+      else Bun.YAML.parse(source)
+    } catch (e) {
+      problems.push(`${f} does not parse: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  const fmt = spawnSync('bash', ['-c', 'tools/node_modules/.bin/oxfmt --check "$@"', 'oxfmt', ...data], { cwd: ROOT, encoding: 'utf8' })
+
+  if (fmt.status !== 0) problems.push(`oxfmt --check: ${fmt.stdout}${fmt.stderr}`.trim())
+  console.log(`${data.length} repo settings files: ${data.join(', ')}`)
+
+  return problems
+}
+
 /** The checks: every workflow job is in the map and every job and step the map names exists, and every tracked file has a rule. */
 function check(): string[] {
   const problems: string[] = []
@@ -335,7 +364,18 @@ function selfTest(): void {
     [['docs/development/testing.md'], ['docs']],
     [['CONTRIBUTING.md', 'LICENSE', '.diagram-design/flow.json'], ['docs']],
     [['docs/design/history/cockpit.png'], ['docs']],
-    [['.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/bug.yml', '.github/pull_request_template.md'], ['docs']],
+    [['.github/rulesets/main.json'], ['settings']],
+    [['.github/CODEOWNERS', '.github/ISSUE_TEMPLATE/bug.yml', '.github/ISSUE_TEMPLATE/config.yml', '.github/dependabot.yml'], ['settings']],
+    [['.github/pull_request_template.md'], ['docs', 'settings']],
+    [
+      ['.github/rulesets/tags.json', 'docs/development/ci.md'],
+      ['docs', 'settings']
+    ],
+    [['.github/actionlint.yaml'], ALL],
+    [
+      ['.github/rulesets/main.json', 'hooks/register.tsx'],
+      [...GATE_TESTS, 'perf']
+    ],
     [['README.md'], ['docs', 'readme']],
     [['docs/assets/readme/hero.svg'], ['docs', 'readme']],
     [['docs/design/brand/ghostframe-wordmark-white.svg'], ['docs', 'readme']],
@@ -453,6 +493,12 @@ if (import.meta.main) {
       console.log(failed.length === 0 ? '\nci:run: every step passed.' : `\nci:run: failed: ${failed.join(', ')}`)
       process.exit(failed.length === 0 ? 0 : 1)
     }
+  } else if (cmd === 'settings') {
+    const problems = settingsProblems()
+
+    for (const p of problems) console.log(`::error::${p}`)
+    if (problems.length > 0) process.exit(1)
+    console.log('repo settings: every file parses and is formatted')
   } else if (cmd === 'step') {
     const [jobId, stepId] = rest
     const step = jobOf(jobId ?? '').steps?.find(s => s.id === stepId)
@@ -493,6 +539,6 @@ if (import.meta.main) {
     if (kind === undefined || section === undefined) throw new Error('usage: ci.ts comment --kind <ci|performance> --section <file> [--old <file>]')
     process.stdout.write(mergeComment(old !== undefined && existsSync(old) ? readFileSync(old, 'utf8') : undefined, kind, readFileSync(section, 'utf8')))
   } else {
-    throw new Error('usage: ci.ts plan | run [job…] | step <job> <id> | github | report | comment | --check | --self-test')
+    throw new Error('usage: ci.ts plan | run [job…] | step <job> <id> | settings | github | report | comment | --check | --self-test')
   }
 }
