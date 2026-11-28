@@ -36,5 +36,5 @@ export const SANS_GLYPHS = GLYPHS.filter(p => !BOX_AND_BLOCKS.includes(p))
 /** `✓ ↻ ∴ ▮`: in neither main font, so a third face holds them (ADR 0017). */
 export const GLYPH_FACE_POINTS = [0x2713, 0x21bb, 0x2234, 0x25ae]
 
-/** The woff2 file that sets text in each family; the glyph face is joined to the mono family by `unicode-range`. */
+/** The woff2 file that sets text in each family; the glyph face is its own family, 'Julia Glyphs', listed after JetBrains Mono in --mono. */
 export const FONT_FILES = { 'Hanken Grotesk': 'hanken-grotesk.woff2', 'JetBrains Mono': 'jetbrains-mono.woff2', glyphs: 'julia-mono-glyphs.woff2' } as const

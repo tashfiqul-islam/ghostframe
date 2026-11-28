@@ -45,12 +45,12 @@ typography:
     fontWeight: 400
     lineHeight: 1.55
   mono:
-    fontFamily: 'JetBrains Mono, Mono Fallback, ui-monospace, monospace'
+    fontFamily: 'JetBrains Mono, Julia Glyphs, Mono Fallback, ui-monospace, monospace'
     fontSize: '14px'
     fontWeight: 400
     lineHeight: 1.6
   label:
-    fontFamily: 'JetBrains Mono, Mono Fallback, ui-monospace, monospace'
+    fontFamily: 'JetBrains Mono, Julia Glyphs, Mono Fallback, ui-monospace, monospace'
     fontSize: '11px'
     fontWeight: 400
     letterSpacing: '0.13em'

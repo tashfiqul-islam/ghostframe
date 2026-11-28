@@ -26,7 +26,7 @@
 
   /* type */
   --sans: 'Hanken Grotesk', 'Hanken Fallback', system-ui, sans-serif;
-  --mono: 'JetBrains Mono', 'Mono Fallback', ui-monospace, monospace;
+  --mono: 'JetBrains Mono', 'Julia Glyphs', 'Mono Fallback', ui-monospace, monospace;
   --type-display: 64px;
   --type-display-phone: 40px;
   --type-hero: 60px;

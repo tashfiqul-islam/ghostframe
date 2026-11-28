@@ -176,10 +176,10 @@ writeFileSync(
   font-display: swap;
 }
 
-/* ✓ ↻ ∴ ▮ are in neither font: JuliaMono's four glyphs, joined to the mono family by unicode-range and fetched only
+/* ✓ ↻ ∴ ▮ are in neither font: JuliaMono's four glyphs, its own family, listed after JetBrains Mono in --mono, fetched only
    by a page that draws one. Its metrics are JetBrains Mono's own, so a glyph from it never changes a line's height. */
 @font-face {
-  font-family: 'JetBrains Mono';
+  font-family: 'Julia Glyphs';
   src: url('/fonts/${FONT_FILES.glyphs}') format('woff2');
   font-weight: 400 500;
   font-display: swap;
