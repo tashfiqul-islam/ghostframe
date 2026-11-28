@@ -29,6 +29,7 @@ import { compacted, dropTurns, loadHistory, markCompacted, saveTurn, setPin } fr
 import { clearSwitch } from './tui'
 import { flowNow, isNarrationAt } from '../shared/flow'
 import { changeHeld, type Held, heldValue, loadHeld, nextTick } from '../shared/held'
+import { noteRead } from '../shared/trace'
 import { detailsNow, noteEnd, noteStart, restoreDetails } from './keys/details'
 import { noteShown } from './mode'
 import { commitIn, hookWords, ruledStatement } from './steps/failures'
@@ -617,7 +618,11 @@ export async function readRoster($: EngineInterface): Promise<RosterAgent[]> {
  * @returns the running turn's id, or undefined
  */
 export async function runningTurn($: EngineInterface): Promise<string | undefined> {
-  return (await read($, running)) ?? undefined
+  const turn = (await read($, running)) ?? undefined
+
+  noteRead('running', turn)
+
+  return turn
 }
 
 /**
@@ -628,8 +633,11 @@ export async function runningTurn($: EngineInterface): Promise<string | undefine
 export async function readLog($: EngineInterface): Promise<StepLog> {
   // The tick moves at each write of the log: the draw follows it, with no copy of the log.
   await read($, stepLogTick)
+  const log = await logNow($)
 
-  return logNow($)
+  noteRead('stepLog', log)
+
+  return log
 }
 
 /**
@@ -639,8 +647,11 @@ export async function readLog($: EngineInterface): Promise<StepLog> {
  */
 export async function readReceipts($: EngineInterface): Promise<Receipt[]> {
   await read($, receiptsTick)
+  const list = await receiptsHeld($)
 
-  return receiptsHeld($)
+  noteRead('receipts', list)
+
+  return list
 }
 
 /**

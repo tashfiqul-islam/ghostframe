@@ -17,6 +17,7 @@ import type {
   TurnClose
 } from '../../../types'
 import { capTurns, changeHeld, type Held, heldValue, loadHeld, nextTick } from '../../shared/held'
+import { noteRead } from '../../shared/trace'
 import type { Part } from '../../shared/parts'
 import { NO_CAPS, NO_TALLY, capsLine } from '../live'
 
@@ -267,7 +268,11 @@ export async function stampEnd($: EngineInterface, id: string, end: Pick<StepSta
 }
 
 export async function readTurn($: EngineInterface): Promise<string | null> {
-  return read($, currentTurn)
+  const turn = await read($, currentTurn)
+
+  noteRead('turn', turn)
+
+  return turn
 }
 
 export async function updateTurn($: EngineInterface, change: (turn: string | null) => string | null): Promise<string | null> {
@@ -275,7 +280,11 @@ export async function updateTurn($: EngineInterface, change: (turn: string | nul
 }
 
 export async function readFirstTexts($: EngineInterface): Promise<FirstText[]> {
-  return read($, firstTexts)
+  const list = await read($, firstTexts)
+
+  noteRead('firstTexts', JSON.stringify(list))
+
+  return list
 }
 
 export async function updateFirstTexts($: EngineInterface, change: (list: FirstText[]) => FirstText[]): Promise<FirstText[]> {
@@ -299,7 +308,11 @@ export async function updateFirstTools($: EngineInterface, change: (list: string
 }
 
 export async function readStreaming($: EngineInterface): Promise<boolean> {
-  return read($, streaming)
+  const is = await read($, streaming)
+
+  noteRead('streaming', is)
+
+  return is
 }
 
 export async function updateStreaming($: EngineInterface, change: (is: boolean) => boolean): Promise<boolean> {
@@ -314,6 +327,15 @@ export async function updateAsked($: EngineInterface, change: (list: string[]) =
   return update($, asked, change)
 }
 
+/** The openers' capability stamps, for a draw (noted in its trace). */
+export async function readOpeners($: EngineInterface): Promise<OpenerCaps[]> {
+  const list = await read($, openers)
+
+  noteRead('openers', JSON.stringify(list))
+
+  return list
+}
+
 /**
  * How long Claude thought before a turn's opener (7.3), from the opener's capability stamp; 0 when it did not.
  * @param $ the engine interface
@@ -321,12 +343,12 @@ export async function updateAsked($: EngineInterface, change: (list: string[]) =
  * @returns the thinking time in ms
  */
 export async function openerThought($: EngineInterface, match: (o: OpenerCaps) => boolean): Promise<number> {
-  return (await read($, openers)).toReversed().find(match)?.caps.thoughtMs ?? 0
+  return (await readOpeners($)).toReversed().find(match)?.caps.thoughtMs ?? 0
 }
 
 // The capability line a turn's opener carries (by its text key or its first call's id).
 export async function openerCaps($: EngineInterface, match: (o: OpenerCaps) => boolean, width: number): Promise<Part[] | undefined> {
-  const found = (await read($, openers)).toReversed().find(match)
+  const found = (await readOpeners($)).toReversed().find(match)
 
   return found === undefined ? undefined : capsLine(found.caps, width)
 }

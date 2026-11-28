@@ -9,6 +9,7 @@ import type { Receipt, TurnRecord } from '../../../types'
 import { STORE_MAX, planBudget, recordOf, withRecord } from './record'
 import type { Kept, RecordParts } from './record'
 import { type Held, heldValue, loadHeld, nextTick, setHeld } from '../../shared/held'
+import { noteRead } from '../../shared/trace'
 
 const PREFIX = 'history:'
 // The prompts' stamps each session keeps (hooks/transcript/ledger/state.ts): weighed and evicted with its history.
@@ -73,8 +74,11 @@ export async function historyNow($: EngineInterface): Promise<TurnRecord[]> {
   // A store that cannot be read holds no turns for this copy of the module, as `storedRecordList` does: the session
   // keeps its turns from then on, whether or not the store takes them (`saveTurn`).
   if (heldHistory.value === undefined) await loadHeld(heldHistory, readStoreOrNone($))
+  const turns = heldValue(heldHistory)
 
-  return heldValue(heldHistory)
+  noteRead('historyNow', turns)
+
+  return turns
 }
 
 /** This session's kept narration rows as the store had them when this copy of the module first asked. */
@@ -120,8 +124,11 @@ export async function storedReceiptList($: EngineInterface): Promise<Receipt[]> 
 export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
   await read($, historyTick)
   const held = heldHistory.value?.v ?? []
+  const turns = held.length > 0 ? held : await storedRecordList($)
 
-  return held.length > 0 ? held : storedRecordList($)
+  noteRead('history', turns)
+
+  return turns
 }
 
 /**
@@ -132,7 +139,7 @@ export async function keptRecords($: EngineInterface): Promise<TurnRecord[]> {
  * @returns whether it is
  */
 export async function isKeptNarration($: EngineInterface, row: string): Promise<boolean> {
-  await read($, keptNarrationTick)
+  noteRead('keptNarration', await read($, keptNarrationTick))
   if (heldNarration.value === undefined) await loadHeld(heldNarration, setOf(read($, keptNarration)))
   if (heldNarration.value?.v.has(row) === true) return true
 

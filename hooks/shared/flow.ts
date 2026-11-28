@@ -5,6 +5,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { FlowStamp } from '../../types'
 import { changeHeld, type Held, heldValue, loadHeld, nextTick } from './held'
+import { noteRead } from './trace'
 
 // Session state (survives a reload). Change the shape tag when its fields change.
 const flow = atom({ plugin: 'ghostframe', key: 'flow' } as const, [] as FlowStamp[], { shape: 'flow-1' })
@@ -22,7 +23,7 @@ const flowTick = atom({ plugin: 'ghostframe', key: 'flowTick' } as const, 0, { s
  * @returns the flow
  */
 export async function readFlow($: EngineInterface): Promise<readonly FlowStamp[]> {
-  await read($, flowTick)
+  noteRead('flow', await read($, flowTick))
 
   return flowNow($)
 }
@@ -35,8 +36,11 @@ export async function readFlow($: EngineInterface): Promise<readonly FlowStamp[]
  */
 export async function flowNow($: EngineInterface): Promise<readonly FlowStamp[]> {
   if (held.value === undefined) await loadHeld(held, read($, flow))
+  const value = heldValue(held)
 
-  return heldValue(held)
+  noteRead('flowNow', value)
+
+  return value
 }
 
 export async function updateFlow($: EngineInterface, change: (list: FlowStamp[]) => FlowStamp[]): Promise<FlowStamp[]> {

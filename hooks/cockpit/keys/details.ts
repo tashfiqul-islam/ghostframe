@@ -6,6 +6,7 @@ import type { EngineInterface } from 'claude-code'
 
 import type { StepDetail } from '../../../types'
 import { changeHeld, type Held, heldValue, loadHeld, nextTick } from '../../shared/held'
+import { noteRead } from '../../shared/trace'
 import { num, obj, s } from '../../shared/calls/fields'
 import { shellText } from '../../shared/calls/ships'
 import { clean } from '../../shared/calls/tests'
@@ -203,6 +204,8 @@ export async function restoreDetails($: EngineInterface, saved: readonly StepDet
  */
 export async function detailsNow($: EngineInterface): Promise<StepDetail[]> {
   if (held.value === undefined) await loadHeld(held, read($, details))
+  // The held list's tick moves at every change of it or of the running calls'.
+  noteRead('details', held.tick ?? heldValue(held))
 
   return [...heldValue(held), ...running.values()]
 }

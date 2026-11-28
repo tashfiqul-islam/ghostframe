@@ -11,7 +11,9 @@ import type { Part } from '../shared/parts'
 import type { Ui } from '../shared/rule'
 import { drawRow, drawRows } from './draw'
 import { pinFromCommand } from './keys/view'
-import { readFrame, readLaunched, readLog, readReceipts, readRoster } from './log'
+import { readFrame, readLaunched, readLog, readReceipts, readRoster, runningTurn } from './log'
+import { detailsNow } from './keys/details'
+import type { Source } from '../shared/trace'
 import { readWork } from './work'
 import { stepLineOf, stepsAllLines } from './copy'
 import { beforeStart, docked, seated, setDockedFlag, shownAtTurn } from './mode'
@@ -25,7 +27,7 @@ import { drawAgentFailure, drawBlockCapsule, drawFallbackCalls, footerCapsule } 
 
 import { readFlow, isNarrationAt } from '../shared/flow'
 import { turnOfCall, turnView } from './fallback/facts'
-import { isKeptNarration, keptRecords, storedReceiptList } from './history/store'
+import { historyNow, isKeptNarration, keptRecords, storedReceiptList } from './history/store'
 import { isOn } from './switch'
 import { noteUnfolded, unfolded } from './unfolded'
 import { noticeRow, sentenceRows, taskNoticeRows } from './rows/events'
@@ -148,6 +150,33 @@ export const leftBlockCells = (row: RowSite): number => blockCells(row.viewport?
  * @returns whether it does
  */
 export const isFallbackRow = (row: RowSite): boolean => rowMode(row) === 'fallback'
+
+/**
+ * What Cockpit decides of a transcript row that is not in `$.state`, as text: whether it is on, the ctrl+o view, the
+ * row's mode and its widths. A row kept whole (reply.tsx) is drawn again from scratch when this changes.
+ * @param row the row's render request
+ * @returns the key's part
+ */
+export const leftKey = (row: RowSite): string => `${isOn()}|${unfolded()}|${rowMode(row)}|${leftCells(row)}|${leftBlockCells(row)}`
+
+/**
+ * Reads one of Cockpit's sources again for a row kept whole (shared/trace.ts), noting its version in the traces open.
+ * @param $ the engine interface
+ * @param source what to read
+ * @returns whether the source is Cockpit's
+ */
+export async function readCockpitSource($: EngineInterface, source: Source): Promise<boolean> {
+  if (source === 'running') await runningTurn($)
+  else if (source === 'receipts') await readReceipts($)
+  else if (source === 'stepLog') await readLog($)
+  else if (source === 'keptNarration') await isKeptNarration($, '')
+  else if (source === 'history') await keptRecords($)
+  else if (source === 'historyNow') await historyNow($)
+  else if (source === 'details') await detailsNow($)
+  else return false
+
+  return true
+}
 
 /** The terminal's columns as last drawn, so a re-open can wait for the width to hold (pane.tsx). */
 let columns: number | undefined

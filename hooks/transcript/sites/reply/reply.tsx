@@ -1,6 +1,6 @@
 // Claude's reply (`AssistantMessage`): its blocks on the measure, `claude` and the capability line on the turn's
 // opener, and footnote lines or a [ SOURCES ] frame for what it cites.
-import type { On } from 'claude-code'
+import type { EngineInterface, On, RenderElement, RenderInput } from 'claude-code'
 import { noteOwnTime } from '../../../shared/budget'
 
 import { isOn, readEnvOnce } from '../../../cockpit/switch'
@@ -12,9 +12,13 @@ import {
   isQuietRow,
   leftBlockCells,
   leftCells,
+  leftKey,
+  readCockpitSource,
   receiptsNow
 } from '../../../cockpit/left'
-import { layout } from '../../../shared/layout'
+import { layout, type Lay } from '../../../shared/layout'
+import { rememberText } from '../../../shared/held'
+import { closeTrace, openTrace, type Source } from '../../../shared/trace'
 import { C } from '../../../shared/tokens'
 import type { Block } from '../../blocks/split'
 import { blocksOf, citationsFor, turnCites } from '../../citations'
@@ -22,9 +26,9 @@ import { cell, claude } from '../../draw/cell'
 import { closeRow } from '../../draw/grid'
 import { drawParts, drawRows } from '../../draw/parts'
 import { browserOpenAbove, firstKey, flowPlace, inTurn, isQuietOpenerAt, isTurnOpener, isWebTool, sameKey } from '../../ledger/flow'
-import { readFlow } from '../../../shared/flow'
+import { flowNow, readFlow } from '../../../shared/flow'
 import { isStartRow } from '../../ledger/session'
-import { openerCaps, openerThought, readFirstTexts, readStreaming, readTurn } from '../../ledger/state'
+import { openerCaps, openerThought, readFirstTexts, readOpeners, readStreaming, readTurn } from '../../ledger/state'
 import { spineOnly } from '../../../shared/look/spine'
 import type { Part } from '../../../shared/parts'
 import { answerRows, claudeFootnotes, footnoteRows } from '../../rows/markdown'
@@ -67,199 +71,287 @@ export function registerReply(on: On): void {
         return next(e)
       }
 
-      // Quiet (Cockpit docked): narration leaves the transcript; its sentence is the pane's [ NOW ] (probe 1).
-      // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
-      // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
-      // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
-      // ctrl+o (E.4): a sentence Claude said while working is a `│` row, the steps it announced under it.
-      const sentence = await drawUnfoldedSentence($, e, firstKey(e.props.text), leftCells(e))
+      // Drawn again unchanged (the person scrolls back to it, the prompt grows): the tree it kept, once every value
+      // its draw read is read again, all at once, and found the same.
+      const key = keptKey(e)
+      const kept = keptRows.get(key)
 
-      if (sentence !== undefined) return sentence
+      if (kept !== undefined && (await isUnchanged($, kept))) {
+        if (kept.drawn !== undefined) drawnAs(e.requestId, kept.drawn)
 
-      // Each state read is a round trip to the engine, and the engine draws rows again as the person scrolls: what the
-      // draw needs is read together, once.
-      const [blocksSoFar, live, turnNow, running] = await Promise.all([readFlow($), readStreaming($), readTurn($), runningTurn($)])
-
-      if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId, blocksSoFar, running))) {
-        const { Box } = $.ui.resolve(e)
-
-        return <Box />
+        return kept.tree
       }
 
-      const width: number = lay.width
+      const noted: Noted = {}
+      const trace = openTrace()
+      let tree: RenderElement | undefined
 
-      // A summary of text written between tool calls: dim, in the content column, no bullet,
-      // no full-width line. `claude` only if this summary stands for the turn's opening text.
-      if (e.props.isSummary === true) {
-        return drawSummary($, e, lay)
+      try {
+        tree = await drawReply($, e, lay, noted)
+      } finally {
+        closeTrace(trace)
       }
 
-      const blocks = blocksOf(e.props.text)
+      if (tree === undefined) return next(e)
+      if (!trace.isSpoilt) rememberText(keptRows, key, { tree, versions: [...trace.versions], ...noted }, KEPT_CHARS)
 
-      if (blocks.length === 0) {
-        return next(e)
-      }
-
-      const ui = $.ui.resolve(e)
-      const { Box, Text, Markdown } = ui
-
-      // Footnote numbers run through the message in block order (§0.1 r7): an earlier
-      // paragraph's numbers never change when a later one streams in.
-      const isOffScreen = e.props.onScreen === null
-      const key = firstKey(e.props.text)
-      // Its own key first: a later block that only starts like this one is another block.
-      // A prefix (text still streaming) is looked for in the running turn only. A row the session held when it started
-      // (a resumed answer) is never the running turn's, so it is never placed at that turn's end.
-      const isLiveBlock = live && !isStartRow(e.requestId, live)
-      const place =
-        flowPlace(blocksSoFar, f => f.kind === 'text' && f.key === key, false, turnNow) ??
-        flowPlace(blocksSoFar, f => f.kind === 'text' && (!isLiveBlock || f.turn === turnNow) && sameKey(f.key, key), isLiveBlock, turnNow)
-      // This draw's message, across remounts (see `messageOf`).
-      const message = messageOf(e.requestId, key, place?.turn ?? null)
-
-      drawnAs(e.requestId, { key, turn: place?.turn ?? null })
-      // Numbers run through the turn, not just this message: a reply split over several
-      // messages (prose, a list, a Sources list) numbers each source once.
-      const earlier = place === undefined ? [] : turnCites(blocksSoFar, place.turn, place.at)
-      const citations = citationsFor(e.requestId, blocks, earlier)
-      const { cited, lists, tables, mine, mineListed, listsHere } = citations
-      // §0.2 citations, decided once and the same on every draw, streaming or done: a turn
-      // that used a web tool (search, fetch) before this message draws [ SOURCES ] frames and
-      // no footnote lines; any other turn draws footnote lines under the blocks that hold the
-      // markers. Read from the flow above this block, which never changes once the block
-      // starts: nothing that streams in later (more links, a Sources list, the turn ending)
-      // can turn footnote lines into a frame or back.
-      const framed = place !== undefined && blocksSoFar.slice(0, place.at).some(f => f.turn === place.turn && f.kind === 'tool' && isWebTool(f.tool))
-      // A message citing a source, or holding a Sources list (even one whose items no marker cites).
-      const citesHere = listsHere || [...cited.values(), ...lists.values(), ...tables.values()].some(x => x.cites.length > 0)
-      // Each citing message of a web turn ends with its own frame: what it cites, numbered
-      // through the turn, then what its Sources list names with no marker. It grows only at
-      // the message's own end while the message streams.
-      const drawsFrame = framed && citesHere && mine.length + mineListed.length > 0
-
-      // Narration (§0.1 r8): prose a tool call follows in the same turn is dim; the turn's
-      // final answer, and every plain Q&A reply, keeps normal text. Known once the next
-      // call is stored, so only the block right above the newest one changes, and only
-      // its colour, never its rows.
-      const quiet = place !== undefined && blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'tool')
-      const base = quiet ? C.dim : C.text
-      const reply: Reply = { ui, lay, width, quiet, base, framed, citations, tableDraws: tableDraws(blocks, message, width, live, isOffScreen, tables) }
-
-      // Segments: runs of blocks in the gutter column, and `wide` engine tables at full width.
-      type Segment = { wide: false; blocks: Block[] } | { wide: true; text: string }
-      const segments: Segment[] = []
-
-      for (const b of blocks) {
-        const last = segments[segments.length - 1]
-
-        if (b.kind === 'wide') {
-          segments.push({ wide: true, text: b.text })
-        } else if (last !== undefined && !last.wide) {
-          last.blocks.push(b)
-        } else {
-          segments.push({ wide: false, blocks: [b] })
-        }
-      }
-
-      // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
-      // every tool call too). A reply that opens on a wide table gets the label on its own row.
-      // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
-      const isQuietLeft = isQuietRow(e)
-      // The receipts, read once for the row's `claude` label and its receipt.
-      const receipts = isQuietLeft ? await receiptsNow($) : []
-      const isOpener = isQuietLeft
-        ? place === undefined
-          ? endsKeptTurn(receipts, e.requestId)
-          : isQuietOpenerAt(blocksSoFar, place.at)
-        : e.props.isFirstOfReply && isTurnOpener(await readFirstTexts($), e.props.text, place?.turn)
-      // The capability line takes `claude`'s row; the reply follows a blank row below it. Quiet, it is the pane's.
-      const capsRow = isOpener && !isQuietLeft ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
-      const label = isOpener && capsRow === undefined ? 'claude' : ''
-      const opensWide = segments[0]?.wide === true
-      // A browser frame left open right above this block: its bottom edge first.
-      const above = browserOpenAbove(blocksSoFar, place)
-      // One blank row above a reply block, the same after an activity row (●) as anywhere,
-      // except right under a frame that drew its own (a card, the task list). Decided when
-      // the block starts and kept: a card collapsing later never moves this block.
-      const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
-      const gap = replyGap(message, prev, place?.turn)
-      // Fallback: a block that stays opens with the capsule of the work before it (E.3), decided before its receipt.
-      const opening = isQuietLeft
-        ? await drawAnswerCapsule($, e, place === undefined ? undefined : blocksSoFar[place.at]?.key, place?.turn, leftCells(e))
-        : undefined
-      const capsule = opening?.capsule
-      // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
-      const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
-      // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
-      const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, leftCells(e), receipts) : undefined
-
-      // Cockpit's left (7.3, 7.4, 7.12, 7.13): the thought row on the turn's opener, a blank row after event rows, the
-      // answer's markdown on the spine with its footnote refs, the footnote lines, then the receipt; in fallback the
-      // worked node above it.
-      if (isQuietLeft) {
-        const cells = leftCells(e)
-        const thought = isOpener ? await openerThought($, o => inTurn(o.turn, place?.turn)) : 0
-        // Footnotes are the `[n]` references Claude wrote (7.4); Cockpit numbers no link or bare URL of its own.
-        const { body, notes } = claudeFootnotes(e.props.text)
-        const rows: Part[][] = [
-          ...(thought >= THOUGHT_SHOWN_MS ? [thoughtRow(thought), spineOnly()] : []),
-          ...(prev?.kind === 'tool' && prev.turn === place?.turn && thought < THOUGHT_SHOWN_MS ? [spineOnly()] : []),
-          ...answerRows(body, { width: cells, hasLead: isOpener, blockWidth: leftBlockCells(e) }),
-          ...(notes.length > 0 ? [spineOnly(), ...footnoteRows(notes, cells)] : []),
-          ...(receipt === undefined ? [spineOnly()] : [])
-        ]
-
-        return (
-          <Box flexDirection="column">
-            {capsule !== undefined && capsule}
-            {capsule !== undefined && drawRows(ui, [spineOnly()], 'gap')}
-            {drawRows(ui, rows, 'answer')}
-            {receipt}
-          </Box>
-        )
-      }
-
-      return (
-        <Box flexDirection="column">
-          {above > 0 && closeRow(ui, lay, above)}
-          {/* C.2: a capsule right under an event row (a failure) touches it. */}
-          <Box flexDirection="column" marginTop={opening?.isAfterEvent === true ? 0 : gap}>
-            {capsule !== undefined && <Box marginBottom={1}>{capsule}</Box>}
-            {capsRow !== undefined && <Box marginBottom={1}>{cell(ui, lay, claude(true), drawParts(ui, capsRow, 'caps'))}</Box>}
-            {(opensWide || lay.narrow) && label.length > 0 && <Text color={C.accent}>{label}</Text>}
-            {segments.map((seg, si) =>
-              seg.wide ? (
-                <Box key={`seg-${si}`} marginTop={si > 0 || (opensWide && label.length > 0) ? 1 : 0} width="100%">
-                  <Markdown text={seg.text} />
-                </Box>
-              ) : (
-                // Narrow: the label already stands as the caption line above.
-                cell(
-                  ui,
-                  lay,
-                  claude(si === 0 && label.length > 0 && !lay.narrow),
-                  seg.blocks.map((b, i) => drawBlock(reply, b, `blk-${si}-${i}`, i > 0 ? 1 : 0)),
-                  si > 0 ? 1 : 0,
-                  `seg-${si}`
-                )
-              )
-            )}
-            {/* §0.2: one blank row above the frame; none of its own when the reply's only block is the list it replaces (the reply's gap is that row). */}
-            {drawsFrame &&
-              cell(
-                ui,
-                lay,
-                undefined,
-                drawRows(ui, sourcesFrame(mine, width, mineListed), 'sources'),
-                blocks.every(b => b.kind === 'sources') ? 0 : 1,
-                'sources'
-              )}
-          </Box>
-          {receipt}
-        </Box>
-      )
+      return tree
     } finally {
       noteOwnTime($, 'ui.render AssistantMessage', next.budget)
     }
   })
+}
+
+/** What a draw noted for `drawnAs`, to note again when its tree is served from `keptRows`. */
+type Noted = { drawn?: { key: string; turn: string | null } }
+
+/** A reply row as last drawn: its tree, the version of each value its draw read, and what it noted. */
+type Kept = Noted & { tree: RenderElement; versions: readonly (readonly [Source, unknown])[] }
+
+// Each reply row as last drawn, by everything a draw takes that is not in `$.state`: its request, width, props, text,
+// and what Cockpit decides of it. Bounded by the characters of the keys, which hold the text the trees are laid out from.
+const keptRows = new Map<string, Kept>()
+const KEPT_CHARS = 1_000_000
+
+/** The key a row is kept under: everything its draw takes from the request and from Cockpit's own switches. */
+const keptKey = (e: RenderInput<'AssistantMessage', 'terminal'>): string =>
+  [
+    e.requestId,
+    e.viewport?.columns,
+    e.viewport?.isFullscreen,
+    leftKey(e),
+    e.props.isFirstOfReply,
+    e.props.isSummary,
+    e.props.onScreen === null,
+    e.props.text
+  ].join('␟')
+
+/**
+ * Whether every value a kept row's draw read stands as it did: each is read again (so the row stays subscribed to
+ * it, as its first draw was), all at once, one round trip.
+ * @param $ the engine interface
+ * @param kept the row as kept
+ * @returns whether the kept tree is the row's
+ */
+async function isUnchanged($: EngineInterface, kept: Kept): Promise<boolean> {
+  const trace = openTrace()
+
+  try {
+    await Promise.all(kept.versions.map(([source]) => readSource($, source)))
+  } finally {
+    closeTrace(trace)
+  }
+
+  return !trace.isSpoilt && kept.versions.every(([source, version]) => trace.versions.has(source) && Object.is(trace.versions.get(source), version))
+}
+
+/**
+ * Reads a source again, noting its version in the traces open.
+ * @param $ the engine interface
+ * @param source what to read
+ */
+async function readSource($: EngineInterface, source: Source): Promise<void> {
+  if (source === 'flow') await readFlow($)
+  else if (source === 'flowNow') await flowNow($)
+  else if (source === 'streaming') await readStreaming($)
+  else if (source === 'turn') await readTurn($)
+  else if (source === 'firstTexts') await readFirstTexts($)
+  else if (source === 'openers') await readOpeners($)
+  else if (!(await readCockpitSource($, source))) throw new Error(`reply: no reader for ${source}`)
+}
+
+/**
+ * Claude's reply drawn: what `registerReply`'s hook draws once the row is known to be ours to draw.
+ * @param $ the engine interface
+ * @param e the render
+ * @param lay the transcript's layout
+ * @param noted where the draw notes what `drawnAs` was told
+ * @returns the tree, or undefined for the engine's own row
+ */
+async function drawReply($: EngineInterface, e: RenderInput<'AssistantMessage', 'terminal'>, lay: Lay, noted: Noted): Promise<RenderElement | undefined> {
+  // Quiet (Cockpit docked): narration leaves the transcript; its sentence is the pane's [ NOW ] (probe 1).
+  // While the turn runs, its text waits unseen until it is known not to be narration, so nothing flashes:
+  // the engine may raise a block before its message (and the tool call after it) is stored. The answer is
+  // raised after `turn.complete` (probe 1), so waiting costs it nothing; a question to the person shows at once.
+  // ctrl+o (E.4): a sentence Claude said while working is a `│` row, the steps it announced under it.
+  const sentence = await drawUnfoldedSentence($, e, firstKey(e.props.text), leftCells(e))
+
+  if (sentence !== undefined) return sentence
+
+  // Each state read is a round trip to the engine, and the engine draws rows again as the person scrolls: what the
+  // draw needs is read together, once.
+  const [blocksSoFar, live, turnNow, running] = await Promise.all([readFlow($), readStreaming($), readTurn($), runningTurn($)])
+
+  if (isQuietRow(e) && (await isHiddenNarration($, e.props.text, e.requestId, blocksSoFar, running))) {
+    const { Box } = $.ui.resolve(e)
+
+    return <Box />
+  }
+
+  const width: number = lay.width
+
+  // A summary of text written between tool calls: dim, in the content column, no bullet,
+  // no full-width line. `claude` only if this summary stands for the turn's opening text.
+  if (e.props.isSummary === true) {
+    return drawSummary($, e, lay)
+  }
+
+  const blocks = blocksOf(e.props.text)
+
+  if (blocks.length === 0) {
+    return undefined
+  }
+
+  const ui = $.ui.resolve(e)
+  const { Box, Text, Markdown } = ui
+
+  // Footnote numbers run through the message in block order (§0.1 r7): an earlier
+  // paragraph's numbers never change when a later one streams in.
+  const isOffScreen = e.props.onScreen === null
+  const key = firstKey(e.props.text)
+  // Its own key first: a later block that only starts like this one is another block.
+  // A prefix (text still streaming) is looked for in the running turn only. A row the session held when it started
+  // (a resumed answer) is never the running turn's, so it is never placed at that turn's end.
+  const isLiveBlock = live && !isStartRow(e.requestId, live)
+  const place =
+    flowPlace(blocksSoFar, f => f.kind === 'text' && f.key === key, false, turnNow) ??
+    flowPlace(blocksSoFar, f => f.kind === 'text' && (!isLiveBlock || f.turn === turnNow) && sameKey(f.key, key), isLiveBlock, turnNow)
+  // This draw's message, across remounts (see `messageOf`).
+  const message = messageOf(e.requestId, key, place?.turn ?? null)
+
+  noted.drawn = { key, turn: place?.turn ?? null }
+  drawnAs(e.requestId, noted.drawn)
+  // Numbers run through the turn, not just this message: a reply split over several
+  // messages (prose, a list, a Sources list) numbers each source once.
+  const earlier = place === undefined ? [] : turnCites(blocksSoFar, place.turn, place.at)
+  const citations = citationsFor(e.requestId, blocks, earlier)
+  const { cited, lists, tables, mine, mineListed, listsHere } = citations
+  // §0.2 citations, decided once and the same on every draw, streaming or done: a turn
+  // that used a web tool (search, fetch) before this message draws [ SOURCES ] frames and
+  // no footnote lines; any other turn draws footnote lines under the blocks that hold the
+  // markers. Read from the flow above this block, which never changes once the block
+  // starts: nothing that streams in later (more links, a Sources list, the turn ending)
+  // can turn footnote lines into a frame or back.
+  const framed = place !== undefined && blocksSoFar.slice(0, place.at).some(f => f.turn === place.turn && f.kind === 'tool' && isWebTool(f.tool))
+  // A message citing a source, or holding a Sources list (even one whose items no marker cites).
+  const citesHere = listsHere || [...cited.values(), ...lists.values(), ...tables.values()].some(x => x.cites.length > 0)
+  // Each citing message of a web turn ends with its own frame: what it cites, numbered
+  // through the turn, then what its Sources list names with no marker. It grows only at
+  // the message's own end while the message streams.
+  const drawsFrame = framed && citesHere && mine.length + mineListed.length > 0
+
+  // Narration (§0.1 r8): prose a tool call follows in the same turn is dim; the turn's
+  // final answer, and every plain Q&A reply, keeps normal text. Known once the next
+  // call is stored, so only the block right above the newest one changes, and only
+  // its colour, never its rows.
+  const quiet = place !== undefined && blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'tool')
+  const base = quiet ? C.dim : C.text
+  const reply: Reply = { ui, lay, width, quiet, base, framed, citations, tableDraws: tableDraws(blocks, message, width, live, isOffScreen, tables) }
+
+  // Segments: runs of blocks in the gutter column, and `wide` engine tables at full width.
+  type Segment = { wide: false; blocks: Block[] } | { wide: true; text: string }
+  const segments: Segment[] = []
+
+  for (const b of blocks) {
+    const last = segments[segments.length - 1]
+
+    if (b.kind === 'wide') {
+      segments.push({ wide: true, text: b.text })
+    } else if (last !== undefined && !last.wide) {
+      last.blocks.push(b)
+    } else {
+      segments.push({ wide: false, blocks: [b] })
+    }
+  }
+
+  // `claude` once per turn, on Claude's first visible block (isFirstOfReply is true after
+  // every tool call too). A reply that opens on a wide table gets the label on its own row.
+  // Matched within the block's own turn: prose that only starts like another turn's opener is not one.
+  const isQuietLeft = isQuietRow(e)
+  // The receipts, read once for the row's `claude` label and its receipt.
+  const receipts = isQuietLeft ? await receiptsNow($) : []
+  const isOpener = isQuietLeft
+    ? place === undefined
+      ? endsKeptTurn(receipts, e.requestId)
+      : isQuietOpenerAt(blocksSoFar, place.at)
+    : e.props.isFirstOfReply && isTurnOpener(await readFirstTexts($), e.props.text, place?.turn)
+  // The capability line takes `claude`'s row; the reply follows a blank row below it. Quiet, it is the pane's.
+  const capsRow = isOpener && !isQuietLeft ? await openerCaps($, o => inTurn(o.turn, place?.turn) && sameKey(o.key, key), width) : undefined
+  const label = isOpener && capsRow === undefined ? 'claude' : ''
+  const opensWide = segments[0]?.wide === true
+  // A browser frame left open right above this block: its bottom edge first.
+  const above = browserOpenAbove(blocksSoFar, place)
+  // One blank row above a reply block, the same after an activity row (●) as anywhere,
+  // except right under a frame that drew its own (a card, the task list). Decided when
+  // the block starts and kept: a card collapsing later never moves this block.
+  const prev = place !== undefined && place.at > 0 ? blocksSoFar[place.at - 1] : undefined
+  const gap = replyGap(message, prev, place?.turn)
+  // Fallback: a block that stays opens with the capsule of the work before it (E.3), decided before its receipt.
+  const opening = isQuietLeft
+    ? await drawAnswerCapsule($, e, place === undefined ? undefined : blocksSoFar[place.at]?.key, place?.turn, leftCells(e))
+    : undefined
+  const capsule = opening?.capsule
+  // Quiet: the turn's last answer block ends with its receipt, once the turn is over (E.32).
+  const endsTurn = place !== undefined && !blocksSoFar.slice(place.at + 1).some(f => f.turn === place.turn && f.kind === 'text')
+  // The receipt that names this row (live, or a resumed transcript's, which has no place in the flow).
+  const receipt = isQuietLeft ? await drawAnswerReceipt($, e, place?.turn ?? null, endsTurn, leftCells(e), receipts) : undefined
+
+  // Cockpit's left (7.3, 7.4, 7.12, 7.13): the thought row on the turn's opener, a blank row after event rows, the
+  // answer's markdown on the spine with its footnote refs, the footnote lines, then the receipt; in fallback the
+  // worked node above it.
+  if (isQuietLeft) {
+    const cells = leftCells(e)
+    const thought = isOpener ? await openerThought($, o => inTurn(o.turn, place?.turn)) : 0
+    // Footnotes are the `[n]` references Claude wrote (7.4); Cockpit numbers no link or bare URL of its own.
+    const { body, notes } = claudeFootnotes(e.props.text)
+    const rows: Part[][] = [
+      ...(thought >= THOUGHT_SHOWN_MS ? [thoughtRow(thought), spineOnly()] : []),
+      ...(prev?.kind === 'tool' && prev.turn === place?.turn && thought < THOUGHT_SHOWN_MS ? [spineOnly()] : []),
+      ...answerRows(body, { width: cells, hasLead: isOpener, blockWidth: leftBlockCells(e) }),
+      ...(notes.length > 0 ? [spineOnly(), ...footnoteRows(notes, cells)] : []),
+      ...(receipt === undefined ? [spineOnly()] : [])
+    ]
+
+    return (
+      <Box flexDirection="column">
+        {capsule !== undefined && capsule}
+        {capsule !== undefined && drawRows(ui, [spineOnly()], 'gap')}
+        {drawRows(ui, rows, 'answer')}
+        {receipt}
+      </Box>
+    )
+  }
+
+  return (
+    <Box flexDirection="column">
+      {above > 0 && closeRow(ui, lay, above)}
+      {/* C.2: a capsule right under an event row (a failure) touches it. */}
+      <Box flexDirection="column" marginTop={opening?.isAfterEvent === true ? 0 : gap}>
+        {capsule !== undefined && <Box marginBottom={1}>{capsule}</Box>}
+        {capsRow !== undefined && <Box marginBottom={1}>{cell(ui, lay, claude(true), drawParts(ui, capsRow, 'caps'))}</Box>}
+        {(opensWide || lay.narrow) && label.length > 0 && <Text color={C.accent}>{label}</Text>}
+        {segments.map((seg, si) =>
+          seg.wide ? (
+            <Box key={`seg-${si}`} marginTop={si > 0 || (opensWide && label.length > 0) ? 1 : 0} width="100%">
+              <Markdown text={seg.text} />
+            </Box>
+          ) : (
+            // Narrow: the label already stands as the caption line above.
+            cell(
+              ui,
+              lay,
+              claude(si === 0 && label.length > 0 && !lay.narrow),
+              seg.blocks.map((b, i) => drawBlock(reply, b, `blk-${si}-${i}`, i > 0 ? 1 : 0)),
+              si > 0 ? 1 : 0,
+              `seg-${si}`
+            )
+          )
+        )}
+        {/* §0.2: one blank row above the frame; none of its own when the reply's only block is the list it replaces (the reply's gap is that row). */}
+        {drawsFrame &&
+          cell(ui, lay, undefined, drawRows(ui, sourcesFrame(mine, width, mineListed), 'sources'), blocks.every(b => b.kind === 'sources') ? 0 : 1, 'sources')}
+      </Box>
+      {receipt}
+    </Box>
+  )
 }
